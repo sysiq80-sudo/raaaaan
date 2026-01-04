@@ -13,8 +13,8 @@ const STORE_NAME = 'pending-notifications';
 const STATIC_ASSETS = [
   '/',
   '/favicon.ico',
-  '/logo.png',
-  '/manifest.json'
+  '/logo.png'
+  // '/manifest.json' // Removed due to CORS issues on some platforms
 ];
 
 // API endpoints with their cache durations (in seconds)
