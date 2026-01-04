@@ -520,7 +520,7 @@ const RiderHomeCustom: React.FC = () => {
       // Trigger ride matching
       await supabase.functions.invoke('match-ride', {
         body: {
-          ride_id: ride.id
+          rideId: ride.id
         }
       });
       toast({
