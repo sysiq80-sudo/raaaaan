@@ -26,6 +26,9 @@ import CompactVehicleSelector from '@/components/rider/CompactVehicleSelector';
 import { PaymentMethodBadge } from '@/components/rider/PaymentMethodSelector';
 import SupportButton from '@/components/rider/SupportButton';
 import ScrollablePromoBanners from '@/components/rider/ScrollablePromoBanners';
+import LocationInputCard from '@/components/rider/LocationInputCard';
+import TripInfoSummary from '@/components/rider/TripInfoSummary';
+import RecentDestinations from '@/components/rider/RecentDestinations';
 
 // Hooks
 import { useFareCalculation } from '@/hooks/useFareCalculation';
@@ -254,6 +257,16 @@ const RiderHomeCustom: React.FC = () => {
     getCurrentLocation();
   }, []);
 
+  // Monitor location changes
+  useEffect(() => {
+    if (pickupCoords) {
+      console.log('🗺️ Pickup coords updated:', pickupCoords);
+    }
+    if (dropoffCoords) {
+      console.log('🗺️ Dropoff coords updated:', dropoffCoords);
+    }
+  }, [pickupCoords, dropoffCoords]);
+
   // Handle route calculation
   const handleRouteCalculated = useCallback((distance: number, duration: number) => {
     setRouteDistance(distance);
@@ -262,6 +275,7 @@ const RiderHomeCustom: React.FC = () => {
 
   // Handle destination selection
   const handleDestinationSelect = useCallback((address: string, coords: { lat: number; lng: number }) => {
+    console.log('🎯 Destination selected:', { address, coords });
     if (selectingStopId) {
       const updatedStops = intermediateStops.map(stop =>
         stop.id === selectingStopId ? { ...stop, address, location: coords } : stop
@@ -271,16 +285,19 @@ const RiderHomeCustom: React.FC = () => {
     } else {
       setDropoff(address);
       setDropoffCoords(coords);
+      console.log('✅ Dropoff set:', { address, coords });
     }
-    setShowSearchOverlay(false);
+    // Keep search overlay visible with new design
     setShowLocationSheet(false);
-    setShowBookingPanel(true);
+    // Don't auto-show booking panel - user will click continue button
   }, [selectingStopId, intermediateStops]);
 
   // Handle pickup selection
   const handlePickupSelect = useCallback((address: string, coords: { lat: number; lng: number }) => {
+    console.log('📍 Pickup selected:', { address, coords });
     setPickup(address);
     setPickupCoords(coords);
+    console.log('✅ Pickup set:', { address, coords });
     setShowLocationSheet(false);
   }, []);
 
@@ -582,7 +599,7 @@ const RiderHomeCustom: React.FC = () => {
             draggableMarkers={false}
             isLocating={isLocating}
             onReloadLocation={getCurrentLocation}
-            hidePickupMarker={true}
+            hidePickupMarker={false}
           />
         </Suspense>
       </div>
@@ -603,25 +620,23 @@ const RiderHomeCustom: React.FC = () => {
 
             {/* Logo with Locate Button */}
             <div className="flex items-center gap-3">
-              {/* Reload Location Button */}
-              {isLocating !== undefined && (
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => getCurrentLocation()}
-                  disabled={isLocating}
-                  className={cn(
-                    "w-10 h-10 rounded-xl bg-card/95 backdrop-blur-xl shadow-lg border border-border/50 flex items-center justify-center transition-all",
-                    isLocating ? "cursor-wait" : "hover:border-primary/30 group"
-                  )}
-                  title="إعادة تحديد الموقع"
-                >
-                  <Locate className={cn(
-                    "w-5 h-5 transition-colors",
-                    isLocating ? "text-primary animate-pulse" : "text-muted-foreground group-hover:text-primary"
-                  )} />
-                </motion.button>
-              )}
+              {/* Reload Location Button - Always visible */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => getCurrentLocation()}
+                disabled={isLocating}
+                className={cn(
+                  "w-10 h-10 rounded-xl bg-card/95 backdrop-blur-xl shadow-lg border border-border/50 flex items-center justify-center transition-all",
+                  isLocating ? "cursor-wait" : "hover:border-primary/30 group"
+                )}
+                title="إعادة تحديد الموقع"
+              >
+                <Locate className={cn(
+                  "w-5 h-5 transition-colors",
+                  isLocating ? "text-primary animate-pulse" : "text-muted-foreground group-hover:text-primary"
+                )} />
+              </motion.button>
               
               {/* Logo */}
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center shadow-glow-sm">
@@ -646,31 +661,29 @@ const RiderHomeCustom: React.FC = () => {
             </div>
           </div>
 
-          {/* Drivers Count Badge */}
-          {nearbyDriversCount > 0 && !showBookingPanel && (
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-3 flex justify-center"
-            >
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card/95 backdrop-blur-xl border border-primary/20 shadow-lg">
-                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-sm font-medium">{nearbyDriversCount} سائق متاح قريب منك</span>
-              </div>
-            </motion.div>
-          )}
+          {/* Drivers Count Badge - Always visible */}
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-3 flex justify-center"
+          >
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card/95 backdrop-blur-xl border border-primary/20 shadow-lg">
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-sm font-medium">{nearbyDriversCount > 0 ? `${nearbyDriversCount} سائق متاح قريب منك` : 'جاري البحث عن السائقين...'}</span>
+            </div>
+          </motion.div>
         </div>
       </div>
 
-      {/* Search Overlay - Premium Design */}
+      {/* Search Overlay - Premium Design - Hide when booking panel is open */}
       <AnimatePresence>
-        {showSearchOverlay && !showBookingPanel && !showWaitingScreen && !showMapPicker && (
+        {showSearchOverlay && !showBookingPanel && (
           <motion.div 
             initial={{ opacity: 0, y: 50 }} 
             animate={{ 
               opacity: 1, 
               y: 0,
-              height: sheetHeight === 'collapsed' ? '140px' : sheetHeight === 'half' ? '50%' : '90%'
+              height: sheetHeight === 'collapsed' ? '180px' : sheetHeight === 'half' ? '55%' : '90%'
             }} 
             exit={{ opacity: 0, y: 50 }} 
             transition={{ type: 'spring', damping: 25, stiffness: 250 }}
@@ -726,102 +739,104 @@ const RiderHomeCustom: React.FC = () => {
                 </div>
               </div>
 
-              {/* Promo Banners */}
-              <div className="px-4 mb-4">
-                <ScrollablePromoBanners regionId={null} />
-              </div>
-
-              {/* Current Location Display */}
-              <motion.div 
-                whileHover={{ backgroundColor: 'hsl(var(--secondary) / 0.5)' }}
-                className="mx-4 p-4 rounded-2xl bg-secondary/30 border border-border/30 mb-3 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <button 
-                    onClick={() => getCurrentLocation()} 
-                    disabled={isLocating} 
-                    className="relative w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center shadow-glow-sm hover:shadow-glow transition-all disabled:opacity-50"
-                  >
-                    <Locate className={cn("w-6 h-6 text-primary-foreground", isLocating && "animate-pulse")} />
-                    {isLocating && (
-                      <div className="absolute inset-0 rounded-2xl border-2 border-primary animate-ping-slow" />
-                    )}
-                  </button>
-                  <div className="flex-1 min-w-0 text-right">
-                    <p className="text-xs text-primary font-medium mb-1 flex items-center gap-1 justify-end">
-                      <Navigation className="w-3 h-3" />
-                      نقطة الانطلاق
-                    </p>
-                    <p className="font-bold text-base truncate">
-                      {isLocating ? 'جاري تحديد الموقع...' : pickup || 'اضغط لتحديد موقعك'}
-                    </p>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="text-sm text-primary font-bold hover:bg-primary/10" 
-                    onClick={() => openLocationSheet('pickup_only')}
-                  >
-                    تغيير
-                  </Button>
+              {/* Promo Banners - Hide when dropoff is selected for cleaner UX */}
+              {!dropoffCoords && (
+                <div className="px-4 mb-4">
+                  <ScrollablePromoBanners regionId={null} />
                 </div>
-              </motion.div>
+              )}
 
-              {/* Destination Search Button */}
-              <motion.button
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                onClick={() => openLocationSheet('dropoff')}
-                className="mx-4 w-[calc(100%-2rem)] p-4 rounded-2xl bg-gradient-to-l from-primary/10 to-secondary/50 border-2 border-dashed border-primary/30 hover:border-primary/50 transition-all"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center">
-                    <Search className="w-6 h-6 text-primary" />
-                  </div>
-                  <div className="flex-1 text-right">
-                    <p className="text-lg font-bold text-foreground">إلى أين تريد الذهاب؟</p>
-                    <p className="text-sm text-muted-foreground">ابحث عن وجهتك</p>
-                  </div>
-                  <Sparkles className="w-5 h-5 text-primary animate-pulse" />
-                </div>
-              </motion.button>
+              {/* Location Input Cards - Professional Design */}
+              <div className="px-4 space-y-3 mb-4">
+                {/* Pickup Card */}
+                <LocationInputCard
+                  type="pickup"
+                  value={pickup}
+                  placeholder="من أين تريد الانطلاق؟"
+                  isLocating={isLocating}
+                  onGetLocation={getCurrentLocation}
+                  onClick={() => openLocationSheet('pickup_only')}
+                  onClear={() => {
+                    setPickup('');
+                    setPickupCoords(null);
+                  }}
+                  showClear={!!pickup}
+                />
 
-              {/* Saved Places Quick Icons */}
-              <div className="px-4 py-4">
-                <SavedPlacesQuickIcons 
-                  userId={user?.id || null} 
-                  onSelect={({ lat, lng, address }) => {
-                    handleDestinationSelect(address, { lat, lng });
-                  }} 
-                  onAddNew={() => navigate('/rider/saved-places')} 
+                {/* Dropoff Card */}
+                <LocationInputCard
+                  type="dropoff"
+                  value={dropoff}
+                  placeholder="إلى أين تريد الذهاب؟"
+                  onClick={() => openLocationSheet('dropoff')}
+                  onClear={() => {
+                    setDropoff('');
+                    setDropoffCoords(null);
+                    setRouteDistance(null);
+                    setRouteDuration(null);
+                  }}
+                  showClear={!!dropoff}
                 />
               </div>
 
-              {/* Payment Method */}
-              <motion.button 
-                whileHover={{ backgroundColor: 'hsl(var(--secondary) / 0.5)' }}
-                className="mx-4 p-4 rounded-2xl bg-secondary/30 border border-border/30 flex items-center justify-between transition-colors" 
-                onClick={() => setShowPaymentSheet(true)}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                    {paymentMethod === 'wallet' ? <Wallet className="w-5 h-5 text-primary" /> : 
-                     paymentMethod === 'cash' ? <Banknote className="w-5 h-5 text-primary" /> : 
-                     <CreditCard className="w-5 h-5 text-primary" />}
+              {/* Quick Booking Section - Compact trip info with prominent book button */}
+              {pickupCoords && dropoffCoords && routeDistance && !showBookingPanel && (
+                <div className="px-4 mb-4 space-y-3">
+                  {/* Compact Trip Stats */}
+                  <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-4 border border-primary/20">
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div>
+                        <Clock className="w-5 h-5 text-primary mx-auto mb-1" />
+                        <p className="text-lg font-bold">{routeDuration ? Math.round(routeDuration) : '--'}</p>
+                        <p className="text-xs text-muted-foreground">دقيقة</p>
+                      </div>
+                      <div>
+                        <Navigation className="w-5 h-5 text-primary mx-auto mb-1" />
+                        <p className="text-lg font-bold">{routeDistance.toFixed(1)}</p>
+                        <p className="text-xs text-muted-foreground">كم</p>
+                      </div>
+                      <div>
+                        <Wallet className="w-5 h-5 text-primary mx-auto mb-1" />
+                        <p className="text-lg font-bold">{fareBreakdown?.total_fare?.toLocaleString('ar-IQ') || '--'}</p>
+                        <p className="text-xs text-muted-foreground">د.ع</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-base">
-                      {paymentMethod === 'wallet' ? 'المحفظة الذكية' : 
-                       paymentMethod === 'cash' ? 'الدفع نقداً' : 
-                       paymentMethod === 'card' ? 'بطاقة ائتمان' : 
-                       paymentMethod === 'zain_cash' ? 'زين كاش' : 
-                       paymentMethod === 'nas_wallet' ? 'ناس' : 'طريقة الدفع'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">اضغط للتغيير</p>
-                  </div>
+                  
+                  {/* Large Booking Button */}
+                  <Button 
+                    onClick={() => setShowBookingPanel(true)}
+                    className="w-full h-16 text-lg font-bold rounded-2xl shadow-lg bg-gradient-to-l from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
+                  >
+                    احجز الآن
+                  </Button>
                 </div>
-                <ChevronDown className="w-5 h-5 text-muted-foreground" />
-              </motion.button>
+              )}
+
+              {/* Saved Places Quick Icons - Hide when dropoff is selected */}
+              {!dropoffCoords && (
+                <div className="px-4 py-4">
+                  <SavedPlacesQuickIcons 
+                    userId={user?.id || null} 
+                    onSelect={({ lat, lng, address }) => {
+                      handleDestinationSelect(address, { lat, lng });
+                    }} 
+                  onAddNew={() => navigate('/rider/saved-places')} 
+                />
+                </div>
+              )}
+
+              {/* Recent Destinations - Show when no dropoff selected */}
+              {!dropoffCoords && (
+                <div className="mb-4">
+                  <RecentDestinations
+                    userId={user?.id}
+                    onSelect={({ address, lat, lng }) => {
+                      handleDestinationSelect(address, { lat, lng });
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -834,7 +849,7 @@ const RiderHomeCustom: React.FC = () => {
             initial={{ opacity: 0, y: 100 }} 
             animate={{ opacity: 1, y: 0 }} 
             exit={{ opacity: 0, y: 100 }} 
-            className="absolute bottom-0 left-0 right-0 z-30"
+            className="absolute bottom-0 left-0 right-0 z-40"
           >
             <div className="bg-card rounded-t-[2.5rem] shadow-[0_-8px_40px_rgba(0,0,0,0.2)] border-t border-primary/10 max-h-[85vh] overflow-y-auto">
               {/* Header */}
@@ -863,28 +878,26 @@ const RiderHomeCustom: React.FC = () => {
               </div>
 
               <div className="p-4 space-y-5">
-                {/* Multi-Stop Selector */}
-                <MultiStopSelector 
-                  pickup={{ address: pickup || 'موقعي الحالي', location: pickupCoords }} 
-                  dropoff={{ address: dropoff, location: dropoffCoords }} 
-                  intermediateStops={intermediateStops} 
-                  onStopsChange={setIntermediateStops} 
-                  onStopSelect={stopId => {
-                    setSelectingStopId(stopId);
-                    openLocationSheet('dropoff');
-                  }} 
-                />
-
-                {/* Round Trip Selector */}
-                <RoundTripSelector 
-                  tripType={tripType} 
-                  onTripTypeChange={setTripType} 
-                  returnTime={returnTime} 
-                  onReturnTimeChange={setReturnTime} 
-                  oneWayFare={fareBreakdown?.total_fare || 0} 
-                  roundTripDiscount={15} 
-                  distanceKm={routeDistance || 0} 
-                />
+                {/* Route Summary - Compact display */}
+                <div className="bg-secondary/30 rounded-xl p-3 space-y-2">
+                  <div className="flex items-start gap-3">
+                    <div className="flex flex-col items-center gap-2 pt-1">
+                      <div className="w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30" />
+                      <div className="w-0.5 h-8 bg-gradient-to-b from-emerald-500 to-rose-500" />
+                      <div className="w-3 h-3 rounded-full bg-rose-500 ring-2 ring-rose-500/30" />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <div>
+                        <p className="text-xs text-muted-foreground">من</p>
+                        <p className="text-sm font-medium">{pickup || 'موقعي الحالي'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">إلى</p>
+                        <p className="text-sm font-medium">{dropoff}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Vehicle Selector */}
                 <div className="space-y-3">
@@ -925,7 +938,7 @@ const RiderHomeCustom: React.FC = () => {
                     ) : (
                       <span className="flex items-center gap-3">
                         <Navigation className="w-5 h-5" />
-                        احجز الآن • {fareBreakdown?.total_fare?.toLocaleString() || '---'} د.ع
+                        احجز الآن {fareBreakdown?.total_fare ? `• ${fareBreakdown.total_fare.toLocaleString('ar-IQ')} د.ع` : ''}
                       </span>
                     )}
                   </Button>
@@ -962,7 +975,7 @@ const RiderHomeCustom: React.FC = () => {
       )}
 
       {/* Map Location Picker - Now handled by crosshair mode in main map */}
-      {/* Confirm button for crosshair mode */}
+      {/* Confirm button for crosshair mode - Only show when map picker is active */}
       {showMapPicker && (
         <motion.div
           initial={{ opacity: 0, y: 50 }}
@@ -970,47 +983,47 @@ const RiderHomeCustom: React.FC = () => {
           exit={{ opacity: 0, y: 50 }}
           className="absolute bottom-0 left-0 right-0 z-30 pb-8 px-4"
         >
-          <div className="bg-card/95 backdrop-blur-xl rounded-3xl p-4 shadow-2xl border border-border/50">
-            <div className="flex gap-3">
-              {/* Cancel Button */}
-              <Button
-                onClick={() => setShowMapPicker(false)}
-                variant="outline"
-                size="lg"
-                className="flex-1 h-14 rounded-2xl text-base font-bold border-2"
-              >
-                <X className="w-5 h-5 ml-2" />
-                إلغاء
-              </Button>
-              
-              {/* Confirm Button */}
-              <Button
-                onClick={() => {
-                  if (mapPickerMode === 'pickup' && pickupCoords) {
-                    handleMapPickerConfirm({
-                      lat: pickupCoords.lat,
-                      lng: pickupCoords.lng,
-                      address: pickup || `${pickupCoords.lat.toFixed(5)}, ${pickupCoords.lng.toFixed(5)}`,
-                      inService: true
-                    });
-                  } else if (mapPickerMode === 'dropoff' && dropoffCoords) {
-                    handleMapPickerConfirm({
-                      lat: dropoffCoords.lat,
-                      lng: dropoffCoords.lng,
-                      address: dropoff || `${dropoffCoords.lat.toFixed(5)}, ${dropoffCoords.lng.toFixed(5)}`,
-                      inService: true
-                    });
-                  }
-                }}
-                size="lg"
-                className="flex-1 h-14 rounded-2xl text-base font-bold bg-gradient-to-l from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
-              >
-                تأكيد الموقع
-                <Target className="w-5 h-5 mr-2" />
-              </Button>
-            </div>
+        <div className="bg-card/95 backdrop-blur-xl rounded-3xl p-4 shadow-2xl border border-border/50">
+          <div className="flex gap-3">
+            {/* Cancel Button */}
+            <Button
+              onClick={() => setShowMapPicker(false)}
+              variant="outline"
+              size="lg"
+              className="flex-1 h-14 rounded-2xl text-base font-bold border-2"
+            >
+              <X className="w-5 h-5 ml-2" />
+              إلغاء
+            </Button>
+            
+            {/* Confirm Button */}
+            <Button
+              onClick={() => {
+                if (mapPickerMode === 'pickup' && pickupCoords) {
+                  handleMapPickerConfirm({
+                    lat: pickupCoords.lat,
+                    lng: pickupCoords.lng,
+                    address: pickup || `${pickupCoords.lat.toFixed(5)}, ${pickupCoords.lng.toFixed(5)}`,
+                    inService: true
+                  });
+                } else if (mapPickerMode === 'dropoff' && dropoffCoords) {
+                  handleMapPickerConfirm({
+                    lat: dropoffCoords.lat,
+                    lng: dropoffCoords.lng,
+                    address: dropoff || `${dropoffCoords.lat.toFixed(5)}, ${dropoffCoords.lng.toFixed(5)}`,
+                    inService: true
+                  });
+                }
+              }}
+              size="lg"
+              className="flex-1 h-14 rounded-2xl text-base font-bold bg-gradient-to-l from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+            >
+              تأكيد الموقع
+              <Target className="w-5 h-5 mr-2" />
+            </Button>
           </div>
-        </motion.div>
+        </div>
+      </motion.div>
       )}
       
       {/* Keeping old MapLocationPicker as fallback but not showing */}
@@ -1051,12 +1064,10 @@ const RiderHomeCustom: React.FC = () => {
         </Suspense>
       )}
 
-      {/* Bottom Navigation */}
-      {!showBookingPanel && !showWaitingScreen && (
-        <div className="absolute bottom-0 left-0 right-0 z-20">
-          <RiderBottomNav />
-        </div>
-      )}
+      {/* Bottom Navigation - Always visible */}
+      <div className="absolute bottom-0 left-0 right-0 z-20">
+        <RiderBottomNav />
+      </div>
     </div>
   );
 };

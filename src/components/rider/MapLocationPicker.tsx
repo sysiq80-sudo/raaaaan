@@ -242,28 +242,28 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
               </>
             )}
           </h1>
-          <Button
-            onClick={handleConfirm}
-            disabled={isCheckingService || !centerAddress || isMapMoving}
-            size="sm"
-            className={`px-4 py-2 text-sm font-bold rounded-xl transition-all duration-300 ${
-              isPickup 
-                ? 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 disabled:from-gray-400 disabled:to-gray-500' 
-                : 'bg-gradient-to-r from-blue-500 to-blue-400 hover:from-blue-600 hover:to-blue-500 disabled:from-gray-400 disabled:to-gray-500'
-            }`}
-          >
-            {isCheckingService ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : isMapMoving ? (
-              <span className="text-xs">انتظر...</span>
-            ) : (
-              <>
-                <Check className="w-4 h-4 ml-1" />
-                تأكيد
-              </>
-            )}
-          </Button>
+          <div className="w-10" />
         </div>
+      </div>
+
+      {/* Top-floating confirm button */}
+      <div className="absolute left-0 right-0 top-16 z-30 px-4">
+        <Button
+          onClick={handleConfirm}
+          disabled={isCheckingService || !centerAddress || isMapMoving}
+          className="w-full h-12 text-sm font-bold rounded-xl transition-all duration-300 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 disabled:from-gray-400 disabled:to-gray-500"
+        >
+          {isCheckingService ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : isMapMoving ? (
+            <span className="text-xs">انتظر حتى يتوقف الخريطة...</span>
+          ) : (
+            <>
+              <Check className="w-5 h-5 ml-2" />
+              {isPickup ? 'تأكيد موقع الانطلاق' : 'تأكيد موقع الوصول'}
+            </>
+          )}
+        </Button>
       </div>
 
       {/* Map */}
@@ -424,34 +424,10 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
             </div>
           </div>
 
-          {/* Confirm button - always visible but disabled when moving */}
-          <Button
-            onClick={handleConfirm}
-            disabled={isCheckingService || !centerAddress || isMapMoving}
-            className={`w-full h-14 text-lg font-bold rounded-2xl transition-all duration-300 ${
-              isPickup 
-                ? 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 disabled:from-gray-400 disabled:to-gray-500' 
-                : 'bg-gradient-to-r from-blue-500 to-blue-400 hover:from-blue-600 hover:to-blue-500 disabled:from-gray-400 disabled:to-gray-500'
-            }`}
-            style={{
-              boxShadow: isPickup 
-                ? '0 4px 20px rgba(0, 217, 165, 0.3)' 
-                : '0 4px 20px rgba(59, 130, 246, 0.3)'
-            }}
-          >
-            {isCheckingService ? (
-              <Loader2 className="w-6 h-6 animate-spin" />
-            ) : isMapMoving ? (
-              <span>انتظر حتى يتوقف الخريطة...</span>
-            ) : (
-              <>
-                <Check className="w-6 h-6 ml-2" />
-                تأكيد {isPickup ? 'موقع الانطلاق' : 'الوجهة'}
-              </>
-            )}
-          </Button>
         </div>
       </div>
+
+      {/* All controls live in the header to avoid stacking overlays */}
     </div>
   );
 };

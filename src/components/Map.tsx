@@ -238,7 +238,7 @@ const Map = forwardRef<MapRef, MapProps>(({
       }),
       'top-left'
     );
-
+    
     // Add geolocate control
     const geolocate = new mapboxgl.GeolocateControl({
       positionOptions: {
@@ -651,6 +651,43 @@ const Map = forwardRef<MapRef, MapProps>(({
       map.current?.remove();
     };
   }, [mapToken, reverseGeocodeCenter]);
+
+  // Render a bright green dot for the rider's current geolocation (only when no pickup/dropoff set)
+  useEffect(() => {
+    // Hide green dot if user has set pickup or dropoff locations
+    if (!map.current || !userLocation || pickupLocation || dropoffLocation) {
+      if (userMarker.current) {
+        userMarker.current.remove();
+        userMarker.current = null;
+      }
+      return;
+    }
+
+    if (userMarker.current) {
+      userMarker.current.remove();
+    }
+
+    const el = document.createElement('div');
+    el.style.cssText = `
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.25), 0 8px 18px rgba(16, 185, 129, 0.4);
+      border: 2px solid #fff;
+    `;
+
+    userMarker.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([userLocation.lng, userLocation.lat])
+      .addTo(map.current);
+
+    return () => {
+      if (userMarker.current) {
+        userMarker.current.remove();
+        userMarker.current = null;
+      }
+    };
+  }, [userLocation, pickupLocation, dropoffLocation]);
 
   // Fetch and draw route when both locations are set
   useEffect(() => {
