@@ -39,31 +39,24 @@ import { useRiderInitialization } from '@/hooks/useRiderInitialization';
 import { getMapboxToken } from '@/hooks/useMapboxToken';
 
 // Loading Skeletons
-const MapSkeleton = () => (
-  <div className="h-full w-full bg-gradient-to-b from-secondary to-background animate-pulse flex items-center justify-center">
+const MapSkeleton = () => <div className="h-full w-full bg-gradient-to-b from-secondary to-background animate-pulse flex items-center justify-center">
     <div className="text-center space-y-3">
       <div className="w-12 h-12 rounded-full bg-primary/20 mx-auto flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
       <p className="text-sm text-muted-foreground">جاري تحميل الخريطة...</p>
     </div>
-  </div>
-);
-
-const ScreenSkeleton = () => (
-  <div className="h-screen w-full bg-background flex items-center justify-center">
+  </div>;
+const ScreenSkeleton = () => <div className="h-screen w-full bg-background flex items-center justify-center">
     <div className="text-center space-y-4">
       <div className="w-16 h-16 rounded-full bg-primary/20 mx-auto flex items-center justify-center animate-pulse-glow">
         <MapPin className="w-8 h-8 text-primary" />
       </div>
       <p className="text-muted-foreground font-medium">جاري التحميل...</p>
     </div>
-  </div>
-);
-
+  </div>;
 type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
 type PaymentMethodType = 'cash' | 'wallet' | 'card' | 'zain_cash' | 'super_key' | 'nas_wallet';
-
 interface Stop {
   id: string;
   address: string;
@@ -74,27 +67,37 @@ interface Stop {
   estimatedTime?: number;
   distanceFromPrevious?: number;
 }
-
 const RiderHomeCustom: React.FC = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const {
+    toast
+  } = useToast();
 
   // Use optimized initialization hook
-  const { 
-    user, 
-    session, 
+  const {
+    user,
+    session,
     profile,
-    isLoading: authLoading, 
+    isLoading: authLoading,
     isProfileComplete,
-    updateProfile 
+    updateProfile
   } = useRiderInitialization();
 
   // Location State
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
-  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [pickupCoords, setPickupCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [dropoffCoords, setDropoffCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
   // Multi-stop & Round Trip State
   const [intermediateStops, setIntermediateStops] = useState<Stop[]>([]);
@@ -120,7 +123,7 @@ const RiderHomeCustom: React.FC = () => {
   const [showPaymentSheet, setShowPaymentSheet] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [activeField, setActiveField] = useState<'pickup' | 'dropoff' | 'both'>('both');
-  
+
   // Bottom Sheet Drag State
   const [sheetHeight, setSheetHeight] = useState<'collapsed' | 'half' | 'full'>('half');
   const [dragStartY, setDragStartY] = useState(0);
@@ -128,26 +131,24 @@ const RiderHomeCustom: React.FC = () => {
   const [isDraggingSheet, setIsDraggingSheet] = useState(false);
 
   // Hooks - only enable when needed
-  const { fareBreakdown, fareLoading } = useFareCalculation(
-    pickupCoords, 
-    dropoffCoords, 
-    selectedVehicle, 
-    routeDistance
-  );
-  
+  const {
+    fareBreakdown,
+    fareLoading
+  } = useFareCalculation(pickupCoords, dropoffCoords, selectedVehicle, routeDistance);
+
   // Only fetch drivers when pickup is set
-  const { 
-    nearbyDriversCount, 
-    nearbyDriverLocations, 
-    availableDriversByType, 
-    isLoading: driversLoading 
+  const {
+    nearbyDriversCount,
+    nearbyDriverLocations,
+    availableDriversByType,
+    isLoading: driversLoading
   } = useOptimizedNearbyDrivers(pickupCoords, selectedVehicle, {
     debounceMs: 1000,
     enableRealtime: !!pickupCoords
   });
-  
-  useRiderLocation({ enabled: !!user });
-  
+  useRiderLocation({
+    enabled: !!user
+  });
   const {
     activeRide,
     setActiveRide,
@@ -161,9 +162,7 @@ const RiderHomeCustom: React.FC = () => {
   const fetchAddressFromCoords = useCallback(async (lat: number, lng: number): Promise<string> => {
     try {
       const token = getMapboxToken();
-      const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&language=ar&types=address,poi,neighborhood,locality`
-      );
+      const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&language=ar&types=address,poi,neighborhood,locality`);
       if (response.ok) {
         const data = await response.json();
         if (data.features && data.features.length > 0) {
@@ -187,9 +186,8 @@ const RiderHomeCustom: React.FC = () => {
       });
       return;
     }
-    
     setIsLocating(true);
-    
+
     // Try with high accuracy first, then fallback to lower accuracy
     const options = retryCount === 0 ? {
       enableHighAccuracy: true,
@@ -200,61 +198,52 @@ const RiderHomeCustom: React.FC = () => {
       timeout: 20000,
       maximumAge: 60000 // Accept cached location up to 1 minute old
     };
-    
-    navigator.geolocation.getCurrentPosition(
-      async position => {
-        const coords = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        };
-        setUserLocation(coords);
-        setPickupCoords(coords);
+    navigator.geolocation.getCurrentPosition(async position => {
+      const coords = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude
+      };
+      setUserLocation(coords);
+      setPickupCoords(coords);
+      const address = await fetchAddressFromCoords(coords.lat, coords.lng);
+      setPickup(address);
+      setIsLocating(false);
+      // عند تحديد الموقع الحالي، ننتقل لاختيار الوجهة
+      if (!dropoffCoords) {
+        setActiveField('dropoff');
+      }
+      toast({
+        title: "تم تحديد موقعك ✓",
+        description: address
+      });
+    }, error => {
+      console.error('Geolocation error:', error);
 
-        const address = await fetchAddressFromCoords(coords.lat, coords.lng);
-        setPickup(address);
-        setIsLocating(false);
-        // عند تحديد الموقع الحالي، ننتقل لاختيار الوجهة
-        if (!dropoffCoords) {
-          setActiveField('dropoff');
-        }
-        toast({
-          title: "تم تحديد موقعك ✓",
-          description: address
-        });
-      },
-      error => {
-        console.error('Geolocation error:', error);
-        
-        // Retry with lower accuracy if first attempt failed
-        if (retryCount === 0 && error.code === error.TIMEOUT) {
-          console.log('Retrying with lower accuracy...');
-          getCurrentLocation(1);
-          return;
-        }
-        
-        setIsLocating(false);
-        
-        let errorMessage = "الرجاء السماح بالوصول للموقع";
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = "تم رفض الوصول للموقع. يرجى تفعيل الموقع من إعدادات المتصفح";
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = "معلومات الموقع غير متاحة حاليًا";
-            break;
-          case error.TIMEOUT:
-            errorMessage = "انتهت مهلة تحديد الموقع. يرجى المحاولة مرة أخرى";
-            break;
-        }
-        
-        toast({
-          title: "خطأ في تحديد الموقع",
-          description: errorMessage,
-          variant: "destructive"
-        });
-      },
-      options
-    );
+      // Retry with lower accuracy if first attempt failed
+      if (retryCount === 0 && error.code === error.TIMEOUT) {
+        console.log('Retrying with lower accuracy...');
+        getCurrentLocation(1);
+        return;
+      }
+      setIsLocating(false);
+      let errorMessage = "الرجاء السماح بالوصول للموقع";
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          errorMessage = "تم رفض الوصول للموقع. يرجى تفعيل الموقع من إعدادات المتصفح";
+          break;
+        case error.POSITION_UNAVAILABLE:
+          errorMessage = "معلومات الموقع غير متاحة حاليًا";
+          break;
+        case error.TIMEOUT:
+          errorMessage = "انتهت مهلة تحديد الموقع. يرجى المحاولة مرة أخرى";
+          break;
+      }
+      toast({
+        title: "خطأ في تحديد الموقع",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    }, options);
   }, [fetchAddressFromCoords, toast]);
 
   // Initial location fetch (only once)
@@ -279,18 +268,29 @@ const RiderHomeCustom: React.FC = () => {
   }, []);
 
   // Handle destination selection
-  const handleDestinationSelect = useCallback((address: string, coords: { lat: number; lng: number }) => {
-    console.log('🎯 Destination selected:', { address, coords });
+  const handleDestinationSelect = useCallback((address: string, coords: {
+    lat: number;
+    lng: number;
+  }) => {
+    console.log('🎯 Destination selected:', {
+      address,
+      coords
+    });
     if (selectingStopId) {
-      const updatedStops = intermediateStops.map(stop =>
-        stop.id === selectingStopId ? { ...stop, address, location: coords } : stop
-      );
+      const updatedStops = intermediateStops.map(stop => stop.id === selectingStopId ? {
+        ...stop,
+        address,
+        location: coords
+      } : stop);
       setIntermediateStops(updatedStops);
       setSelectingStopId(null);
     } else {
       setDropoff(address);
       setDropoffCoords(coords);
-      console.log('✅ Dropoff set:', { address, coords });
+      console.log('✅ Dropoff set:', {
+        address,
+        coords
+      });
       // عند اختيار الوجهة، إذا لم يكن موقع الانطلاق محدداً، نشط حقل الانطلاق
       if (!pickupCoords) {
         setActiveField('pickup');
@@ -302,11 +302,20 @@ const RiderHomeCustom: React.FC = () => {
   }, [selectingStopId, intermediateStops, pickupCoords]);
 
   // Handle pickup selection
-  const handlePickupSelect = useCallback((address: string, coords: { lat: number; lng: number }) => {
-    console.log('📍 Pickup selected:', { address, coords });
+  const handlePickupSelect = useCallback((address: string, coords: {
+    lat: number;
+    lng: number;
+  }) => {
+    console.log('📍 Pickup selected:', {
+      address,
+      coords
+    });
     setPickup(address);
     setPickupCoords(coords);
-    console.log('✅ Pickup set:', { address, coords });
+    console.log('✅ Pickup set:', {
+      address,
+      coords
+    });
     // عند اختيار موقع الانطلاق، إذا لم تكن الوجهة محددة، نشط حقل الوجهة
     if (!dropoffCoords) {
       setActiveField('dropoff');
@@ -315,49 +324,87 @@ const RiderHomeCustom: React.FC = () => {
   }, [dropoffCoords]);
 
   // Handle location select from bottom sheet
-  const handleLocationSheetSelect = useCallback((
-    location: { lat: number; lng: number; address: string; inService?: boolean },
-    type: 'pickup' | 'dropoff'
-  ) => {
+  const handleLocationSheetSelect = useCallback((location: {
+    lat: number;
+    lng: number;
+    address: string;
+    inService?: boolean;
+  }, type: 'pickup' | 'dropoff') => {
     if (type === 'pickup') {
-      handlePickupSelect(location.address, { lat: location.lat, lng: location.lng });
+      handlePickupSelect(location.address, {
+        lat: location.lat,
+        lng: location.lng
+      });
     } else {
-      handleDestinationSelect(location.address, { lat: location.lat, lng: location.lng });
+      handleDestinationSelect(location.address, {
+        lat: location.lat,
+        lng: location.lng
+      });
     }
   }, [handlePickupSelect, handleDestinationSelect]);
 
   // Handle map picker confirm
-  const handleMapPickerConfirm = useCallback((location: { lat: number; lng: number; address: string; inService?: boolean }) => {
+  const handleMapPickerConfirm = useCallback((location: {
+    lat: number;
+    lng: number;
+    address: string;
+    inService?: boolean;
+  }) => {
     if (mapPickerMode === 'pickup') {
-      handlePickupSelect(location.address, { lat: location.lat, lng: location.lng });
+      handlePickupSelect(location.address, {
+        lat: location.lat,
+        lng: location.lng
+      });
     } else {
-      handleDestinationSelect(location.address, { lat: location.lat, lng: location.lng });
+      handleDestinationSelect(location.address, {
+        lat: location.lat,
+        lng: location.lng
+      });
     }
     setShowMapPicker(false);
   }, [mapPickerMode, handlePickupSelect, handleDestinationSelect]);
 
   // Handle marker drag on the map
-  const handleMarkerDrag = useCallback((type: 'pickup' | 'dropoff', location: { lat: number; lng: number; address?: string }) => {
+  const handleMarkerDrag = useCallback((type: 'pickup' | 'dropoff', location: {
+    lat: number;
+    lng: number;
+    address?: string;
+  }) => {
     if (type === 'pickup') {
-      setPickupCoords({ lat: location.lat, lng: location.lng });
+      setPickupCoords({
+        lat: location.lat,
+        lng: location.lng
+      });
       setPickup(location.address || `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`);
     } else {
-      setDropoffCoords({ lat: location.lat, lng: location.lng });
+      setDropoffCoords({
+        lat: location.lat,
+        lng: location.lng
+      });
       setDropoff(location.address || `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`);
     }
   }, []);
 
   // Handle map movement in crosshair mode
-  const handleMapMove = useCallback((location: { lat: number; lng: number; address?: string }) => {
+  const handleMapMove = useCallback((location: {
+    lat: number;
+    lng: number;
+    address?: string;
+  }) => {
     if (!showMapPicker) return;
-    
     if (mapPickerMode === 'pickup') {
-      setPickupCoords({ lat: location.lat, lng: location.lng });
+      setPickupCoords({
+        lat: location.lat,
+        lng: location.lng
+      });
       if (location.address) {
         setPickup(location.address);
       }
     } else {
-      setDropoffCoords({ lat: location.lat, lng: location.lng });
+      setDropoffCoords({
+        lat: location.lat,
+        lng: location.lng
+      });
       if (location.address) {
         setDropoff(location.address);
       }
@@ -377,36 +424,29 @@ const RiderHomeCustom: React.FC = () => {
     setDragStartY(clientY);
     setCurrentY(clientY);
   }, []);
-
   const handleDragMove = useCallback((e: React.TouchEvent | React.MouseEvent) => {
     if (!isDraggingSheet) return;
     e.preventDefault(); // Prevent scrolling while dragging
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     setCurrentY(clientY);
   }, [isDraggingSheet]);
-
   const handleDragEnd = useCallback(() => {
     if (!isDraggingSheet) return;
     setIsDraggingSheet(false);
-    
     const dragDistance = currentY - dragStartY;
     const threshold = 80;
-
     if (Math.abs(dragDistance) < 10) {
       // Just a tap/click, don't change state
       return;
     }
-
     if (dragDistance > threshold) {
       // Dragged down
-      if (sheetHeight === 'full') setSheetHeight('half');
-      else if (sheetHeight === 'half') setSheetHeight('collapsed');
+      if (sheetHeight === 'full') setSheetHeight('half');else if (sheetHeight === 'half') setSheetHeight('collapsed');
     } else if (dragDistance < -threshold) {
       // Dragged up
-      if (sheetHeight === 'collapsed') setSheetHeight('half');
-      else if (sheetHeight === 'half') setSheetHeight('full');
+      if (sheetHeight === 'collapsed') setSheetHeight('half');else if (sheetHeight === 'half') setSheetHeight('full');
     }
-    
+
     // Reset drag state
     setDragStartY(0);
     setCurrentY(0);
@@ -423,7 +463,6 @@ const RiderHomeCustom: React.FC = () => {
       navigate('/auth?redirect=/rider-1custom');
       return;
     }
-
     if (!pickupCoords || !dropoffCoords) {
       toast({
         title: "معلومات ناقصة",
@@ -432,32 +471,33 @@ const RiderHomeCustom: React.FC = () => {
       });
       return;
     }
-
     setIsBooking(true);
     try {
-      const { data: ride, error } = await supabase
-        .from('rides')
-        .insert([{
-          rider_id: user.id,
-          pickup_location: pickupCoords,
-          dropoff_location: dropoffCoords,
-          pickup_address: pickup || 'موقعي الحالي',
-          dropoff_address: dropoff,
-          vehicle_type: selectedVehicle,
-          payment_method: paymentMethod,
-          estimated_fare: fareBreakdown?.total_fare || 0,
-          distance_km: routeDistance ? Number(routeDistance.toFixed(2)) : null,
-          duration_minutes: routeDuration ? Math.round(routeDuration) : null,
-          status: 'pending'
-        } as any])
-        .select()
-        .single();
-
+      const {
+        data: ride,
+        error
+      } = await supabase.from('rides').insert([{
+        rider_id: user.id,
+        pickup_location: pickupCoords,
+        dropoff_location: dropoffCoords,
+        pickup_address: pickup || 'موقعي الحالي',
+        dropoff_address: dropoff,
+        vehicle_type: selectedVehicle,
+        payment_method: paymentMethod,
+        estimated_fare: fareBreakdown?.total_fare || 0,
+        distance_km: routeDistance ? Number(routeDistance.toFixed(2)) : null,
+        duration_minutes: routeDuration ? Math.round(routeDuration) : null,
+        status: 'pending'
+      } as any]).select().single();
       if (error) throw error;
-
-      const pickupLoc = ride.pickup_location as unknown as { lat: number; lng: number };
-      const dropoffLoc = ride.dropoff_location as unknown as { lat: number; lng: number };
-
+      const pickupLoc = ride.pickup_location as unknown as {
+        lat: number;
+        lng: number;
+      };
+      const dropoffLoc = ride.dropoff_location as unknown as {
+        lat: number;
+        lng: number;
+      };
       setActiveRide({
         id: ride.id,
         pickup_location: pickupLoc,
@@ -474,15 +514,15 @@ const RiderHomeCustom: React.FC = () => {
         created_at: ride.created_at,
         completed_at: ride.completed_at
       });
-
       setShowBookingPanel(false);
       setShowWaitingScreen(true);
 
       // Trigger ride matching
       await supabase.functions.invoke('match-ride', {
-        body: { ride_id: ride.id }
+        body: {
+          ride_id: ride.id
+        }
       });
-
       toast({
         title: "تم إرسال طلبك ✅",
         description: "جاري البحث عن سائق قريب"
@@ -529,92 +569,59 @@ const RiderHomeCustom: React.FC = () => {
 
   // Complete profile screen
   if (!isProfileComplete && user) {
-    return (
-      <Suspense fallback={<ScreenSkeleton />}>
-        <CompleteProfileScreen 
-          userId={user.id} 
-          onComplete={name => {
-            updateProfile({ full_name: name });
-          }} 
-        />
-      </Suspense>
-    );
+    return <Suspense fallback={<ScreenSkeleton />}>
+        <CompleteProfileScreen userId={user.id} onComplete={name => {
+        updateProfile({
+          full_name: name
+        });
+      }} />
+      </Suspense>;
   }
 
   // Active ride tracker
   if (showLiveTracker && activeRide && activeRide.status !== 'pending') {
-    return (
-      <Suspense fallback={<ScreenSkeleton />}>
-        <LiveRideTracker 
-          ride={{
-            id: activeRide.id,
-            pickup_location: activeRide.pickup_location,
-            dropoff_location: activeRide.dropoff_location,
-            pickup_address: activeRide.pickup_address,
-            dropoff_address: activeRide.dropoff_address,
-            status: activeRide.status,
-            estimated_fare: activeRide.estimated_fare,
-            final_fare: activeRide.final_fare,
-            distance_km: activeRide.distance_km,
-            duration_minutes: activeRide.duration_minutes,
-            vehicle_type: activeRide.vehicle_type,
-            driver_id: activeRide.driver_id,
-            created_at: activeRide.created_at,
-            completed_at: activeRide.completed_at
-          }} 
-          onClose={() => setShowLiveTracker(false)} 
-          onRideUpdate={updatedRide => {
-            setActiveRide({ ...activeRide, ...updatedRide });
-            if (updatedRide.status === 'completed' || updatedRide.status === 'cancelled') {
-              resetBooking();
-            }
-          }} 
-        />
-      </Suspense>
-    );
+    return <Suspense fallback={<ScreenSkeleton />}>
+        <LiveRideTracker ride={{
+        id: activeRide.id,
+        pickup_location: activeRide.pickup_location,
+        dropoff_location: activeRide.dropoff_location,
+        pickup_address: activeRide.pickup_address,
+        dropoff_address: activeRide.dropoff_address,
+        status: activeRide.status,
+        estimated_fare: activeRide.estimated_fare,
+        final_fare: activeRide.final_fare,
+        distance_km: activeRide.distance_km,
+        duration_minutes: activeRide.duration_minutes,
+        vehicle_type: activeRide.vehicle_type,
+        driver_id: activeRide.driver_id,
+        created_at: activeRide.created_at,
+        completed_at: activeRide.completed_at
+      }} onClose={() => setShowLiveTracker(false)} onRideUpdate={updatedRide => {
+        setActiveRide({
+          ...activeRide,
+          ...updatedRide
+        });
+        if (updatedRide.status === 'completed' || updatedRide.status === 'cancelled') {
+          resetBooking();
+        }
+      }} />
+      </Suspense>;
   }
 
   // Waiting screen
   if (showWaitingScreen && activeRide) {
-    return (
-      <Suspense fallback={<ScreenSkeleton />}>
-        <RideWaitingScreen 
-          rideId={activeRide.id} 
-          pickupAddress={activeRide.pickup_address || pickup || 'موقعي الحالي'} 
-          dropoffAddress={activeRide.dropoff_address || dropoff} 
-          estimatedFare={activeRide.estimated_fare || fareBreakdown?.total_fare || 0} 
-          onCancel={resetBooking} 
-          onDriverFound={() => {
-            setShowWaitingScreen(false);
-            setShowLiveTracker(true);
-          }} 
-        />
-      </Suspense>
-    );
+    return <Suspense fallback={<ScreenSkeleton />}>
+        <RideWaitingScreen rideId={activeRide.id} pickupAddress={activeRide.pickup_address || pickup || 'موقعي الحالي'} dropoffAddress={activeRide.dropoff_address || dropoff} estimatedFare={activeRide.estimated_fare || fareBreakdown?.total_fare || 0} onCancel={resetBooking} onDriverFound={() => {
+        setShowWaitingScreen(false);
+        setShowLiveTracker(true);
+      }} />
+      </Suspense>;
   }
-
-  return (
-    <div className="h-screen w-full relative overflow-hidden bg-background">
+  return <div className="h-screen w-full relative overflow-hidden bg-background">
       {/* Full Screen Map */}
       <div className="absolute inset-0 z-0">
         <Suspense fallback={<MapSkeleton />}>
-          <LazyMap 
-            className="h-full w-full rounded-none" 
-            fallbackHeight="h-full" 
-            pickupLocation={pickupCoords} 
-            dropoffLocation={dropoffCoords} 
-            nearbyDrivers={nearbyDriverLocations} 
-            onRouteCalculated={handleRouteCalculated} 
-            selectingLocation={showMapPicker ? mapPickerMode : null}
-            useCrosshairMode={showMapPicker} 
-            onMapMove={handleMapMove}
-            showCenterMarker={false}
-            onLocationSelect={() => {}}
-            draggableMarkers={false}
-            isLocating={isLocating}
-            onReloadLocation={getCurrentLocation}
-            hidePickupMarker={false}
-          />
+          <LazyMap className="h-full w-full rounded-none" fallbackHeight="h-full" pickupLocation={pickupCoords} dropoffLocation={dropoffCoords} nearbyDrivers={nearbyDriverLocations} onRouteCalculated={handleRouteCalculated} selectingLocation={showMapPicker ? mapPickerMode : null} useCrosshairMode={showMapPicker} onMapMove={handleMapMove} showCenterMarker={false} onLocationSelect={() => {}} draggableMarkers={false} isLocating={isLocating} onReloadLocation={getCurrentLocation} hidePickupMarker={false} />
         </Suspense>
       </div>
 
@@ -623,33 +630,23 @@ const RiderHomeCustom: React.FC = () => {
         <div className="p-4">
           <div className="flex items-center justify-between">
             {/* Menu Button */}
-            <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="w-12 h-12 rounded-2xl bg-card/95 backdrop-blur-xl shadow-lg border border-border/50 flex items-center justify-center group hover:border-primary/30 transition-all"
-              onClick={() => setShowSideMenu(true)}
-            >
+            <motion.button whileHover={{
+            scale: 1.05
+          }} whileTap={{
+            scale: 0.95
+          }} className="w-12 h-12 rounded-2xl bg-card/95 backdrop-blur-xl shadow-lg border border-border/50 flex items-center justify-center group hover:border-primary/30 transition-all" onClick={() => setShowSideMenu(true)}>
               <Menu className="w-5 h-5 text-foreground group-hover:text-primary transition-colors" />
             </motion.button>
 
             {/* Logo with Locate Button */}
             <div className="flex items-center gap-3">
               {/* Reload Location Button - Always visible */}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => getCurrentLocation()}
-                disabled={isLocating}
-                className={cn(
-                  "w-10 h-10 rounded-xl bg-card/95 backdrop-blur-xl shadow-lg border border-border/50 flex items-center justify-center transition-all",
-                  isLocating ? "cursor-wait" : "hover:border-primary/30 group"
-                )}
-                title="إعادة تحديد الموقع"
-              >
-                <Locate className={cn(
-                  "w-5 h-5 transition-colors",
-                  isLocating ? "text-primary animate-pulse" : "text-muted-foreground group-hover:text-primary"
-                )} />
+              <motion.button whileHover={{
+              scale: 1.05
+            }} whileTap={{
+              scale: 0.95
+            }} onClick={() => getCurrentLocation()} disabled={isLocating} className={cn("w-10 h-10 rounded-xl bg-card/95 backdrop-blur-xl shadow-lg border border-border/50 flex items-center justify-center transition-all", isLocating ? "cursor-wait" : "hover:border-primary/30 group")} title="إعادة تحديد الموقع">
+                <Locate className={cn("w-5 h-5 transition-colors", isLocating ? "text-primary animate-pulse" : "text-muted-foreground group-hover:text-primary")} />
               </motion.button>
               
               {/* Logo */}
@@ -662,11 +659,11 @@ const RiderHomeCustom: React.FC = () => {
             {/* Actions */}
             <div className="flex items-center gap-2">
               <SupportButton />
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="relative w-12 h-12 rounded-2xl bg-card/95 backdrop-blur-xl shadow-lg border border-border/50 flex items-center justify-center group hover:border-primary/30 transition-all"
-              >
+              <motion.button whileHover={{
+              scale: 1.05
+            }} whileTap={{
+              scale: 0.95
+            }} className="relative w-12 h-12 rounded-2xl bg-card/95 backdrop-blur-xl shadow-lg border border-border/50 flex items-center justify-center group hover:border-primary/30 transition-all">
                 <Bell className="w-5 h-5 text-foreground group-hover:text-primary transition-colors" />
                 <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-[10px] text-destructive-foreground font-bold flex items-center justify-center">
                   3
@@ -676,11 +673,13 @@ const RiderHomeCustom: React.FC = () => {
           </div>
 
           {/* Drivers Count Badge - Always visible */}
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-3 flex justify-center"
-          >
+          <motion.div initial={{
+          opacity: 0,
+          y: -10
+        }} animate={{
+          opacity: 1,
+          y: 0
+        }} className="mt-3 flex justify-center">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card/95 backdrop-blur-xl border border-primary/20 shadow-lg">
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               <span className="text-sm font-medium">{nearbyDriversCount > 0 ? `${nearbyDriversCount} سائق متاح قريب منك` : 'جاري البحث عن السائقين...'}</span>
@@ -691,33 +690,33 @@ const RiderHomeCustom: React.FC = () => {
 
       {/* Search Overlay - Premium Design - Hide when booking panel is open */}
       <AnimatePresence>
-        {showSearchOverlay && !showBookingPanel && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50 }} 
-            animate={{ 
-              opacity: 1, 
-              y: 0,
-              height: sheetHeight === 'collapsed' ? '180px' : sheetHeight === 'half' ? '55%' : '90%'
-            }} 
-            exit={{ opacity: 0, y: 50 }} 
-            transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-            drag="y"
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={0.1}
-            onDragEnd={(e, info) => {
-              const threshold = 80;
-              if (info.offset.y > threshold) {
-                // Dragged down
-                if (sheetHeight === 'full') setSheetHeight('half');
-                else if (sheetHeight === 'half') setSheetHeight('collapsed');
-              } else if (info.offset.y < -threshold) {
-                // Dragged up
-                if (sheetHeight === 'collapsed') setSheetHeight('half');
-                else if (sheetHeight === 'half') setSheetHeight('full');
-              }
-            }}
-            className="absolute bottom-0 left-0 right-0 z-10 pointer-events-auto overflow-hidden"
-          >
+        {showSearchOverlay && !showBookingPanel && <motion.div initial={{
+        opacity: 0,
+        y: 50
+      }} animate={{
+        opacity: 1,
+        y: 0,
+        height: sheetHeight === 'collapsed' ? '180px' : sheetHeight === 'half' ? '55%' : '90%'
+      }} exit={{
+        opacity: 0,
+        y: 50
+      }} transition={{
+        type: 'spring',
+        damping: 25,
+        stiffness: 250
+      }} drag="y" dragConstraints={{
+        top: 0,
+        bottom: 0
+      }} dragElastic={0.1} onDragEnd={(e, info) => {
+        const threshold = 80;
+        if (info.offset.y > threshold) {
+          // Dragged down
+          if (sheetHeight === 'full') setSheetHeight('half');else if (sheetHeight === 'half') setSheetHeight('collapsed');
+        } else if (info.offset.y < -threshold) {
+          // Dragged up
+          if (sheetHeight === 'collapsed') setSheetHeight('half');else if (sheetHeight === 'half') setSheetHeight('full');
+        }
+      }} className="absolute bottom-0 left-0 right-0 z-10 pointer-events-auto overflow-hidden">
             <div className="bg-gradient-to-t from-card via-card/98 to-card/90 backdrop-blur-xl rounded-t-[2.5rem] shadow-[0_-8px_40px_rgba(0,0,0,0.15)] pb-24 pt-3 border-t border-primary/10 h-full overflow-y-auto">
               {/* Drag Handle - Interactive */}
               <div className="flex justify-center mb-2 cursor-grab active:cursor-grabbing py-2 -mt-2 select-none">
@@ -725,57 +724,25 @@ const RiderHomeCustom: React.FC = () => {
                   <div className="w-12 h-1.5 rounded-full bg-muted-foreground/30 hover:bg-muted-foreground/50 transition-colors" />
                   {/* Height indicators */}
                   <div className="flex gap-1.5">
-                    <button
-                      onClick={() => setSheetHeight('collapsed')}
-                      className={cn(
-                        "w-1.5 h-1.5 rounded-full transition-all hover:scale-125",
-                        sheetHeight === 'collapsed' ? "bg-primary w-3" : "bg-muted-foreground/30"
-                      )}
-                      aria-label="إخفاء"
-                    />
-                    <button
-                      onClick={() => setSheetHeight('half')}
-                      className={cn(
-                        "w-1.5 h-1.5 rounded-full transition-all hover:scale-125",
-                        sheetHeight === 'half' ? "bg-primary w-3" : "bg-muted-foreground/30"
-                      )}
-                      aria-label="متوسط"
-                    />
-                    <button
-                      onClick={() => setSheetHeight('full')}
-                      className={cn(
-                        "w-1.5 h-1.5 rounded-full transition-all hover:scale-125",
-                        sheetHeight === 'full' ? "bg-primary w-3" : "bg-muted-foreground/30"
-                      )}
-                      aria-label="توسيع"
-                    />
+                    <button onClick={() => setSheetHeight('collapsed')} className={cn("w-1.5 h-1.5 rounded-full transition-all hover:scale-125", sheetHeight === 'collapsed' ? "bg-primary w-3" : "bg-muted-foreground/30")} aria-label="إخفاء" />
+                    <button onClick={() => setSheetHeight('half')} className={cn("w-1.5 h-1.5 rounded-full transition-all hover:scale-125", sheetHeight === 'half' ? "bg-primary w-3" : "bg-muted-foreground/30")} aria-label="متوسط" />
+                    <button onClick={() => setSheetHeight('full')} className={cn("w-1.5 h-1.5 rounded-full transition-all hover:scale-125", sheetHeight === 'full' ? "bg-primary w-3" : "bg-muted-foreground/30")} aria-label="توسيع" />
                   </div>
                 </div>
               </div>
 
               {/* رسالة ترحيبية في البداية */}
-              {activeField === 'both' && !pickupCoords && !dropoffCoords && (
-                <div className="px-4 mb-4">
-                  <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-2xl p-6 text-center">
-                    <div className="text-4xl mb-3">👋</div>
-                    <h3 className="font-bold text-lg mb-2">مرحباً بك في رعان تاكسي</h3>
-                    <p className="text-sm text-muted-foreground">
-                      حدد موقع الانطلاق والوجهة لبدء رحلتك
-                    </p>
-                  </div>
-                </div>
-              )}
+              {activeField === 'both' && !pickupCoords && !dropoffCoords && <div className="px-4 mb-4">
+                  
+                </div>}
 
               {/* Promo Banners - Hide when dropoff is selected for cleaner UX */}
-              {!dropoffCoords && activeField !== 'pickup' && (activeField === 'dropoff' || (pickupCoords && !dropoffCoords)) && (
-                <div className="px-4 mb-4">
+              {!dropoffCoords && activeField !== 'pickup' && (activeField === 'dropoff' || pickupCoords && !dropoffCoords) && <div className="px-4 mb-4">
                   <ScrollablePromoBanners regionId={null} />
-                </div>
-              )}
+                </div>}
 
               {/* رسالة توجيهية عند اختيار موقع الانطلاق */}
-              {activeField === 'pickup' && !pickupCoords && dropoffCoords && (
-                <div className="px-4 mb-4">
+              {activeField === 'pickup' && !pickupCoords && dropoffCoords && <div className="px-4 mb-4">
                   <div className="bg-gradient-to-r from-blue-500/10 to-blue-600/10 border border-blue-500/30 rounded-2xl p-5 text-center">
                     <div className="text-3xl mb-2">📍</div>
                     <p className="text-base font-bold text-blue-600 dark:text-blue-400 mb-1">
@@ -785,12 +752,10 @@ const RiderHomeCustom: React.FC = () => {
                       انقر على الحقل أعلاه أو استخدم موقعك الحالي
                     </p>
                   </div>
-                </div>
-              )}
+                </div>}
 
               {/* رسالة توجيهية عند اختيار الوجهة */}
-              {activeField === 'dropoff' && !dropoffCoords && pickupCoords && (
-                <div className="px-4 mb-4">
+              {activeField === 'dropoff' && !dropoffCoords && pickupCoords && <div className="px-4 mb-4">
                   <div className="bg-gradient-to-r from-green-500/10 to-emerald-600/10 border border-green-500/30 rounded-2xl p-5 text-center">
                     <div className="text-3xl mb-2">🎯</div>
                     <p className="text-base font-bold text-green-600 dark:text-green-400 mb-1">
@@ -800,78 +765,46 @@ const RiderHomeCustom: React.FC = () => {
                       اختر من الأماكن المحفوظة أو الوجهات الأخيرة
                     </p>
                   </div>
-                </div>
-              )}
+                </div>}
 
               {/* Location Input Cards - Professional Design */}
               <div className="px-4 space-y-3 mb-4">
                 {/* Pickup Card - يظهر دائماً إلا إذا كان محدداً والوجهة غير محددة */}
-                {(activeField === 'pickup' || activeField === 'both' || pickupCoords) && (
-                  <LocationInputCard
-                    type="pickup"
-                    value={pickup}
-                    placeholder="من أين تريد الانطلاق؟"
-                    isLocating={isLocating}
-                    onGetLocation={getCurrentLocation}
-                    onClick={() => {
-                      setActiveField('pickup');
-                      openLocationSheet('pickup_only');
-                    }}
-                    onClear={() => {
-                      setPickup('');
-                      setPickupCoords(null);
-                      setActiveField('both');
-                    }}
-                    showClear={!!pickup}
-                  />
-                )}
+                {(activeField === 'pickup' || activeField === 'both' || pickupCoords) && <LocationInputCard type="pickup" value={pickup} placeholder="من أين تريد الانطلاق؟" isLocating={isLocating} onGetLocation={getCurrentLocation} onClick={() => {
+              setActiveField('pickup');
+              openLocationSheet('pickup_only');
+            }} onClear={() => {
+              setPickup('');
+              setPickupCoords(null);
+              setActiveField('both');
+            }} showClear={!!pickup} />}
 
                 {/* Dropoff Card - يظهر إذا كان الحقل النشط هو dropoff أو both أو إذا كان محدداً */}
-                {(activeField === 'dropoff' || activeField === 'both' || dropoffCoords) && (
-                  <LocationInputCard
-                    type="dropoff"
-                    value={dropoff}
-                    placeholder="إلى أين تريد الذهاب؟"
-                    onClick={() => {
-                      setActiveField('dropoff');
-                      openLocationSheet('dropoff');
-                    }}
-                    onClear={() => {
-                      setDropoff('');
-                      setDropoffCoords(null);
-                      setRouteDistance(null);
-                      setRouteDuration(null);
-                      setActiveField('both');
-                    }}
-                    showClear={!!dropoff}
-                  />
-                )}
+                {(activeField === 'dropoff' || activeField === 'both' || dropoffCoords) && <LocationInputCard type="dropoff" value={dropoff} placeholder="إلى أين تريد الذهاب؟" onClick={() => {
+              setActiveField('dropoff');
+              openLocationSheet('dropoff');
+            }} onClear={() => {
+              setDropoff('');
+              setDropoffCoords(null);
+              setRouteDistance(null);
+              setRouteDuration(null);
+              setActiveField('both');
+            }} showClear={!!dropoff} />}
 
                 {/* زر لإظهار الحقل الآخر */}
-                {activeField === 'pickup' && pickupCoords && !dropoffCoords && (
-                  <button
-                    onClick={() => setActiveField('dropoff')}
-                    className="w-full flex items-center justify-center gap-2 p-4 bg-gradient-to-l from-primary/10 to-primary/5 hover:from-primary/15 hover:to-primary/10 border border-primary/20 rounded-2xl transition-all"
-                  >
+                {activeField === 'pickup' && pickupCoords && !dropoffCoords && <button onClick={() => setActiveField('dropoff')} className="w-full flex items-center justify-center gap-2 p-4 bg-gradient-to-l from-primary/10 to-primary/5 hover:from-primary/15 hover:to-primary/10 border border-primary/20 rounded-2xl transition-all">
                     <MapPin className="w-5 h-5 text-primary" />
                     <span className="font-semibold text-primary">إضافة وجهة</span>
-                  </button>
-                )}
+                  </button>}
                 
-                {activeField === 'dropoff' && dropoffCoords && !pickupCoords && (
-                  <button
-                    onClick={() => setActiveField('pickup')}
-                    className="w-full flex items-center justify-center gap-2 p-4 bg-gradient-to-l from-primary/10 to-primary/5 hover:from-primary/15 hover:to-primary/10 border border-primary/20 rounded-2xl transition-all"
-                  >
+                {activeField === 'dropoff' && dropoffCoords && !pickupCoords && <button onClick={() => setActiveField('pickup')} className="w-full flex items-center justify-center gap-2 p-4 bg-gradient-to-l from-primary/10 to-primary/5 hover:from-primary/15 hover:to-primary/10 border border-primary/20 rounded-2xl transition-all">
                     <Navigation className="w-5 h-5 text-primary" />
                     <span className="font-semibold text-primary">إضافة موقع الانطلاق</span>
-                  </button>
-                )}
+                  </button>}
               </div>
 
               {/* Quick Booking Section - Compact trip info with prominent book button */}
-              {pickupCoords && dropoffCoords && routeDistance && !showBookingPanel && (
-                <div className="px-4 mb-4 space-y-3">
+              {pickupCoords && dropoffCoords && routeDistance && !showBookingPanel && <div className="px-4 mb-4 space-y-3">
                   {/* Compact Trip Stats */}
                   <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-4 border border-primary/20">
                     <div className="grid grid-cols-3 gap-3 text-center">
@@ -894,95 +827,83 @@ const RiderHomeCustom: React.FC = () => {
                   </div>
                   
                   {/* Large Booking Button */}
-                  <Button 
-                    onClick={() => setShowBookingPanel(true)}
-                    className="w-full h-16 text-lg font-bold rounded-2xl shadow-lg bg-gradient-to-l from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
-                  >
+                  <Button onClick={() => setShowBookingPanel(true)} className="w-full h-16 text-lg font-bold rounded-2xl shadow-lg bg-gradient-to-l from-primary to-primary/90 hover:from-primary/90 hover:to-primary">
                     احجز الآن
                   </Button>
-                </div>
-              )}
+                </div>}
 
               {/* Saved Places Quick Icons - Show when selecting destination */}
-              {!dropoffCoords && (activeField === 'dropoff' || activeField === 'both') && (
-                <div className="px-4 py-4">
-                  <SavedPlacesQuickIcons 
-                    userId={user?.id || null} 
-                    onSelect={({ lat, lng, address }) => {
-                      handleDestinationSelect(address, { lat, lng });
-                    }} 
-                  onAddNew={() => navigate('/rider/saved-places')} 
-                />
-                </div>
-              )}
+              {!dropoffCoords && (activeField === 'dropoff' || activeField === 'both') && <div className="px-4 py-4">
+                  <SavedPlacesQuickIcons userId={user?.id || null} onSelect={({
+              lat,
+              lng,
+              address
+            }) => {
+              handleDestinationSelect(address, {
+                lat,
+                lng
+              });
+            }} onAddNew={() => navigate('/rider/saved-places')} />
+                </div>}
 
               {/* Recent Destinations - Show when selecting destination */}
-              {!dropoffCoords && (activeField === 'dropoff' || activeField === 'both') && (
-                <div className="mb-4">
-                  <RecentDestinations
-                    userId={user?.id}
-                    onSelect={({ address, lat, lng }) => {
-                      handleDestinationSelect(address, { lat, lng });
-                    }}
-                  />
-                </div>
-              )}
+              {!dropoffCoords && (activeField === 'dropoff' || activeField === 'both') && <div className="mb-4">
+                  <RecentDestinations userId={user?.id} onSelect={({
+              address,
+              lat,
+              lng
+            }) => {
+              handleDestinationSelect(address, {
+                lat,
+                lng
+              });
+            }} />
+                </div>}
             </div>
-          </motion.div>
-        )}
+          </motion.div>}
       </AnimatePresence>
 
       {/* Booking Panel - Enhanced */}
       <AnimatePresence>
-        {showBookingPanel && dropoffCoords && (
-          <motion.div 
-            initial={{ opacity: 0, y: 100 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            exit={{ opacity: 0, y: 100 }} 
-            className="absolute bottom-0 left-0 right-0 z-40"
-          >
+        {showBookingPanel && dropoffCoords && <motion.div initial={{
+        opacity: 0,
+        y: 100
+      }} animate={{
+        opacity: 1,
+        y: 0
+      }} exit={{
+        opacity: 0,
+        y: 100
+      }} className="absolute bottom-0 left-0 right-0 z-40">
             <div className="bg-card rounded-t-[2.5rem] shadow-[0_-8px_40px_rgba(0,0,0,0.2)] border-t border-primary/10 max-h-[85vh] overflow-y-auto">
               {/* Header */}
               <div className="sticky top-0 bg-card z-10 px-4 py-4 border-b border-border/30">
                 <div className="flex items-center gap-4">
-                  <motion.button 
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={resetBooking}
-                    className="w-10 h-10 rounded-xl bg-secondary/50 flex items-center justify-center hover:bg-secondary transition-colors"
-                  >
+                  <motion.button whileHover={{
+                scale: 1.1
+              }} whileTap={{
+                scale: 0.9
+              }} onClick={resetBooking} className="w-10 h-10 rounded-xl bg-secondary/50 flex items-center justify-center hover:bg-secondary transition-colors">
                     <ArrowLeft className="w-5 h-5" />
                   </motion.button>
                   <div className="flex-1">
                     <h2 className="font-bold text-lg">تفاصيل الرحلة</h2>
-                    {routeDistance && (
-                      <p className="text-sm text-muted-foreground">
+                    {routeDistance && <p className="text-sm text-muted-foreground">
                         {routeDistance.toFixed(1)} كم • {routeDuration ? Math.round(routeDuration) : '--'} دقيقة
-                      </p>
-                    )}
+                      </p>}
                   </div>
                   <div className="flex gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => {
-                        setActiveField('pickup');
-                        openLocationSheet('pickup_only');
-                      }} 
-                      className="text-primary font-bold hover:bg-primary/10"
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => {
+                  setActiveField('pickup');
+                  openLocationSheet('pickup_only');
+                }} className="text-primary font-bold hover:bg-primary/10">
                       <Navigation className="w-3 h-3 ml-1" />
                       انطلاق
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => {
-                        setActiveField('dropoff');
-                        openLocationSheet('dropoff');
-                      }} 
-                      className="text-primary font-bold hover:bg-primary/10"
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => {
+                  setActiveField('dropoff');
+                  openLocationSheet('dropoff');
+                }} className="text-primary font-bold hover:bg-primary/10">
                       <MapPin className="w-3 h-3 ml-1" />
                       وجهة
                     </Button>
@@ -1018,12 +939,7 @@ const RiderHomeCustom: React.FC = () => {
                     <Star className="w-4 h-4 text-primary" />
                     اختر نوع السيارة
                   </p>
-                  <CompactVehicleSelector 
-                    selectedVehicle={selectedVehicle} 
-                    onSelect={setSelectedVehicle} 
-                    baseFare={fareBreakdown?.total_fare}
-                    availableDrivers={availableDriversByType} 
-                  />
+                  <CompactVehicleSelector selectedVehicle={selectedVehicle} onSelect={setSelectedVehicle} baseFare={fareBreakdown?.total_fare} availableDrivers={availableDriversByType} />
                 </div>
 
                 {/* Payment Method */}
@@ -1033,156 +949,99 @@ const RiderHomeCustom: React.FC = () => {
                 </div>
 
                 {/* Book Button */}
-                <motion.div
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                >
-                  <Button 
-                    className="w-full h-16 text-lg font-bold rounded-2xl bg-gradient-to-l from-primary to-primary-dark shadow-glow hover:shadow-glow-lg transition-all" 
-                    size="lg" 
-                    onClick={handleBookRide} 
-                    disabled={isBooking || fareLoading}
-                  >
-                    {isBooking ? (
-                      <span className="flex items-center gap-3">
+                <motion.div whileHover={{
+              scale: 1.01
+            }} whileTap={{
+              scale: 0.99
+            }}>
+                  <Button className="w-full h-16 text-lg font-bold rounded-2xl bg-gradient-to-l from-primary to-primary-dark shadow-glow hover:shadow-glow-lg transition-all" size="lg" onClick={handleBookRide} disabled={isBooking || fareLoading}>
+                    {isBooking ? <span className="flex items-center gap-3">
                         <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
                         جاري الحجز...
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-3">
+                      </span> : <span className="flex items-center gap-3">
                         <Navigation className="w-5 h-5" />
                         احجز الآن {fareBreakdown?.total_fare ? `• ${fareBreakdown.total_fare.toLocaleString('ar-IQ')} د.ع` : ''}
-                      </span>
-                    )}
+                      </span>}
                   </Button>
                 </motion.div>
               </div>
             </div>
-          </motion.div>
-        )}
+          </motion.div>}
       </AnimatePresence>
 
       {/* Location Bottom Sheet */}
-      {showLocationSheet && (
-        <Suspense fallback={null}>
-          <LocationBottomSheet 
-            isOpen={showLocationSheet} 
-            onClose={() => setShowLocationSheet(false)} 
-            activeField={locationSheetField} 
-            pickup={pickup} 
-            dropoff={dropoff} 
-            onPickupChange={setPickup} 
-            onDropoffChange={setDropoff} 
-            onLocationSelect={handleLocationSheetSelect} 
-            onOpenMapPicker={type => {
-              setShowLocationSheet(false);
-              setMapPickerMode(type);
-              setShowMapPicker(true);
-            }} 
-            userLocation={userLocation} 
-            pickupCoords={pickupCoords} 
-            dropoffCoords={dropoffCoords} 
-            userId={user?.id} 
-          />
-        </Suspense>
-      )}
+      {showLocationSheet && <Suspense fallback={null}>
+          <LocationBottomSheet isOpen={showLocationSheet} onClose={() => setShowLocationSheet(false)} activeField={locationSheetField} pickup={pickup} dropoff={dropoff} onPickupChange={setPickup} onDropoffChange={setDropoff} onLocationSelect={handleLocationSheetSelect} onOpenMapPicker={type => {
+        setShowLocationSheet(false);
+        setMapPickerMode(type);
+        setShowMapPicker(true);
+      }} userLocation={userLocation} pickupCoords={pickupCoords} dropoffCoords={dropoffCoords} userId={user?.id} />
+        </Suspense>}
 
       {/* Map Location Picker - Now handled by crosshair mode in main map */}
       {/* Confirm button for crosshair mode - Only show when map picker is active */}
-      {showMapPicker && (
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 50 }}
-          className="absolute bottom-0 left-0 right-0 z-30 pb-8 px-4"
-        >
+      {showMapPicker && <motion.div initial={{
+      opacity: 0,
+      y: 50
+    }} animate={{
+      opacity: 1,
+      y: 0
+    }} exit={{
+      opacity: 0,
+      y: 50
+    }} className="absolute bottom-0 left-0 right-0 z-30 pb-8 px-4">
         <div className="bg-card/95 backdrop-blur-xl rounded-3xl p-4 shadow-2xl border border-border/50">
           <div className="flex gap-3">
             {/* Cancel Button */}
-            <Button
-              onClick={() => setShowMapPicker(false)}
-              variant="outline"
-              size="lg"
-              className="flex-1 h-14 rounded-2xl text-base font-bold border-2"
-            >
+            <Button onClick={() => setShowMapPicker(false)} variant="outline" size="lg" className="flex-1 h-14 rounded-2xl text-base font-bold border-2">
               <X className="w-5 h-5 ml-2" />
               إلغاء
             </Button>
             
             {/* Confirm Button */}
-            <Button
-              onClick={() => {
-                if (mapPickerMode === 'pickup' && pickupCoords) {
-                  handleMapPickerConfirm({
-                    lat: pickupCoords.lat,
-                    lng: pickupCoords.lng,
-                    address: pickup || `${pickupCoords.lat.toFixed(5)}, ${pickupCoords.lng.toFixed(5)}`,
-                    inService: true
-                  });
-                } else if (mapPickerMode === 'dropoff' && dropoffCoords) {
-                  handleMapPickerConfirm({
-                    lat: dropoffCoords.lat,
-                    lng: dropoffCoords.lng,
-                    address: dropoff || `${dropoffCoords.lat.toFixed(5)}, ${dropoffCoords.lng.toFixed(5)}`,
-                    inService: true
-                  });
-                }
-              }}
-              size="lg"
-              className="flex-1 h-14 rounded-2xl text-base font-bold bg-gradient-to-l from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
-            >
+            <Button onClick={() => {
+            if (mapPickerMode === 'pickup' && pickupCoords) {
+              handleMapPickerConfirm({
+                lat: pickupCoords.lat,
+                lng: pickupCoords.lng,
+                address: pickup || `${pickupCoords.lat.toFixed(5)}, ${pickupCoords.lng.toFixed(5)}`,
+                inService: true
+              });
+            } else if (mapPickerMode === 'dropoff' && dropoffCoords) {
+              handleMapPickerConfirm({
+                lat: dropoffCoords.lat,
+                lng: dropoffCoords.lng,
+                address: dropoff || `${dropoffCoords.lat.toFixed(5)}, ${dropoffCoords.lng.toFixed(5)}`,
+                inService: true
+              });
+            }
+          }} size="lg" className="flex-1 h-14 rounded-2xl text-base font-bold bg-gradient-to-l from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70">
               تأكيد الموقع
               <Target className="w-5 h-5 mr-2" />
             </Button>
           </div>
         </div>
-      </motion.div>
-      )}
+      </motion.div>}
       
       {/* Keeping old MapLocationPicker as fallback but not showing */}
-      {false && showMapPicker && (
-        <Suspense fallback={<MapSkeleton />}>
-          <MapLocationPicker 
-            isOpen={showMapPicker} 
-            onClose={() => setShowMapPicker(false)} 
-            type={mapPickerMode} 
-            onConfirm={handleMapPickerConfirm} 
-            initialLocation={mapPickerMode === 'pickup' ? pickupCoords : dropoffCoords} 
-            userLocation={userLocation} 
-          />
-        </Suspense>
-      )}
+      {false && showMapPicker && <Suspense fallback={<MapSkeleton />}>
+          <MapLocationPicker isOpen={showMapPicker} onClose={() => setShowMapPicker(false)} type={mapPickerMode} onConfirm={handleMapPickerConfirm} initialLocation={mapPickerMode === 'pickup' ? pickupCoords : dropoffCoords} userLocation={userLocation} />
+        </Suspense>}
 
       {/* Payment Method Sheet */}
-      {showPaymentSheet && (
-        <Suspense fallback={null}>
-          <PaymentMethodSheet 
-            open={showPaymentSheet} 
-            onOpenChange={setShowPaymentSheet} 
-            selectedMethod={paymentMethod} 
-            onSelect={setPaymentMethod} 
-          />
-        </Suspense>
-      )}
+      {showPaymentSheet && <Suspense fallback={null}>
+          <PaymentMethodSheet open={showPaymentSheet} onOpenChange={setShowPaymentSheet} selectedMethod={paymentMethod} onSelect={setPaymentMethod} />
+        </Suspense>}
 
       {/* Side Menu */}
-      {showSideMenu && (
-        <Suspense fallback={null}>
-          <RiderSideMenu 
-            user={user} 
-            isOpen={showSideMenu} 
-            onClose={() => setShowSideMenu(false)} 
-            onLogout={handleLogout} 
-          />
-        </Suspense>
-      )}
+      {showSideMenu && <Suspense fallback={null}>
+          <RiderSideMenu user={user} isOpen={showSideMenu} onClose={() => setShowSideMenu(false)} onLogout={handleLogout} />
+        </Suspense>}
 
       {/* Bottom Navigation - Always visible */}
       <div className="absolute bottom-0 left-0 right-0 z-20">
         <RiderBottomNav />
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default RiderHomeCustom;
