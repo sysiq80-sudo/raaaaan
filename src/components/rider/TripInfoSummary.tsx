@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Clock, Route, Coins, TrendingUp, Zap, Info } from 'lucide-react';
+import { Clock, Route, Coins, Zap, Car, Shield, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface TripInfoSummaryProps {
@@ -13,11 +13,12 @@ interface TripInfoSummaryProps {
     timeFare?: number;
     serviceFee?: number;
     total?: number;
-    total_fare?: number; // Support both naming conventions
+    total_fare?: number;
   };
   vehicleType?: string;
   className?: string;
   isLoading?: boolean;
+  compact?: boolean;
 }
 
 const TripInfoSummary: React.FC<TripInfoSummaryProps> = ({
@@ -27,57 +28,75 @@ const TripInfoSummary: React.FC<TripInfoSummaryProps> = ({
   fareBreakdown,
   vehicleType,
   className,
-  isLoading = false
+  isLoading = false,
+  compact = false
 }) => {
-  // Calculate values
-  const formattedDistance = distance ? `${(distance / 1000).toFixed(1)} كم` : '--';
-  const formattedDuration = duration ? `${Math.ceil(duration / 60)} د` : '--';
-  const totalFare = fareBreakdown?.total_fare || fareBreakdown?.total;
-  const formattedFare = estimatedFare 
-    ? `${estimatedFare.toLocaleString('ar-IQ')} د.ع` 
-    : totalFare
-    ? `${totalFare.toLocaleString('ar-IQ')} د.ع`
-    : '--';
+  // Calculate values - distance is in km, duration is in minutes
+  const distanceKm = distance || 0;
+  const durationMins = duration ? Math.ceil(duration) : 0;
+  const totalFare = estimatedFare || fareBreakdown?.total_fare || fareBreakdown?.total || 0;
 
-  const stats = [
-    {
-      icon: Route,
-      label: 'المسافة',
-      value: formattedDistance,
-      color: 'from-blue-500 to-cyan-500',
-      textColor: 'text-blue-600 dark:text-blue-400'
-    },
-    {
-      icon: Clock,
-      label: 'المدة',
-      value: formattedDuration,
-      color: 'from-violet-500 to-purple-500',
-      textColor: 'text-violet-600 dark:text-violet-400'
-    },
-    {
-      icon: Coins,
-      label: 'التكلفة',
-      value: formattedFare,
-      color: 'from-amber-500 to-orange-500',
-      textColor: 'text-amber-600 dark:text-amber-400',
-      highlight: true
-    }
-  ];
+  const vehicleConfig: Record<string, { name: string; emoji: string; color: string }> = {
+    economy: { name: 'اقتصادي', emoji: '🚗', color: 'text-emerald-500' },
+    comfort: { name: 'مريح', emoji: '🚙', color: 'text-blue-500' },
+    premium: { name: 'فاخر', emoji: '🚘', color: 'text-amber-500' },
+    women_only: { name: 'نسائي', emoji: '👩', color: 'text-pink-500' }
+  };
+
+  const currentVehicle = vehicleType ? vehicleConfig[vehicleType] : null;
 
   if (isLoading) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className={cn("rounded-3xl bg-card/80 backdrop-blur-xl border border-border/50 p-6", className)}
+        className={cn("rounded-2xl bg-card/90 backdrop-blur-xl border border-border/50 p-5", className)}
       >
         <div className="flex items-center justify-center gap-3">
           <motion.div
             animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            className="w-8 h-8 rounded-full border-4 border-primary/30 border-t-primary"
+            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+            className="w-6 h-6 rounded-full border-3 border-primary/30 border-t-primary"
           />
           <p className="text-sm text-muted-foreground font-medium">جاري حساب تفاصيل الرحلة...</p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Compact version for quick view
+  if (compact) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className={cn(
+          "rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border-2 border-primary/20 p-4",
+          className
+        )}
+      >
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="space-y-1">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center mx-auto">
+              <Route className="w-5 h-5 text-blue-500" />
+            </div>
+            <p className="text-lg font-bold">{distanceKm.toFixed(1)}</p>
+            <p className="text-xs text-muted-foreground">كم</p>
+          </div>
+          <div className="space-y-1">
+            <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center mx-auto">
+              <Clock className="w-5 h-5 text-violet-500" />
+            </div>
+            <p className="text-lg font-bold">{durationMins || '--'}</p>
+            <p className="text-xs text-muted-foreground">دقيقة</p>
+          </div>
+          <div className="space-y-1">
+            <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center mx-auto">
+              <Coins className="w-5 h-5 text-primary" />
+            </div>
+            <p className="text-lg font-bold text-primary">{totalFare.toLocaleString('ar-IQ')}</p>
+            <p className="text-xs text-muted-foreground">د.ع</p>
+          </div>
         </div>
       </motion.div>
     );
@@ -88,100 +107,107 @@ const TripInfoSummary: React.FC<TripInfoSummaryProps> = ({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        "rounded-3xl bg-gradient-to-br from-card/90 via-card/80 to-card/70 backdrop-blur-xl border border-border/50 overflow-hidden",
+        "rounded-3xl bg-card/95 backdrop-blur-xl border border-border/50 overflow-hidden shadow-xl",
         className
       )}
     >
-      {/* Animated Background Pattern */}
-      <div className="absolute inset-0 opacity-5">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_var(--primary)_1px,_transparent_1px)] bg-[length:24px_24px]" />
-      </div>
-
-      <div className="relative p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-              <Info className="w-5 h-5 text-primary" />
+      {/* Header with Vehicle Type */}
+      <div className="p-5 border-b border-border/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+              <Car className="w-6 h-6 text-primary" />
             </div>
-            <div className="text-right">
-              <h3 className="font-bold text-sm text-foreground">ملخص الرحلة</h3>
-              <p className="text-xs text-muted-foreground">تفاصيل تقديرية</p>
+            <div>
+              <h3 className="font-bold text-foreground">ملخص الرحلة</h3>
+              <p className="text-xs text-muted-foreground">تقديرات قبل الحجز</p>
             </div>
           </div>
           
-          {vehicleType && (
+          {currentVehicle && (
             <motion.div
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              className="px-3 py-1.5 rounded-full bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/30"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/50"
             >
-              <p className="text-xs font-bold text-primary">
-                {vehicleType === 'economy' ? 'اقتصادي' :
-                 vehicleType === 'comfort' ? 'مريح' :
-                 vehicleType === 'premium' ? 'فاخر' :
-                 vehicleType === 'women_only' ? 'نسائي' : vehicleType}
-              </p>
+              <span className="text-lg">{currentVehicle.emoji}</span>
+              <span className={cn("text-sm font-bold", currentVehicle.color)}>
+                {currentVehicle.name}
+              </span>
             </motion.div>
           )}
         </div>
+      </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-3 gap-3">
-          {stats.map((stat, index) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, scale: 0.8, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className={cn(
-                "relative group rounded-2xl p-4 transition-all duration-300",
-                stat.highlight 
-                  ? "bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-2 border-primary/30 col-span-3" 
-                  : "bg-secondary/30 border border-border/30 hover:border-primary/30"
-              )}
-            >
-              {/* Icon */}
-              <motion.div
-                whileHover={{ scale: 1.1, rotate: 5 }}
-                className={cn(
-                  "w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center mb-3 shadow-lg",
-                  stat.highlight ? "from-primary/30 to-primary/20" : "from-secondary to-secondary/50"
-                )}
-              >
-                <stat.icon className={cn("w-5 h-5", stat.highlight ? "text-primary" : stat.textColor)} />
-              </motion.div>
+      {/* Stats */}
+      <div className="p-5">
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          {/* Distance */}
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            className="p-4 rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+                <Route className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">المسافة</p>
+                <p className="text-xl font-bold">{distanceKm.toFixed(1)} <span className="text-sm font-normal text-muted-foreground">كم</span></p>
+              </div>
+            </div>
+          </motion.div>
 
-              {/* Label */}
-              <p className="text-xs text-muted-foreground mb-1 font-medium">{stat.label}</p>
-
-              {/* Value */}
-              <p className={cn(
-                "font-bold transition-colors",
-                stat.highlight ? "text-2xl text-primary" : "text-lg text-foreground"
-              )}>
-                {stat.value}
-              </p>
-
-              {/* Highlight Glow */}
-              {stat.highlight && (
-                <motion.div
-                  className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity -z-10 blur-xl"
-                  animate={{ scale: [1, 1.05, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                />
-              )}
-            </motion.div>
-          ))}
+          {/* Duration */}
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            className="p-4 rounded-2xl bg-gradient-to-br from-violet-500/10 to-violet-600/5 border border-violet-500/20"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center shadow-lg">
+                <Clock className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-xs text-violet-600 dark:text-violet-400 font-medium">المدة</p>
+                <p className="text-xl font-bold">{durationMins || '--'} <span className="text-sm font-normal text-muted-foreground">دقيقة</span></p>
+              </div>
+            </div>
+          </motion.div>
         </div>
 
-        {/* Fare Breakdown (if available) */}
-        {fareBreakdown && (fareBreakdown.total || fareBreakdown.total_fare) && (
+        {/* Total Fare - Prominent */}
+        <motion.div
+          whileHover={{ scale: 1.01 }}
+          className="p-5 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 border-2 border-primary/30"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/30">
+                <Coins className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <p className="text-xs text-primary font-medium">التكلفة التقديرية</p>
+                <p className="text-2xl font-bold text-primary">{totalFare.toLocaleString('ar-IQ')} <span className="text-sm font-normal">د.ع</span></p>
+              </div>
+            </div>
+            <div className="text-left">
+              <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>سعر ثابت</span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Fare Breakdown */}
+        {fareBreakdown && totalFare > 0 && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             className="mt-4 pt-4 border-t border-border/30 space-y-2"
           >
+            <p className="text-xs font-bold text-muted-foreground mb-3">تفاصيل السعر</p>
+            
             {fareBreakdown.baseFare !== undefined && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">السعر الأساسي</span>
@@ -190,42 +216,31 @@ const TripInfoSummary: React.FC<TripInfoSummaryProps> = ({
             )}
             {fareBreakdown.distanceFare !== undefined && (
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">سعر المسافة</span>
+                <span className="text-muted-foreground">سعر المسافة ({distanceKm.toFixed(1)} كم)</span>
                 <span className="font-medium">{fareBreakdown.distanceFare.toLocaleString('ar-IQ')} د.ع</span>
               </div>
             )}
-            {fareBreakdown.timeFare && fareBreakdown.timeFare > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">سعر الوقت</span>
-                <span className="font-medium">{fareBreakdown.timeFare.toLocaleString('ar-IQ')} د.ع</span>
-              </div>
-            )}
-            {fareBreakdown.serviceFee !== undefined && (
+            {fareBreakdown.serviceFee !== undefined && fareBreakdown.serviceFee > 0 && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">رسوم الخدمة</span>
                 <span className="font-medium">{fareBreakdown.serviceFee.toLocaleString('ar-IQ')} د.ع</span>
               </div>
             )}
-            <div className="flex items-center justify-between text-base font-bold pt-2 border-t border-border/30">
-              <span className="text-primary">الإجمالي</span>
-              <span className="text-primary">{(fareBreakdown.total_fare || fareBreakdown.total)?.toLocaleString('ar-IQ')} د.ع</span>
-            </div>
           </motion.div>
         )}
 
-        {/* Pro Tip */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-gradient-to-r from-primary/5 to-transparent border border-primary/20"
-        >
-          <Zap className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            <span className="font-bold text-primary">نصيحة: </span>
-            الأسعار قد تختلف حسب حركة المرور والطلب في المنطقة
-          </p>
-        </motion.div>
+        {/* Trust Badges */}
+        <div className="mt-4 flex items-center justify-center gap-4 pt-4 border-t border-border/30">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Shield className="w-3.5 h-3.5 text-emerald-500" />
+            <span>رحلة آمنة</span>
+          </div>
+          <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Zap className="w-3.5 h-3.5 text-amber-500" />
+            <span>وصول سريع</span>
+          </div>
+        </div>
       </div>
     </motion.div>
   );
