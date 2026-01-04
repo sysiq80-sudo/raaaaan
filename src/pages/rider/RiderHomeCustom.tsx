@@ -608,7 +608,7 @@ const RiderHomeCustom: React.FC = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={getCurrentLocation}
+                  onClick={() => getCurrentLocation()}
                   disabled={isLocating}
                   className={cn(
                     "w-10 h-10 rounded-xl bg-card/95 backdrop-blur-xl shadow-lg border border-border/50 flex items-center justify-center transition-all",
@@ -738,7 +738,7 @@ const RiderHomeCustom: React.FC = () => {
               >
                 <div className="flex items-center gap-4">
                   <button 
-                    onClick={getCurrentLocation} 
+                    onClick={() => getCurrentLocation()} 
                     disabled={isLocating} 
                     className="relative w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center shadow-glow-sm hover:shadow-glow transition-all disabled:opacity-50"
                   >
