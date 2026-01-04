@@ -1,7 +1,7 @@
 // Service Worker for RAAN - Push Notifications + Advanced Caching
-// v3 - Enhanced with multi-strategy caching for static assets and API data
+// v4 - Enhanced error handling and production optimizations
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const STATIC_CACHE = `raan-static-${CACHE_VERSION}`;
 const API_CACHE = `raan-api-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `raan-runtime-${CACHE_VERSION}`;
@@ -14,7 +14,7 @@ const STATIC_ASSETS = [
   '/',
   '/favicon.ico',
   '/logo.png'
-  // '/manifest.json' // Removed due to CORS issues on some platforms
+  // '/manifest.json' - Removed: CORS issues on some platforms and auth-bridged environments
 ];
 
 // API endpoints with their cache durations (in seconds)

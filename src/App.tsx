@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { lazy } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -7,6 +7,7 @@ import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { initAnalytics } from "@/lib/analytics";
 
 // Pages
 import Index from "./pages/Index";
@@ -77,9 +78,17 @@ import AdminSMSLogs from "./pages/admin/AdminSMSLogs";
 import AdminDriverVisibility from "./pages/admin/AdminDriverVisibility";
 const queryClient = new QueryClient();
 
-const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
+const App = () => {
+  useEffect(() => {
+    // Initialize analytics if enabled
+    if (import.meta.env.VITE_ENABLE_ANALYTICS === 'true') {
+      initAnalytics();
+    }
+  }, []);
+
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -163,6 +172,7 @@ const App = () => (
       </TooltipProvider>
     </QueryClientProvider>
   </ErrorBoundary>
-);
+  );
+};
 
 export default App;
