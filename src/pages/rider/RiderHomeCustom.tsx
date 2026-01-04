@@ -119,6 +119,7 @@ const RiderHomeCustom: React.FC = () => {
   const [isBooking, setIsBooking] = useState(false);
   const [showPaymentSheet, setShowPaymentSheet] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [activeField, setActiveField] = useState<'pickup' | 'dropoff' | 'both'>('both');
   
   // Bottom Sheet Drag State
   const [sheetHeight, setSheetHeight] = useState<'collapsed' | 'half' | 'full'>('half');
@@ -212,6 +213,10 @@ const RiderHomeCustom: React.FC = () => {
         const address = await fetchAddressFromCoords(coords.lat, coords.lng);
         setPickup(address);
         setIsLocating(false);
+        // عند تحديد الموقع الحالي، ننتقل لاختيار الوجهة
+        if (!dropoffCoords) {
+          setActiveField('dropoff');
+        }
         toast({
           title: "تم تحديد موقعك ✓",
           description: address
@@ -286,11 +291,15 @@ const RiderHomeCustom: React.FC = () => {
       setDropoff(address);
       setDropoffCoords(coords);
       console.log('✅ Dropoff set:', { address, coords });
+      // عند اختيار الوجهة، إذا لم يكن موقع الانطلاق محدداً، نشط حقل الانطلاق
+      if (!pickupCoords) {
+        setActiveField('pickup');
+      }
     }
     // Keep search overlay visible with new design
     setShowLocationSheet(false);
     // Don't auto-show booking panel - user will click continue button
-  }, [selectingStopId, intermediateStops]);
+  }, [selectingStopId, intermediateStops, pickupCoords]);
 
   // Handle pickup selection
   const handlePickupSelect = useCallback((address: string, coords: { lat: number; lng: number }) => {
@@ -298,8 +307,12 @@ const RiderHomeCustom: React.FC = () => {
     setPickup(address);
     setPickupCoords(coords);
     console.log('✅ Pickup set:', { address, coords });
+    // عند اختيار موقع الانطلاق، إذا لم تكن الوجهة محددة، نشط حقل الوجهة
+    if (!dropoffCoords) {
+      setActiveField('dropoff');
+    }
     setShowLocationSheet(false);
-  }, []);
+  }, [dropoffCoords]);
 
   // Handle location select from bottom sheet
   const handleLocationSheetSelect = useCallback((
@@ -500,6 +513,7 @@ const RiderHomeCustom: React.FC = () => {
     setShowWaitingScreen(false);
     setShowLiveTracker(false);
     setActiveRide(null);
+    setActiveField('both');
   }, [setActiveRide, setShowLiveTracker, setShowWaitingScreen]);
 
   // Handle logout
@@ -739,44 +753,120 @@ const RiderHomeCustom: React.FC = () => {
                 </div>
               </div>
 
+              {/* رسالة ترحيبية في البداية */}
+              {activeField === 'both' && !pickupCoords && !dropoffCoords && (
+                <div className="px-4 mb-4">
+                  <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-2xl p-6 text-center">
+                    <div className="text-4xl mb-3">👋</div>
+                    <h3 className="font-bold text-lg mb-2">مرحباً بك في رعان تاكسي</h3>
+                    <p className="text-sm text-muted-foreground">
+                      حدد موقع الانطلاق والوجهة لبدء رحلتك
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Promo Banners - Hide when dropoff is selected for cleaner UX */}
-              {!dropoffCoords && (
+              {!dropoffCoords && activeField !== 'pickup' && (activeField === 'dropoff' || (pickupCoords && !dropoffCoords)) && (
                 <div className="px-4 mb-4">
                   <ScrollablePromoBanners regionId={null} />
                 </div>
               )}
 
+              {/* رسالة توجيهية عند اختيار موقع الانطلاق */}
+              {activeField === 'pickup' && !pickupCoords && dropoffCoords && (
+                <div className="px-4 mb-4">
+                  <div className="bg-gradient-to-r from-blue-500/10 to-blue-600/10 border border-blue-500/30 rounded-2xl p-5 text-center">
+                    <div className="text-3xl mb-2">📍</div>
+                    <p className="text-base font-bold text-blue-600 dark:text-blue-400 mb-1">
+                      حدد موقع الانطلاق
+                    </p>
+                    <p className="text-xs text-blue-600/70 dark:text-blue-400/70">
+                      انقر على الحقل أعلاه أو استخدم موقعك الحالي
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* رسالة توجيهية عند اختيار الوجهة */}
+              {activeField === 'dropoff' && !dropoffCoords && pickupCoords && (
+                <div className="px-4 mb-4">
+                  <div className="bg-gradient-to-r from-green-500/10 to-emerald-600/10 border border-green-500/30 rounded-2xl p-5 text-center">
+                    <div className="text-3xl mb-2">🎯</div>
+                    <p className="text-base font-bold text-green-600 dark:text-green-400 mb-1">
+                      حدد وجهتك
+                    </p>
+                    <p className="text-xs text-green-600/70 dark:text-green-400/70">
+                      اختر من الأماكن المحفوظة أو الوجهات الأخيرة
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Location Input Cards - Professional Design */}
               <div className="px-4 space-y-3 mb-4">
-                {/* Pickup Card */}
-                <LocationInputCard
-                  type="pickup"
-                  value={pickup}
-                  placeholder="من أين تريد الانطلاق؟"
-                  isLocating={isLocating}
-                  onGetLocation={getCurrentLocation}
-                  onClick={() => openLocationSheet('pickup_only')}
-                  onClear={() => {
-                    setPickup('');
-                    setPickupCoords(null);
-                  }}
-                  showClear={!!pickup}
-                />
+                {/* Pickup Card - يظهر دائماً إلا إذا كان محدداً والوجهة غير محددة */}
+                {(activeField === 'pickup' || activeField === 'both' || pickupCoords) && (
+                  <LocationInputCard
+                    type="pickup"
+                    value={pickup}
+                    placeholder="من أين تريد الانطلاق؟"
+                    isLocating={isLocating}
+                    onGetLocation={getCurrentLocation}
+                    onClick={() => {
+                      setActiveField('pickup');
+                      openLocationSheet('pickup_only');
+                    }}
+                    onClear={() => {
+                      setPickup('');
+                      setPickupCoords(null);
+                      setActiveField('both');
+                    }}
+                    showClear={!!pickup}
+                  />
+                )}
 
-                {/* Dropoff Card */}
-                <LocationInputCard
-                  type="dropoff"
-                  value={dropoff}
-                  placeholder="إلى أين تريد الذهاب؟"
-                  onClick={() => openLocationSheet('dropoff')}
-                  onClear={() => {
-                    setDropoff('');
-                    setDropoffCoords(null);
-                    setRouteDistance(null);
-                    setRouteDuration(null);
-                  }}
-                  showClear={!!dropoff}
-                />
+                {/* Dropoff Card - يظهر إذا كان الحقل النشط هو dropoff أو both أو إذا كان محدداً */}
+                {(activeField === 'dropoff' || activeField === 'both' || dropoffCoords) && (
+                  <LocationInputCard
+                    type="dropoff"
+                    value={dropoff}
+                    placeholder="إلى أين تريد الذهاب؟"
+                    onClick={() => {
+                      setActiveField('dropoff');
+                      openLocationSheet('dropoff');
+                    }}
+                    onClear={() => {
+                      setDropoff('');
+                      setDropoffCoords(null);
+                      setRouteDistance(null);
+                      setRouteDuration(null);
+                      setActiveField('both');
+                    }}
+                    showClear={!!dropoff}
+                  />
+                )}
+
+                {/* زر لإظهار الحقل الآخر */}
+                {activeField === 'pickup' && pickupCoords && !dropoffCoords && (
+                  <button
+                    onClick={() => setActiveField('dropoff')}
+                    className="w-full flex items-center justify-center gap-2 p-4 bg-gradient-to-l from-primary/10 to-primary/5 hover:from-primary/15 hover:to-primary/10 border border-primary/20 rounded-2xl transition-all"
+                  >
+                    <MapPin className="w-5 h-5 text-primary" />
+                    <span className="font-semibold text-primary">إضافة وجهة</span>
+                  </button>
+                )}
+                
+                {activeField === 'dropoff' && dropoffCoords && !pickupCoords && (
+                  <button
+                    onClick={() => setActiveField('pickup')}
+                    className="w-full flex items-center justify-center gap-2 p-4 bg-gradient-to-l from-primary/10 to-primary/5 hover:from-primary/15 hover:to-primary/10 border border-primary/20 rounded-2xl transition-all"
+                  >
+                    <Navigation className="w-5 h-5 text-primary" />
+                    <span className="font-semibold text-primary">إضافة موقع الانطلاق</span>
+                  </button>
+                )}
               </div>
 
               {/* Quick Booking Section - Compact trip info with prominent book button */}
@@ -813,8 +903,8 @@ const RiderHomeCustom: React.FC = () => {
                 </div>
               )}
 
-              {/* Saved Places Quick Icons - Hide when dropoff is selected */}
-              {!dropoffCoords && (
+              {/* Saved Places Quick Icons - Show when selecting destination */}
+              {!dropoffCoords && (activeField === 'dropoff' || activeField === 'both') && (
                 <div className="px-4 py-4">
                   <SavedPlacesQuickIcons 
                     userId={user?.id || null} 
@@ -826,8 +916,8 @@ const RiderHomeCustom: React.FC = () => {
                 </div>
               )}
 
-              {/* Recent Destinations - Show when no dropoff selected */}
-              {!dropoffCoords && (
+              {/* Recent Destinations - Show when selecting destination */}
+              {!dropoffCoords && (activeField === 'dropoff' || activeField === 'both') && (
                 <div className="mb-4">
                   <RecentDestinations
                     userId={user?.id}
@@ -871,9 +961,32 @@ const RiderHomeCustom: React.FC = () => {
                       </p>
                     )}
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => openLocationSheet('dropoff')} className="text-primary font-bold">
-                    تعديل
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        setActiveField('pickup');
+                        openLocationSheet('pickup_only');
+                      }} 
+                      className="text-primary font-bold hover:bg-primary/10"
+                    >
+                      <Navigation className="w-3 h-3 ml-1" />
+                      انطلاق
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        setActiveField('dropoff');
+                        openLocationSheet('dropoff');
+                      }} 
+                      className="text-primary font-bold hover:bg-primary/10"
+                    >
+                      <MapPin className="w-3 h-3 ml-1" />
+                      وجهة
+                    </Button>
+                  </div>
                 </div>
               </div>
 
