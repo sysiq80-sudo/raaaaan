@@ -1,0 +1,46 @@
+project_id = "wgolkcztdrwdphwjvqxt"
+
+[functions.mapbox-proxy]
+verify_jwt = false
+
+[functions.google-maps-proxy]
+verify_jwt = false
+
+[functions.calculate-fare]
+verify_jwt = false
+
+[functions.search-places]
+verify_jwt = false
+
+[functions.check-service-area]
+verify_jwt = false
+
+[functions.send-push-notification]
+verify_jwt = false
+
+[functions.send-otp]
+verify_jwt = false
+
+[functions.reset-password]
+verify_jwt = false
+
+[functions.match-ride]
+verify_jwt = false
+
+[functions.cleanup-stale-rides]
+verify_jwt = false
+
+[functions.process-scheduled-rides]
+verify_jwt = false
+
+[functions.cleanup-stale-subscriptions]
+verify_jwt = false
+
+[functions.notification-analytics]
+verify_jwt = false
+
+[functions.cleanup-old-otps]
+verify_jwt = false
+
+[functions.send-sms]
+verify_jwt = true

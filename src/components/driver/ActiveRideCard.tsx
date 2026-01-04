@@ -1,0 +1,1116 @@
+import { useState, useEffect, useCallback, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { NavigationButton } from "./NavigationButton";
+import { ActiveRideMap } from "./ActiveRideMap";
+import { DriverRideCompleted } from "./DriverRideCompleted";
+import { ChatButton } from "@/components/ride/RideChat";
+import { playSound, vibrate, VibrationPatterns, showNotification } from "@/utils/rideNotificationSounds";
+import {
+  MapPin,
+  Clock,
+  Wallet,
+  User,
+  Phone,
+  Navigation,
+  Loader2,
+  CheckCircle,
+  Flag,
+  Car,
+  Timer,
+  AlertTriangle,
+  MessageCircle
+} from "lucide-react";
+
+interface ActiveRide {
+  id: string;
+  pickup_location: { lat: number; lng: number };
+  dropoff_location: { lat: number; lng: number };
+  pickup_address: string | null;
+  dropoff_address: string | null;
+  estimated_fare: number | null;
+  distance_km: number | null;
+  duration_minutes: number | null;
+  vehicle_type: string;
+  status: string;
+  created_at: string;
+  started_at: string | null;
+  rider_id: string;
+  payment_method: string | null;
+}
+
+interface RiderInfo {
+  full_name: string | null;
+  phone: string | null;
+}
+
+interface ActiveRideCardProps {
+  driverId: string;
+  driverLocation?: { lat: number; lng: number } | null;
+}
+
+const getLocationString = (location: unknown): string => {
+  if (typeof location === 'object' && location !== null && 'lat' in location && 'lng' in location) {
+    const loc = location as { lat: number; lng: number };
+    return `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`;
+  }
+  return '';
+};
+
+const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  accepted: {
+    label: 'متجه للعميل',
+    color: 'bg-blue-500',
+    icon: <Navigation className="w-4 h-4" />
+  },
+  arrived: {
+    label: 'في انتظار العميل',
+    color: 'bg-amber-500',
+    icon: <Clock className="w-4 h-4" />
+  },
+  in_progress: {
+    label: 'الرحلة جارية',
+    color: 'bg-primary',
+    icon: <Car className="w-4 h-4" />
+  }
+};
+
+// Calculate remaining time from max waiting
+const getRemainingWaitingTime = (elapsed: number) => {
+  const remaining = MAX_WAITING_SECONDS - elapsed;
+  return remaining > 0 ? remaining : 0;
+};
+
+// Maximum waiting time in seconds (5 minutes)
+const MAX_WAITING_SECONDS = 300;
+// Warning thresholds in seconds
+const WAITING_WARNING_THRESHOLD = 240; // 4 minutes (1 min before max)
+const WAITING_CRITICAL_THRESHOLD = 270; // 4.5 minutes (30 sec before max)
+
+// Cancellation data for compensation notification
+interface CancellationInfo {
+  reason: string | null;
+  fee: number;
+  riderId: string | null;
+}
+
+export const ActiveRideCard = ({ driverId, driverLocation }: ActiveRideCardProps) => {
+  const { toast } = useToast();
+  const [activeRide, setActiveRide] = useState<ActiveRide | null>(null);
+  const [riderInfo, setRiderInfo] = useState<RiderInfo | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [waitingTime, setWaitingTime] = useState(0);
+  const [waitingWarningShown, setWaitingWarningShown] = useState(false);
+  const [waitingCriticalShown, setWaitingCriticalShown] = useState(false);
+  const [showCompletedScreen, setShowCompletedScreen] = useState(false);
+  const [showCancellationNotice, setShowCancellationNotice] = useState(false);
+  const [cancellationInfo, setCancellationInfo] = useState<CancellationInfo | null>(null);
+  const [completedRideData, setCompletedRideData] = useState<{
+    id: string;
+    final_fare: number;
+    distance_km: number | null;
+    duration_minutes: number | null;
+    rider_id: string;
+  } | null>(null);
+
+  // Broadcast channel for driver-rider communication
+  const broadcastChannel = useRef<any>(null);
+
+  const fetchRiderInfo = useCallback(async (riderId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("full_name, phone")
+      .eq("user_id", riderId)
+      .single();
+
+    if (data) {
+      setRiderInfo(data);
+    }
+  }, []);
+
+  const fetchActiveRide = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("rides")
+      .select("*")
+      .eq("driver_id", driverId)
+      .in("status", ["accepted", "arrived", "in_progress"])
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (!error && data && data.length > 0) {
+      const ride = data[0];
+      setActiveRide({
+        id: ride.id,
+        pickup_location: ride.pickup_location as { lat: number; lng: number },
+        dropoff_location: ride.dropoff_location as { lat: number; lng: number },
+        pickup_address: ride.pickup_address,
+        dropoff_address: ride.dropoff_address,
+        estimated_fare: ride.estimated_fare,
+        distance_km: ride.distance_km,
+        duration_minutes: ride.duration_minutes,
+        vehicle_type: ride.vehicle_type || 'economy',
+        status: ride.status || 'accepted',
+        created_at: ride.created_at,
+        started_at: ride.started_at,
+        rider_id: ride.rider_id || '',
+        payment_method: ride.payment_method
+      });
+
+      // Fetch rider info
+      if (ride.rider_id) {
+        fetchRiderInfo(ride.rider_id);
+      }
+    } else {
+      setActiveRide(null);
+      setRiderInfo(null);
+    }
+  }, [driverId, fetchRiderInfo]);
+
+  // Fetch active ride on mount and setup realtime subscription
+  useEffect(() => {
+    if (!driverId) return;
+
+    // Fetch immediately
+    fetchActiveRide();
+
+    // Setup realtime subscription for ride updates - listen to ALL events
+    const channel = supabase
+      .channel(`driver-active-ride-${driverId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'rides',
+          filter: `driver_id=eq.${driverId}`
+        },
+        (payload) => {
+          console.log('[ActiveRideCard] 📡 Ride update via realtime:', payload.eventType, payload.new);
+
+          // Immediately update state for faster response
+          if (payload.eventType === 'UPDATE') {
+            const updatedRide = payload.new as any;
+
+            // Handle completed/cancelled - clear ride immediately
+            if (updatedRide.status === 'completed' || updatedRide.status === 'cancelled') {
+              console.log('[ActiveRideCard] Ride ended:', updatedRide.status);
+
+              if (updatedRide.status === 'completed') {
+                // Show completed screen
+                setCompletedRideData({
+                  id: updatedRide.id,
+                  final_fare: updatedRide.final_fare || updatedRide.estimated_fare || 0,
+                  distance_km: updatedRide.distance_km,
+                  duration_minutes: updatedRide.duration_minutes,
+                  rider_id: updatedRide.rider_id
+                });
+                setShowCompletedScreen(true);
+              }
+
+              // Handle cancellation by rider - show compensation notice
+              if (updatedRide.status === 'cancelled' && updatedRide.cancelled_by === 'rider') {
+                const fee = updatedRide.cancellation_fee || 0;
+                setCancellationInfo({
+                  reason: updatedRide.cancellation_reason,
+                  fee: fee,
+                  riderId: updatedRide.rider_id
+                });
+                setShowCancellationNotice(true);
+
+                // Play cancellation sound and vibrate
+                playSound('cancelled');
+                vibrate(VibrationPatterns.cancelled);
+
+                // Show notification
+                showNotification(
+                  '❌ العميل ألغى الرحلة',
+                  fee > 0
+                    ? `ستحصل على تعويض مالي بقيمة ${fee.toLocaleString()} د.ع`
+                    : 'تم إلغاء الرحلة',
+                  { tag: 'ride-cancelled', requireInteraction: true }
+                );
+
+                toast({
+                  title: "❌ تم إلغاء الرحلة من العميل",
+                  description: fee > 0
+                    ? `ستحصل على تعويض: ${fee.toLocaleString()} د.ع`
+                    : updatedRide.cancellation_reason || "تم إلغاء الطلب",
+                  duration: 10000,
+                });
+              }
+
+              setActiveRide(null);
+              setRiderInfo(null);
+              return;
+            }
+
+            // Update active ride state immediately
+            setActiveRide(prev => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                status: updatedRide.status,
+                started_at: updatedRide.started_at,
+              };
+            });
+          }
+
+          // Also re-fetch for complete data
+          fetchActiveRide();
+        }
+      )
+      .subscribe((status) => {
+        console.log('[ActiveRideCard] Subscription status:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.error('[ActiveRideCard] Channel error - setting up polling fallback');
+        }
+      });
+
+    // Fallback polling every 3 seconds
+    const pollInterval = setInterval(() => {
+      fetchActiveRide();
+    }, 3000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
+  }, [driverId, fetchActiveRide]);
+
+  // Setup broadcast channel for communication with rider - with proper subscription
+  useEffect(() => {
+    if (!activeRide) return;
+
+    console.log('[ActiveRideCard] Setting up broadcast channel for ride:', activeRide.id);
+
+    const channel = supabase.channel(`ride-comm-${activeRide.id}`, {
+      config: {
+        broadcast: { self: false, ack: true },
+        presence: { key: `driver-${activeRide.id}` }
+      }
+    });
+
+    channel.subscribe((status) => {
+      console.log('[ActiveRideCard] Broadcast channel status:', status);
+      if (status === 'SUBSCRIBED') {
+        broadcastChannel.current = channel;
+        console.log('[ActiveRideCard] ✅ Channel ready for instant communication');
+
+        // Send initial location immediately when channel is ready
+        if (driverLocation) {
+          channel.send({
+            type: 'broadcast',
+            event: 'driver_location_update',
+            payload: { location: driverLocation, timestamp: new Date().toISOString() }
+          });
+        }
+      }
+    });
+
+    return () => {
+      console.log('[ActiveRideCard] Cleaning up broadcast channel');
+      supabase.removeChannel(channel);
+      broadcastChannel.current = null;
+    };
+  }, [activeRide?.id]);
+
+  // Send broadcast to rider - with retry logic
+  const notifyRider = async (event: string, message: string, extraPayload?: Record<string, any>) => {
+    if (broadcastChannel.current) {
+      try {
+        await broadcastChannel.current.send({
+          type: 'broadcast',
+          event: event,
+          payload: { message, timestamp: new Date().toISOString(), ...extraPayload }
+        });
+        console.log(`[Driver] ⚡ Sent broadcast: ${event}`);
+      } catch (error) {
+        console.error(`[Driver] Failed to send broadcast ${event}:`, error);
+      }
+    } else {
+      console.warn('[Driver] Broadcast channel not ready, event queued:', event);
+    }
+  };
+
+  // ⚡ Broadcast driver location updates to rider for instant tracking (every location change)
+  useEffect(() => {
+    if (!activeRide || !driverLocation || !broadcastChannel.current) return;
+
+    // Send location update via broadcast for instant rider tracking
+    broadcastChannel.current.send({
+      type: 'broadcast',
+      event: 'driver_location_update',
+      payload: {
+        location: driverLocation,
+        timestamp: new Date().toISOString()
+      }
+    }).catch(err => console.error('[Driver] Location broadcast error:', err));
+
+  }, [driverLocation?.lat, driverLocation?.lng, activeRide?.id]);
+
+  // Send quick message to rider
+  const sendQuickMessageToRider = (event: string, message: string, confirmTitle: string) => {
+    notifyRider(event, message);
+
+    playSound('messageSent');
+    vibrate(VibrationPatterns.messageSent);
+
+    toast({
+      title: confirmTitle,
+      description: "تم إبلاغ الراكب",
+      duration: 3000,
+    });
+  };
+
+  // Listen for rider broadcasts (arrived, on my way, wait, where are you)
+  useEffect(() => {
+    if (!activeRide) return;
+
+    const commChannel = supabase
+      .channel(`ride-comm-listen-${activeRide.id}`)
+      .on('broadcast', { event: 'ride_completed_by_rider' }, (payload) => {
+        console.log('Ride completed by rider:', payload);
+
+        playSound('completed');
+        vibrate(VibrationPatterns.completed);
+
+        toast({
+          title: "🏁 الراكب أنهى الرحلة",
+          description: "تم إنهاء الرحلة بنجاح",
+          duration: 8000,
+        });
+
+        showNotification(
+          '🏁 الراكب أنهى الرحلة',
+          'تم إنهاء الرحلة وستحصل على أرباحك قريباً',
+          { tag: 'ride-completed-by-rider', requireInteraction: true }
+        );
+
+        // تحديث واجهة السائق
+        fetchActiveRide();
+      })
+      .on('broadcast', { event: 'rider_arrived' }, (payload) => {
+        console.log('Rider arrived notification:', payload);
+
+        playSound('riderArrived');
+        vibrate(VibrationPatterns.riderArrived);
+
+        toast({
+          title: "🏁 الراكب وصل للوجهة!",
+          description: "اضغط 'تم الوصول' لإنهاء الرحلة",
+          duration: 10000,
+        });
+
+        showNotification(
+          '🏁 الراكب وصل للوجهة!',
+          'اضغط تم الوصول لإنهاء الرحلة وتحصيل الأجرة',
+          { tag: 'rider-arrived', requireInteraction: true }
+        );
+      })
+      .on('broadcast', { event: 'rider_on_my_way' }, (payload) => {
+        console.log('Rider on my way:', payload);
+
+        playSound('riderOnWay');
+        vibrate(VibrationPatterns.riderOnWay);
+
+        toast({
+          title: "🚶 الراكب في الطريق!",
+          description: "سيصل إليك قريباً",
+          duration: 5000,
+        });
+
+        showNotification(
+          '🚶 الراكب قادم!',
+          'في طريقه إليك الآن',
+          { tag: 'rider-on-way', duration: 5000 }
+        );
+      })
+      .on('broadcast', { event: 'rider_wait_moment' }, (payload) => {
+        console.log('Rider wait request:', payload);
+
+        playSound('riderWait');
+        vibrate(VibrationPatterns.riderWait);
+
+        toast({
+          title: "⏱️ طلب الراكب الانتظار",
+          description: "دقيقة واحدة فقط",
+          duration: 5000,
+        });
+
+        showNotification(
+          '⏱️ انتظر لحظة',
+          'الراكب يحتاج دقيقة إضافية',
+          { tag: 'rider-wait', duration: 5000 }
+        );
+      })
+      .on('broadcast', { event: 'rider_where_are_you' }, (payload) => {
+        console.log('Rider asking location:', payload);
+
+        playSound('riderQuestion');
+        vibrate(VibrationPatterns.riderQuestion);
+
+        toast({
+          title: "📍 الراكب يسأل عن موقعك",
+          description: "اتصل به لتوضيح مكانك بالضبط",
+          duration: 8000,
+        });
+
+        showNotification(
+          '📍 أين أنت؟',
+          'الراكب يسأل عن موقعك - يمكنك الاتصال به',
+          { tag: 'rider-question', requireInteraction: true }
+        );
+      })
+      .on('broadcast', { event: 'rider_waiting' }, (payload) => {
+        console.log('Rider waiting:', payload);
+
+        playSound('confirm');
+        vibrate([100, 50, 100]);
+
+        toast({
+          title: "👋 الراكب بالانتظار",
+          description: "يراك ويستعد للركوب",
+          duration: 5000,
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(commChannel);
+    };
+  }, [activeRide?.id, toast]);
+
+  // Timer for in_progress rides
+  useEffect(() => {
+    if (!activeRide || activeRide.status !== 'in_progress' || !activeRide.started_at) {
+      setElapsedTime(0);
+      return;
+    }
+
+    const startTime = new Date(activeRide.started_at).getTime();
+
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setElapsedTime(Math.floor((now - startTime) / 1000));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [activeRide]);
+
+  // Waiting timer for arrived status with audio warnings
+  useEffect(() => {
+    if (!activeRide || activeRide.status !== 'arrived') {
+      setWaitingTime(0);
+      setWaitingWarningShown(false);
+      setWaitingCriticalShown(false);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setWaitingTime(prev => {
+        const newTime = prev + 1;
+
+        // Warning at 4 minutes (1 minute remaining)
+        if (newTime >= WAITING_WARNING_THRESHOLD && !waitingWarningShown) {
+          setWaitingWarningShown(true);
+          playSound('warning');
+          vibrate([200, 100, 200, 100, 200]);
+          toast({
+            title: "⚠️ تنبيه: دقيقة واحدة متبقية!",
+            description: "وقت الانتظار المجاني يوشك على الانتهاء",
+            duration: 8000,
+          });
+          showNotification(
+            '⚠️ دقيقة واحدة متبقية!',
+            'وقت الانتظار المجاني يوشك على الانتهاء',
+            { tag: 'waiting-warning' }
+          );
+        }
+
+        // Critical at 4.5 minutes (30 seconds remaining)
+        if (newTime >= WAITING_CRITICAL_THRESHOLD && !waitingCriticalShown) {
+          setWaitingCriticalShown(true);
+          playSound('urgent');
+          vibrate([300, 100, 300, 100, 300, 100, 500]);
+          toast({
+            title: "🚨 تنبيه عاجل: 30 ثانية متبقية!",
+            description: "الانتظار الإضافي سيُحتسب على العميل",
+            duration: 10000,
+            variant: "destructive"
+          });
+          showNotification(
+            '🚨 30 ثانية متبقية!',
+            'الانتظار الإضافي سيُحتسب على العميل',
+            { tag: 'waiting-critical', requireInteraction: true }
+          );
+        }
+
+        return newTime;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [activeRide?.status, waitingWarningShown, waitingCriticalShown, toast]);
+
+  // Format waiting time with color coding
+  const formatWaitingTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getWaitingTimeColor = () => {
+    if (waitingTime >= WAITING_CRITICAL_THRESHOLD) return 'text-red-500 bg-red-500/20';
+    if (waitingTime >= WAITING_WARNING_THRESHOLD) return 'text-amber-500 bg-amber-500/20';
+    return 'text-muted-foreground bg-secondary';
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleArrived = async () => {
+    if (!activeRide) return;
+    setLoading(true);
+
+    try {
+      // ⚡ INSTANT: Send broadcast FIRST for immediate rider notification
+      console.log('[Driver] ⚡ Sending instant arrived broadcast');
+      await notifyRider('driver_arrived', 'السائق وصل لموقعك!', {
+        riderName: riderInfo?.full_name
+      });
+
+      // Play confirmation sound immediately
+      playSound('confirm');
+      vibrate([200, 100, 200]);
+
+      // Then update database
+      const { error } = await supabase
+        .from("rides")
+        .update({ status: 'arrived' })
+        .eq("id", activeRide.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "تم تأكيد الوصول ✅",
+        description: "تم إبلاغ العميل - في انتظار ركوبه"
+      });
+    } catch (error: any) {
+      toast({
+        title: "خطأ",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStartRide = async () => {
+    if (!activeRide) return;
+
+    // Confirmation dialog
+    const confirmed = window.confirm('هل تأكدت من ركوب العميل في السيارة؟');
+    if (!confirmed) return;
+
+    setLoading(true);
+
+    try {
+      // ⚡ INSTANT: Send broadcast FIRST for immediate rider notification
+      console.log('[Driver] ⚡ Sending instant ride_started broadcast');
+      await notifyRider('ride_started', 'الرحلة بدأت!', {
+        riderName: riderInfo?.full_name,
+        dropoffAddress: activeRide.dropoff_address
+      });
+
+      // Play sound immediately
+      playSound('inProgress');
+      vibrate(VibrationPatterns.inProgress);
+
+      // Then update database
+      const { error } = await supabase
+        .from("rides")
+        .update({
+          status: 'in_progress',
+          started_at: new Date().toISOString()
+        })
+        .eq("id", activeRide.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "✅ العميل ركب - بدأت الرحلة!",
+        description: "رحلة موفقة وآمنة"
+      });
+    } catch (error: any) {
+      toast({
+        title: "خطأ",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompleteRide = async () => {
+    if (!activeRide) return;
+    setLoading(true);
+
+    try {
+      const waitingMinutes = activeRide.status === 'arrived' ?
+        Math.floor((Date.now() - new Date(activeRide.created_at).getTime()) / 60000) : 0;
+
+      const finalFare = activeRide.estimated_fare || 0;
+
+      // ⚡ INSTANT: Send broadcast FIRST for immediate rider notification
+      console.log('[Driver] ⚡ Sending instant ride_completed broadcast');
+      await notifyRider('ride_completed', 'الحمد لله على السلامة!', {
+        finalFare,
+        riderName: riderInfo?.full_name
+      });
+
+      // Play completion sound immediately
+      playSound('completed');
+      vibrate(VibrationPatterns.completed);
+
+      // Then update database
+      const { error } = await supabase
+        .from("rides")
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          final_fare: finalFare,
+          waiting_minutes: waitingMinutes
+        })
+        .eq("id", activeRide.id);
+
+      if (error) throw error;
+
+      // Show completed screen with rating
+      setCompletedRideData({
+        id: activeRide.id,
+        final_fare: finalFare,
+        distance_km: activeRide.distance_km,
+        duration_minutes: activeRide.duration_minutes,
+        rider_id: activeRide.rider_id
+      });
+      setShowCompletedScreen(true);
+      setActiveRide(null);
+
+    } catch (error: any) {
+      toast({
+        title: "خطأ",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelRide = async () => {
+    if (!activeRide) return;
+    setLoading(true);
+
+    try {
+      // Notify rider immediately before database update
+      await notifyRider('ride_cancelled_by_driver', 'ألغى السائق الرحلة');
+
+      playSound('cancelled');
+      vibrate(VibrationPatterns.cancelled);
+
+      const { error } = await supabase
+        .from("rides")
+        .update({
+          status: 'cancelled',
+          cancelled_by: 'driver',
+          cancellation_reason: 'ألغى السائق الرحلة'
+        })
+        .eq("id", activeRide.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "تم إلغاء الرحلة",
+        variant: "destructive"
+      });
+
+      setActiveRide(null);
+    } catch (error: any) {
+      toast({
+        title: "خطأ",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Show cancellation notice if rider cancelled
+  if (showCancellationNotice && cancellationInfo) {
+    return (
+      <Card className="border-2 border-destructive overflow-hidden">
+        <CardContent className="p-6 text-center">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-destructive/20 flex items-center justify-center">
+            <AlertTriangle className="w-10 h-10 text-destructive" />
+          </div>
+
+          <h2 className="text-xl font-bold text-destructive mb-2">
+            العميل ألغى الرحلة
+          </h2>
+
+          {cancellationInfo.reason && (
+            <p className="text-muted-foreground mb-4">
+              السبب: {cancellationInfo.reason}
+            </p>
+          )}
+
+          {cancellationInfo.fee > 0 && (
+            <div className="bg-success/10 border border-success/30 rounded-xl p-4 mb-4">
+              <div className="flex items-center justify-center gap-2 text-success mb-2">
+                <Wallet className="w-5 h-5" />
+                <span className="font-bold">تعويض مالي</span>
+              </div>
+              <p className="text-2xl font-bold text-success">
+                {cancellationInfo.fee.toLocaleString()} د.ع
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                سيتم إضافة هذا المبلغ تلقائياً إلى حسابك
+              </p>
+            </div>
+          )}
+
+          <Button
+            onClick={() => {
+              setShowCancellationNotice(false);
+              setCancellationInfo(null);
+            }}
+            className="w-full"
+          >
+            <CheckCircle className="w-4 h-4 ml-2" />
+            موافق
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show completed screen if available
+  if (showCompletedScreen && completedRideData) {
+    return (
+      <DriverRideCompleted
+        ride={completedRideData}
+        riderName={riderInfo?.full_name || 'الراكب'}
+        onClose={() => {
+          setShowCompletedScreen(false);
+          setCompletedRideData(null);
+        }}
+      />
+    );
+  }
+
+  if (!activeRide) return null;
+
+  const config = statusConfig[activeRide.status] || statusConfig.accepted;
+
+  return (
+    <Card className="border-2 border-primary overflow-hidden">
+      <CardContent className="p-0">
+        {/* Status Header */}
+        <div className={`${config.color} text-white px-4 py-3 flex items-center justify-between`}>
+          <div className="flex items-center gap-2">
+            {config.icon}
+            <span className="font-bold">{config.label}</span>
+          </div>
+          {activeRide.status === 'in_progress' && (
+            <div className="flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full">
+              <Clock className="w-4 h-4" />
+              <span className="font-mono">{formatTime(elapsedTime)}</span>
+            </div>
+          )}
+          {activeRide.status === 'arrived' && (
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${getWaitingTimeColor()}`}>
+              {waitingTime >= WAITING_WARNING_THRESHOLD ? (
+                <AlertTriangle className="w-4 h-4 animate-pulse" />
+              ) : (
+                <Timer className="w-4 h-4" />
+              )}
+              <span className="font-mono font-bold">{formatWaitingTime(waitingTime)}</span>
+              <span className="text-xs opacity-75">/ 5:00</span>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4">
+          {/* Customer Info */}
+          <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center">
+                <User className="w-6 h-6 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-bold text-foreground">
+                  {riderInfo?.full_name || 'العميل'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {activeRide.payment_method === 'cash' ? 'الدفع نقداً' :
+                    activeRide.payment_method === 'wallet' ? 'المحفظة' : 'الدفع نقداً'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {/* Chat Button */}
+              <ChatButton rideId={activeRide.id} userType="driver" />
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full"
+                onClick={() => {
+                  if (riderInfo?.phone) {
+                    window.location.href = `tel:${riderInfo.phone}`;
+                  } else {
+                    toast({
+                      title: "رقم الهاتف غير متوفر",
+                      variant: "destructive"
+                    });
+                  }
+                }}
+                title="اتصال هاتفي"
+              >
+                <Phone className="w-5 h-5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full bg-green-500/10 border-green-500/30 hover:bg-green-500/20"
+                onClick={() => {
+                  if (riderInfo?.phone) {
+                    // تنظيف رقم الهاتف للواتساب
+                    const cleanPhone = riderInfo.phone.replace(/[^0-9]/g, '');
+                    // إذا كان الرقم يبدأ بـ 0، استبدله بـ 964
+                    const whatsappNumber = cleanPhone.startsWith('0')
+                      ? '964' + cleanPhone.slice(1)
+                      : cleanPhone.startsWith('964')
+                        ? cleanPhone
+                        : '964' + cleanPhone;
+                    window.open(`https://wa.me/${whatsappNumber}`, '_blank');
+                  } else {
+                    toast({
+                      title: "رقم الهاتف غير متوفر",
+                      variant: "destructive"
+                    });
+                  }
+                }}
+                title="واتساب"
+              >
+                <svg className="w-5 h-5 text-green-600" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                </svg>
+              </Button>
+            </div>
+          </div>
+
+          {/* Locations */}
+          <div className="space-y-3 mb-4">
+            <div className="flex items-start gap-3">
+              <div className={`w-3 h-3 mt-1.5 rounded-full shrink-0 ${activeRide.status === 'accepted' ? 'bg-primary animate-pulse' : 'bg-primary'
+                }`} />
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground">نقطة الانطلاق</p>
+                <p className="text-sm text-foreground">
+                  {activeRide.pickup_address || getLocationString(activeRide.pickup_location)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className={`w-3 h-3 mt-1.5 rounded-full shrink-0 ${activeRide.status === 'in_progress' ? 'bg-destructive animate-pulse' : 'bg-muted'
+                }`} />
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground">الوجهة</p>
+                <p className="text-sm text-foreground">
+                  {activeRide.dropoff_address || getLocationString(activeRide.dropoff_location)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Ride Map with Route */}
+          <div className="mb-4">
+            <ActiveRideMap
+              driverLocation={driverLocation}
+              pickupLocation={activeRide.pickup_location}
+              dropoffLocation={activeRide.dropoff_location}
+              rideStatus={activeRide.status as 'accepted' | 'arrived' | 'in_progress'}
+            />
+          </div>
+
+          {/* Stats */}
+          <div className="flex items-center justify-between py-3 px-4 bg-secondary/50 rounded-xl mb-4">
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">المسافة</p>
+              <p className="font-bold text-foreground">{activeRide.distance_km || '?'} كم</p>
+            </div>
+            <div className="w-px h-8 bg-border" />
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">المدة</p>
+              <p className="font-bold text-foreground">{activeRide.duration_minutes || '?'} د</p>
+            </div>
+            <div className="w-px h-8 bg-border" />
+            <div className="text-center">
+              <Wallet className="w-4 h-4 text-primary mx-auto mb-1" />
+              <p className="font-bold text-primary">
+                {(activeRide.estimated_fare || 0).toLocaleString()} د.ع
+              </p>
+            </div>
+          </div>
+
+          {/* Navigation Button with Waze/Google/Apple support */}
+          <NavigationButton
+            lat={activeRide.status === 'in_progress'
+              ? activeRide.dropoff_location.lat
+              : activeRide.pickup_location.lat
+            }
+            lng={activeRide.status === 'in_progress'
+              ? activeRide.dropoff_location.lng
+              : activeRide.pickup_location.lng
+            }
+            label={activeRide.status === 'in_progress' ? 'ملاحة للوجهة' : 'ملاحة للعميل'}
+            className="mb-4"
+          />
+
+          {/* Quick Messages to Rider */}
+          {activeRide.status === 'accepted' && (
+            <div className="mb-4">
+              <p className="text-xs text-muted-foreground mb-2 text-center">رسائل سريعة للراكب:</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-blue-500/10 border-blue-500/30 text-blue-600 hover:bg-blue-500/20"
+                  onClick={() => sendQuickMessageToRider('driver_approaching_soon', 'السائق قريب وفي الطريق إليك', '✅ تم إبلاغ الراكب')}
+                >
+                  🚗 قريب منك
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/20"
+                  onClick={() => sendQuickMessageToRider('driver_car_info', `السيارة ${activeRide.vehicle_type === 'economy' ? 'اقتصادية' : activeRide.vehicle_type === 'comfort' ? 'مريحة' : 'فاخرة'}`, '✅ تم إرسال معلومات السيارة')}
+                >
+                  🚙 معلومات السيارة
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {activeRide.status === 'arrived' && (
+            <div className="mb-4">
+              <p className="text-xs text-muted-foreground mb-2 text-center">أبلغ الراكب:</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-green-500/10 border-green-500/30 text-green-600 hover:bg-green-500/20"
+                  onClick={() => sendQuickMessageToRider('driver_at_location', 'وصلت للموقع - أنا بانتظارك', '✅ تم إبلاغ الراكب')}
+                >
+                  📍 وصلت للموقع
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-blue-500/10 border-blue-500/30 text-blue-600 hover:bg-blue-500/20"
+                  onClick={() => sendQuickMessageToRider('driver_waiting_outside', 'أنتظرك أمام البناية', '✅ تم إبلاغ الراكب')}
+                >
+                  🏢 أمام البناية
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/20"
+                  onClick={() => sendQuickMessageToRider('driver_car_color', 'السيارة بالقرب منك - ابحث عني!', '✅ تم إبلاغ الراكب')}
+                >
+                  🎨 لون السيارة
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="space-y-3">
+            {activeRide.status === 'accepted' && (
+              <Button
+                className="w-full h-14 text-lg shadow-glow"
+                onClick={handleArrived}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <MapPin className="w-5 h-5 ml-2" />
+                    وصلت لموقع العميل
+                  </>
+                )}
+              </Button>
+            )}
+
+            {activeRide.status === 'arrived' && (
+              <Button
+                className="w-full h-14 text-lg shadow-glow bg-blue-600 hover:bg-blue-700"
+                onClick={handleStartRide}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle className="w-5 h-5 ml-2" />
+                    ✓ العميل ركب في السيارة
+                  </>
+                )}
+              </Button>
+            )}
+
+            {activeRide.status === 'in_progress' && (
+              <Button
+                className="w-full h-14 text-lg bg-green-600 hover:bg-green-700 shadow-glow"
+                onClick={handleCompleteRide}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Flag className="w-5 h-5 ml-2" />
+                    🏁 تم الوصول
+                  </>
+                )}
+              </Button>
+            )}
+
+            {activeRide.status !== 'in_progress' && (
+              <Button
+                variant="outline"
+                className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                onClick={handleCancelRide}
+                disabled={loading}
+              >
+                إلغاء الرحلة
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default ActiveRideCard;
