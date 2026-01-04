@@ -134,20 +134,7 @@ export const flushEvents = async (): Promise<void> => {
         if (config.debug) {
             console.error('Failed to send analytics:', error);
         }
-        // Log error to Supabase in production
-        if (import.meta.env.VITE_ENABLE_ERROR_LOGGING === 'true') {
-            try {
-                await supabase.from('error_logs').insert({
-                    error_type: 'analytics_error',
-                    error_message: error instanceof Error ? error.message : 'Unknown error',
-                    error_data: { eventsCount: eventsToSend.length },
-                });
-            } catch (logError) {
-                if (config.debug) {
-                    console.error('Failed to log analytics error:', logError);
-                }
-            }
-        }
+        // Error logging disabled - error_logs table not available
         // أعد الأحداث للمخزن المؤقت
         eventBuffer = [...eventsToSend, ...eventBuffer];
     }
