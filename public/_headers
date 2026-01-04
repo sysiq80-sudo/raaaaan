@@ -1,0 +1,19 @@
+# Headers for static hosting (Netlify, Cloudflare Pages, etc.)
+
+/assets/*.css
+  Content-Type: text/css
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*.js
+  Content-Type: application/javascript
+  Cache-Control: public, max-age=31536000, immutable
+
+/manifest.json
+  Content-Type: application/manifest+json
+  Cache-Control: public, max-age=86400
+
+/*.css
+  Content-Type: text/css
+
+/*.js
+  Content-Type: application/javascript

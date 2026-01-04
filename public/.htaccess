@@ -1,0 +1,29 @@
+<IfModule mod_mime.c>
+  # Set correct MIME types for CSS
+  AddType text/css .css
+  
+  # Set correct MIME types for JavaScript
+  AddType application/javascript .js
+  AddType application/javascript .mjs
+  
+  # Set correct MIME types for other common files
+  AddType application/json .json
+  AddType application/manifest+json .webmanifest
+  AddType image/svg+xml .svg
+  AddType image/webp .webp
+</IfModule>
+
+# Enable gzip compression
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json
+</IfModule>
+
+# Fallback to index.html for SPA routing
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /taksi-iraqi-smart/
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /taksi-iraqi-smart/index.html [L]
+</IfModule>
