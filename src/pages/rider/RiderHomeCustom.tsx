@@ -732,46 +732,40 @@ const RiderHomeCustom: React.FC = () => {
               </div>
 
               {/* رسالة ترحيبية في البداية */}
-              {activeField === 'both' && !pickupCoords && !dropoffCoords && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="px-4 mb-4"
-                >
+              {activeField === 'both' && !pickupCoords && !dropoffCoords && <motion.div initial={{
+            opacity: 0,
+            y: 20
+          }} animate={{
+            opacity: 1,
+            y: 0
+          }} className="px-4 mb-4">
                   <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent rounded-3xl p-6 border border-primary/20 text-center">
-                    <motion.div 
-                      animate={{ y: [0, -5, 0] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="text-4xl mb-3"
-                    >
-                      👋
-                    </motion.div>
-                    <h3 className="text-lg font-bold mb-2">أهلاً بك في رعان!</h3>
+                    
+                    
                     <p className="text-sm text-muted-foreground">اختر وجهتك للبدء</p>
                   </div>
-                </motion.div>
-              )}
+                </motion.div>}
 
               {/* Promo Banners - Hide when dropoff is selected for cleaner UX */}
-              {!dropoffCoords && pickupCoords && activeField !== 'pickup' && (
-                <div className="px-4 mb-4">
+              {!dropoffCoords && pickupCoords && activeField !== 'pickup' && <div className="px-4 mb-4">
                   <ScrollablePromoBanners regionId={null} />
-                </div>
-              )}
+                </div>}
 
               {/* رسالة توجيهية عند اختيار موقع الانطلاق */}
-              {activeField === 'pickup' && !pickupCoords && dropoffCoords && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="px-4 mb-4"
-                >
+              {activeField === 'pickup' && !pickupCoords && dropoffCoords && <motion.div initial={{
+            opacity: 0,
+            scale: 0.95
+          }} animate={{
+            opacity: 1,
+            scale: 1
+          }} className="px-4 mb-4">
                   <div className="bg-gradient-to-r from-emerald-500/15 to-emerald-600/10 border-2 border-emerald-500/30 rounded-2xl p-5 text-center">
-                    <motion.div 
-                      animate={{ scale: [1, 1.1, 1] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                      className="text-3xl mb-2"
-                    >
+                    <motion.div animate={{
+                scale: [1, 1.1, 1]
+              }} transition={{
+                duration: 1.5,
+                repeat: Infinity
+              }} className="text-3xl mb-2">
                       📍
                     </motion.div>
                     <p className="text-base font-bold text-emerald-600 dark:text-emerald-400 mb-1">
@@ -781,22 +775,23 @@ const RiderHomeCustom: React.FC = () => {
                       اضغط على الزر أعلاه أو استخدم GPS
                     </p>
                   </div>
-                </motion.div>
-              )}
+                </motion.div>}
 
               {/* رسالة توجيهية عند اختيار الوجهة */}
-              {activeField === 'dropoff' && !dropoffCoords && pickupCoords && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="px-4 mb-4"
-                >
+              {activeField === 'dropoff' && !dropoffCoords && pickupCoords && <motion.div initial={{
+            opacity: 0,
+            scale: 0.95
+          }} animate={{
+            opacity: 1,
+            scale: 1
+          }} className="px-4 mb-4">
                   <div className="bg-gradient-to-r from-primary/15 to-primary/5 border-2 border-primary/30 rounded-2xl p-5 text-center">
-                    <motion.div 
-                      animate={{ rotate: [0, 10, -10, 0] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="text-3xl mb-2"
-                    >
+                    <motion.div animate={{
+                rotate: [0, 10, -10, 0]
+              }} transition={{
+                duration: 2,
+                repeat: Infinity
+              }} className="text-3xl mb-2">
                       🎯
                     </motion.div>
                     <p className="text-base font-bold text-primary mb-1">
@@ -806,8 +801,7 @@ const RiderHomeCustom: React.FC = () => {
                       اختر من المفضلة أو ابحث عن مكان جديد
                     </p>
                   </div>
-                </motion.div>
-              )}
+                </motion.div>}
 
               {/* Location Input Cards - Professional Design */}
               <div className="px-4 space-y-3 mb-4">
@@ -846,52 +840,45 @@ const RiderHomeCustom: React.FC = () => {
               </div>
 
               {/* Quick Booking Section - Enhanced */}
-              {pickupCoords && dropoffCoords && routeDistance && !showBookingPanel && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="px-4 mb-4 space-y-4"
-                >
+              {pickupCoords && dropoffCoords && routeDistance && !showBookingPanel && <motion.div initial={{
+            opacity: 0,
+            y: 20
+          }} animate={{
+            opacity: 1,
+            y: 0
+          }} className="px-4 mb-4 space-y-4">
                   {/* Trip Summary Card */}
-                  <TripInfoSummary 
-                    distance={routeDistance}
-                    duration={routeDuration}
-                    estimatedFare={fareBreakdown?.total_fare}
-                    vehicleType={selectedVehicle}
-                    compact={true}
-                  />
+                  <TripInfoSummary distance={routeDistance} duration={routeDuration} estimatedFare={fareBreakdown?.total_fare} vehicleType={selectedVehicle} compact={true} />
                   
                   {/* Driver Count Badge */}
-                  {nearbyDriversCount > 0 && (
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="flex items-center justify-center gap-2 py-2"
-                    >
+                  {nearbyDriversCount > 0 && <motion.div initial={{
+              opacity: 0,
+              scale: 0.9
+            }} animate={{
+              opacity: 1,
+              scale: 1
+            }} className="flex items-center justify-center gap-2 py-2">
                       <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                       <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
                         {nearbyDriversCount} سائق متاح الآن
                       </span>
-                    </motion.div>
-                  )}
+                    </motion.div>}
                   
                   {/* Large Booking Button */}
-                  <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-                    <Button 
-                      onClick={() => setShowBookingPanel(true)} 
-                      className="w-full h-16 text-lg font-bold rounded-2xl shadow-xl bg-gradient-to-l from-primary to-primary/90 hover:from-primary/90 hover:to-primary group"
-                    >
+                  <motion.div whileHover={{
+              scale: 1.01
+            }} whileTap={{
+              scale: 0.99
+            }}>
+                    <Button onClick={() => setShowBookingPanel(true)} className="w-full h-16 text-lg font-bold rounded-2xl shadow-xl bg-gradient-to-l from-primary to-primary/90 hover:from-primary/90 hover:to-primary group">
                       <span className="flex items-center gap-3">
                         <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
                         احجز الآن
-                        {fareBreakdown?.total_fare && (
-                          <span className="text-primary-foreground/80">• {fareBreakdown.total_fare.toLocaleString('ar-IQ')} د.ع</span>
-                        )}
+                        {fareBreakdown?.total_fare && <span className="text-primary-foreground/80">• {fareBreakdown.total_fare.toLocaleString('ar-IQ')} د.ع</span>}
                       </span>
                     </Button>
                   </motion.div>
-                </motion.div>
-              )}
+                </motion.div>}
 
               {/* Saved Places Quick Icons - Show when selecting destination */}
               {!dropoffCoords && (activeField === 'dropoff' || activeField === 'both') && <div className="px-4 py-4">
