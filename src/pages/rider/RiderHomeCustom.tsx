@@ -582,6 +582,7 @@ const RiderHomeCustom: React.FC = () => {
             draggableMarkers={false}
             isLocating={isLocating}
             onReloadLocation={getCurrentLocation}
+            hidePickupMarker={true}
           />
         </Suspense>
       </div>

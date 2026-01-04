@@ -81,6 +81,7 @@ interface MapProps {
   // Props for location reload button
   isLocating?: boolean; // Show loading state on reload button
   onReloadLocation?: () => void; // Callback to reload GPS location
+  hidePickupMarker?: boolean; // Hide the pickup marker completely
 }
 
 export interface MapRef {
@@ -105,7 +106,8 @@ const Map = forwardRef<MapRef, MapProps>(({
   onMapMove,
   showCenterMarker = true,
   isLocating = false,
-  onReloadLocation
+  onReloadLocation,
+  hidePickupMarker = false
 }, ref) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -744,7 +746,7 @@ const Map = forwardRef<MapRef, MapProps>(({
   // Update pickup marker
   useEffect(() => {
     // Don't show markers in crosshair mode unless showCenterMarker is true
-    if (!map.current || !pickupLocation || (useCrosshairMode && !showCenterMarker)) return;
+    if (!map.current || !pickupLocation || (useCrosshairMode && !showCenterMarker) || hidePickupMarker) return;
 
     if (pickupMarkerRef.current) {
       pickupMarkerRef.current.remove();
