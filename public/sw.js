@@ -199,7 +199,13 @@ function getCacheConfig(url) {
 
 // Check if URL is a static asset
 function isStaticAsset(url) {
-  return STATIC_EXTENSIONS.some(ext => url.includes(ext));
+  try {
+    const { pathname } = new URL(url);
+    return STATIC_EXTENSIONS.some((ext) => pathname.endsWith(ext));
+  } catch {
+    // Fallback (should be rare)
+    return false;
+  }
 }
 
 // Install event - pre-cache static assets
@@ -521,6 +527,16 @@ self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (request.method !== 'GET') {
     return;
+  }
+
+  // Don't intercept manifest requests (avoids auth-bridge/CORS issues in some preview hosts)
+  try {
+    const { pathname } = new URL(url);
+    if (pathname === '/manifest.json' || pathname.endsWith('.webmanifest')) {
+      return;
+    }
+  } catch {
+    // ignore
   }
 
   // Handle Supabase API requests with smart caching
