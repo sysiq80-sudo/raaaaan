@@ -24,6 +24,7 @@ import RiderHome from "./pages/rider/RiderHome";
 import RiderHomeClassic from "./pages/rider/RiderHomeClassic";
 import RiderHomeCustom from "./pages/rider/RiderHomeCustom";
 import RiderHomeMap from "./pages/rider/RiderHomeMap";
+import RiderRider from "./pages/rider/RiderRider";
 import RiderAuth from "./pages/rider/RiderAuth";
 import RiderRides from "./pages/rider/RiderRides";
 import RiderPayments from "./pages/rider/RiderPayments";
@@ -101,6 +102,7 @@ const App = () => (
             <Route path="/rider-1custom" element={<ErrorBoundary><RiderHomeCustom /></ErrorBoundary>} />
             <Route path="/rider11" element={<ErrorBoundary><RiderHomeCustom /></ErrorBoundary>} />
             <Route path="/rider-map" element={<ErrorBoundary><RiderHomeMap /></ErrorBoundary>} />
+            <Route path="/rider/complete" element={<ErrorBoundary><RiderRider /></ErrorBoundary>} />
             <Route path="/rider/auth" element={<ErrorBoundary><RiderAuth /></ErrorBoundary>} />
             <Route path="/rider/rides" element={<ErrorBoundary><RiderRides /></ErrorBoundary>} />
             <Route path="/rider/payments" element={<ErrorBoundary><RiderPayments /></ErrorBoundary>} />
