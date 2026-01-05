@@ -32,6 +32,7 @@ import RiderPayments from "./pages/rider/RiderPayments";
 import RiderSettings from "./pages/rider/RiderSettings";
 import RiderSavedPlaces from "./pages/rider/RiderSavedPlaces";
 import RiderReferrals from "./pages/rider/RiderReferrals";
+import NewRider from "./pages/rider/NewRider";
 
 // Driver Pages
 import DriverHome from "./pages/driver/DriverHome";
@@ -117,6 +118,7 @@ const App = () => {
             <Route path="/rider/settings" element={<ErrorBoundary><RiderSettings /></ErrorBoundary>} />
             <Route path="/rider/saved-places" element={<ErrorBoundary><RiderSavedPlaces /></ErrorBoundary>} />
             <Route path="/rider/referrals" element={<ErrorBoundary><RiderReferrals /></ErrorBoundary>} />
+            <Route path="/newrider" element={<ErrorBoundary><NewRider /></ErrorBoundary>} />
 
             {/* Driver Routes */}
             <Route path="/driver" element={<ErrorBoundary><DriverHome /></ErrorBoundary>} />
