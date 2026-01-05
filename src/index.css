@@ -90,13 +90,22 @@
   html {
     font-family: 'IBM Plex Sans Arabic', sans-serif;
     direction: rtl;
+    font-size: 14px; /* Base font size for better mobile scaling */
+  }
+
+  @media (min-width: 640px) {
+    html {
+      font-size: 16px;
+    }
   }
 
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+    line-height: 1.5; /* Better line height for readability */
   }
 
+  /* Responsive text scaling */
   h1, h2, h3, h4, h5, h6 {
     @apply font-bold tracking-tight;
   }
@@ -447,6 +456,20 @@
 /* Driver marker smooth transition */
 .driver-marker-animation {
   transition: transform 0.3s ease-out;
+}
+
+/* Modern spin animation - slow and smooth */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
 }
 
 /* Cluster hover effect */
