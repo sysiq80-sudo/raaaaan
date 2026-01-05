@@ -99,11 +99,10 @@ const PasswordResetDialog = ({ open, onOpenChange, userType }: PasswordResetDial
         description: "يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة",
       });
       setStep('success');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "حدث خطأ في تغيير كلمة المرور";
+    } catch (error: any) {
       toast({
         title: "خطأ",
-        description: errorMessage,
+        description: error.message || "حدث خطأ في تغيير كلمة المرور",
         variant: "destructive",
       });
     } finally {

@@ -1,7 +1,7 @@
 // Service Worker for RAAN - Push Notifications + Advanced Caching
-// v4 - Enhanced error handling and production optimizations
+// v3 - Enhanced with multi-strategy caching for static assets and API data
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `raan-static-${CACHE_VERSION}`;
 const API_CACHE = `raan-api-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `raan-runtime-${CACHE_VERSION}`;
@@ -13,8 +13,8 @@ const STORE_NAME = 'pending-notifications';
 const STATIC_ASSETS = [
   '/',
   '/favicon.ico',
-  '/logo.png'
-  // '/manifest.json' - Removed: CORS issues on some platforms and auth-bridged environments
+  '/logo.png',
+  '/manifest.json'
 ];
 
 // API endpoints with their cache durations (in seconds)
@@ -199,13 +199,7 @@ function getCacheConfig(url) {
 
 // Check if URL is a static asset
 function isStaticAsset(url) {
-  try {
-    const { pathname } = new URL(url);
-    return STATIC_EXTENSIONS.some((ext) => pathname.endsWith(ext));
-  } catch {
-    // Fallback (should be rare)
-    return false;
-  }
+  return STATIC_EXTENSIONS.some(ext => url.includes(ext));
 }
 
 // Install event - pre-cache static assets
@@ -527,16 +521,6 @@ self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (request.method !== 'GET') {
     return;
-  }
-
-  // Don't intercept manifest requests (avoids auth-bridge/CORS issues in some preview hosts)
-  try {
-    const { pathname } = new URL(url);
-    if (pathname === '/manifest.json' || pathname.endsWith('.webmanifest')) {
-      return;
-    }
-  } catch {
-    // ignore
   }
 
   // Handle Supabase API requests with smart caching

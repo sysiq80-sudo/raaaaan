@@ -35,9 +35,6 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   const [centerAddress, setCenterAddress] = useState<string>('');
   const [serviceAreaStatus, setServiceAreaStatus] = useState<ServiceAreaCheck | null>(null);
   const [isCheckingService, setIsCheckingService] = useState(false);
-  const [isMapMoving, setIsMapMoving] = useState(false);
-  const moveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isDraggingRef = useRef(false);
 
   const ramadiCenter: [number, number] = [43.2954, 33.4262];
 
@@ -141,39 +138,18 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       }
     });
 
-    map.current.on('dragstart', () => {
-      setIsDragging(true);
-      setIsMapMoving(true);
-      isDraggingRef.current = true;
-    });
+    map.current.on('dragstart', () => setIsDragging(true));
     map.current.on('dragend', () => {
       setIsDragging(false);
-      isDraggingRef.current = false;
-      // Keep moving true until moveend
-    });
-
-    // Update address during movement with debounce
-    map.current.on('move', () => {
-      setIsMapMoving(true);
-      if (isDraggingRef.current) {
-        if (moveTimeoutRef.current) clearTimeout(moveTimeoutRef.current);
-        moveTimeoutRef.current = setTimeout(() => {
-          const center = map.current?.getCenter();
-          if (center) reverseGeocode(center.lat, center.lng);
-        }, 300); // Debounce for 300ms
-      }
+      const center = map.current?.getCenter();
+      if (center) reverseGeocode(center.lat, center.lng);
     });
 
     map.current.on('moveend', () => {
-      setIsMapMoving(false);
-      // Clear timeout on moveend
-      if (moveTimeoutRef.current) {
-        clearTimeout(moveTimeoutRef.current);
-        moveTimeoutRef.current = null;
+      if (!isDragging) {
+        const center = map.current?.getCenter();
+        if (center) reverseGeocode(center.lat, center.lng);
       }
-      // Final address update
-      const center = map.current?.getCenter();
-      if (center) reverseGeocode(center.lat, center.lng);
     });
 
     return () => {
@@ -244,26 +220,6 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
           </h1>
           <div className="w-10" />
         </div>
-      </div>
-
-      {/* Top-floating confirm button */}
-      <div className="absolute left-0 right-0 top-16 z-30 px-4">
-        <Button
-          onClick={handleConfirm}
-          disabled={isCheckingService || !centerAddress || isMapMoving}
-          className="w-full h-12 text-sm font-bold rounded-xl transition-all duration-300 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 disabled:from-gray-400 disabled:to-gray-500"
-        >
-          {isCheckingService ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : isMapMoving ? (
-            <span className="text-xs">انتظر حتى يتوقف الخريطة...</span>
-          ) : (
-            <>
-              <Check className="w-5 h-5 ml-2" />
-              {isPickup ? 'تأكيد موقع الانطلاق' : 'تأكيد موقع الوصول'}
-            </>
-          )}
-        </Button>
       </div>
 
       {/* Map */}
@@ -359,14 +315,14 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       {userLocation && (
         <button
           onClick={centerOnUser}
-          className="absolute bottom-52 left-4 w-14 h-14 bg-card/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-xl flex items-center justify-center hover:bg-accent transition-all duration-200 active:scale-95 z-40 group"
+          className="absolute bottom-52 left-4 w-14 h-14 bg-card/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-xl flex items-center justify-center hover:bg-accent transition-all duration-200 active:scale-95 z-20 group"
         >
           <Navigation className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />
         </button>
       )}
 
-      {/* Top panel - Enhanced design */}
-      <div className="absolute top-20 left-0 right-0 z-40 p-4">
+      {/* Bottom panel - Enhanced design */}
+      <div className="absolute bottom-0 left-0 right-0 z-30 p-4 pb-24">
         <div className="bg-card/95 backdrop-blur-md rounded-3xl p-5 border border-border/50 shadow-2xl">
           {/* Service area status */}
           {serviceAreaStatus && !serviceAreaStatus.in_service && (
@@ -424,10 +380,32 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
             </div>
           </div>
 
+          {/* Confirm button - beautiful gradient */}
+          <Button
+            onClick={handleConfirm}
+            disabled={isCheckingService || !centerAddress}
+            className={`w-full h-14 text-lg font-bold rounded-2xl transition-all duration-300 ${
+              isPickup 
+                ? 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70' 
+                : 'bg-gradient-to-r from-blue-500 to-blue-400 hover:from-blue-600 hover:to-blue-500'
+            }`}
+            style={{
+              boxShadow: isPickup 
+                ? '0 4px 20px rgba(0, 217, 165, 0.3)' 
+                : '0 4px 20px rgba(59, 130, 246, 0.3)'
+            }}
+          >
+            {isCheckingService ? (
+              <Loader2 className="w-6 h-6 animate-spin" />
+            ) : (
+              <>
+                <Check className="w-6 h-6 ml-2" />
+                تأكيد {isPickup ? 'موقع الانطلاق' : 'الوجهة'}
+              </>
+            )}
+          </Button>
         </div>
       </div>
-
-      {/* All controls live in the header to avoid stacking overlays */}
     </div>
   );
 };

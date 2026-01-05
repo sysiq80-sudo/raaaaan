@@ -1,4 +1,3 @@
-import React, { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { lazy } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -7,7 +6,6 @@ import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { initAnalytics } from "@/lib/analytics";
 
 // Pages
 import Index from "./pages/Index";
@@ -32,7 +30,6 @@ import RiderPayments from "./pages/rider/RiderPayments";
 import RiderSettings from "./pages/rider/RiderSettings";
 import RiderSavedPlaces from "./pages/rider/RiderSavedPlaces";
 import RiderReferrals from "./pages/rider/RiderReferrals";
-import NewRider from "./pages/rider/NewRider";
 
 // Driver Pages
 import DriverHome from "./pages/driver/DriverHome";
@@ -79,17 +76,9 @@ import AdminSMSLogs from "./pages/admin/AdminSMSLogs";
 import AdminDriverVisibility from "./pages/admin/AdminDriverVisibility";
 const queryClient = new QueryClient();
 
-const App = () => {
-  useEffect(() => {
-    // Initialize analytics if enabled
-    if (import.meta.env.VITE_ENABLE_ANALYTICS === 'true') {
-      initAnalytics();
-    }
-  }, []);
-
-  return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
+const App = () => (
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -118,7 +107,6 @@ const App = () => {
             <Route path="/rider/settings" element={<ErrorBoundary><RiderSettings /></ErrorBoundary>} />
             <Route path="/rider/saved-places" element={<ErrorBoundary><RiderSavedPlaces /></ErrorBoundary>} />
             <Route path="/rider/referrals" element={<ErrorBoundary><RiderReferrals /></ErrorBoundary>} />
-            <Route path="/newrider" element={<ErrorBoundary><NewRider /></ErrorBoundary>} />
 
             {/* Driver Routes */}
             <Route path="/driver" element={<ErrorBoundary><DriverHome /></ErrorBoundary>} />
@@ -174,7 +162,6 @@ const App = () => {
       </TooltipProvider>
     </QueryClientProvider>
   </ErrorBoundary>
-  );
-};
+);
 
 export default App;

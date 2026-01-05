@@ -30,26 +30,26 @@ export const useActiveRide = (userId: string | null) => {
   const previousStatusRef = useRef<string | null>(null);
 
   // Helper to parse ride data
-  const parseRideData = useCallback((rideData: Record<string, unknown>): ActiveRide => ({
-    id: rideData.id as string,
-    pickup_location: rideData.pickup_location as { lat: number; lng: number },
-    dropoff_location: rideData.dropoff_location as { lat: number; lng: number },
-    pickup_address: rideData.pickup_address as string,
-    dropoff_address: rideData.dropoff_address as string,
-    status: rideData.status as string,
-    estimated_fare: rideData.estimated_fare as number,
-    final_fare: rideData.final_fare as number,
-    distance_km: rideData.distance_km as number,
-    duration_minutes: rideData.duration_minutes as number,
-    vehicle_type: rideData.vehicle_type as string,
-    driver_id: rideData.driver_id as string,
-    created_at: rideData.created_at as string,
-    completed_at: rideData.completed_at as string,
-    driver_rating: rideData.driver_rating as number
+  const parseRideData = useCallback((rideData: any): ActiveRide => ({
+    id: rideData.id,
+    pickup_location: rideData.pickup_location,
+    dropoff_location: rideData.dropoff_location,
+    pickup_address: rideData.pickup_address,
+    dropoff_address: rideData.dropoff_address,
+    status: rideData.status,
+    estimated_fare: rideData.estimated_fare,
+    final_fare: rideData.final_fare,
+    distance_km: rideData.distance_km,
+    duration_minutes: rideData.duration_minutes,
+    vehicle_type: rideData.vehicle_type,
+    driver_id: rideData.driver_id,
+    created_at: rideData.created_at,
+    completed_at: rideData.completed_at,
+    driver_rating: rideData.driver_rating
   }), []);
 
   // Handle ride status change with notifications
-  const handleStatusChange = useCallback((newStatus: string, previousStatus: string | null, updatedRide: Record<string, unknown>) => {
+  const handleStatusChange = useCallback((newStatus: string, previousStatus: string | null, updatedRide: any) => {
     console.log('[useActiveRide] Status changed:', previousStatus, '->', newStatus);
     
     if (newStatus === 'cancelled' || newStatus === 'completed') {
@@ -63,7 +63,7 @@ export const useActiveRide = (userId: string | null) => {
         vibrate(VibrationPatterns.cancelled);
         toast({
           title: "تم إلغاء الرحلة ❌",
-          description: (updatedRide.cancellation_reason as string) || "تم إلغاء الرحلة",
+          description: updatedRide.cancellation_reason || "تم إلغاء الرحلة",
           variant: "destructive"
         });
       }
@@ -144,14 +144,14 @@ export const useActiveRide = (userId: string | null) => {
       .single();
     
     if (!error && ride) {
-      const rideData = ride as Record<string, unknown>;
+      const rideData = ride as any;
       const parsedRide = parseRideData(rideData);
       
       setActiveRide(parsedRide);
-      previousStatusRef.current = rideData.status as string;
+      previousStatusRef.current = rideData.status;
       
       if (rideData.status === 'pending') {
-        setPendingRideId(rideData.id as string);
+        setPendingRideId(rideData.id);
         setShowWaitingScreen(true);
         setShowLiveTracker(false);
       } else {
@@ -189,18 +189,18 @@ export const useActiveRide = (userId: string | null) => {
           console.log('[useActiveRide] 📡 Realtime update received:', payload);
           
           if (payload.eventType === 'INSERT') {
-            const newRide = payload.new as Record<string, unknown>;
+            const newRide = payload.new as any;
             if (newRide.status === 'pending') {
               setActiveRide(parseRideData(newRide));
-              setPendingRideId(newRide.id as string);
+              setPendingRideId(newRide.id);
               setShowWaitingScreen(true);
               previousStatusRef.current = 'pending';
             }
           }
           
           if (payload.eventType === 'UPDATE') {
-            const updatedRide = payload.new as Record<string, unknown>;
-            const newStatus = updatedRide.status as string;
+            const updatedRide = payload.new as any;
+            const newStatus = updatedRide.status;
             const prevStatus = previousStatusRef.current;
             
             // Update previous status ref

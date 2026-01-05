@@ -44,48 +44,30 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
     }
   }, [updateInterval]);
 
-  const handleError = useCallback((error: GeolocationPositionError, retryWithLowerAccuracy?: boolean) => {
+  const handleError = useCallback((error: GeolocationPositionError) => {
     console.warn('Geolocation error:', error.message);
-    
-    // Retry with lower accuracy on timeout
-    if (retryWithLowerAccuracy && error.code === error.TIMEOUT) {
-      console.log('Retrying geolocation with lower accuracy...');
-      navigator.geolocation.getCurrentPosition(
-        updateLocation,
-        (err) => console.warn('Retry failed:', err.message),
-        {
-          enableHighAccuracy: false,
-          timeout: 20000,
-          maximumAge: 60000,
-        }
-      );
-    }
-  }, [updateLocation]);
+  }, []);
 
   useEffect(() => {
     if (!enabled || !navigator.geolocation) {
       return;
     }
 
-    // Get initial position with retry logic
-    navigator.geolocation.getCurrentPosition(
-      updateLocation, 
-      (error) => handleError(error, true), // Enable retry on initial request
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
-      }
-    );
+    // Get initial position
+    navigator.geolocation.getCurrentPosition(updateLocation, handleError, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    });
 
-    // Watch position changes with improved settings
+    // Watch position changes
     watchIdRef.current = navigator.geolocation.watchPosition(
       updateLocation,
       handleError,
       {
         enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 10000, // Accept cached location up to 10 seconds
+        timeout: 10000,
+        maximumAge: 5000,
       }
     );
 

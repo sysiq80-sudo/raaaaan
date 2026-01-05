@@ -78,11 +78,10 @@ export const RatingDialog = ({
       });
 
       onClose();
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "حدث خطأ في حفظ التقييم";
+    } catch (error: any) {
       toast({
         title: "خطأ",
-        description: errorMessage,
+        description: error.message,
         variant: "destructive"
       });
     } finally {

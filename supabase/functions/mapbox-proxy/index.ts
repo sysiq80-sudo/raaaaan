@@ -67,24 +67,7 @@ serve(async (req) => {
     }
 
     const url = new URL(req.url);
-    
-    // Support both GET (query params) and POST (body) requests
-    let action = url.searchParams.get('action');
-    let bodyParams: Record<string, any> = {};
-    
-    if (req.method === 'POST') {
-      try {
-        bodyParams = await req.json();
-        action = action || bodyParams.action;
-      } catch {
-        // Body parsing failed, continue with query params
-      }
-    }
-    
-    // Helper to get param from either source
-    const getParam = (key: string): string | null => {
-      return url.searchParams.get(key) || bodyParams[key]?.toString() || null;
-    };
+    const action = url.searchParams.get('action');
 
     // Return the token for map initialization
     if (action === 'token') {
@@ -99,24 +82,8 @@ serve(async (req) => {
 
     // Get directions between two points
     if (action === 'directions') {
-      // Support both formats: 
-      // 1. start=lng,lat&end=lng,lat
-      // 2. start_lng=X&start_lat=X&end_lng=X&end_lat=X
-      let start = getParam('start');
-      let end = getParam('end');
-
-      // If start/end not provided, try individual coordinates
-      if (!start || !end) {
-        const startLng = getParam('start_lng');
-        const startLat = getParam('start_lat');
-        const endLng = getParam('end_lng');
-        const endLat = getParam('end_lat');
-
-        if (startLng && startLat && endLng && endLat) {
-          start = `${startLng},${startLat}`;
-          end = `${endLng},${endLat}`;
-        }
-      }
+      const start = url.searchParams.get('start');
+      const end = url.searchParams.get('end');
 
       if (!start || !end) {
         throw new Error('Missing start or end coordinates');
@@ -134,29 +101,19 @@ serve(async (req) => {
         throw new Error(data.message || 'Failed to get directions');
       }
 
-      // Extract distance (in km) and duration (in minutes) from the route
-      const route = data.routes?.[0];
-      const distanceKm = route ? route.distance / 1000 : 0;
-      const durationMin = route ? route.duration / 60 : 0;
-
       // Log API usage
       logApiUsage('mapbox_directions', '/directions', { start, end });
 
       return new Response(
-        JSON.stringify({
-          ...data,
-          distance: distanceKm,
-          duration: durationMin,
-          route: route?.geometry
-        }),
+        JSON.stringify(data),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Forward geocoding - search for places by text
     if (action === 'geocode') {
-      const query = getParam('q');
-      const proximity = getParam('proximity');
+      const query = url.searchParams.get('q');
+      const proximity = url.searchParams.get('proximity');
 
       if (!query) {
         throw new Error('Missing search query');
@@ -191,8 +148,8 @@ serve(async (req) => {
 
     // Reverse geocoding - get address from coordinates with landmark priority
     if (action === 'reverse-geocode') {
-      const lng = getParam('lng');
-      const lat = getParam('lat');
+      const lng = url.searchParams.get('lng');
+      const lat = url.searchParams.get('lat');
 
       if (!lng || !lat) {
         throw new Error('Missing coordinates');

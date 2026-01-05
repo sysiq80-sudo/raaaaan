@@ -131,10 +131,7 @@ export const flushEvents = async (): Promise<void> => {
             console.log('📤 Flushed analytics events:', eventsToSend.length);
         }
     } catch (error) {
-        if (config.debug) {
-            console.error('Failed to send analytics:', error);
-        }
-        // Error logging disabled - error_logs table not available
+        console.error('Failed to send analytics:', error);
         // أعد الأحداث للمخزن المؤقت
         eventBuffer = [...eventsToSend, ...eventBuffer];
     }

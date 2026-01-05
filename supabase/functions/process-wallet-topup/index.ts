@@ -17,46 +17,6 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // ============ AUTHENTICATION & AUTHORIZATION CHECK ============
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.error('Missing authorization header');
-      return new Response(
-        JSON.stringify({ success: false, error: 'غير مصرح - يرجى تسجيل الدخول' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      console.error('Auth error:', authError?.message || 'User not found');
-      return new Response(
-        JSON.stringify({ success: false, error: 'المستخدم غير موجود أو الجلسة منتهية' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Verify admin role
-    const { data: roleData, error: roleError } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .maybeSingle();
-
-    if (roleError || !roleData) {
-      console.error('Admin role check failed for user:', user.id, roleError?.message);
-      return new Response(
-        JSON.stringify({ success: false, error: 'غير مصرح - يتطلب صلاحية أدمن' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('Admin verified:', user.id);
-    // ============ END AUTHENTICATION CHECK ============
-
     const { action, request_id, admin_notes } = await req.json();
 
     console.log(`Processing wallet topup action: ${action} for request: ${request_id}`);

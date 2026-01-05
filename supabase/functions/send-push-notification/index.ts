@@ -423,7 +423,7 @@ serve(async (req) => {
       }
 
       // Filter by vehicle type compatibility AND geographic distance
-      const eligibleSubscriptions = subscriptions.filter(sub => {
+      let eligibleSubscriptions = subscriptions.filter(sub => {
         const driver = sub.drivers as any;
         const driverVehicleType = driver?.vehicle_type || 'economy';
         const rideVehicleType = rideData.vehicle_type || 'economy';

@@ -43,7 +43,7 @@ class MarkerPool {
     return new Set(this.active.keys());
   }
 }
-import { Navigation, Loader2, MapPin, Target, AlertTriangle, Locate } from 'lucide-react';
+import { Navigation, Loader2, MapPin, Target, AlertTriangle } from 'lucide-react';
 
 interface ServiceAreaCheck {
   in_service: boolean;
@@ -74,14 +74,6 @@ interface MapProps {
   showRoute?: boolean;
   centerOnDriver?: boolean;
   className?: string;
-  // New props for crosshair mode
-  useCrosshairMode?: boolean;  // Enable crosshair instead of draggable markers
-  onMapMove?: (location: { lat: number; lng: number; address?: string }) => void; // Called when map moves in crosshair mode
-  showCenterMarker?: boolean; // Show pickup/dropoff markers at fixed locations
-  // Props for location reload button
-  isLocating?: boolean; // Show loading state on reload button
-  onReloadLocation?: () => void; // Callback to reload GPS location
-  hidePickupMarker?: boolean; // Hide the pickup marker completely
 }
 
 export interface MapRef {
@@ -101,13 +93,7 @@ const Map = forwardRef<MapRef, MapProps>(({
   draggableMarkers = false,
   showRoute = true,
   centerOnDriver = false,
-  className = "h-64",
-  useCrosshairMode = false,
-  onMapMove,
-  showCenterMarker = true,
-  isLocating = false,
-  onReloadLocation,
-  hidePickupMarker = false
+  className = "h-64" 
 }, ref) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -159,7 +145,7 @@ const Map = forwardRef<MapRef, MapProps>(({
   }, []);
 
   // Reverse geocode center point
-  const reverseGeocodeCenter = useCallback(async (lat: number, lng: number): Promise<string> => {
+  const reverseGeocodeCenter = useCallback(async (lat: number, lng: number) => {
     try {
       const response = await fetch(
         `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=reverse-geocode&lat=${lat}&lng=${lng}`,
@@ -167,18 +153,14 @@ const Map = forwardRef<MapRef, MapProps>(({
       );
       const data = await response.json();
       if (data.features && data.features.length > 0) {
-        const address = data.features[0].place_name || '';
-        setCenterAddress(address);
-        // Also check service area when reverse geocoding
-        if (selectingLocation) {
-          checkServiceArea(lat, lng);
-        }
-        return address;
+        setCenterAddress(data.features[0].place_name || '');
       }
-      return '';
+      // Also check service area when reverse geocoding
+      if (selectingLocation) {
+        checkServiceArea(lat, lng);
+      }
     } catch (error) {
       console.error('Reverse geocode error:', error);
-      return '';
     }
   }, [selectingLocation, checkServiceArea]);
 
@@ -238,7 +220,7 @@ const Map = forwardRef<MapRef, MapProps>(({
       }),
       'top-left'
     );
-    
+
     // Add geolocate control
     const geolocate = new mapboxgl.GeolocateControl({
       positionOptions: {
@@ -538,41 +520,42 @@ const Map = forwardRef<MapRef, MapProps>(({
             setUserLocation({ lat: latitude, lng: longitude });
             
             if (map.current) {
-              // Center map on user location
+              // Add padding to account for bottom overlay (approx 40% of screen height)
+              // This ensures the user location appears in the visible center above the overlay
               map.current.flyTo({
                 center: [longitude, latitude],
                 zoom: 15,
-                duration: 2000
+                duration: 2000,
+                padding: { top: 80, bottom: 350, left: 40, right: 40 }
               });
+
+              // Add prominent user location marker
+              const el = document.createElement('div');
+              el.className = 'user-location-marker';
+              el.style.cssText = 'z-index: 100;';
+              el.innerHTML = `
+                <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
+                  <!-- Outer pulse ring -->
+                  <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 60px; height: 60px; background: rgba(0, 217, 165, 0.2); border-radius: 50%; animation: pulse-ring 2s ease-out infinite;"></div>
+                  <!-- Middle pulse ring -->
+                  <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: rgba(0, 217, 165, 0.3); border-radius: 50%; animation: pulse-ring 2s ease-out 0.5s infinite;"></div>
+                  <!-- Main marker circle -->
+                  <div style="position: relative; width: 20px; height: 20px; background: linear-gradient(135deg, #00d9a5, #00b894); border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 12px rgba(0, 217, 165, 0.5), 0 2px 4px rgba(0,0,0,0.2); z-index: 10;"></div>
+                  <!-- Location label -->
+                  <div style="position: absolute; top: -32px; background: white; padding: 4px 10px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 11px; font-weight: 600; color: #00b894; white-space: nowrap; z-index: 11;">موقعك الحالي</div>
+                </div>
+              `;
+              
+              userMarker.current = new mapboxgl.Marker(el)
+                .setLngLat([longitude, latitude])
+                .addTo(map.current);
             }
           },
           (error) => {
             console.log('Geolocation error:', error.message);
-            
-            // Retry with lower accuracy if timeout
-            if (error.code === error.TIMEOUT) {
-              console.log('Retrying geolocation with lower accuracy...');
-              navigator.geolocation.getCurrentPosition(
-                (position) => {
-                  const { latitude, longitude } = position.coords;
-                  if (map.current && centerOnUser) {
-                    map.current.flyTo({
-                      center: [longitude, latitude],
-                      zoom: 14,
-                      duration: 1000
-                    });
-                  }
-                },
-                () => {
-                  setLocationError('تعذر تحديد موقعك الحالي');
-                },
-                { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 }
-              );
-            } else {
-              setLocationError('تعذر تحديد موقعك الحالي');
-            }
+            setLocationError('تعذر تحديد موقعك الحالي');
           },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          { enableHighAccuracy: true, timeout: 10000 }
         );
       }
 
@@ -590,50 +573,23 @@ const Map = forwardRef<MapRef, MapProps>(({
       }
     });
 
-    // Handle map drag events for center pin mode and crosshair mode
-    let moveTimeout: NodeJS.Timeout;
-    
+    // Handle map drag events for center pin mode
     map.current.on('dragstart', () => {
       setIsDragging(true);
     });
 
-    map.current.on('movestart', () => {
-      setIsDragging(true);
-      if (moveTimeout) clearTimeout(moveTimeout);
-    });
-
-    map.current.on('move', () => {
-      if (moveTimeout) clearTimeout(moveTimeout);
-      moveTimeout = setTimeout(async () => {
-        const center = map.current?.getCenter();
-        if (center) {
-          const address = await reverseGeocodeCenter(center.lat, center.lng);
-          if (onMapMove) {
-            onMapMove({ lat: center.lat, lng: center.lng, address });
-          }
-        }
-      }, 300);
-    });
-
-    map.current.on('dragend', async () => {
+    map.current.on('dragend', () => {
       setIsDragging(false);
       const center = map.current?.getCenter();
       if (center) {
-        const address = await reverseGeocodeCenter(center.lat, center.lng);
-        if (onMapMove) {
-          onMapMove({ lat: center.lat, lng: center.lng, address });
-        }
+        reverseGeocodeCenter(center.lat, center.lng);
       }
     });
 
-    map.current.on('moveend', async () => {
-      setIsDragging(false);
+    map.current.on('moveend', () => {
       const center = map.current?.getCenter();
-      if (center) {
-        const address = await reverseGeocodeCenter(center.lat, center.lng);
-        if (onMapMove) {
-          onMapMove({ lat: center.lat, lng: center.lng, address });
-        }
+      if (center && !isDragging) {
+        reverseGeocodeCenter(center.lat, center.lng);
       }
     });
 
@@ -651,43 +607,6 @@ const Map = forwardRef<MapRef, MapProps>(({
       map.current?.remove();
     };
   }, [mapToken, reverseGeocodeCenter]);
-
-  // Render a bright green dot for the rider's current geolocation (only when no pickup/dropoff set)
-  useEffect(() => {
-    // Hide green dot if user has set pickup or dropoff locations
-    if (!map.current || !userLocation || pickupLocation || dropoffLocation) {
-      if (userMarker.current) {
-        userMarker.current.remove();
-        userMarker.current = null;
-      }
-      return;
-    }
-
-    if (userMarker.current) {
-      userMarker.current.remove();
-    }
-
-    const el = document.createElement('div');
-    el.style.cssText = `
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #10b981;
-      box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.25), 0 8px 18px rgba(16, 185, 129, 0.4);
-      border: 2px solid #fff;
-    `;
-
-    userMarker.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
-      .setLngLat([userLocation.lng, userLocation.lat])
-      .addTo(map.current);
-
-    return () => {
-      if (userMarker.current) {
-        userMarker.current.remove();
-        userMarker.current = null;
-      }
-    };
-  }, [userLocation, pickupLocation, dropoffLocation]);
 
   // Fetch and draw route when both locations are set
   useEffect(() => {
@@ -782,8 +701,7 @@ const Map = forwardRef<MapRef, MapProps>(({
 
   // Update pickup marker
   useEffect(() => {
-    // Don't show markers in crosshair mode unless showCenterMarker is true
-    if (!map.current || !pickupLocation || (useCrosshairMode && !showCenterMarker) || hidePickupMarker) return;
+    if (!map.current || !pickupLocation) return;
 
     if (pickupMarkerRef.current) {
       pickupMarkerRef.current.remove();
@@ -791,22 +709,26 @@ const Map = forwardRef<MapRef, MapProps>(({
 
     const el = document.createElement('div');
     el.className = draggableMarkers ? 'cursor-grab active:cursor-grabbing' : '';
-    el.style.cssText = 'line-height: 0; margin: 0; padding: 0;';
     el.innerHTML = `
-      <div class="pickup-marker-container" style="display: flex; flex-direction: column; align-items: center; line-height: 0; margin: 0; padding: 0;">
+      <div class="flex flex-col items-center pickup-marker-animation" style="transform: translateY(-50%);">
         <!-- Pin Head -->
-        <div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: linear-gradient(135deg, #00d9a5, #00b389); box-shadow: 0 4px 15px rgba(0, 217, 165, 0.5); margin: 0; padding: 0; line-height: 0;">
-          <div style="width: 16px; height: 16px; border-radius: 50%; background: white; margin: 0; padding: 0;"></div>
+        <div class="relative">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-xl" style="background: linear-gradient(135deg, #00d9a5, #00b389); box-shadow: 0 4px 15px rgba(0, 217, 165, 0.5);">
+            <div class="w-4 h-4 rounded-full bg-white"></div>
+          </div>
         </div>
         <!-- Pin Stem -->
-        <div style="width: 4px; height: 24px; background: linear-gradient(to bottom, #00d9a5, #00b389); margin: 0; padding: 0; line-height: 0;"></div>
-        <!-- Pin Point - EXACT location point -->
-        <div style="width: 12px; height: 12px; border-radius: 50%; background: #00d9a5; border: 2px solid white; box-shadow: 0 2px 8px rgba(0, 217, 165, 0.6); margin: 0; padding: 0; line-height: 0;"></div>
-        ${draggableMarkers ? '<div style="margin-top: 8px; padding: 4px 8px; background: rgba(255,255,255,0.95); border-radius: 8px; font-size: 11px; line-height: 1.2; color: #00b389; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.15); white-space: nowrap;">اسحب للتعديل</div>' : ''}
+        <div class="w-1 h-6" style="background: linear-gradient(to bottom, #00d9a5, #00b389);"></div>
+        <!-- Pin Point - This is the exact location -->
+        <div class="relative">
+          <div class="absolute -inset-2 rounded-full animate-ping opacity-40" style="background: #00d9a5;"></div>
+          <div class="w-3 h-3 rounded-full border-2 border-white shadow-lg" style="background: #00d9a5;"></div>
+        </div>
+        ${draggableMarkers ? '<p class="text-xs text-center mt-2 bg-card/90 backdrop-blur-sm px-2 py-1 rounded-lg text-primary font-medium whitespace-nowrap shadow-md">اسحب للتعديل</p>' : ''}
       </div>
     `;
 
-    const marker = new mapboxgl.Marker({ element: el, draggable: draggableMarkers, anchor: 'bottom' })
+    const marker = new mapboxgl.Marker({ element: el, draggable: draggableMarkers })
       .setLngLat([pickupLocation.lng, pickupLocation.lat])
       .addTo(map.current);
 
@@ -819,12 +741,11 @@ const Map = forwardRef<MapRef, MapProps>(({
     }
 
     pickupMarkerRef.current = marker;
-  }, [pickupLocation, draggableMarkers, onMarkerDrag, reverseGeocodeMarker, useCrosshairMode, showCenterMarker]);
+  }, [pickupLocation, draggableMarkers, onMarkerDrag, reverseGeocodeMarker]);
 
   // Update dropoff marker - Using bright glowing blue
   useEffect(() => {
-    // Don't show markers in crosshair mode unless showCenterMarker is true
-    if (!map.current || !dropoffLocation || (useCrosshairMode && !showCenterMarker)) return;
+    if (!map.current || !dropoffLocation) return;
 
     if (dropoffMarkerRef.current) {
       dropoffMarkerRef.current.remove();
@@ -832,22 +753,26 @@ const Map = forwardRef<MapRef, MapProps>(({
 
     const el = document.createElement('div');
     el.className = draggableMarkers ? 'cursor-grab active:cursor-grabbing' : '';
-    el.style.cssText = 'line-height: 0; margin: 0; padding: 0;';
     el.innerHTML = `
-      <div class="dropoff-marker-container" style="display: flex; flex-direction: column; align-items: center; line-height: 0; margin: 0; padding: 0;">
+      <div class="flex flex-col items-center dropoff-marker-animation" style="transform: translateY(-50%);">
         <!-- Pin Head -->
-        <div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #2563eb); box-shadow: 0 4px 15px rgba(59, 130, 246, 0.5); margin: 0; padding: 0; line-height: 0;">
-          <div style="width: 16px; height: 16px; border-radius: 50%; background: white; margin: 0; padding: 0;"></div>
+        <div class="relative">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-xl" style="background: linear-gradient(135deg, #3b82f6, #2563eb); box-shadow: 0 4px 15px rgba(59, 130, 246, 0.5);">
+            <div class="w-4 h-4 rounded-full bg-white"></div>
+          </div>
         </div>
         <!-- Pin Stem -->
-        <div style="width: 4px; height: 24px; background: linear-gradient(to bottom, #3b82f6, #2563eb); margin: 0; padding: 0; line-height: 0;"></div>
-        <!-- Pin Point - EXACT location point -->
-        <div style="width: 12px; height: 12px; border-radius: 50%; background: #3b82f6; border: 2px solid white; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.6); margin: 0; padding: 0; line-height: 0;"></div>
-        ${draggableMarkers ? '<div style="margin-top: 8px; padding: 4px 8px; background: rgba(255,255,255,0.95); border-radius: 8px; font-size: 11px; line-height: 1.2; color: #2563eb; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.15); white-space: nowrap;">اسحب للتعديل</div>' : ''}
+        <div class="w-1 h-6" style="background: linear-gradient(to bottom, #3b82f6, #2563eb);"></div>
+        <!-- Pin Point - This is the exact location -->
+        <div class="relative">
+          <div class="absolute -inset-2 rounded-full animate-ping opacity-40" style="background: #3b82f6;"></div>
+          <div class="w-3 h-3 rounded-full border-2 border-white shadow-lg" style="background: #3b82f6;"></div>
+        </div>
+        ${draggableMarkers ? '<p class="text-xs text-center mt-2 bg-card/90 backdrop-blur-sm px-2 py-1 rounded-lg text-blue-500 font-medium whitespace-nowrap shadow-md">اسحب للتعديل</p>' : ''}
       </div>
     `;
 
-    const marker = new mapboxgl.Marker({ element: el, draggable: draggableMarkers, anchor: 'bottom' })
+    const marker = new mapboxgl.Marker({ element: el, draggable: draggableMarkers })
       .setLngLat([dropoffLocation.lng, dropoffLocation.lat])
       .addTo(map.current);
 
@@ -860,7 +785,7 @@ const Map = forwardRef<MapRef, MapProps>(({
     }
 
     dropoffMarkerRef.current = marker;
-  }, [dropoffLocation, draggableMarkers, onMarkerDrag, reverseGeocodeMarker, useCrosshairMode, showCenterMarker]);
+  }, [dropoffLocation, draggableMarkers, onMarkerDrag, reverseGeocodeMarker]);
 
   // Store previous driver position for smooth interpolation
   const prevDriverLocation = useRef<Coordinates | null>(null);
@@ -1031,25 +956,55 @@ const Map = forwardRef<MapRef, MapProps>(({
     <div className={`relative rounded-2xl overflow-hidden ${className}`}>
       <div ref={mapContainer} className="absolute inset-0" />
       
-      {/* Fixed center marker - Green dot (always visible) - This is the actual location selector */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[80]" style={{ transform: 'translateY(-120px)' }}>
-        <div className={`relative transition-all duration-200 ${isDragging ? 'scale-110' : ''}`}>
-          {/* Outer pulse ring */}
-          <div className="absolute -inset-[30px] rounded-full bg-primary/20 animate-ping" style={{ animationDuration: '2s' }} />
-          {/* Middle pulse ring */}
-          <div className="absolute -inset-[20px] rounded-full bg-primary/30 animate-ping" style={{ animationDuration: '2s', animationDelay: '0.5s' }} />
-          {/* Main green marker circle */}
-          <div 
-            className="relative w-5 h-5 rounded-full border-[3px] border-white shadow-xl bg-gradient-to-br from-primary to-primary/80"
-            style={{
-              boxShadow: '0 4px 12px rgba(0, 217, 165, 0.5), 0 2px 4px rgba(0, 0, 0, 0.2)'
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Address preview at bottom - Shows when selecting location */}
+      {/* Simple Circle Marker with Label */}
       {selectingLocation && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+          <div className={`flex flex-col items-center transition-all duration-200 ${isDragging ? 'scale-110' : ''}`}>
+            {/* Label Card */}
+            <div className={`mb-3 px-4 py-2 rounded-xl backdrop-blur-md shadow-lg border ${
+              selectingLocation === 'pickup' 
+                ? 'bg-primary/20 border-primary/40' 
+                : 'bg-destructive/20 border-destructive/40'
+            }`}>
+              <span className={`text-sm font-semibold ${
+                selectingLocation === 'pickup' ? 'text-primary' : 'text-destructive'
+              }`}>
+                {selectingLocation === 'pickup' ? 'نقطة الانطلاق' : 'نقطة الوصول'}
+              </span>
+            </div>
+            
+            {/* Simple Circle Marker */}
+            <div className="relative">
+              {/* Outer pulse ring */}
+              <div className={`absolute -inset-3 rounded-full animate-ping opacity-30 ${
+                selectingLocation === 'pickup' ? 'bg-primary' : 'bg-destructive'
+              }`} />
+              {/* Outer glow ring */}
+              <div className={`absolute -inset-2 rounded-full opacity-40 ${
+                selectingLocation === 'pickup' ? 'bg-primary' : 'bg-destructive'
+              }`} />
+              {/* Main circle with white border */}
+              <div className={`relative w-6 h-6 rounded-full border-4 border-white shadow-xl ${
+                selectingLocation === 'pickup' ? 'bg-primary' : 'bg-destructive'
+              }`} style={{
+                boxShadow: selectingLocation === 'pickup' 
+                  ? '0 0 20px rgba(0, 217, 165, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3)' 
+                  : '0 0 20px rgba(239, 68, 68, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3)'
+              }} />
+            </div>
+            
+            {/* Drag hint */}
+            {!isDragging && (
+              <p className="mt-4 text-xs font-medium bg-card/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg border border-border/50">
+                حرّك الخريطة لتحديد الموقع
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Address preview at bottom when selecting */}
+      {selectingLocation && centerAddress && (
         <div className="absolute bottom-20 left-3 right-3 z-20">
           <div className="bg-card/95 backdrop-blur-sm rounded-xl p-4 border border-border shadow-xl">
             {/* Service area warning */}
@@ -1078,33 +1033,39 @@ const Map = forwardRef<MapRef, MapProps>(({
             )}
 
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-primary/20">
-                <Target className="w-5 h-5 text-primary" />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                selectingLocation === 'pickup' ? 'bg-primary/20' : 'bg-destructive/20'
+              }`}>
+                {selectingLocation === 'pickup' ? (
+                  <Target className="w-5 h-5 text-primary" />
+                ) : (
+                  <MapPin className="w-5 h-5 text-destructive" />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground mb-1">
-                  {selectingLocation === 'pickup' ? 'موقع الانطلاق' : 'موقع الوصول'}
+                  {selectingLocation === 'pickup' ? 'موقع الانطلاق' : 'الوجهة'}
                 </p>
                 <p className="text-sm font-medium text-foreground line-clamp-2">
-                  {centerAddress || 'جاري تحديد العنوان...'}
+                  {centerAddress}
                 </p>
               </div>
             </div>
-            
-            {/* Confirm button - show when not dragging */}
-            {!isDragging && (
-              <button
-                onClick={handleConfirmLocation}
-                disabled={isCheckingService || !centerAddress}
-                className="w-full mt-3 py-3 rounded-xl font-medium text-white transition-all disabled:opacity-50 bg-primary hover:bg-primary/90 shadow-glow pointer-events-auto"
-              >
-                {isCheckingService ? (
-                  <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-                ) : (
-                  `✓ تأكيد ${selectingLocation === 'pickup' ? 'موقع الانطلاق' : 'موقع الوصول'}`
-                )}
-              </button>
-            )}
+            <button
+              onClick={handleConfirmLocation}
+              disabled={isCheckingService}
+              className={`w-full mt-3 py-3 rounded-xl font-medium text-white transition-all disabled:opacity-50 ${
+                selectingLocation === 'pickup' 
+                  ? 'bg-primary hover:bg-primary/90 shadow-glow' 
+                  : 'bg-destructive hover:bg-destructive/90'
+              }`}
+            >
+              {isCheckingService ? (
+                <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+              ) : (
+                `تأكيد ${selectingLocation === 'pickup' ? 'موقع الانطلاق' : 'الوجهة'}`
+              )}
+            </button>
           </div>
         </div>
       )}
@@ -1127,7 +1088,7 @@ const Map = forwardRef<MapRef, MapProps>(({
       )}
 
       {/* Route info */}
-      {routeDistance && routeDuration && (
+      {routeDistance && routeDuration && !selectingLocation && (
         <div className="absolute top-3 right-3 bg-card/90 backdrop-blur-sm rounded-xl px-4 py-2 border border-border/50 z-10">
           <div className="flex items-center gap-4 text-sm">
             <div>
@@ -1143,23 +1104,13 @@ const Map = forwardRef<MapRef, MapProps>(({
         </div>
       )}
 
-      {/* Center on user button - Transparent style */}
+      {/* Center on user button */}
       {userLocation && (
         <button
           onClick={centerOnUser}
-          className="absolute bottom-24 left-4 w-14 h-14 bg-white/80 backdrop-blur-md rounded-2xl border border-white/40 shadow-2xl flex items-center justify-center hover:bg-white/90 hover:scale-105 active:scale-95 transition-all z-20 group"
-          title="موقعي الحالي"
-          aria-label="الانتقال لموقعي الحالي"
+          className="absolute bottom-4 left-4 w-10 h-10 bg-card rounded-xl border border-border shadow-lg flex items-center justify-center hover:bg-accent transition-colors z-10"
         >
-          <div className="relative">
-            <Navigation className="w-6 h-6 text-primary" />
-            {/* Pulse effect */}
-            <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping opacity-0 group-hover:opacity-100"></div>
-          </div>
-          {/* Tooltip */}
-          <div className="absolute left-16 bg-foreground text-background px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl">
-            موقعي الحالي
-          </div>
+          <Navigation className="w-5 h-5 text-primary" />
         </button>
       )}
 

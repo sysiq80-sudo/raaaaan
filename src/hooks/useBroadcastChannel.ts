@@ -9,8 +9,6 @@ interface Ride {
   dropoff_location: { lat: number; lng: number };
   status: string;
   driver_id: string | null;
-  started_at?: string;
-  completed_at?: string;
 }
 
 interface Driver {
@@ -18,26 +16,10 @@ interface Driver {
   current_location: { lat: number; lng: number } | null;
 }
 
-interface BroadcastPayload {
-  payload?: {
-    driverName?: string;
-    reason?: string;
-    location?: { lat: number; lng: number };
-    rideId?: string;
-    status?: string;
-  };
-}
-
-interface RealtimePayload {
-  new: Record<string, unknown>;
-  old: Record<string, unknown>;
-  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
-}
-
 interface UseBroadcastChannelProps {
   ride: Ride;
   driver: Driver | null;
-  onRideUpdate: (ride: Partial<Ride>) => void;
+  onRideUpdate: (ride: any) => void;
   onDriverLocationUpdate: (location: { lat: number; lng: number }) => void;
   onClose: () => void;
   setShowArrivedAlert: (show: boolean) => void;
@@ -54,7 +36,7 @@ export const useBroadcastChannel = ({
   setShowCompletedScreen
 }: UseBroadcastChannelProps) => {
   const { toast } = useToast();
-  const broadcastChannel = useRef<BroadcastChannel | null>(null);
+  const broadcastChannel = useRef<any>(null);
   const [isConnected, setIsConnected] = useState(false);
   const previousStatusRef = useRef<string>(ride.status);
 
@@ -70,7 +52,7 @@ export const useBroadcastChannel = ({
     });
     
     channel
-      .on('broadcast', { event: 'ride_accepted' }, (payload: BroadcastPayload) => {
+      .on('broadcast', { event: 'ride_accepted' }, (payload: any) => {
         console.log('[Broadcast] ⚡ ride_accepted received');
         onRideUpdate({ ...ride, status: 'accepted' });
         playSound('accepted');
@@ -90,7 +72,7 @@ export const useBroadcastChannel = ({
           { tag: 'ride-accepted', requireInteraction: true, duration: 10000 }
         );
       })
-      .on('broadcast', { event: 'driver_arrived' }, (payload: BroadcastPayload) => {
+      .on('broadcast', { event: 'driver_arrived' }, (payload: any) => {
         console.log('[Broadcast] ⚡ driver_arrived received');
         onRideUpdate({ ...ride, status: 'arrived' });
         playSound('arrived');
@@ -111,7 +93,7 @@ export const useBroadcastChannel = ({
         
         setTimeout(() => setShowArrivedAlert(false), 15000);
       })
-      .on('broadcast', { event: 'ride_started' }, (payload: BroadcastPayload) => {
+      .on('broadcast', { event: 'ride_started' }, (payload: any) => {
         console.log('[Broadcast] ⚡ ride_started received');
         onRideUpdate({ ...ride, status: 'in_progress', started_at: new Date().toISOString() });
         playSound('inProgress');
@@ -123,7 +105,7 @@ export const useBroadcastChannel = ({
           duration: 5000,
         });
       })
-      .on('broadcast', { event: 'ride_completed' }, (payload: BroadcastPayload) => {
+      .on('broadcast', { event: 'ride_completed' }, (payload: any) => {
         console.log('[Broadcast] ⚡ ride_completed received');
         onRideUpdate({ ...ride, status: 'completed', completed_at: new Date().toISOString() });
         playSound('completed');
@@ -137,7 +119,7 @@ export const useBroadcastChannel = ({
         
         setShowCompletedScreen(true);
       })
-      .on('broadcast', { event: 'ride_cancelled_by_driver' }, (payload: BroadcastPayload) => {
+      .on('broadcast', { event: 'ride_cancelled_by_driver' }, (payload: any) => {
         console.log('[Broadcast] ⚡ ride_cancelled_by_driver received');
         playSound('cancelled');
         vibrate(VibrationPatterns.cancelled);
@@ -151,7 +133,7 @@ export const useBroadcastChannel = ({
         
         setTimeout(() => onClose(), 3000);
       })
-      .on('broadcast', { event: 'driver_location_update' }, (payload: BroadcastPayload) => {
+      .on('broadcast', { event: 'driver_location_update' }, (payload: any) => {
         const newLocation = payload.payload?.location;
         if (newLocation?.lat && newLocation?.lng) {
           onDriverLocationUpdate(newLocation);
@@ -188,7 +170,7 @@ export const useBroadcastChannel = ({
     channel.subscribe((status) => {
       console.log('[useBroadcastChannel] Channel status:', status);
       if (status === 'SUBSCRIBED') {
-        broadcastChannel.current = channel as unknown as BroadcastChannel;
+        broadcastChannel.current = channel;
         setIsConnected(true);
       } else if (status === 'CHANNEL_ERROR') {
         console.error('[useBroadcastChannel] Channel error - will retry');
@@ -305,7 +287,7 @@ export const useBroadcastChannel = ({
 
   const sendQuickMessage = useCallback((event: string, title: string, description: string) => {
     if (broadcastChannel.current) {
-      (broadcastChannel.current as unknown as { send: (payload: unknown) => void }).send({
+      broadcastChannel.current.send({
         type: 'broadcast',
         event: event,
         payload: { rideId: ride.id, timestamp: new Date().toISOString() }
@@ -344,7 +326,7 @@ export const useBroadcastChannel = ({
     
     // 2. إرسال broadcast للسائق بأن الراكب أنهى الرحلة
     if (broadcastChannel.current) {
-      await (broadcastChannel.current as unknown as { send: (payload: unknown) => Promise<void> }).send({
+      await broadcastChannel.current.send({
         type: 'broadcast',
         event: 'ride_completed_by_rider',
         payload: { 

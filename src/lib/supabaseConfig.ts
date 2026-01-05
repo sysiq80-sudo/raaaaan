@@ -15,27 +15,15 @@ export interface SupabaseConfig {
   projects: SupabaseProject[];
 }
 
-// الإعدادات الافتراضية - تُحمّل من متغيرات البيئة للأمان
-export const getDefaultProject = (): SupabaseProject => {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-  // تحقق من وجود البيانات الضرورية
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('❌ خطأ أمني: مفاتيح Supabase غير محمّلة. تأكد من ملف .env');
-  }
-
-  return {
-    id: 'default',
-    name: 'المشروع الرئيسي',
-    url: supabaseUrl || 'https://your-project.supabase.co',
-    anonKey: supabaseKey || 'your-anon-key',
-    isDefault: true,
-    createdAt: new Date().toISOString(),
-  };
+// الإعدادات الافتراضية للمشروع الحالي
+const DEFAULT_PROJECT: SupabaseProject = {
+  id: 'default',
+  name: 'المشروع الرئيسي',
+  url: 'https://wgolkcztdrwdphwjvqxt.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo',
+  isDefault: true,
+  createdAt: new Date().toISOString(),
 };
-
-const DEFAULT_PROJECT = getDefaultProject();
 
 const STORAGE_KEY = 'supabase_config';
 
@@ -176,4 +164,9 @@ export const testConnection = async (url: string, anonKey: string): Promise<{ su
       error: error instanceof Error ? error.message : 'خطأ غير معروف' 
     };
   }
+};
+
+// الحصول على المشروع الافتراضي
+export const getDefaultProject = (): SupabaseProject => {
+  return DEFAULT_PROJECT;
 };

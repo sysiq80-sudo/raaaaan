@@ -77,13 +77,12 @@ export const useRiderInitialization = () => {
         isProfileComplete,
         error: null
       });
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('Initialization error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'حدث خطأ في التحميل';
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: errorMessage
+        error: error.message || 'حدث خطأ في التحميل'
       }));
     }
   }, []);

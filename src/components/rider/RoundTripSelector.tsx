@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeftRight, Clock, Calendar, Percent, ChevronDown, Sparkles, Check } from 'lucide-react';
+import { ArrowLeftRight, Clock, Calendar, Percent, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -10,11 +10,11 @@ interface RoundTripSelectorProps {
   returnTime?: Date;
   onReturnTimeChange?: (time: Date | undefined) => void;
   oneWayFare: number;
-  roundTripDiscount?: number;
+  roundTripDiscount?: number; // نسبة الخصم (مثلاً 15)
   currency?: string;
   disabled?: boolean;
-  distanceKm?: number;
-  minDistanceForRoundTrip?: number;
+  distanceKm?: number; // المسافة بالكيلومتر
+  minDistanceForRoundTrip?: number; // الحد الأدنى لإظهار خيار الذهاب والعودة (افتراضي 30 كم)
 }
 
 const RoundTripSelector: React.FC<RoundTripSelectorProps> = ({
@@ -31,7 +31,7 @@ const RoundTripSelector: React.FC<RoundTripSelectorProps> = ({
 }) => {
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  // Don't show component if distance is less than minimum
+  // Don't show component if distance is less than minimum (default 30km)
   if (distanceKm !== undefined && distanceKm < minDistanceForRoundTrip) {
     return null;
   }
@@ -48,10 +48,10 @@ const RoundTripSelector: React.FC<RoundTripSelectorProps> = ({
   };
 
   const quickReturnTimes = [
-    { label: 'ساعة', minutes: 60, icon: '⏱️' },
-    { label: 'ساعتين', minutes: 120, icon: '🕐' },
-    { label: '3 ساعات', minutes: 180, icon: '🕒' },
-    { label: 'مخصص', minutes: 0, icon: '📅' },
+    { label: 'بعد ساعة', minutes: 60 },
+    { label: 'بعد ساعتين', minutes: 120 },
+    { label: 'بعد 3 ساعات', minutes: 180 },
+    { label: 'مخصص', minutes: 0 },
   ];
 
   const handleQuickTime = (minutes: number) => {
@@ -66,95 +66,35 @@ const RoundTripSelector: React.FC<RoundTripSelectorProps> = ({
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-gradient-to-br from-card to-secondary/30 rounded-2xl border border-border/30 overflow-hidden shadow-sm"
-    >
+    <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
       {/* Trip Type Selector */}
-      <div className="p-4 flex gap-3">
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+      <div className="p-3 flex gap-2">
+        <Button
+          variant={tripType === 'one_way' ? 'default' : 'outline'}
+          size="sm"
           className={cn(
-            "flex-1 p-4 rounded-xl border-2 transition-all duration-300 relative overflow-hidden",
-            tripType === 'one_way' 
-              ? "bg-primary/10 border-primary shadow-lg shadow-primary/10" 
-              : "bg-secondary/50 border-transparent hover:bg-secondary"
+            "flex-1 gap-2 transition-all",
+            tripType === 'one_way' && "shadow-md"
           )}
           onClick={() => onTripTypeChange('one_way')}
           disabled={disabled}
         >
-          <div className="flex items-center justify-center gap-3">
-            <div className={cn(
-              "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-              tripType === 'one_way' ? "bg-primary text-primary-foreground" : "bg-muted"
-            )}>
-              <ArrowLeftRight className="w-5 h-5 rotate-180" />
-            </div>
-            <div className="text-right">
-              <p className={cn(
-                "font-bold",
-                tripType === 'one_way' ? "text-primary" : "text-foreground"
-              )}>
-                ذهاب فقط
-              </p>
-              <p className="text-xs text-muted-foreground">رحلة واحدة</p>
-            </div>
-          </div>
-          {tripType === 'one_way' && (
-            <motion.div
-              layoutId="trip-indicator"
-              className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center"
-            >
-              <Check className="w-3 h-3 text-primary-foreground" />
-            </motion.div>
-          )}
-        </motion.button>
-
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+          <ArrowLeftRight className="w-4 h-4 rotate-180" />
+          ذهاب فقط
+        </Button>
+        <Button
+          variant={tripType === 'round_trip' ? 'default' : 'outline'}
+          size="sm"
           className={cn(
-            "flex-1 p-4 rounded-xl border-2 transition-all duration-300 relative overflow-hidden",
-            tripType === 'round_trip' 
-              ? "bg-primary/10 border-primary shadow-lg shadow-primary/10" 
-              : "bg-secondary/50 border-transparent hover:bg-secondary"
+            "flex-1 gap-2 transition-all",
+            tripType === 'round_trip' && "shadow-md"
           )}
           onClick={() => onTripTypeChange('round_trip')}
           disabled={disabled}
         >
-          {/* Discount badge */}
-          <div className="absolute -top-1 -left-1 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white text-[10px] font-bold px-2 py-1 rounded-br-lg rounded-tl-lg shadow-lg">
-            -{roundTripDiscount}%
-          </div>
-          
-          <div className="flex items-center justify-center gap-3">
-            <div className={cn(
-              "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-              tripType === 'round_trip' ? "bg-primary text-primary-foreground" : "bg-muted"
-            )}>
-              <ArrowLeftRight className="w-5 h-5" />
-            </div>
-            <div className="text-right">
-              <p className={cn(
-                "font-bold",
-                tripType === 'round_trip' ? "text-primary" : "text-foreground"
-              )}>
-                ذهاب وعودة
-              </p>
-              <p className="text-xs text-muted-foreground">وفّر أكثر</p>
-            </div>
-          </div>
-          {tripType === 'round_trip' && (
-            <motion.div
-              layoutId="trip-indicator"
-              className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center"
-            >
-              <Check className="w-3 h-3 text-primary-foreground" />
-            </motion.div>
-          )}
-        </motion.button>
+          <ArrowLeftRight className="w-4 h-4" />
+          ذهاب وعودة
+        </Button>
       </div>
 
       {/* Round Trip Details */}
@@ -164,51 +104,46 @@ const RoundTripSelector: React.FC<RoundTripSelectorProps> = ({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4 space-y-4">
+            <div className="px-3 pb-3 space-y-3">
               {/* Return Time Selection */}
-              <div className="bg-secondary/50 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-3">
+              <div className="bg-muted/30 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
                   <Clock className="w-4 h-4 text-primary" />
-                  <span className="font-medium">وقت العودة المتوقع</span>
+                  <span className="text-sm font-medium">وقت العودة المتوقع</span>
                 </div>
                 
                 <div className="grid grid-cols-4 gap-2">
-                  {quickReturnTimes.map((time) => {
-                    const isSelected = returnTime && time.minutes > 0 && 
-                      Math.abs((returnTime.getTime() - Date.now()) / 60000 - time.minutes) < 5;
-                    
-                    return (
-                      <motion.button
-                        key={time.label}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className={cn(
-                          "p-3 rounded-xl text-center transition-all duration-300",
-                          isSelected 
-                            ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
-                            : "bg-background hover:bg-primary/10 border border-border/50"
-                        )}
-                        onClick={() => handleQuickTime(time.minutes)}
-                        disabled={disabled}
-                      >
-                        <span className="text-lg block mb-1">{time.icon}</span>
-                        <span className="text-xs font-medium">{time.label}</span>
-                      </motion.button>
-                    );
-                  })}
+                  {quickReturnTimes.map((time) => (
+                    <Button
+                      key={time.label}
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        "text-xs h-8",
+                        returnTime && time.minutes > 0 && 
+                        Math.abs(
+                          (returnTime.getTime() - Date.now()) / 60000 - time.minutes
+                        ) < 5 && "bg-primary/10 border-primary"
+                      )}
+                      onClick={() => handleQuickTime(time.minutes)}
+                      disabled={disabled}
+                    >
+                      {time.label}
+                    </Button>
+                  ))}
                 </div>
 
                 {returnTime && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-3 flex items-center justify-between bg-primary/10 rounded-xl px-4 py-3 border border-primary/20"
+                    className="mt-2 flex items-center justify-between bg-background rounded-lg px-3 py-2"
                   >
                     <span className="text-sm text-muted-foreground">العودة في:</span>
-                    <span className="font-bold text-primary text-lg">
+                    <span className="text-sm font-medium text-primary">
                       {formatTime(returnTime)}
                     </span>
                   </motion.div>
@@ -216,27 +151,27 @@ const RoundTripSelector: React.FC<RoundTripSelectorProps> = ({
               </div>
 
               {/* Price Summary */}
-              <div className="bg-gradient-to-br from-primary/10 to-emerald-500/10 rounded-xl p-4 border border-primary/20">
-                <div className="space-y-3">
+              <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg p-3 border border-primary/20">
+                <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">سعر الذهاب</span>
-                    <span className="font-medium">{oneWayFare.toLocaleString()} {currency}</span>
+                    <span>{oneWayFare.toLocaleString()} {currency}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">سعر العودة</span>
-                    <span className="font-medium">{oneWayFare.toLocaleString()} {currency}</span>
+                    <span>{oneWayFare.toLocaleString()} {currency}</span>
                   </div>
                   <div className="flex justify-between text-sm text-emerald-600">
-                    <span className="flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4" />
+                    <span className="flex items-center gap-1">
+                      <Percent className="w-3 h-3" />
                       خصم ذهاب وعودة ({roundTripDiscount}%)
                     </span>
-                    <span className="font-bold">-{discountAmount.toLocaleString()} {currency}</span>
+                    <span>-{discountAmount.toLocaleString()} {currency}</span>
                   </div>
-                  <div className="h-px bg-border" />
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-lg">الإجمالي</span>
-                    <span className="text-primary text-2xl font-bold">
+                  <div className="h-px bg-border my-1" />
+                  <div className="flex justify-between font-semibold">
+                    <span>الإجمالي</span>
+                    <span className="text-primary text-lg">
                       {finalRoundTripFare.toLocaleString()} {currency}
                     </span>
                   </div>
@@ -244,16 +179,12 @@ const RoundTripSelector: React.FC<RoundTripSelectorProps> = ({
               </div>
 
               {/* Savings Badge */}
-              <motion.div 
-                initial={{ scale: 0.9 }}
-                animate={{ scale: 1 }}
-                className="flex items-center justify-center gap-3 text-emerald-600 bg-gradient-to-l from-emerald-500/20 to-emerald-500/10 rounded-xl py-3 px-4 border border-emerald-500/20"
-              >
-                <Percent className="w-5 h-5" />
-                <span className="font-bold">
+              <div className="flex items-center justify-center gap-2 text-emerald-600 bg-emerald-500/10 rounded-full py-2 px-4">
+                <Percent className="w-4 h-4" />
+                <span className="text-sm font-medium">
                   توفر {discountAmount.toLocaleString()} {currency} مع رحلة الذهاب والعودة!
                 </span>
-              </motion.div>
+              </div>
             </div>
           </motion.div>
         )}
@@ -261,16 +192,16 @@ const RoundTripSelector: React.FC<RoundTripSelectorProps> = ({
 
       {/* One Way Price Display */}
       {tripType === 'one_way' && (
-        <div className="px-4 pb-4">
-          <div className="bg-secondary/50 rounded-xl p-4 flex items-center justify-between">
-            <span className="text-muted-foreground">سعر الرحلة</span>
-            <span className="font-bold text-xl text-foreground">
+        <div className="px-3 pb-3">
+          <div className="bg-muted/30 rounded-lg p-3 flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">سعر الرحلة</span>
+            <span className="font-semibold text-lg">
               {oneWayFare.toLocaleString()} {currency}
             </span>
           </div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

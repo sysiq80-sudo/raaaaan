@@ -19,7 +19,6 @@ import CompactVehicleSelector from "./CompactVehicleSelector";
 import PaymentMethodSelector from "./PaymentMethodSelector";
 import DriverETABadge from "./DriverETABadge";
 import { ScheduleRideDialog } from "./ScheduleRideDialog";
-import EnhancedDriverIndicator from "./EnhancedDriverIndicator";
 
 type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
 type PaymentMethod = 'cash' | 'wallet' | 'card' | 'zain_cash' | 'super_key' | 'nas_wallet';
@@ -157,13 +156,6 @@ const SimplifiedBookingPanel = ({
             isLoading={fareLoading}
           />
         </div>
-
-        {/* Enhanced Driver Indicator */}
-        <EnhancedDriverIndicator
-          vehicleType={selectedVehicle}
-          availableDrivers={availableDriversByType?.[selectedVehicle] || 0}
-          estimatedArrival={routeDuration ? Math.ceil(routeDuration / 60) : undefined}
-        />
 
         {/* Vehicle Selection */}
         <CompactVehicleSelector

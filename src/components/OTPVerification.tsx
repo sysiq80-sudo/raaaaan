@@ -61,12 +61,11 @@ const OTPVerification = ({ phone, purpose, onVerified, onBack }: OTPVerification
         title: "تم الإرسال",
         description: "تم إرسال رمز التحقق عبر WhatsApp",
       });
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('Error sending OTP:', error);
-      const errorMessage = error instanceof Error ? error.message : "فشل في إرسال رمز التحقق";
       toast({
         title: "خطأ في الإرسال",
-        description: errorMessage,
+        description: error.message || "فشل في إرسال رمز التحقق",
         variant: "destructive",
       });
     } finally {
@@ -115,12 +114,11 @@ const OTPVerification = ({ phone, purpose, onVerified, onBack }: OTPVerification
         });
         onVerified();
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('Error verifying OTP:', error);
-      const errorMessage = error instanceof Error ? error.message : "فشل في التحقق من الرمز";
       toast({
         title: "خطأ في التحقق",
-        description: errorMessage,
+        description: error.message || "فشل في التحقق من الرمز",
         variant: "destructive",
       });
     } finally {

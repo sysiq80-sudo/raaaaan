@@ -1,147 +1,73 @@
-# تطبيق RAAN - تاكسي ذكي للعراق 🇮🇶
+# Welcome to your Lovable project
 
-## نظرة عامة
-تطبيق RAAN هو تطبيق تاكسي ذكي متطور مصمم خصيصاً للسوق العراقي، يوفر تجربة حجز تاكسي سهلة وآمنة مع دعم كامل للغة العربية وطرق الدفع المحلية.
+## Project info
 
-## 🚀 الميزات الرئيسية
+**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
 
-### للركاب 👥
-- **حجز سريع وسهل**: واجهة مبسطة مشابهة لتطبيقات Uber/Careem
-- **تتبع حي**: تتبع موقع السائق والرحلة في الوقت الفعلي
-- **أنواع سيارات متنوعة**: اقتصادي، مريح، فاخر، ونسائي
-- **طرق دفع متعددة**: نقدي، محفظة، بطاقة، زين كاش، سوبر كي، ناس ولت
-- **دعم كامل للعربية**: واجهة RTL مع تصميم عربي أصيل
+## How can I edit this code?
 
-### للسائقين 🚗
-- **إدارة الرحلات**: قبول/رفض الطلبات بسهولة
-- **تحديث الحالة**: متاح/غير متاح بضغطة زر
-- **إحصائيات شاملة**: رصد الإيرادات والرحلات المكتملة
-- **دعم فني**: مساعدة على مدار 24 ساعة
+There are several ways of editing your application.
 
-## 🛠️ التقنيات المستخدمة
+**Use Lovable**
 
-- **Frontend**: React 18 + TypeScript + Vite
-- **Backend**: Supabase (PostgreSQL + Auth + Realtime)
-- **Maps**: Mapbox GL مع دعم RTL كامل
-- **UI**: Shadcn/ui + Tailwind CSS + Framer Motion
-- **State Management**: Zustand + React Query
-- **PWA**: دعم التطبيقات التقدمية
+Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
 
-## 📊 تحليل تجربة المستخدم
+Changes made via Lovable will be committed automatically to this repo.
 
-### ✅ النقاط القوية
-- **تصميم عربي احترافي**: دعم كامل للغة العربية وRTL
-- **تدفق مستخدم سلس**: خطوات منطقية من البحث إلى التتبع
-- **تحديثات حية**: استخدام Supabase Realtime للتحديثات الفورية
-- **أمان عالي**: TypeScript + معالجة أخطاء شاملة
-- **أداء ممتاز**: تحميل سريع مع تحسين الحزم
+**Use your preferred IDE**
 
-### 🔄 نقاط التحسين المكتشفة
-- إضافة الأماكن المفضلة للمستخدمين المنتظمين
-- تحسين عرض توفر السائقين
-- إضافة خريطة صغيرة في شاشة الانتظار
-- ميزة مشاركة موقع الرحلة
-- تحسين التنبيهات الصوتية والبصرية
+If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
 
-## 🚀 البدء السريع
+The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
-### المتطلبات
-- Node.js 18+
-- npm أو bun
-- حساب Supabase
-- مفتاح Mapbox
+Follow these steps:
 
-### التثبيت
+```sh
+# Step 1: Clone the repository using the project's Git URL.
+git clone <YOUR_GIT_URL>
 
-```bash
-# استنساخ المشروع
-git clone <repository-url>
-cd taksi-iraqi-smart
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
 
-# تثبيت التبعيات
-npm install
+# Step 3: Install the necessary dependencies.
+npm i
 
-# إعداد متغيرات البيئة
-cp .env.example .env
-# قم بتحرير .env وإضافة مفاتيح API
-
-# تشغيل التطبيق
+# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
 
-### الإعداد السريع
-```bash
-# استخدم الدفعات المعدة للإعداد السريع
-./check_setup.bat    # فحص الإعداد
-./run_app_quick.bat  # تشغيل سريع
-```
+**Edit a file directly in GitHub**
 
-## 📱 تدفق المستخدم
+- Navigate to the desired file(s).
+- Click the "Edit" button (pencil icon) at the top right of the file view.
+- Make your changes and commit the changes.
 
-### 1. البحث عن الموقع
-- بحث ذكي مع اقتراحات فورية
-- دعم الأماكن والمعالم والعناوين
-- عرض حالة الخدمة لكل موقع
+**Use GitHub Codespaces**
 
-### 2. اختيار السيارة والدفع
-- 4 أنواع سيارات مع أسعار مختلفة
-- 6 طرق دفع تشمل المحافظ المحلية
-- عرض تفصيلي للأسعار والمسافة
+- Navigate to the main page of your repository.
+- Click on the "Code" button (green button) near the top right.
+- Select the "Codespaces" tab.
+- Click on "New codespace" to launch a new Codespace environment.
+- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-### 3. انتظار السائق
-- رسائل تشجيعية متغيرة
-- مؤقت بصري مع شريط تقدم
-- ميزة الأذكار الإسلامية للصبر
+## What technologies are used for this project?
 
-### 4. تتبع الرحلة
-- خريطة تفاعلية مع موقع السائق
-- معلومات الرحلة المحدثة
-- أزرار اتصال مباشرة
+This project is built with:
 
-## 🔧 التطوير
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
 
-### هيكل المشروع
-```
-src/
-├── components/          # المكونات المشتركة
-│   ├── rider/          # مكونات الركاب
-│   ├── driver/         # مكونات السائقين
-│   └── ui/             # مكونات واجهة المستخدم
-├── pages/              # صفحات التطبيق
-├── hooks/              # React Hooks مخصصة
-├── stores/             # إدارة الحالة (Zustand)
-├── lib/                # المكتبات والأدوات
-└── utils/              # الأدوات المساعدة
-```
+## How can I deploy this project?
 
-### الأوامر المتاحة
-```bash
-npm run dev          # تشغيل الخادم المحلي
-npm run build        # بناء للإنتاج
-npm run preview      # معاينة البناء
-npm run lint         # فحص الكود
-```
+Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
 
-## 📋 التحسينات المقترحة
+## Can I connect a custom domain to my Lovable project?
 
-اطلع على الملفات التالية للتحسينات المفصلة:
-- [`UX_ANALYSIS_REPORT.md`](./UX_ANALYSIS_REPORT.md) - تحليل شامل لتجربة المستخدم
-- [`UX_IMPROVEMENTS.md`](./UX_IMPROVEMENTS.md) - اقتراحات تحسين محددة مع أمثلة كود
+Yes, you can!
 
-## 🤝 المساهمة
+To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
-نرحب بالمساهمات! يرجى قراءة دليل المساهمة قبل البدء.
-
-## 📄 الترخيص
-
-هذا المشروع مرخص تحت رخصة MIT.
-
-## 📞 الدعم
-
-- **البريد الإلكتروني**: support@raan.app
-- **الهاتف**: +964 XXX XXX XXXX
-- **الموقع**: https://raan.app
-
----
-
-**تطبيق RAAN** - نجعل التنقل في العراق أسهل وأكثر أماناً! 🇮🇶🚗
+Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)

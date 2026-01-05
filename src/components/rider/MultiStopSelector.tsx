@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
-import { MapPin, Plus, X, GripVertical, Navigation, Clock, Route, CircleDot, Flag } from 'lucide-react';
+import { MapPin, Plus, X, GripVertical, Navigation, Clock, Route } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -58,35 +58,22 @@ const MultiStopSelector: React.FC<MultiStopSelectorProps> = ({
   const totalTime = intermediateStops.reduce((sum, stop) => sum + (stop.estimatedTime || 0), 0);
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-gradient-to-br from-card to-secondary/30 rounded-2xl border border-border/30 overflow-hidden shadow-sm"
-    >
+    <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
       {/* Header */}
-      <div className="p-4 bg-gradient-to-l from-primary/5 to-transparent border-b border-border/30">
+      <div className="p-3 bg-muted/30 border-b border-border/50">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Route className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <span className="font-bold text-foreground">مسار الرحلة</span>
-              {intermediateStops.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {intermediateStops.length} محطة إضافية
-                </p>
-              )}
-            </div>
+          <div className="flex items-center gap-2">
+            <Route className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium">مسار الرحلة</span>
           </div>
           {intermediateStops.length > 0 && (
-            <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1.5 text-muted-foreground bg-secondary/50 px-3 py-1.5 rounded-full">
-                <Navigation className="w-3.5 h-3.5 text-primary" />
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Navigation className="w-3 h-3" />
                 {totalDistance.toFixed(1)} كم
               </span>
-              <span className="flex items-center gap-1.5 text-muted-foreground bg-secondary/50 px-3 py-1.5 rounded-full">
-                <Clock className="w-3.5 h-3.5 text-primary" />
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
                 {totalTime} د
               </span>
             </div>
@@ -94,27 +81,20 @@ const MultiStopSelector: React.FC<MultiStopSelectorProps> = ({
         </div>
       </div>
 
-      <div className="p-4 space-y-1">
+      <div className="p-3 space-y-2">
         {/* Pickup Point */}
-        <motion.div 
-          className="flex items-center gap-4"
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-        >
+        <div className="flex items-center gap-3">
           <div className="flex flex-col items-center">
-            <div className="relative">
-              <div className="w-4 h-4 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/30" />
-              <div className="absolute inset-0 w-4 h-4 rounded-full bg-emerald-500 animate-ping-slow opacity-50" />
-            </div>
-            <div className="w-0.5 h-8 bg-gradient-to-b from-emerald-500 via-emerald-500/50 to-border" />
+            <div className="w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
+            <div className="w-0.5 h-6 bg-gradient-to-b from-emerald-500 to-border" />
           </div>
-          <div className="flex-1 min-w-0 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
-            <p className="text-xs text-emerald-600 font-medium mb-0.5">نقطة الانطلاق</p>
-            <p className="text-sm font-bold truncate text-foreground">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground">نقطة الانطلاق</p>
+            <p className="text-sm font-medium truncate">
               {pickup.address || 'موقعك الحالي'}
             </p>
           </div>
-        </motion.div>
+        </div>
 
         {/* Intermediate Stops */}
         <AnimatePresence>
@@ -123,7 +103,7 @@ const MultiStopSelector: React.FC<MultiStopSelectorProps> = ({
               axis="y"
               values={intermediateStops}
               onReorder={handleReorder}
-              className="space-y-1"
+              className="space-y-2"
             >
               {intermediateStops.map((stop, index) => (
                 <Reorder.Item
@@ -132,61 +112,59 @@ const MultiStopSelector: React.FC<MultiStopSelectorProps> = ({
                   className="cursor-grab active:cursor-grabbing"
                 >
                   <motion.div
-                    initial={{ opacity: 0, height: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, height: 'auto', scale: 1 }}
-                    exit={{ opacity: 0, height: 0, scale: 0.95 }}
-                    className="flex items-center gap-4"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="flex items-center gap-3"
                   >
                     <div className="flex flex-col items-center">
                       <div className="w-0.5 h-3 bg-border" />
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30">
-                        <span className="text-[10px] font-bold text-white">{index + 1}</span>
+                      <div className="w-3 h-3 rounded-full bg-amber-500 ring-4 ring-amber-500/20 flex items-center justify-center">
+                        <span className="text-[8px] font-bold text-white">{index + 1}</span>
                       </div>
                       <div className="w-0.5 h-3 bg-border" />
                     </div>
                     
                     <div 
                       className={cn(
-                        "flex-1 min-w-0 p-3 rounded-xl border-2 transition-all duration-300",
+                        "flex-1 min-w-0 p-2 rounded-lg border transition-all",
                         stop.address 
-                          ? "bg-amber-500/5 border-amber-500/20" 
-                          : "bg-muted/30 border-dashed border-primary/40 cursor-pointer hover:bg-primary/5 hover:border-primary/60"
+                          ? "bg-background border-border" 
+                          : "bg-muted/50 border-dashed border-primary/50 cursor-pointer hover:bg-primary/5"
                       )}
                       onClick={() => !stop.address && onStopSelect(stop.id)}
                     >
                       {stop.address ? (
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs text-amber-600 font-medium mb-0.5">محطة {index + 1}</p>
-                            <p className="text-sm font-medium truncate">{stop.address}</p>
+                            <p className="text-xs text-muted-foreground">محطة {index + 1}</p>
+                            <p className="text-sm truncate">{stop.address}</p>
                             {stop.estimatedTime && (
-                              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                                <span>+{stop.estimatedTime} دقيقة</span>
-                                <span>•</span>
-                                <span>{stop.distanceFromPrevious?.toFixed(1)} كم</span>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                +{stop.estimatedTime} دقيقة • {stop.distanceFromPrevious?.toFixed(1)} كم
                               </p>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <GripVertical className="w-4 h-4 text-muted-foreground/50" />
-                            <motion.button
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              className="w-7 h-7 rounded-lg bg-destructive/10 hover:bg-destructive/20 flex items-center justify-center transition-colors"
+                          <div className="flex items-center gap-1">
+                            <GripVertical className="w-4 h-4 text-muted-foreground" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 removeStop(stop.id);
                               }}
                               disabled={disabled}
                             >
-                              <X className="w-3.5 h-3.5 text-destructive" />
-                            </motion.button>
+                              <X className="w-3 h-3" />
+                            </Button>
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-3 text-primary">
-                          <CircleDot className="w-4 h-4" />
-                          <span className="text-sm font-medium">اضغط لتحديد المحطة {index + 1}</span>
+                        <div className="flex items-center gap-2 text-primary">
+                          <MapPin className="w-4 h-4" />
+                          <span className="text-sm">اضغط لتحديد المحطة {index + 1}</span>
                         </div>
                       )}
                     </div>
@@ -202,52 +180,41 @@ const MultiStopSelector: React.FC<MultiStopSelectorProps> = ({
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex items-center gap-4"
+            className="flex items-center gap-3"
           >
             <div className="flex flex-col items-center">
               <div className="w-0.5 h-3 bg-border" />
-              <div className="w-4 h-4 rounded-full border-2 border-dashed border-primary/50" />
+              <div className="w-3 h-3 rounded-full border-2 border-dashed border-primary/50" />
               <div className="w-0.5 h-3 bg-border" />
             </div>
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl text-primary border-2 border-dashed border-primary/30 hover:bg-primary/5 hover:border-primary/50 transition-all"
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex-1 justify-start text-primary hover:text-primary hover:bg-primary/5 border border-dashed border-primary/30"
               onClick={addStop}
               disabled={disabled}
             >
-              <Plus className="w-4 h-4" />
-              <span className="font-medium">إضافة محطة</span>
-              <span className="text-xs text-muted-foreground">({intermediateStops.length}/{maxStops})</span>
-            </motion.button>
+              <Plus className="w-4 h-4 ml-2" />
+              إضافة محطة ({intermediateStops.length}/{maxStops})
+            </Button>
           </motion.div>
         )}
 
         {/* Dropoff Point */}
-        <motion.div 
-          className="flex items-center gap-4"
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.1 }}
-        >
+        <div className="flex items-center gap-3">
           <div className="flex flex-col items-center">
-            <div className="w-0.5 h-8 bg-gradient-to-b from-border via-destructive/50 to-destructive" />
-            <div className="relative">
-              <div className="w-4 h-4 rounded-full bg-gradient-to-br from-red-400 to-red-600 shadow-lg shadow-red-500/30" />
-            </div>
+            <div className="w-0.5 h-6 bg-gradient-to-b from-border to-destructive" />
+            <div className="w-3 h-3 rounded-full bg-destructive ring-4 ring-destructive/20" />
           </div>
-          <div className="flex-1 min-w-0 p-3 rounded-xl bg-destructive/5 border border-destructive/20">
-            <p className="text-xs text-destructive font-medium mb-0.5 flex items-center gap-1">
-              <Flag className="w-3 h-3" />
-              الوجهة النهائية
-            </p>
-            <p className="text-sm font-bold truncate text-foreground">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground">الوجهة النهائية</p>
+            <p className="text-sm font-medium truncate">
               {dropoff.address || 'اختر الوجهة'}
             </p>
           </div>
-        </motion.div>
+        </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

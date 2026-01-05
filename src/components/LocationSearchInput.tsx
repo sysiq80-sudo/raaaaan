@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { Input } from '@/components/ui/input';
-import { MapPin, Navigation, Loader2, Building2, Map, Search, X, CheckCircle2, AlertTriangle, Heart } from 'lucide-react';
-import FavoritePlaces from '@/components/rider/FavoritePlaces';
+import { MapPin, Navigation, Loader2, Building2, Map, Search, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface SearchResult {
   id: string;
@@ -274,25 +273,10 @@ const LocationSearchInput = forwardRef<LocationSearchInputRef, LocationSearchInp
           )}
 
           {!query && results.length === 0 && (
-            <>
-              {/* الأماكن المفضلة */}
-              <FavoritePlaces 
-                userId={undefined}
-                onSelectLocation={(location) => {
-                  setQuery(location.address);
-                  onChange(location.address);
-                  onLocationSelect(location);
-                  setShowResults(false);
-                }}
-                onClose={() => setShowResults(false)}
-              />
-              
-              {/* رسالة البحث */}
-              <div className="px-4 py-6 text-center border-t border-border">
-                <Search className="w-8 h-8 text-muted-foreground/50 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">ابحث عن موقع، منطقة، أو معلم</p>
-              </div>
-            </>
+            <div className="px-4 py-6 text-center">
+              <Search className="w-8 h-8 text-muted-foreground/50 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">ابحث عن موقع، منطقة، أو معلم</p>
+            </div>
           )}
 
           {isLoading && query && (

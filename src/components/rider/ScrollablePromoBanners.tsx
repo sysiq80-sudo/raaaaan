@@ -1,14 +1,12 @@
 /**
  * مكون الإعلانات القابلة للتمرير
- * Premium Promotional Banners with animations
+ * يعرض الإعلانات بتخطيط 2+1 مع إمكانية التمرير الأفقي
+ * يدعم استهداف الإعلانات حسب المنطقة
  */
 
 import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { Gift, Percent, Star, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
-
 interface PromoBanner {
   id: string;
   title: string;
@@ -20,48 +18,31 @@ interface PromoBanner {
   gradient_to: string;
   link_url: string;
   is_active: boolean;
-  icon_type?: string;
   region_id?: string | null;
 }
-
 interface ScrollablePromoBannersProps {
-  regionId?: string | null;
+  regionId?: string;
 }
 
-const gradientPresets: Record<string, { bg: string; icon: string; glow: string }> = {
-  'green': { 
-    bg: 'from-emerald-500/20 via-teal-500/10 to-transparent', 
-    icon: 'text-emerald-500',
-    glow: 'shadow-emerald-500/20'
-  },
-  'blue': { 
-    bg: 'from-blue-500/20 via-cyan-500/10 to-transparent', 
-    icon: 'text-blue-500',
-    glow: 'shadow-blue-500/20'
-  },
-  'purple': { 
-    bg: 'from-purple-500/20 via-violet-500/10 to-transparent', 
-    icon: 'text-purple-500',
-    glow: 'shadow-purple-500/20'
-  },
-  'orange': { 
-    bg: 'from-orange-500/20 via-amber-500/10 to-transparent', 
-    icon: 'text-orange-500',
-    glow: 'shadow-orange-500/20'
-  },
-  'pink': { 
-    bg: 'from-pink-500/20 via-rose-500/10 to-transparent', 
-    icon: 'text-pink-500',
-    glow: 'shadow-pink-500/20'
-  },
-  'default': { 
-    bg: 'from-primary/20 via-primary/10 to-transparent', 
-    icon: 'text-primary',
-    glow: 'shadow-primary/20'
+// Helper function to chunk array into groups
+const chunkArray = <T,>(arr: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
   }
+  return chunks;
 };
 
-const getPreset = (gradientFrom: string) => {
+// Gradient presets for banner cards
+const gradientPresets: Record<string, string> = {
+  'green': 'from-emerald-500/20 to-teal-500/20 border-emerald-500/30',
+  'blue': 'from-blue-500/20 to-cyan-500/20 border-blue-500/30',
+  'purple': 'from-purple-500/20 to-violet-500/20 border-purple-500/30',
+  'orange': 'from-orange-500/20 to-amber-500/20 border-orange-500/30',
+  'pink': 'from-pink-500/20 to-rose-500/20 border-pink-500/30',
+  'default': 'from-primary/10 to-primary/5 border-primary/20'
+};
+const getGradientClass = (gradientFrom: string): string => {
   if (gradientFrom?.includes('green') || gradientFrom?.includes('emerald') || gradientFrom?.includes('teal')) {
     return gradientPresets['green'];
   }
@@ -79,249 +60,141 @@ const getPreset = (gradientFrom: string) => {
   }
   return gradientPresets['default'];
 };
-
-const getIcon = (iconType?: string) => {
-  switch (iconType) {
-    case 'gift': return Gift;
-    case 'star': return Star;
-    case 'sparkles': return Sparkles;
-    default: return Percent;
-  }
-};
-
 interface BannerCardProps {
   banner: PromoBanner;
-  index: number;
+  fullWidth?: boolean;
 }
-
-const BannerCard = ({ banner, index }: BannerCardProps) => {
+const BannerCard = ({
+  banner,
+  fullWidth = false
+}: BannerCardProps) => {
   if (!banner) return null;
-  
-  const preset = getPreset(banner.gradient_from);
-  const Icon = getIcon(banner.icon_type);
-  
-  return (
-    <motion.button
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1 }}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={() => banner.link_url && window.open(banner.link_url, '_blank')}
-      className={cn(
-        "relative overflow-hidden rounded-2xl p-4 text-right transition-all duration-300",
-        "bg-gradient-to-l border border-border/30",
-        "hover:shadow-lg hover:border-primary/20",
-        preset.bg,
-        preset.glow
-      )}
-    >
-      {/* Background decoration */}
-      <div className="absolute top-0 left-0 w-20 h-20 rounded-full bg-gradient-to-br from-white/5 to-transparent -translate-x-1/2 -translate-y-1/2" />
-      
-      <div className="flex items-center gap-3">
-        {/* Icon */}
-        <div className={cn(
-          "w-10 h-10 rounded-xl bg-background/50 backdrop-blur-sm flex items-center justify-center",
-          preset.icon
-        )}>
-          <Icon className="w-5 h-5" />
-        </div>
-        
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-sm truncate text-foreground">
-            {banner.title}
-          </p>
-          {banner.subtitle && (
-            <p className="text-xs text-muted-foreground truncate mt-0.5">
-              {banner.subtitle}
-            </p>
-          )}
-        </div>
-        
-        {/* Discount badge */}
-        {banner.discount_value && (
-          <div className={cn(
-            "px-3 py-1.5 rounded-xl bg-background/80 backdrop-blur-sm font-bold text-sm",
-            preset.icon
-          )}>
-            {banner.discount_value}
-          </div>
-        )}
-      </div>
-    </motion.button>
-  );
+  const gradientClass = getGradientClass(banner.gradient_from);
+  return <button onClick={() => banner.link_url && window.open(banner.link_url, '_blank')} className="">
+      <span className="text-sm font-semibold text-foreground line-clamp-1">
+        {banner.title}
+      </span>
+      {banner.subtitle && <span className="text-xs text-muted-foreground mt-1 line-clamp-1">
+          {banner.subtitle}
+        </span>}
+      {banner.discount_value && <span className="text-xs font-bold text-primary mt-1">
+          {banner.discount_value}
+        </span>}
+    </button>;
 };
-
-const ScrollablePromoBanners = ({ regionId }: ScrollablePromoBannersProps) => {
+const ScrollablePromoBanners = ({
+  regionId
+}: ScrollablePromoBannersProps) => {
   const [banners, setBanners] = useState<PromoBanner[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const autoScrollRef = useRef<NodeJS.Timeout>();
-
   useEffect(() => {
     const fetchBanners = async () => {
       try {
-        let query = supabase
-          .from('promo_banners')
-          .select('*')
-          .eq('is_active', true)
-          .order('display_order', { ascending: true });
+        let query = supabase.from('promo_banners').select('*').eq('is_active', true).order('display_order', {
+          ascending: true
+        });
 
+        // فلترة حسب المنطقة: إظهار إعلانات المنطقة + الإعلانات العامة
         if (regionId) {
           query = query.or(`region_id.is.null,region_id.eq.${regionId}`);
         }
-
-        const { data, error } = await query;
+        const {
+          data,
+          error
+        } = await query;
         if (error) throw error;
         setBanners(data || []);
       } catch (error) {
         console.error('Error fetching banners:', error);
         // Fallback banners
-        setBanners([
-          {
-            id: '1',
-            title: 'رحلات المطار',
-            subtitle: 'خصم خاص على جميع الرحلات',
-            button_text: '',
-            discount_value: '20%',
-            gradient_from: 'blue-500',
-            gradient_via: '',
-            gradient_to: '',
-            link_url: '',
-            icon_type: 'star',
-            is_active: true
-          },
-          {
-            id: '2',
-            title: 'ادعُ صديقاً',
-            subtitle: 'واحصل على رصيد مجاني',
-            button_text: '',
-            discount_value: '5000',
-            gradient_from: 'green-500',
-            gradient_via: '',
-            gradient_to: '',
-            link_url: '/rider/referrals',
-            icon_type: 'gift',
-            is_active: true
-          }
-        ]);
+        setBanners([{
+          id: '1',
+          title: 'رحلات المطار',
+          subtitle: 'خصم خاص',
+          button_text: '',
+          discount_value: '20%',
+          gradient_from: 'blue-500',
+          gradient_via: '',
+          gradient_to: '',
+          link_url: '',
+          is_active: true
+        }, {
+          id: '2',
+          title: 'عروض نهاية الأسبوع',
+          subtitle: 'خصم إضافي',
+          button_text: '',
+          discount_value: '15%',
+          gradient_from: 'purple-500',
+          gradient_via: '',
+          gradient_to: '',
+          link_url: '',
+          is_active: true
+        }, {
+          id: '3',
+          title: 'ادعُ صديقاً واحصل على رصيد مجاني',
+          subtitle: '',
+          button_text: '',
+          discount_value: '',
+          gradient_from: 'green-500',
+          gradient_via: '',
+          gradient_to: '',
+          link_url: '',
+          is_active: true
+        }]);
       } finally {
         setLoading(false);
       }
     };
-
     fetchBanners();
   }, [regionId]);
 
-  // Auto-scroll
-  useEffect(() => {
-    if (banners.length <= 1) return;
-
-    autoScrollRef.current = setInterval(() => {
-      setCurrentIndex(prev => (prev + 1) % banners.length);
-    }, 5000);
-
-    return () => {
-      if (autoScrollRef.current) {
-        clearInterval(autoScrollRef.current);
-      }
-    };
-  }, [banners.length]);
-
-  // Scroll to current index
-  useEffect(() => {
-    if (scrollRef.current && banners.length > 1) {
-      scrollRef.current.scrollTo({
-        left: currentIndex * scrollRef.current.offsetWidth,
-        behavior: 'smooth'
-      });
-    }
-  }, [currentIndex, banners.length]);
-
+  // Handle scroll to track current page
   const handleScroll = () => {
     if (scrollRef.current) {
       const scrollLeft = scrollRef.current.scrollLeft;
       const itemWidth = scrollRef.current.offsetWidth;
-      const newIndex = Math.round(scrollLeft / itemWidth);
-      if (newIndex !== currentIndex) {
-        setCurrentIndex(newIndex);
-      }
+      const newPage = Math.round(scrollLeft / itemWidth);
+      setCurrentPage(newPage);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="h-16 rounded-2xl bg-secondary/50 animate-pulse" />
-    );
-  }
-
-  if (banners.length === 0) {
+  if (loading || banners.length === 0) {
     return null;
   }
 
-  // Single banner - just show it
-  if (banners.length === 1) {
-    return <BannerCard banner={banners[0]} index={0} />;
-  }
-
-  return (
-    <div className="relative">
+  // Group banners into sets of 3
+  const bannerGroups = chunkArray(banners, 3);
+  return <div className="w-full">
       {/* Scrollable container */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="overflow-x-auto scrollbar-hide snap-x snap-mandatory"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-      >
-        <div className="flex">
-          {banners.map((banner, idx) => (
-            <div key={banner.id} className="min-w-full snap-center px-0.5">
-              <BannerCard banner={banner} index={idx} />
-            </div>
-          ))}
+      <div ref={scrollRef} onScroll={handleScroll} className="overflow-x-auto scrollbar-hide snap-x snap-mandatory" style={{
+      scrollbarWidth: 'none',
+      msOverflowStyle: 'none'
+    }}>
+        <div className="flex gap-3">
+          {bannerGroups.map((group, groupIdx) => <div key={groupIdx} className="min-w-full snap-center space-y-2 px-1">
+              {/* First row: 2 cards side by side */}
+              <div className="grid grid-cols-2 gap-2">
+                {group[0] && <BannerCard banner={group[0]} />}
+                {group[1] && <BannerCard banner={group[1]} />}
+              </div>
+              {/* Second row: full width card */}
+              {group[2] && <BannerCard banner={group[2]} fullWidth />}
+            </div>)}
         </div>
       </div>
 
-      {/* Navigation arrows */}
-      {banners.length > 1 && (
-        <>
-          <button
-            onClick={() => setCurrentIndex(prev => (prev - 1 + banners.length) % banners.length)}
-            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-background/80 backdrop-blur-sm border border-border/50 flex items-center justify-center hover:bg-background transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setCurrentIndex(prev => (prev + 1) % banners.length)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-background/80 backdrop-blur-sm border border-border/50 flex items-center justify-center hover:bg-background transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </>
-      )}
-
-      {/* Pagination dots */}
-      {banners.length > 1 && (
-        <div className="flex justify-center gap-1.5 mt-3">
-          {banners.map((_, idx) => (
-            <button
-              key={idx}
-              onClick={() => setCurrentIndex(idx)}
-              className={cn(
-                "h-1.5 rounded-full transition-all duration-300",
-                currentIndex === idx 
-                  ? "bg-primary w-6" 
-                  : "bg-muted-foreground/30 w-1.5 hover:bg-muted-foreground/50"
-              )}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
+      {/* Pagination dots - only show if more than one page */}
+      {bannerGroups.length > 1 && <div className="flex justify-center gap-1.5 mt-3">
+          {bannerGroups.map((_, idx) => <button key={idx} onClick={() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTo({
+            left: idx * scrollRef.current.offsetWidth,
+            behavior: 'smooth'
+          });
+        }
+      }} className={cn("w-2 h-2 rounded-full transition-all duration-300", currentPage === idx ? "bg-primary w-4" : "bg-muted-foreground/30")} />)}
+        </div>}
+    </div>;
 };
-
 export default ScrollablePromoBanners;
