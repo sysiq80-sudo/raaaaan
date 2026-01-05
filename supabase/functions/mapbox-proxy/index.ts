@@ -99,8 +99,24 @@ serve(async (req) => {
 
     // Get directions between two points
     if (action === 'directions') {
-      const start = getParam('start');
-      const end = getParam('end');
+      // Support both formats: 
+      // 1. start=lng,lat&end=lng,lat
+      // 2. start_lng=X&start_lat=X&end_lng=X&end_lat=X
+      let start = getParam('start');
+      let end = getParam('end');
+
+      // If start/end not provided, try individual coordinates
+      if (!start || !end) {
+        const startLng = getParam('start_lng');
+        const startLat = getParam('start_lat');
+        const endLng = getParam('end_lng');
+        const endLat = getParam('end_lat');
+
+        if (startLng && startLat && endLng && endLat) {
+          start = `${startLng},${startLat}`;
+          end = `${endLng},${endLat}`;
+        }
+      }
 
       if (!start || !end) {
         throw new Error('Missing start or end coordinates');
@@ -118,11 +134,21 @@ serve(async (req) => {
         throw new Error(data.message || 'Failed to get directions');
       }
 
+      // Extract distance (in km) and duration (in minutes) from the route
+      const route = data.routes?.[0];
+      const distanceKm = route ? route.distance / 1000 : 0;
+      const durationMin = route ? route.duration / 60 : 0;
+
       // Log API usage
       logApiUsage('mapbox_directions', '/directions', { start, end });
 
       return new Response(
-        JSON.stringify(data),
+        JSON.stringify({
+          ...data,
+          distance: distanceKm,
+          duration: durationMin,
+          route: route?.geometry
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
