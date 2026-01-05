@@ -1,6 +1,6 @@
 /**
  * NewRider - صفحة حجز الراكب الجديدة
- * تدفق حقيقي من الانطلاق إلى الوصول
+ * تدفق حقيقي من الانطلاق إلى الوصول مع شاشة إعداد الرحلة
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -19,19 +19,28 @@ import {
   Phone,
   MessageCircle,
   Star,
-  X
+  X,
+  ArrowLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useRiderStore } from '@/stores/riderStore';
-import { SmartSearchBar } from '@/components/rider/SmartSearchBar';
+import RideSetupScreen from '@/components/rider/RideSetupScreen';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 // أنواع البيانات
+interface Location {
+  lat: number;
+  lng: number;
+  address: string;
+  name?: string;
+  inService?: boolean;
+}
+
 interface LocationResult {
   id: string;
   type: 'landmark' | 'region' | 'address' | 'current';
@@ -48,10 +57,8 @@ interface LocationResult {
 }
 
 type BookingStep = 
-  | 'idle' 
-  | 'pickup_selected' 
-  | 'dropoff_selected' 
-  | 'route_calculated'
+  | 'setup'      // شاشة إعداد الرحلة
+  | 'route_confirmed'  // تم تأكيد المسار
   | 'vehicle_selected'
   | 'booking'
   | 'waiting'
@@ -77,18 +84,14 @@ const VEHICLE_OPTIONS: VehicleOption[] = [
 
 const NewRider = () => {
   // الحالات
-  const [step, setStep] = useState<BookingStep>('idle');
-  const [pickupLocation, setPickupLocation] = useState<LocationResult | null>(null);
-  const [dropoffLocation, setDropoffLocation] = useState<LocationResult | null>(null);
-  const [pickupAddress, setPickupAddress] = useState('');
-  const [dropoffAddress, setDropoffAddress] = useState('');
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [isLocatingGPS, setIsLocatingGPS] = useState(false);
+  const [step, setStep] = useState<BookingStep>('setup');
+  const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
+  const [dropoffLocation, setDropoffLocation] = useState<Location | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<string>('economy');
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
   const [estimatedFare, setEstimatedFare] = useState<number | null>(null);
   const [isBooking, setIsBooking] = useState(false);
-  const [showPanel, setShowPanel] = useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);
 
   // الخريطة
@@ -100,232 +103,145 @@ const NewRider = () => {
   // Store
   const { setPickupLocation: setStorePickup, setDropoffLocation: setStoreDropoff } = useRiderStore();
 
-  // تهيئة الخريطة
+  // Get user ID
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
-
-    // جلب token من mapbox-proxy
-    const initMap = async () => {
-      try {
-        const response = await fetch(
-          'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token',
-          {
-            headers: {
-              'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo`
-            }
-          }
-        );
-        const data = await response.json();
-        
-        if (data.token) {
-          mapboxgl.accessToken = data.token;
-          
-          mapRef.current = new mapboxgl.Map({
-            container: mapContainerRef.current!,
-            style: 'mapbox://styles/mapbox/streets-v12',
-            center: [43.2954, 33.4262], // بغداد
-            zoom: 12,
-            attributionControl: false
-          });
-
-          mapRef.current.addControl(new mapboxgl.NavigationControl(), 'top-left');
-
-          mapRef.current.on('load', () => {
-            setMapLoaded(true);
-          });
-        }
-      } catch (error) {
-        console.error('Error initializing map:', error);
-        toast.error('خطأ في تحميل الخريطة');
-      }
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUserId(user?.id || null);
     };
+    getUser();
+  }, []);
 
-    initMap();
-
+  // تنظيف الخريطة عند الخروج
+  useEffect(() => {
     return () => {
       mapRef.current?.remove();
       mapRef.current = null;
     };
   }, []);
 
-  // جلب موقع GPS
-  const handleGPSClick = useCallback(async () => {
-    if (!navigator.geolocation) {
-      toast.error('الموقع غير متاح في هذا المتصفح');
-      return;
-    }
-
-    setIsLocatingGPS(true);
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        setUserLocation({ lat: latitude, lng: longitude });
-
-        // تحريك الخريطة
-        mapRef.current?.flyTo({
-          center: [longitude, latitude],
-          zoom: 16,
-          duration: 1500
-        });
-
-        // إضافة/تحديث علامة الانطلاق
-        if (pickupMarkerRef.current) {
-          pickupMarkerRef.current.setLngLat([longitude, latitude]);
-        } else {
-          const el = document.createElement('div');
-          el.className = 'pickup-marker';
-          el.innerHTML = `
-            <div style="
-              width: 40px; 
-              height: 40px; 
-              background: linear-gradient(135deg, #10b981, #059669);
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-              border: 3px solid white;
-            ">
-              <span style="font-size: 18px;">📍</span>
-            </div>
-          `;
-          pickupMarkerRef.current = new mapboxgl.Marker(el)
-            .setLngLat([longitude, latitude])
-            .addTo(mapRef.current!);
-        }
-
-        // عكس الترميز للحصول على العنوان
-        try {
-          const response = await fetch(
-            `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=reverse-geocode&lat=${latitude}&lng=${longitude}`,
-            {
-              headers: {
-                'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo`
-              }
-            }
-          );
-          const data = await response.json();
-          
-          const address = data.address || 'موقعك الحالي';
-          setPickupAddress(address);
-          
-          const location: LocationResult = {
-            id: 'current_location',
-            type: 'current',
-            name: address,
-            lat: latitude,
-            lng: longitude,
-            in_service: true
-          };
-          
-          setPickupLocation(location);
-          setStorePickup({ lat: latitude, lng: longitude, address });
-          setStep('pickup_selected');
-          
-          toast.success('تم تحديد موقعك بنجاح');
-        } catch (error) {
-          console.error('Reverse geocode error:', error);
-          setPickupAddress('موقعك الحالي');
-        }
-
-        setIsLocatingGPS(false);
-      },
-      (error) => {
-        console.error('GPS Error:', error);
-        toast.error('فشل في الحصول على الموقع');
-        setIsLocatingGPS(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0
-      }
-    );
-  }, [setStorePickup]);
-
-  // اختيار موقع الانطلاق
-  const handlePickupSelect = (location: LocationResult) => {
-    setPickupLocation(location);
-    setPickupAddress(location.name);
-    setStorePickup({ lat: location.lat, lng: location.lng, address: location.name });
+  // معالجة تأكيد المسار من شاشة الإعداد
+  const handleConfirmRoute = async (pickup: Location, dropoff: Location) => {
+    setPickupLocation(pickup);
+    setDropoffLocation(dropoff);
+    setStorePickup({ lat: pickup.lat, lng: pickup.lng, address: pickup.address });
+    setStoreDropoff({ lat: dropoff.lat, lng: dropoff.lng, address: dropoff.address });
+    setStep('route_confirmed');
     
-    // تحريك الخريطة
-    mapRef.current?.flyTo({
-      center: [location.lng, location.lat],
-      zoom: 15,
-      duration: 1000
-    });
-
-    // إضافة علامة
-    if (pickupMarkerRef.current) {
-      pickupMarkerRef.current.setLngLat([location.lng, location.lat]);
-    } else if (mapRef.current) {
-      const el = document.createElement('div');
-      el.innerHTML = `
-        <div style="
-          width: 40px; 
-          height: 40px; 
-          background: linear-gradient(135deg, #10b981, #059669);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-          border: 3px solid white;
-        ">
-          <span style="font-size: 18px;">📍</span>
-        </div>
-      `;
-      pickupMarkerRef.current = new mapboxgl.Marker(el)
-        .setLngLat([location.lng, location.lat])
-        .addTo(mapRef.current);
+    // تهيئة الخريطة إذا لم تكن موجودة
+    if (!mapRef.current && mapContainerRef.current) {
+      await initializeMap();
     }
-
-    setStep('pickup_selected');
-  };
-
-  // اختيار موقع الوصول
-  const handleDropoffSelect = async (location: LocationResult) => {
-    setDropoffLocation(location);
-    setDropoffAddress(location.name);
-    setStoreDropoff({ lat: location.lat, lng: location.lng, address: location.name });
-    
-    // إضافة علامة الوصول
-    if (dropoffMarkerRef.current) {
-      dropoffMarkerRef.current.setLngLat([location.lng, location.lat]);
-    } else if (mapRef.current) {
-      const el = document.createElement('div');
-      el.innerHTML = `
-        <div style="
-          width: 40px; 
-          height: 40px; 
-          background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-          border: 3px solid white;
-        ">
-          <span style="font-size: 18px;">🎯</span>
-        </div>
-      `;
-      dropoffMarkerRef.current = new mapboxgl.Marker(el)
-        .setLngLat([location.lng, location.lat])
-        .addTo(mapRef.current);
-    }
-
-    setStep('dropoff_selected');
 
     // حساب المسار
-    if (pickupLocation) {
-      await calculateRoute(pickupLocation, location);
+    await calculateRoute(pickup, dropoff);
+  };
+
+  // تهيئة الخريطة
+  const initializeMap = async () => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    try {
+      const response = await fetch(
+        'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token',
+        {
+          headers: {
+            'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo`
+          }
+        }
+      );
+      const data = await response.json();
+      
+      if (data.token) {
+        mapboxgl.accessToken = data.token;
+        
+        mapRef.current = new mapboxgl.Map({
+          container: mapContainerRef.current!,
+          style: 'mapbox://styles/mapbox/streets-v12',
+          center: [43.2954, 33.4262],
+          zoom: 12,
+          attributionControl: false
+        });
+
+        mapRef.current.addControl(new mapboxgl.NavigationControl(), 'top-left');
+
+        mapRef.current.on('load', () => {
+          setMapLoaded(true);
+        });
+      }
+    } catch (error) {
+      console.error('Error initializing map:', error);
     }
   };
 
+  // إضافة علامات على الخريطة
+  const addMarkersToMap = useCallback(() => {
+    if (!mapRef.current || !pickupLocation || !dropoffLocation) return;
+
+    // علامة الانطلاق
+    if (pickupMarkerRef.current) {
+      pickupMarkerRef.current.remove();
+    }
+    const pickupEl = document.createElement('div');
+    pickupEl.innerHTML = `
+      <div style="
+        width: 40px; 
+        height: 40px; 
+        background: linear-gradient(135deg, #10b981, #059669);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        border: 3px solid white;
+      ">
+        <span style="font-size: 18px;">📍</span>
+      </div>
+    `;
+    pickupMarkerRef.current = new mapboxgl.Marker(pickupEl)
+      .setLngLat([pickupLocation.lng, pickupLocation.lat])
+      .addTo(mapRef.current);
+
+    // علامة الوصول
+    if (dropoffMarkerRef.current) {
+      dropoffMarkerRef.current.remove();
+    }
+    const dropoffEl = document.createElement('div');
+    dropoffEl.innerHTML = `
+      <div style="
+        width: 40px; 
+        height: 40px; 
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        border: 3px solid white;
+      ">
+        <span style="font-size: 18px;">🎯</span>
+      </div>
+    `;
+    dropoffMarkerRef.current = new mapboxgl.Marker(dropoffEl)
+      .setLngLat([dropoffLocation.lng, dropoffLocation.lat])
+      .addTo(mapRef.current);
+
+    // ضبط حدود الخريطة
+    const bounds = new mapboxgl.LngLatBounds();
+    bounds.extend([pickupLocation.lng, pickupLocation.lat]);
+    bounds.extend([dropoffLocation.lng, dropoffLocation.lat]);
+    mapRef.current.fitBounds(bounds, { padding: 80 });
+  }, [pickupLocation, dropoffLocation]);
+
+  // إضافة العلامات عند تحميل الخريطة
+  useEffect(() => {
+    if (mapLoaded && pickupLocation && dropoffLocation) {
+      addMarkersToMap();
+    }
+  }, [mapLoaded, addMarkersToMap]);
+
   // حساب المسار والسعر
-  const calculateRoute = async (pickup: LocationResult, dropoff: LocationResult) => {
+  const calculateRoute = async (pickup: Location, dropoff: Location) => {
     try {
       const response = await fetch(
         `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=directions&start_lng=${pickup.lng}&start_lat=${pickup.lat}&end_lng=${dropoff.lng}&end_lat=${dropoff.lat}`,
@@ -392,8 +308,6 @@ const NewRider = () => {
         const vehicle = VEHICLE_OPTIONS.find(v => v.id === selectedVehicle);
         const fare = Math.round((baseFare + (data.distance * perKmFare)) * (vehicle?.multiplier || 1));
         setEstimatedFare(fare);
-        
-        setStep('route_calculated');
       }
     } catch (error) {
       console.error('Error calculating route:', error);
@@ -442,9 +356,9 @@ const NewRider = () => {
         .insert({
           rider_id: user.id,
           pickup_location: { lat: pickupLocation.lat, lng: pickupLocation.lng },
-          pickup_address: pickupAddress,
+          pickup_address: pickupLocation.address,
           dropoff_location: { lat: dropoffLocation.lat, lng: dropoffLocation.lng },
-          dropoff_address: dropoffAddress,
+          dropoff_address: dropoffLocation.address,
           distance_km: routeInfo?.distance || 0,
           duration_minutes: routeInfo?.duration || 0,
           estimated_fare: estimatedFare,
@@ -484,7 +398,7 @@ const NewRider = () => {
               setStep('completed');
               toast.success('تمت الرحلة بنجاح!');
             } else if (newStatus === 'cancelled') {
-              setStep('idle');
+              setStep('setup');
               toast.error('تم إلغاء الرحلة');
             }
           }
@@ -503,6 +417,15 @@ const NewRider = () => {
     } finally {
       setIsBooking(false);
     }
+  };
+
+  // العودة لشاشة الإعداد
+  const handleBackToSetup = () => {
+    setStep('setup');
+    setPickupLocation(null);
+    setDropoffLocation(null);
+    setRouteInfo(null);
+    setEstimatedFare(null);
   };
 
   // عرض حالة الانتظار
@@ -524,8 +447,13 @@ const NewRider = () => {
     </motion.div>
   );
 
+  // شاشة إعداد الرحلة
+  if (step === 'setup') {
+    return <RideSetupScreen onConfirmRoute={handleConfirmRoute} userId={userId} />;
+  }
+
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-background">
+    <div className="relative h-screen w-full overflow-hidden bg-background" dir="rtl">
       {/* الخريطة */}
       <div 
         ref={mapContainerRef} 
@@ -542,52 +470,71 @@ const NewRider = () => {
         </div>
       )}
 
+      {/* زر العودة */}
+      <div className="absolute top-4 right-4 z-30">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleBackToSetup}
+          className="rounded-full bg-background/95 backdrop-blur-sm"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+      </div>
+
       {/* لوحة الحجز */}
       <motion.div
         initial={{ y: '100%' }}
-        animate={{ y: showPanel ? 0 : 'calc(100% - 60px)' }}
+        animate={{ y: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className="absolute bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-xl rounded-t-3xl border-t border-border/50 shadow-2xl"
         style={{ maxHeight: '70vh' }}
       >
         {/* مقبض السحب */}
-        <button
-          onClick={() => setShowPanel(!showPanel)}
-          className="w-full flex justify-center py-2"
-        >
+        <div className="w-full flex justify-center py-2">
           <div className="w-12 h-1.5 rounded-full bg-muted-foreground/30" />
-        </button>
+        </div>
 
         <div className="px-4 pb-6 overflow-y-auto" style={{ maxHeight: 'calc(70vh - 40px)' }}>
           {/* حالة الانتظار */}
           {(step === 'waiting' || step === 'booking') && renderWaitingState()}
 
-          {/* حالة الحجز العادية */}
-          {!['waiting', 'booking', 'accepted', 'arrived', 'in_progress', 'completed'].includes(step) && (
+          {/* حالة تأكيد المسار واختيار المركبة */}
+          {(step === 'route_confirmed' || step === 'vehicle_selected') && (
             <>
-              {/* شريط بحث الانطلاق */}
-              <div className="mb-3">
-                <SmartSearchBar
-                  type="pickup"
-                  value={pickupAddress}
-                  placeholder="ابحث عن مكان الانطلاق..."
-                  userLocation={userLocation}
-                  onLocationSelect={handlePickupSelect}
-                  onGPSClick={handleGPSClick}
-                  isLocating={isLocatingGPS}
-                />
-              </div>
-
-              {/* شريط بحث الوصول */}
+              {/* ملخص المسار */}
               <div className="mb-4">
-                <SmartSearchBar
-                  type="dropoff"
-                  value={dropoffAddress}
-                  placeholder="ابحث عن مكان الوصول..."
-                  userLocation={userLocation}
-                  onLocationSelect={handleDropoffSelect}
-                  disabled={!pickupLocation}
-                />
+                <Card className="p-4 border-primary/20 bg-primary/5">
+                  <div className="space-y-3">
+                    {/* الانطلاق */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                        <Navigation className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-muted-foreground">الانطلاق</p>
+                        <p className="text-sm font-medium truncate">{pickupLocation?.address}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 flex justify-center">
+                        <div className="w-0.5 h-4 bg-border" />
+                      </div>
+                    </div>
+
+                    {/* الوصول */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
+                        <MapPin className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-muted-foreground">الوصول</p>
+                        <p className="text-sm font-medium truncate">{dropoffLocation?.address}</p>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
               </div>
 
               {/* معلومات المسار */}
@@ -616,76 +563,64 @@ const NewRider = () => {
               </AnimatePresence>
 
               {/* اختيار نوع المركبة */}
-              <AnimatePresence>
-                {(step === 'route_calculated' || step === 'vehicle_selected') && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="mb-4"
-                  >
-                    <h3 className="text-sm font-medium mb-2 text-muted-foreground">اختر نوع المركبة</h3>
-                    <div className="grid grid-cols-2 gap-2">
-                      {VEHICLE_OPTIONS.map((vehicle) => (
-                        <motion.button
-                          key={vehicle.id}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => handleVehicleSelect(vehicle.id)}
-                          className={cn(
-                            "p-3 rounded-xl border-2 transition-all text-right",
-                            selectedVehicle === vehicle.id
-                              ? "border-primary bg-primary/10"
-                              : "border-border bg-background hover:border-primary/50"
-                          )}
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-2xl">{vehicle.icon}</span>
-                            <span className="font-medium">{vehicle.name}</span>
-                          </div>
-                          <div className="text-xs text-muted-foreground">{vehicle.eta}</div>
-                        </motion.button>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <div className="mb-4">
+                <h3 className="text-sm font-medium mb-2 text-muted-foreground">اختر نوع المركبة</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {VEHICLE_OPTIONS.map((vehicle) => (
+                    <motion.button
+                      key={vehicle.id}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleVehicleSelect(vehicle.id)}
+                      className={cn(
+                        "p-3 rounded-xl border-2 transition-all text-right",
+                        selectedVehicle === vehicle.id
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-background hover:border-primary/50"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-2xl">{vehicle.icon}</span>
+                        <span className="font-medium">{vehicle.name}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">{vehicle.eta}</div>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
 
               {/* السعر وزر الحجز */}
-              <AnimatePresence>
-                {estimatedFare && step !== 'idle' && step !== 'pickup_selected' && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                  >
-                    <div className="flex items-center justify-between mb-3 p-3 rounded-xl bg-muted/30">
-                      <span className="text-muted-foreground">السعر التقديري</span>
-                      <span className="text-2xl font-bold text-primary">
-                        {estimatedFare.toLocaleString()} د.ع
-                      </span>
-                    </div>
+              {estimatedFare && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="flex items-center justify-between mb-3 p-3 rounded-xl bg-muted/30">
+                    <span className="text-muted-foreground">السعر التقديري</span>
+                    <span className="text-2xl font-bold text-primary">
+                      {estimatedFare.toLocaleString()} د.ع
+                    </span>
+                  </div>
 
-                    <Button
-                      onClick={handleBookRide}
-                      disabled={isBooking || !pickupLocation || !dropoffLocation}
-                      className="w-full h-14 text-lg font-bold rounded-2xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
-                    >
-                      {isBooking ? (
-                        <>
-                          <Loader2 className="h-5 w-5 animate-spin ml-2" />
-                          جاري الحجز...
-                        </>
-                      ) : (
-                        <>
-                          <Car className="h-5 w-5 ml-2" />
-                          احجز الآن
-                        </>
-                      )}
-                    </Button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  <Button
+                    onClick={handleBookRide}
+                    disabled={isBooking || !pickupLocation || !dropoffLocation}
+                    className="w-full h-14 text-lg font-bold rounded-2xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                  >
+                    {isBooking ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin ml-2" />
+                        جاري الحجز...
+                      </>
+                    ) : (
+                      <>
+                        <Car className="h-5 w-5 ml-2" />
+                        احجز الآن
+                      </>
+                    )}
+                  </Button>
+                </motion.div>
+              )}
             </>
           )}
         </div>
