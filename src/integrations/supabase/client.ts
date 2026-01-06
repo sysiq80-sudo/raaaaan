@@ -5,13 +5,29 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+// Validate environment variables
+if (!SUPABASE_URL) {
+  console.error('❌ VITE_SUPABASE_URL is not defined');
+  throw new Error('VITE_SUPABASE_URL environment variable is required');
+}
+
+if (!SUPABASE_PUBLISHABLE_KEY) {
+  console.error('❌ VITE_SUPABASE_PUBLISHABLE_KEY is not defined');
+  throw new Error('VITE_SUPABASE_PUBLISHABLE_KEY environment variable is required');
+}
+
+console.log('✅ Supabase client initialized with URL:', SUPABASE_URL);
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
+  // Add error handling and logging
+  global: {
+    headers: {
+      'X-Client-Info': 'raan-web-app',
+    },
+  },
 });

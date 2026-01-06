@@ -12,7 +12,6 @@ import { playSound, vibrate, VibrationPatterns, showNotification } from "@/utils
 interface Driver {
   id: string;
   full_name: string;
-  phone: string | null;
   profile_image_url: string | null;
   vehicle_model: string | null;
   vehicle_plate: string | null;
@@ -49,7 +48,8 @@ const ENCOURAGING_MESSAGES = [{
   text: "سيتم إعلامك فور قبول السائق...",
   icon: "🔔"
 }];
-export const RideWaitingScreen = ({
+
+const RideWaitingScreen = ({
   rideId,
   pickupAddress,
   dropoffAddress,
@@ -220,7 +220,7 @@ export const RideWaitingScreen = ({
     const {
       data,
       error
-    } = await supabase.from('drivers').select('id, full_name, phone, profile_image_url, vehicle_model, vehicle_plate, vehicle_color, vehicle_type, rating').eq('id', driverId).single();
+    } = await supabase.from('drivers').select('id, full_name, profile_image_url, vehicle_model, vehicle_plate, vehicle_color, vehicle_type, rating').eq('id', driverId).single();
     if (!error && data) {
       setAcceptedDriver(data as Driver);
       setShowDriverCard(true);
@@ -398,14 +398,11 @@ export const RideWaitingScreen = ({
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-  const getSearchMessage = () => {
-    const messages = ['جاري البحث عن سائق قريب...', 'نبحث عن أفضل سائق لك...', 'سيتم إعلامك فور قبول السائق...', 'يرجى الانتظار لحظات...'];
-    return messages[searchPhase];
-  };
 
   // Show driver card if driver accepted
   if (showDriverCard && acceptedDriver) {
-    return <div className="fixed inset-0 z-50 bg-gradient-to-b from-background via-green-500/5 to-background overflow-auto">
+    return (
+      <div className="fixed inset-0 z-50 bg-gradient-to-b from-background via-green-500/5 to-background overflow-auto">
         <div className="min-h-screen flex flex-col">
           {/* Header with progress stepper */}
           <div className="sticky top-0 z-10 bg-card/95 backdrop-blur-xl border-b shadow-sm">
@@ -482,75 +479,77 @@ export const RideWaitingScreen = ({
           </div>
 
           {/* Main content - Responsive & Centered */}
-          <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl mx-auto w-full">
-            
-            {/* Success animation - Modern */}
-            <div className="relative w-full flex justify-center mb-2 sm:mb-3 md:mb-4">
-              <div className="relative">
-                {/* Animated success rings */}
-                <div className="absolute inset-0 w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 -translate-x-0.5 -translate-y-0.5 sm:-translate-x-1 sm:-translate-y-1 rounded-full bg-green-500/20 animate-ping" />
-                <div className="absolute inset-0 w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 -translate-x-0.5 -translate-y-0.5 sm:-translate-x-1 sm:-translate-y-1 rounded-full bg-green-500/30 animate-ping" style={{ animationDelay: '0.3s' }} />
-                
-                {/* Center icon with glassmorphic style */}
-                <div className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 rounded-full bg-gradient-to-br from-green-500/30 via-emerald-500/20 to-green-500/30 backdrop-blur-md flex items-center justify-center shadow-2xl border border-green-500/20">
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-transparent" />
-                  <Car className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 text-green-500 drop-shadow-lg animate-bounce" />
+          <div className="flex-1 flex flex-col items-center justify-center px-4 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10 lg:px-12 lg:py-12 xl:px-16 xl:py-16 2xl:px-20 2xl:py-20">
+            {/* Container with responsive max-width */}
+            <div className="w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl 2xl:max-w-2xl mx-auto">
+
+              {/* Success animation - Modern */}
+              <div className="relative w-full flex justify-center mb-3 sm:mb-4 md:mb-5 lg:mb-6 xl:mb-8">
+                <div className="relative">
+                  {/* Animated success rings */}
+                  <div className="absolute inset-0 w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 2xl:w-40 2xl:h-40 -translate-x-0.5 -translate-y-0.5 sm:-translate-x-1 sm:-translate-y-1 rounded-full bg-green-500/20 animate-ping" />
+                  <div className="absolute inset-0 w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 2xl:w-40 2xl:h-40 -translate-x-0.5 -translate-y-0.5 sm:-translate-x-1 sm:-translate-y-1 rounded-full bg-green-500/30 animate-ping" style={{ animationDelay: '0.3s' }} />
+
+                  {/* Center icon with glassmorphic style */}
+                  <div className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 xl:w-32 xl:h-32 2xl:w-36 2xl:h-36 rounded-full bg-gradient-to-br from-green-500/30 via-emerald-500/20 to-green-500/30 backdrop-blur-md flex items-center justify-center shadow-2xl border border-green-500/20">
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-transparent" />
+                    <Car className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 xl:w-14 xl:h-14 2xl:w-16 2xl:h-16 text-green-500 drop-shadow-lg animate-bounce" />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Success message */}
-            <div className="text-center space-y-1 sm:space-y-2">
-              <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 bg-clip-text text-transparent">
-                🎉 تم قبول طلبك!
-              </h2>
-              <p className="text-muted-foreground text-sm sm:text-base md:text-lg">
-                السائق في الطريق إليك الآن
-              </p>
-            </div>
+              {/* Success message */}
+              <div className="text-center space-y-1 sm:space-y-2 lg:space-y-3 mb-4 sm:mb-6 md:mb-8 lg:mb-10">
+                <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl 2xl:text-5xl font-bold bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 bg-clip-text text-transparent">
+                  🎉 تم قبول طلبك!
+                </h2>
+                <p className="text-muted-foreground text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl">
+                  السائق في الطريق إليك الآن
+                </p>
+              </div>
 
-            {/* Driver Info Card - Modern glassmorphic design */}
-            <Card className="w-full bg-gradient-to-br from-card via-green-500/5 to-card border-green-500/20 shadow-2xl hover:shadow-green-500/10 transition-all">
-              <CardContent className="p-3 sm:p-4 md:p-5 lg:p-6">
-                {/* Driver header with avatar */}
-                <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4 mb-3 sm:mb-4 md:mb-5 lg:mb-6 pb-3 sm:pb-4 md:pb-5 lg:pb-6 border-b border-border">
-                  <div className="relative">
-                    <Avatar className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 border-2 sm:border-3 md:border-3 lg:border-4 border-green-500/30 shadow-lg">
-                      <AvatarImage src={acceptedDriver.profile_image_url || ''} alt={acceptedDriver.full_name} />
-                      <AvatarFallback className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 text-green-600">
-                        <User className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 lg:w-10 lg:h-10" />
-                      </AvatarFallback>
-                    </Avatar>
-                    {/* Online indicator */}
-                    <div className="absolute -bottom-0.5 -right-0.5 sm:-bottom-1 sm:-right-1 w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 bg-green-500 rounded-full border-2 sm:border-3 md:border-3 lg:border-4 border-card flex items-center justify-center">
-                      <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 md:w-2 md:h-2 bg-white rounded-full animate-pulse" />
-                    </div>
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold text-foreground mb-0.5 sm:mb-1 truncate">{acceptedDriver.full_name}</h3>
-                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                      <div className="flex items-center gap-1 text-amber-500">
-                        <Star className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 fill-current" />
-                        <span className="font-bold text-[10px] sm:text-xs md:text-sm">{acceptedDriver.rating?.toFixed(1) || '5.0'}</span>
+              {/* Driver Info Card - Modern glassmorphic design */}
+              <Card className="w-full bg-gradient-to-br from-card via-green-500/5 to-card border-green-500/20 shadow-2xl hover:shadow-green-500/10 transition-all mb-4 sm:mb-6 md:mb-8">
+                <CardContent className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8">
+                  {/* Driver header with avatar */}
+                  <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4 lg:gap-5 mb-3 sm:mb-4 md:mb-5 lg:mb-6 pb-3 sm:pb-4 md:pb-5 lg:pb-6 border-b border-border">
+                    <div className="relative">
+                      <Avatar className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 xl:w-24 xl:h-24 2xl:w-28 2xl:h-28 border-2 sm:border-3 md:border-3 lg:border-4 border-green-500/30 shadow-lg">
+                        <AvatarImage src={acceptedDriver.profile_image_url || ''} alt={acceptedDriver.full_name} />
+                        <AvatarFallback className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 text-green-600">
+                          <User className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 xl:w-12 xl:h-12 2xl:w-14 2xl:h-14" />
+                        </AvatarFallback>
+                      </Avatar>
+                      {/* Online indicator */}
+                      <div className="absolute -bottom-0.5 -right-0.5 sm:-bottom-1 sm:-right-1 w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 xl:w-7 xl:h-7 2xl:w-8 2xl:h-8 bg-green-500 rounded-full border-2 sm:border-3 md:border-3 lg:border-4 border-card flex items-center justify-center">
+                        <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 md:w-2 md:h-2 lg:w-2.5 lg:h-2.5 xl:w-3 xl:h-3 2xl:w-3.5 2xl:h-3.5 bg-white rounded-full animate-pulse" />
                       </div>
-                      <Badge variant="secondary" className="text-[9px] sm:text-[10px] md:text-xs px-1 sm:px-1.5 md:px-2 py-0.5">
-                        سائق معتمد
-                      </Badge>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl font-bold text-foreground mb-0.5 sm:mb-1 truncate">{acceptedDriver.full_name}</h3>
+                      <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 flex-wrap">
+                        <div className="flex items-center gap-1 text-amber-500">
+                          <Star className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 lg:w-5 lg:h-5 fill-current" />
+                          <span className="font-bold text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg">{acceptedDriver.rating?.toFixed(1) || '5.0'}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm xl:text-base px-1 sm:px-1.5 md:px-2 py-0.5">
+                          سائق معتمد
+                        </Badge>
+                      </div>
                     </div>
                   </div>
-                </div>
 
                 {/* Vehicle details - Modern grid layout */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 md:gap-4 lg:gap-5">
                   {/* Vehicle type */}
-                  <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 p-2.5 sm:p-3 md:p-4 rounded-lg sm:rounded-xl bg-gradient-to-br from-primary/10 to-blue-500/10 border border-primary/20">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                      <Car className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 lg:w-5 lg:h-5 text-primary" />
+                  <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 lg:gap-4 p-2.5 sm:p-3 md:p-4 lg:p-5 xl:p-6 rounded-lg sm:rounded-xl bg-gradient-to-br from-primary/10 to-blue-500/10 border border-primary/20">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10 xl:w-12 xl:h-12 2xl:w-14 2xl:h-14 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                      <Car className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 lg:w-5 lg:h-5 xl:w-6 xl:h-6 2xl:w-7 2xl:h-7 text-primary" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[9px] sm:text-[10px] md:text-xs font-medium text-muted-foreground mb-0.5">نوع السيارة</p>
-                      <p className="text-[10px] sm:text-xs md:text-sm font-bold text-foreground truncate">
+                      <p className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm xl:text-base 2xl:text-lg font-medium text-muted-foreground mb-0.5">نوع السيارة</p>
+                      <p className="text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg 2xl:text-xl font-bold text-foreground truncate">
                         {getVehicleTypeName(acceptedDriver.vehicle_type)}
                       </p>
                     </div>
@@ -558,15 +557,15 @@ export const RideWaitingScreen = ({
                   
                   {/* Vehicle model */}
                   {acceptedDriver.vehicle_model && (
-                    <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 p-2.5 sm:p-3 md:p-4 rounded-lg sm:rounded-xl bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
-                        <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 lg:w-5 lg:h-5 text-green-500" />
+                    <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 lg:gap-4 p-2.5 sm:p-3 md:p-4 lg:p-5 xl:p-6 rounded-lg sm:rounded-xl bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10 xl:w-12 xl:h-12 2xl:w-14 2xl:h-14 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 lg:w-5 lg:h-5 xl:w-6 xl:h-6 2xl:w-7 2xl:h-7 text-green-500" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[9px] sm:text-[10px] md:text-xs font-medium text-muted-foreground mb-0.5">الموديل</p>
-                        <p className="text-[10px] sm:text-xs md:text-sm font-bold text-foreground truncate">
+                        <p className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm xl:text-base 2xl:text-lg font-medium text-muted-foreground mb-0.5">الموديل</p>
+                        <p className="text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg 2xl:text-xl font-bold text-foreground truncate">
                           {acceptedDriver.vehicle_model}
-                          {acceptedDriver.vehicle_color && <span className="text-muted-foreground text-[9px] sm:text-[10px] md:text-xs"> • {acceptedDriver.vehicle_color}</span>}
+                          {acceptedDriver.vehicle_color && <span className="text-muted-foreground text-[9px] sm:text-[10px] md:text-xs lg:text-sm xl:text-base 2xl:text-lg"> • {acceptedDriver.vehicle_color}</span>}
                         </p>
                       </div>
                     </div>
@@ -575,99 +574,126 @@ export const RideWaitingScreen = ({
                 
                 {/* License plate - Prominent display */}
                 {acceptedDriver.vehicle_plate && (
-                  <div className="mt-3 sm:mt-4 p-3 sm:p-4 rounded-xl bg-gradient-to-r from-primary via-blue-500 to-primary text-center">
-                    <p className="text-[10px] sm:text-xs text-primary-foreground/70 mb-0.5 sm:mb-1">رقم اللوحة</p>
-                    <p className="text-xl sm:text-2xl font-black text-primary-foreground tracking-wider">
+                  <div className="mt-3 sm:mt-4 md:mt-5 lg:mt-6 xl:mt-8 2xl:mt-10 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 2xl:p-10 rounded-xl bg-gradient-to-r from-primary via-blue-500 to-primary text-center">
+                    <p className="text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg 2xl:text-xl text-primary-foreground/70 mb-0.5 sm:mb-1 md:mb-2 lg:mb-3 xl:mb-4 2xl:mb-5">رقم اللوحة</p>
+                    <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl 2xl:text-6xl font-black text-primary-foreground tracking-wider">
                       {acceptedDriver.vehicle_plate}
                     </p>
                   </div>
                 )}
+
+                {/* Action buttons - Modern & responsive */}
+                <div className="flex gap-2 sm:gap-3 md:gap-4 lg:gap-5 xl:gap-6 2xl:gap-7 pt-3 sm:pt-4 md:pt-5 lg:pt-6 xl:pt-8 2xl:pt-10 border-t border-border">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 sm:h-9 md:h-10 lg:h-11 xl:h-12 2xl:h-14 text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl 2xl:text-2xl px-2 sm:px-3 md:px-4 lg:px-5 xl:px-6 2xl:px-7 border-green-500/30 hover:bg-green-500/10 hover:border-green-500/50 transition-all"
+                    onClick={() => window.open(`tel:${acceptedDriver.phone}`, '_self')}
+                  >
+                    <Phone className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 xl:w-7 xl:h-7 2xl:w-8 2xl:h-8 mr-1 sm:mr-1.5 md:mr-2 lg:mr-3 xl:mr-4 2xl:mr-5" />
+                    اتصال
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 sm:h-9 md:h-10 lg:h-11 xl:h-12 2xl:h-14 text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl 2xl:text-2xl px-2 sm:px-3 md:px-4 lg:px-5 xl:px-6 2xl:px-7 border-blue-500/30 hover:bg-blue-500/10 hover:border-blue-500/50 transition-all"
+                    onClick={() => window.open(`https://wa.me/${acceptedDriver.phone}`, '_blank')}
+                  >
+                    <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 xl:w-7 xl:h-7 2xl:w-8 2xl:h-8 mr-1 sm:mr-1.5 md:mr-2 lg:mr-3 xl:mr-4 2xl:mr-5" />
+                    واتساب
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
             {/* Continue to tracking button - Modern & prominent */}
             <Button 
               size="lg" 
-              className="w-full bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 hover:from-green-600 hover:via-emerald-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all text-sm sm:text-base md:text-lg py-3 sm:py-4 md:py-5 px-4 sm:px-6 md:px-8"
+              className="w-full h-10 sm:h-11 md:h-12 lg:h-14 xl:h-16 2xl:h-18 bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 hover:from-green-600 hover:via-emerald-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl py-3 sm:py-4 md:py-5 lg:py-6 xl:py-8 2xl:py-10 px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-14"
               onClick={handleContinueToTracking}
             >
-              <MapPin className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 ml-2" />
-              <span className="text-sm sm:text-base md:text-lg">تتبع الرحلة على الخريطة</span>
+              <MapPin className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 xl:w-8 xl:h-8 2xl:w-9 2xl:h-9 ml-2 sm:ml-2.5 md:ml-3 lg:ml-4 xl:ml-5 2xl:ml-6" />
+              <span className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl 2xl:text-3xl">تتبع الرحلة على الخريطة</span>
             </Button>
 
             {/* Help text */}
-            <p className="text-[9px] sm:text-[10px] md:text-xs text-muted-foreground text-center max-w-xs sm:max-w-sm md:max-w-md px-2 leading-tight">
+            <p className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm xl:text-base 2xl:text-lg text-muted-foreground text-center max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl 2xl:max-w-2xl px-2 leading-tight">
               💡 اضغط للانتقال إلى خريطة تتبع موقع السائق المباشر
             </p>
           </div>
         </div>
-      </div>;
+      </div>
+    );
   }
-  return <div className="fixed inset-0 z-50 bg-gradient-to-b from-background via-primary/5 to-background overflow-auto">
+
+  return (
+    <div className="fixed inset-0 z-50 bg-gradient-to-b from-background via-primary/5 to-background overflow-auto">
       <div className="min-h-screen flex flex-col">
         {/* Header with progress stepper */}
         <div className="sticky top-0 z-10 bg-card/95 backdrop-blur-xl border-b shadow-sm">
           <RideProgressStepper status="pending" />
         </div>
 
-        {/* Main content - Responsive & Centered */}
-        <div className="flex-1 flex flex-col items-center justify-center px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8 space-y-3 sm:space-y-4 md:space-y-6 max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl mx-auto w-full">
-          
-          {/* Status message with modern card design */}
-          <Card className="w-full bg-gradient-to-br from-card via-card to-primary/5 border-primary/20 shadow-lg">
-            <CardContent className="p-3 sm:p-4 md:p-5">
-              {/* Main status title */}
-              <div className="text-center mb-2 sm:mb-3 md:mb-4">
-                <h1 className="text-base sm:text-lg md:text-xl font-bold text-foreground flex items-center justify-center gap-1.5 sm:gap-2">
-                  <span className="text-lg sm:text-xl md:text-2xl">⏳</span>
-                  <span className="text-sm sm:text-base md:text-lg leading-tight">بانتظار قبول السائق لطلبك</span>
-                </h1>
-              </div>
+        {/* Main content - Fully Responsive Layout */}
+        <div className="flex-1 flex flex-col items-center justify-center px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8 lg:px-8 lg:py-10 xl:px-12 xl:py-12 2xl:px-16 2xl:py-16">
+          {/* Container with responsive max-width */}
+          <div className="w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl 2xl:max-w-2xl mx-auto">
 
-              <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3" key={encouragingMessageIndex}>
-                <div className="text-lg sm:text-xl md:text-2xl animate-bounce">{ENCOURAGING_MESSAGES[encouragingMessageIndex].icon}</div>
-                <div className="flex-1">
-                  <h2 className="text-xs sm:text-sm md:text-base font-bold text-foreground mb-1 leading-tight">
-                    {ENCOURAGING_MESSAGES[encouragingMessageIndex].text}
-                  </h2>
+            {/* Status message with modern card design */}
+            <Card className="w-full bg-gradient-to-br from-card via-card to-primary/5 border-primary/20 shadow-lg mb-3 sm:mb-4 md:mb-6 lg:mb-8">
+              <CardContent className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8">
+                {/* Main status title */}
+                <div className="text-center mb-2 sm:mb-3 md:mb-4 lg:mb-5">
+                  <h1 className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-bold text-foreground flex items-center justify-center gap-1.5 sm:gap-2 lg:gap-3">
+                    <span className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl">⏳</span>
+                    <span className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl leading-tight">بانتظار قبول السائق لطلبك</span>
+                  </h1>
                 </div>
-              </div>
 
-              {/* Timer & info badges - Responsive */}
-              <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-1.5 md:gap-2 mt-2 sm:mt-3">
-                <Badge variant="secondary" className="px-1.5 py-0.5 sm:px-2 sm:py-1 md:px-3 md:py-1.5 text-[10px] sm:text-xs md:text-xs font-semibold">
-                  <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 ml-1 text-primary" />
-                  <span className="font-mono text-[10px] sm:text-xs md:text-xs">{formatTime(elapsedTime)}</span>
-                  <span className="text-muted-foreground mx-0.5 text-[10px] sm:text-xs">/</span>
-                  <span className="text-muted-foreground text-[10px] sm:text-xs">{maxWaitTimeout}:00</span>
-                </Badge>
-                
-                <Badge variant="outline" className="px-1.5 py-0.5 sm:px-2 sm:py-1 md:px-3 md:py-1.5 text-[10px] sm:text-xs border-primary/30 bg-primary/10">
-                  <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 ml-1 text-primary animate-pulse" />
-                  <span className="text-[10px] sm:text-xs">حد أقصى {maxWaitTimeout} د</span>
-                </Badge>
-              </div>
-
-              {/* Progress bar */}
-              <div className="mt-2 sm:mt-3 space-y-1">
-                <div className="w-full h-1.5 sm:h-2 bg-muted rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full rounded-full transition-all duration-1000 ${
-                      elapsedTime / 60 >= maxWaitTimeout * 0.8 
-                        ? 'bg-gradient-to-r from-destructive to-red-600' 
-                        : 'bg-gradient-to-r from-primary via-blue-500 to-primary'
-                    }`}
-                    style={{ width: `${Math.min((elapsedTime / 60 / maxWaitTimeout) * 100, 100)}%` }}
-                  />
+                <div className="flex items-start gap-2 sm:gap-3 lg:gap-4 mb-2 sm:mb-3 lg:mb-4" key={encouragingMessageIndex}>
+                  <div className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl animate-bounce">{ENCOURAGING_MESSAGES[encouragingMessageIndex].icon}</div>
+                  <div className="flex-1">
+                    <h2 className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl font-bold text-foreground mb-1 leading-tight">
+                      {ENCOURAGING_MESSAGES[encouragingMessageIndex].text}
+                    </h2>
+                  </div>
                 </div>
-                {elapsedTime / 60 >= maxWaitTimeout * 0.8 && (
-                  <p className="text-[10px] sm:text-xs text-destructive text-center animate-pulse font-medium">
-                    ⚠️ سيتم الإلغاء التلقائي قريباً
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+
+                {/* Timer & info badges - Responsive */}
+                <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-1.5 md:gap-2 lg:gap-3 mt-2 sm:mt-3 lg:mt-4">
+                  <Badge variant="secondary" className="px-1.5 py-0.5 sm:px-2 sm:py-1 md:px-3 md:py-1.5 lg:px-4 lg:py-2 text-[10px] sm:text-xs md:text-sm lg:text-base font-semibold">
+                    <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-4 md:h-4 ml-1 text-primary" />
+                    <span className="font-mono text-[10px] sm:text-xs md:text-sm lg:text-base">{formatTime(elapsedTime)}</span>
+                    <span className="text-muted-foreground mx-0.5 text-[10px] sm:text-xs md:text-sm">/</span>
+                    <span className="text-muted-foreground text-[10px] sm:text-xs md:text-sm lg:text-base">{maxWaitTimeout}:00</span>
+                  </Badge>
+
+                  <Badge variant="outline" className="px-1.5 py-0.5 sm:px-2 sm:py-1 md:px-3 md:py-1.5 lg:px-4 lg:py-2 text-[10px] sm:text-xs md:text-sm border-primary/30 bg-primary/10">
+                    <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-4 md:h-4 ml-1 text-primary animate-pulse" />
+                    <span className="text-[10px] sm:text-xs md:text-sm lg:text-base">حد أقصى {maxWaitTimeout} د</span>
+                  </Badge>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mt-2 sm:mt-3 lg:mt-4 space-y-1">
+                  <div className="w-full h-1.5 sm:h-2 lg:h-3 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-1000 ${
+                        elapsedTime / 60 >= maxWaitTimeout * 0.8
+                          ? 'bg-gradient-to-r from-destructive to-red-600'
+                          : 'bg-gradient-to-r from-primary via-blue-500 to-primary'
+                      }`}
+                      style={{ width: `${Math.min((elapsedTime / 60 / maxWaitTimeout) * 100, 100)}%` }}
+                    />
+                  </div>
+                  {elapsedTime / 60 >= maxWaitTimeout * 0.8 && (
+                    <p className="text-[10px] sm:text-xs md:text-sm lg:text-base text-destructive text-center animate-pulse font-medium">
+                      ⚠️ سيتم الإلغاء التلقائي قريباً
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
           {/* Ride summary - Modern glassmorphic card */}
           <Card className="w-full bg-gradient-to-br from-card to-card border-primary/10 shadow-lg hover:shadow-xl transition-shadow">
@@ -714,27 +740,27 @@ export const RideWaitingScreen = ({
           </Card>
 
           {/* Cancel button - Modern design */}
-          <Button 
-            variant="outline" 
-            className="w-full border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all shadow-md hover:shadow-lg px-3 py-2 sm:px-4 sm:py-2.5 md:px-6 md:py-3 text-sm sm:text-base" 
-            onClick={handleCancelClick} 
+          <Button
+            variant="outline"
+            className="w-full border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all shadow-md hover:shadow-lg px-3 py-2 sm:px-4 sm:py-2.5 md:px-6 md:py-3 lg:px-8 lg:py-4 xl:px-10 xl:py-5 text-sm sm:text-base md:text-lg lg:text-xl"
+            onClick={handleCancelClick}
             disabled={cancelling}
           >
             {cancelling ? (
               <>
-                <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin ml-2" />
-                <span className="text-sm sm:text-base">جاري الإلغاء...</span>
+                <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 animate-spin ml-2" />
+                <span className="text-sm sm:text-base md:text-lg lg:text-xl">جاري الإلغاء...</span>
               </>
             ) : (
               <>
-                <X className="w-3 h-3 sm:w-4 sm:h-4 ml-2" />
-                <span className="text-sm sm:text-base">إلغاء الطلب</span>
+                <X className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 ml-2" />
+                <span className="text-sm sm:text-base md:text-lg lg:text-xl">إلغاء الطلب</span>
               </>
             )}
           </Button>
 
           {/* Help text */}
-          <p className="text-[9px] sm:text-[10px] md:text-xs text-muted-foreground text-center max-w-xs sm:max-w-sm md:max-w-md leading-tight px-2">
+          <p className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm xl:text-base text-muted-foreground text-center max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl px-2 leading-tight">
             💡 ستتلقى إشعاراً فور قبول سائق • يمكنك الإلغاء مجاناً قبل القبول
           </p>
         </div>
@@ -749,6 +775,8 @@ export const RideWaitingScreen = ({
         rideStatus={rideStatus} 
         estimatedFare={estimatedFare} 
       />
-    </div>;
+    </div>
+  );
 };
+
 export default RideWaitingScreen;

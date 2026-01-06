@@ -324,12 +324,16 @@ const RiderHome = () => {
 
   const handleMapPickerConfirm = (location: { lat: number; lng: number; address: string }) => {
     handleLocationSelect(location, mapPickerType);
-    setShowMapPicker(false);
-    if (mapPickerType === 'pickup' && !dropoffCoords) {
+    if (mapPickerType === 'pickup') {
+      // After confirming pickup, close map picker and focus on dropoff field
+      setShowMapPicker(false);
       setTimeout(() => {
         setActiveLocationField('dropoff');
         setShowLocationSheet(true);
       }, 300);
+    } else {
+      // After confirming dropoff, close the picker
+      setShowMapPicker(false);
     }
   };
 

@@ -462,13 +462,14 @@ const RiderSavedPlaces = () => {
             {/* Label selection */}
             <div className="grid grid-cols-3 gap-2">
               {PRESET_LABELS.map((preset) => (
-                <button
+                <Button
                   key={preset.label}
+                  variant="outline"
                   onClick={() => {
                     setSelectedLabel(preset.label);
                     setSelectedIcon(preset.icon);
                   }}
-                  className={`p-3 rounded-xl text-center transition-all ${
+                  className={`p-3 rounded-xl text-center transition-all h-auto ${
                     selectedLabel === preset.label
                       ? 'bg-primary text-primary-foreground scale-105'
                       : 'bg-secondary hover:bg-secondary/80'
@@ -476,20 +477,22 @@ const RiderSavedPlaces = () => {
                 >
                   <span className="text-xl block mb-1">{preset.icon}</span>
                   <span className="text-xs font-medium">{preset.name}</span>
-                </button>
+                </Button>
               ))}
             </div>
 
             {/* Extended icons */}
             <div className="grid grid-cols-6 gap-2 p-3 rounded-xl bg-secondary/30">
               {EXTENDED_ICONS.slice(3).map((iconOption) => (
-                <button
+                <Button
                   key={iconOption.label}
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     setSelectedIcon(iconOption.icon);
                     setSelectedLabel(iconOption.label);
                   }}
-                  className={`p-2 rounded-lg text-center transition-all ${
+                  className={`p-2 rounded-lg text-center transition-all h-auto ${
                     selectedIcon === iconOption.icon
                       ? 'bg-primary text-primary-foreground'
                       : 'hover:bg-secondary'
@@ -497,7 +500,7 @@ const RiderSavedPlaces = () => {
                   title={iconOption.name}
                 >
                   <span className="text-lg">{iconOption.icon}</span>
-                </button>
+                </Button>
               ))}
             </div>
 
@@ -584,17 +587,21 @@ const PlaceCard = ({
               <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{place.address}</p>
             </div>
             <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                className="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-all"
+                className="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-all h-auto"
                 title="تعديل"
               >
                 <Edit3 className="w-4 h-4" />
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={(e) => { e.stopPropagation(); onDelete(); }}
                 disabled={isDeleting}
-                className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-all disabled:opacity-50"
+                className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-all disabled:opacity-50 h-auto"
                 title="حذف"
               >
                 {isDeleting ? (
@@ -602,7 +609,7 @@ const PlaceCard = ({
                 ) : (
                   <Trash2 className="w-4 h-4" />
                 )}
-              </button>
+              </Button>
             </div>
           </div>
           <Button

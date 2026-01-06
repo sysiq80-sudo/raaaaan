@@ -184,224 +184,248 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
 
   const isPickup = type === 'pickup';
   
-  // Always use glowing blue for dropoff (destination)
-  const pinColor = isPickup ? 'from-primary to-primary/80' : 'from-blue-500 to-blue-400';
+  // Always use distinct colors for pickup (green) and dropoff (blue)
+  const pinColor = isPickup ? 'from-green-500 to-green-600' : 'from-blue-500 to-blue-600';
   const glowColor = isPickup 
-    ? '0 0 40px rgba(0, 217, 165, 0.6)' 
+    ? '0 0 40px rgba(34, 197, 94, 0.8), 0 0 80px rgba(34, 197, 94, 0.4)' 
     : '0 0 50px rgba(59, 130, 246, 0.8), 0 0 100px rgba(59, 130, 246, 0.4)';
   const gradientColor = isPickup 
-    ? 'linear-gradient(to bottom, hsl(var(--primary)), transparent)' 
+    ? 'linear-gradient(to bottom, #22c55e, transparent)' 
     : 'linear-gradient(to bottom, #3b82f6, transparent)';
-  const bgOpacity = isPickup ? 'bg-primary/30' : 'bg-blue-500/40';
+  const bgOpacity = isPickup ? 'bg-green-500/30' : 'bg-blue-500/30';
 
   return (
-    <div className="fixed inset-0 z-50 bg-background">
+    <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-30 bg-card/95 backdrop-blur-md border-b border-border/50">
+      <div className="bg-card/95 backdrop-blur-md border-b border-border/50 z-30">
         <div className="flex items-center justify-between p-4">
-          <button 
+          <button
             onClick={onClose}
             className="p-2.5 rounded-xl hover:bg-secondary transition-all duration-200 active:scale-95"
           >
             <ArrowRight className="w-5 h-5" />
           </button>
-          <h1 className="text-lg font-bold flex items-center gap-2">
+          <h1 className="text-xl font-bold flex items-center gap-3">
             {isPickup ? (
-              <>
-                <Target className="w-5 h-5 text-primary" />
-                تحديد موقع الانطلاق
-              </>
+              <div className="flex items-center gap-2 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20">
+                <Target className="w-6 h-6 text-green-600" />
+                <span className="text-green-800">تحديد موقع الانطلاق</span>
+                <span className="text-lg">🚗</span>
+              </div>
             ) : (
-              <>
-                <MapPin className="w-5 h-5 text-blue-500" />
-                تحديد الوجهة
-              </>
+              <div className="flex items-center gap-2 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
+                <MapPin className="w-6 h-6 text-blue-600" />
+                <span className="text-blue-800">تحديد الوجهة</span>
+                <span className="text-lg">🎯</span>
+              </div>
             )}
           </h1>
           <div className="w-10" />
         </div>
       </div>
 
-      {/* Map */}
-      <div ref={mapContainer} className="absolute inset-0" />
+      {/* Map Container - Takes remaining space */}
+      <div className="flex-1 relative">
+        <div ref={mapContainer} className="absolute inset-0" />
 
-      {/* Center pin - with beautiful glowing effect */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-        <div className={`flex flex-col items-center transition-all duration-300 ${isDragging ? 'scale-125 -translate-y-6' : ''}`}>
-          
-          {/* Address label above pin */}
-          <div 
-            className={`mb-3 px-4 py-2.5 rounded-2xl backdrop-blur-md shadow-xl border max-w-[280px] transition-all duration-300 ${
-              isDragging ? 'opacity-0 scale-90' : 'opacity-100 scale-100'
-            } ${
-              isPickup 
-                ? 'bg-card/95 border-primary/30' 
-                : 'bg-card/95 border-blue-500/30'
-            }`}
-            style={{
-              boxShadow: isPickup 
-                ? '0 4px 20px rgba(0, 217, 165, 0.15)' 
-                : '0 4px 20px rgba(59, 130, 246, 0.15)'
-            }}
-          >
-            <p className="text-xs text-muted-foreground mb-1 text-center font-medium">
-              {isPickup ? 'موقع الانطلاق' : 'الوجهة'}
-            </p>
-            <p className="text-sm font-bold text-foreground text-center line-clamp-2 leading-relaxed">
-              {centerAddress || 'جاري تحديد العنوان...'}
-            </p>
+        {/* Drag instruction hint */}
+        {!isDragging && centerAddress && (
+          <div className="absolute top-24 left-1/2 transform -translate-x-1/2 z-10 pointer-events-none">
+            <div className="bg-card/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-border/50 animate-bounce">
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <span className="text-lg">👆</span>
+                اسحب الخريطة لتغيير الموقع
+              </p>
+            </div>
           </div>
-          
-          {/* Outer glow ring */}
-          <div 
-            className={`absolute w-20 h-20 rounded-full animate-pulse ${isPickup ? 'bg-primary/20' : 'bg-blue-500/20'}`}
-            style={{
-              boxShadow: glowColor,
-              filter: 'blur(8px)',
-              top: '50%',
-              transform: 'translateY(-50%)'
-            }}
-          />
-          
-          {/* Main pin circle */}
-          <div 
-            className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-2xl bg-gradient-to-br ${pinColor}`}
-            style={{ boxShadow: glowColor }}
-          >
-            {/* Inner sparkle effect */}
-            <div className="absolute inset-2 rounded-full bg-white/10 backdrop-blur-sm" />
-            
-            {isPickup ? (
-              <Target className="w-8 h-8 text-white relative z-10" />
-            ) : (
-              <MapPin className="w-8 h-8 text-white relative z-10" />
-            )}
-            
-            {/* Sparkle icon for destination */}
-            {!isPickup && (
-              <Sparkles className="absolute -top-1 -right-1 w-5 h-5 text-yellow-300 animate-pulse" />
-            )}
+        )}
+
+        {/* Clean and simple location pin */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+          <div className="flex flex-col items-center">
+
+            {/* Compact type indicator */}
+            <div
+              className={`mb-2 px-3 py-1.5 rounded-lg backdrop-blur-md shadow-lg border text-sm font-semibold ${
+                isPickup
+                  ? 'bg-green-500/95 border-green-400 text-white'
+                  : 'bg-blue-500/95 border-blue-400 text-white'
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                {isPickup ? (
+                  <Target className="w-4 h-4" />
+                ) : (
+                  <MapPin className="w-4 h-4" />
+                )}
+                <span>{isPickup ? 'الانطلاق' : 'الوجهة'}</span>
+              </div>
+            </div>
+
+            {/* Clean map pin - needle tip indicates exact location */}
+            <div className="relative">
+              {/* Pin head */}
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center shadow-xl border-2 border-white ${
+                  isPickup ? 'bg-green-500' : 'bg-blue-500'
+                }`}
+              >
+                {isPickup ? (
+                  <Target className="w-4 h-4 text-white" />
+                ) : (
+                  <MapPin className="w-4 h-4 text-white" />
+                )}
+              </div>
+
+              {/* Pin needle pointing down to exact location */}
+              <div
+                className={`w-0.5 h-6 mx-auto ${
+                  isPickup ? 'bg-green-500' : 'bg-blue-500'
+                }`}
+                style={{
+                  clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)'
+                }}
+              />
+            </div>
+
+            {/* Address below pin */}
+            <div className="mt-2 px-3 py-2 bg-card/95 backdrop-blur-md rounded-lg shadow-lg border border-border/50 max-w-[250px]">
+              <p className="text-sm font-medium text-foreground text-center line-clamp-2">
+                {centerAddress || 'جاري تحديد العنوان...'}
+              </p>
+            </div>
           </div>
-          
-          {/* Pin stem */}
-          <div 
-            className="w-1.5 h-12"
-            style={{ background: gradientColor }} 
-          />
-          
-          {/* Ground shadow */}
-          <div className={`w-6 h-6 rounded-full ${bgOpacity} blur-sm`} />
         </div>
+
+        {/* Loading overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-card/90 backdrop-blur-md flex items-center justify-center z-30">
+            <div className="text-center">
+              <div
+                className="w-14 h-14 rounded-full mx-auto mb-4"
+                style={{
+                  background: 'conic-gradient(from 0deg, transparent, #3b82f6)',
+                  animation: 'spin 1s linear infinite',
+                  WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px))'
+                }}
+              />
+              <p className="text-muted-foreground font-medium">جاري تحميل الخريطة...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Center on user button */}
+        {userLocation && (
+          <button
+            onClick={centerOnUser}
+            className="absolute bottom-4 left-4 w-14 h-14 bg-card/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-xl flex items-center justify-center hover:bg-accent transition-all duration-200 active:scale-95 z-20 group"
+          >
+            <Navigation className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />
+          </button>
+        )}
       </div>
 
-      {/* Loading overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 bg-card/90 backdrop-blur-md flex items-center justify-center z-30">
-          <div className="text-center">
-            <div 
-              className="w-14 h-14 rounded-full mx-auto mb-4"
-              style={{
-                background: 'conic-gradient(from 0deg, transparent, #3b82f6)',
-                animation: 'spin 1s linear infinite',
-                WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px))'
-              }}
-            />
-            <p className="text-muted-foreground font-medium">جاري تحميل الخريطة...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Center on user button */}
-      {userLocation && (
-        <button
-          onClick={centerOnUser}
-          className="absolute bottom-52 left-4 w-14 h-14 bg-card/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-xl flex items-center justify-center hover:bg-accent transition-all duration-200 active:scale-95 z-20 group"
-        >
-          <Navigation className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />
-        </button>
-      )}
-
-      {/* Bottom panel - Enhanced design */}
-      <div className="absolute bottom-0 left-0 right-0 z-30 p-4 pb-24">
-        <div className="bg-card/95 backdrop-blur-md rounded-3xl p-5 border border-border/50 shadow-2xl">
-          {/* Service area status */}
+      {/* Bottom panel - Fixed at bottom */}
+      <div className="bg-card/95 backdrop-blur-md border-t border-border/50 shadow-2xl z-30">
+        <div className="p-3 sm:p-4">
+          {/* Service area status with compact styling */}
           {serviceAreaStatus && !serviceAreaStatus.in_service && (
-            <div className="flex items-center gap-3 p-4 mb-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-amber-500" />
+            <div className="flex items-center gap-3 p-3 mb-3 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 shadow-lg">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 shadow-inner">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
               </div>
-              <div className="text-sm">
-                <p className="font-semibold text-amber-600">هذا الموقع خارج منطقة الخدمة</p>
+              <div className="flex-1">
+                <p className="font-semibold text-amber-800 text-sm mb-1">⚠️ هذا الموقع خارج منطقة الخدمة</p>
                 {serviceAreaStatus.nearest_region && (
-                  <p className="text-amber-500/80 text-xs mt-0.5">
-                    أقرب منطقة: {serviceAreaStatus.nearest_region.name_ar} ({serviceAreaStatus.nearest_region.distance_km} كم)
+                  <p className="text-amber-700 text-xs">
+                    أقرب منطقة خدمة: <span className="font-medium">{serviceAreaStatus.nearest_region.name_ar}</span>
+                    <br />
+                    المسافة: <span className="font-medium">{serviceAreaStatus.nearest_region.distance_km} كم</span>
                   </p>
                 )}
+                <p className="text-amber-600 text-xs mt-1">اسحب الخريطة للانتقال إلى منطقة الخدمة</p>
               </div>
             </div>
           )}
 
           {serviceAreaStatus?.in_service && serviceAreaStatus.region && (
-            <div className="flex items-center gap-3 p-4 mb-4 rounded-2xl bg-primary/10 border border-primary/30">
-              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
-                <Check className="w-5 h-5 text-primary" />
+            <div className="flex items-center gap-3 p-3 mb-3 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 shadow-lg">
+              <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0 shadow-inner">
+                <Check className="w-4 h-4 text-green-600" />
               </div>
-              <p className="text-sm text-primary font-semibold">
-                داخل منطقة الخدمة: {serviceAreaStatus.region.name_ar}
-              </p>
+              <div className="flex-1">
+                <p className="font-semibold text-green-800 text-sm mb-1">✅ منطقة خدمة متاحة</p>
+                <p className="text-green-700 text-xs">
+                  المنطقة: <span className="font-medium">{serviceAreaStatus.region.name_ar}</span>
+                </p>
+                <p className="text-green-600 text-xs mt-1">يمكنك طلب رحلة من هذا الموقع</p>
+              </div>
             </div>
           )}
 
-          {/* Address display */}
-          <div className="flex items-start gap-4 mb-5">
-            <div 
-              className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
-                isPickup ? 'bg-primary/20' : 'bg-blue-500/20'
+          {/* Address display with compact styling */}
+          <div className="flex items-start gap-3 mb-4 p-3 rounded-xl border bg-card/50">
+            <div
+              className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center shrink-0 border ${
+                isPickup
+                  ? 'bg-green-500/20 border-green-400 shadow-lg shadow-green-500/20'
+                  : 'bg-blue-500/20 border-blue-400 shadow-lg shadow-blue-500/20'
               }`}
               style={{
-                boxShadow: isPickup 
-                  ? '0 0 20px rgba(0, 217, 165, 0.2)' 
-                  : '0 0 20px rgba(59, 130, 246, 0.2)'
+                boxShadow: isPickup
+                  ? '0 0 20px rgba(34, 197, 94, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.1)'
+                  : '0 0 20px rgba(59, 130, 246, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.1)'
               }}
             >
               {isPickup ? (
-                <Target className="w-7 h-7 text-primary" />
+                <Target className="w-6 h-6 sm:w-7 sm:h-7 text-green-600 drop-shadow-sm" />
               ) : (
-                <MapPin className="w-7 h-7 text-blue-500" />
+                <MapPin className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600 drop-shadow-sm" />
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground mb-1.5 font-medium">
-                {isPickup ? 'موقع الانطلاق' : 'الوجهة'}
-              </p>
-              <p className="font-semibold text-foreground line-clamp-2 leading-relaxed">
+              <div className="flex items-center gap-2 mb-1">
+                <p className={`text-xs font-semibold px-2 py-1 rounded-full ${isPickup ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
+                  {isPickup ? '🚗 موقع الانطلاق' : '🎯 الوجهة'}
+                </p>
+              </div>
+              <p className="font-semibold text-foreground text-sm sm:text-base line-clamp-2 leading-relaxed">
                 {centerAddress || 'جاري تحديد العنوان...'}
               </p>
+              {centerAddress && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  اسحب الخريطة لتغيير الموقع • اضغط للتأكيد
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Confirm button - beautiful gradient */}
+          {/* Confirm button - compact styling */}
           <Button
             onClick={handleConfirm}
             disabled={isCheckingService || !centerAddress}
-            className={`w-full h-14 text-lg font-bold rounded-2xl transition-all duration-300 ${
-              isPickup 
-                ? 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70' 
-                : 'bg-gradient-to-r from-blue-500 to-blue-400 hover:from-blue-600 hover:to-blue-500'
-            }`}
+            className={`w-full h-12 sm:h-14 text-base sm:text-lg font-bold rounded-xl transition-all duration-300 transform hover:scale-[1.01] active:scale-[0.99] ${
+              isPickup
+                ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-lg shadow-green-500/30'
+                : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/30'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
             style={{
-              boxShadow: isPickup 
-                ? '0 4px 20px rgba(0, 217, 165, 0.3)' 
-                : '0 4px 20px rgba(59, 130, 246, 0.3)'
+              boxShadow: isPickup
+                ? '0 4px 20px rgba(34, 197, 94, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
+                : '0 4px 20px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
             }}
           >
             {isCheckingService ? (
-              <Loader2 className="w-6 h-6 animate-spin" />
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
+                <span className="text-sm sm:text-base">جاري التحقق من المنطقة...</span>
+              </div>
             ) : (
-              <>
-                <Check className="w-6 h-6 ml-2" />
-                تأكيد {isPickup ? 'موقع الانطلاق' : 'الوجهة'}
-              </>
+              <div className="flex items-center gap-2">
+                <Check className="w-5 h-5 sm:w-6 sm:h-6" />
+                <span className="text-sm sm:text-base">تأكيد {isPickup ? 'موقع الانطلاق' : 'الوجهة'}</span>
+                <span className="text-sm sm:text-base">{isPickup ? '🚗' : '🎯'}</span>
+              </div>
             )}
           </Button>
         </div>

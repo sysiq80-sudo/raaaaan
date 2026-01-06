@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Bell, MapPin, Search, Navigation, X, ArrowLeft, Locate, Wallet, CreditCard, Banknote } from 'lucide-react';
+import { Menu, Bell, MapPin, Search, Navigation, X, ArrowLeft, Locate, Wallet, CreditCard, Banknote, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -26,6 +26,17 @@ import CompactVehicleSelector from '@/components/rider/CompactVehicleSelector';
 import { PaymentMethodBadge } from '@/components/rider/PaymentMethodSelector';
 import SupportButton from '@/components/rider/SupportButton';
 import ScrollablePromoBanners from '@/components/rider/ScrollablePromoBanners';
+import LocationSearchInput from '@/components/LocationSearchInput';
+
+// New Smart Components
+import DynamicBubbles from '@/components/rider/DynamicBubbles';
+import SmartSideBar from '@/components/rider/SmartSideBar';
+import AnimatedCards from '@/components/rider/AnimatedCards';
+import SmartMapSuggestions from '@/components/rider/SmartMapSuggestions';
+import { SmartDarkModeProvider, SmartDarkModeIndicator, SmartDarkModeOverlay } from '@/components/rider/SmartDarkMode';
+import SmartNotifications, { useSmartNotifications } from '@/components/rider/SmartNotifications';
+import { CustomizationProvider, CustomizationPanel, useCustomization } from '@/components/rider/CustomizationPanel';
+import QuickGestures from '@/components/rider/QuickGestures';
 
 // Hooks
 import { useFareCalculation } from '@/hooks/useFareCalculation';
@@ -72,14 +83,25 @@ const RiderHomeCustom: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Smart Notifications Hook
+  const {
+    notifications,
+    showDriverArrived,
+    showPromo,
+    showWeatherWarning
+  } = useSmartNotifications();
+
+  // Customization Hook
+  const { settings } = useCustomization();
+
   // Use optimized initialization hook
-  const { 
-    user, 
-    session, 
+  const {
+    user,
+    session,
     profile,
-    isLoading: authLoading, 
+    isLoading: authLoading,
     isProfileComplete,
-    updateProfile 
+    updateProfile
   } = useRiderInitialization();
 
   // Location State
@@ -88,6 +110,10 @@ const RiderHomeCustom: React.FC = () => {
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Search State
+  const [pickupSearch, setPickupSearch] = useState('');
+  const [dropoffSearch, setDropoffSearch] = useState('');
 
   // Multi-stop & Round Trip State
   const [intermediateStops, setIntermediateStops] = useState<Stop[]>([]);
@@ -112,6 +138,10 @@ const RiderHomeCustom: React.FC = () => {
   const [isBooking, setIsBooking] = useState(false);
   const [showPaymentSheet, setShowPaymentSheet] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+
+  // Smart Features State
+  const [showCustomizationPanel, setShowCustomizationPanel] = useState(false);
+  const [currentHour, setCurrentHour] = useState(new Date().getHours());
 
   // Hooks - only enable when needed
   const { fareBreakdown, fareLoading } = useFareCalculation(
@@ -142,6 +172,75 @@ const RiderHomeCustom: React.FC = () => {
     showLiveTracker,
     setShowLiveTracker
   } = useActiveRide(user?.id || null);
+
+  // Update current hour for smart suggestions
+  useEffect(() => {
+    const updateHour = () => setCurrentHour(new Date().getHours());
+    const interval = setInterval(updateHour, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  // Smart Features Handlers
+  const handleQuickBook = useCallback(() => {
+    if (nearbyDriversCount > 0) {
+      setShowBookingPanel(true);
+      setShowSearchOverlay(false);
+      toast({
+        title: "حجز سريع",
+        description: `تم العثور على ${nearbyDriversCount} سائق قريب`
+      });
+    } else {
+      toast({
+        title: "لا يوجد سائقون",
+        description: "لا يوجد سائقون متاحون في المنطقة حالياً",
+        variant: "destructive"
+      });
+    }
+  }, [nearbyDriversCount, toast]);
+
+  const handleEmergency = useCallback(() => {
+    // Emergency contact logic
+    toast({
+      title: "الاتصال بالطوارئ",
+      description: "جاري الاتصال بخدمة الطوارئ...",
+      variant: "destructive"
+    });
+  }, [toast]);
+
+  const handleBubbleClick = useCallback((type: string, data?: any) => {
+    switch (type) {
+      case 'drivers':
+        handleQuickBook();
+        break;
+      case 'promo':
+        showPromo(data?.discount || 'خصم', '24 ساعة');
+        break;
+      case 'time':
+        toast({
+          title: "وقت الوصول المقدر",
+          description: `${data?.minutes || 0} دقيقة`
+        });
+        break;
+      default:
+        break;
+    }
+  }, [handleQuickBook, showPromo, toast]);
+
+  const handleCardClick = useCallback((type: string) => {
+    switch (type) {
+      case 'drivers':
+        handleQuickBook();
+        break;
+      case 'promo':
+        showPromo('25%', '48 ساعة');
+        break;
+      case 'traffic':
+        showWeatherWarning('ازدحام مروري متوسط');
+        break;
+      default:
+        break;
+    }
+  }, [handleQuickBook, showPromo, showWeatherWarning]);
 
   // Fetch address from coordinates using cached token
   const fetchAddressFromCoords = useCallback(async (lat: number, lng: number): Promise<string> => {
@@ -232,11 +331,20 @@ const RiderHomeCustom: React.FC = () => {
     } else {
       setDropoff(address);
       setDropoffCoords(coords);
+      setDropoffSearch(address);
     }
     setShowSearchOverlay(false);
     setShowLocationSheet(false);
     setShowBookingPanel(true);
   }, [selectingStopId, intermediateStops]);
+
+  // Handle pickup selection from saved places
+  const handlePickupSelectFromSaved = useCallback((address: string, coords: { lat: number; lng: number }) => {
+    setPickup(address);
+    setPickupCoords(coords);
+    setPickupSearch(address);
+    setShowLocationSheet(false);
+  }, []);
 
   // Handle pickup selection
   const handlePickupSelect = useCallback((address: string, coords: { lat: number; lng: number }) => {
@@ -261,10 +369,20 @@ const RiderHomeCustom: React.FC = () => {
   const handleMapPickerConfirm = useCallback((location: { lat: number; lng: number; address: string; inService?: boolean }) => {
     if (mapPickerMode === 'pickup') {
       handlePickupSelect(location.address, { lat: location.lat, lng: location.lng });
+      // After confirming pickup, close map picker and focus on dropoff field
+      setShowMapPicker(false);
+      setTimeout(() => {
+        // Focus on dropoff input if available
+        const dropoffInput = document.querySelector('[data-field="dropoff"] input') as HTMLInputElement;
+        if (dropoffInput) {
+          dropoffInput.focus();
+        }
+      }, 100);
     } else {
       handleDestinationSelect(location.address, { lat: location.lat, lng: location.lng });
+      // After confirming dropoff, close the picker
+      setShowMapPicker(false);
     }
-    setShowMapPicker(false);
   }, [mapPickerMode, handlePickupSelect, handleDestinationSelect]);
 
   // Open location sheet
@@ -454,152 +572,204 @@ const RiderHomeCustom: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-full relative overflow-hidden">
-      {/* Full Screen Map */}
-      <div className="absolute inset-0 z-0">
+    <div className="h-screen w-full relative overflow-hidden flex flex-col">
+      {/* Map Section - Top Half */}
+      <div className="h-1/2 w-full relative z-0">
         <Suspense fallback={<MapSkeleton />}>
-          <LazyMap 
-            className="h-full w-full rounded-none" 
-            fallbackHeight="h-full" 
-            pickupLocation={pickupCoords} 
-            dropoffLocation={dropoffCoords} 
-            nearbyDrivers={nearbyDriverLocations} 
-            onRouteCalculated={handleRouteCalculated} 
-            selectingLocation={showMapPicker ? mapPickerMode : null} 
-            onLocationSelect={() => {}} 
+          <LazyMap
+            className="h-full w-full rounded-none"
+            fallbackHeight="h-full"
+            pickupLocation={pickupCoords}
+            dropoffLocation={dropoffCoords}
+            nearbyDrivers={nearbyDriverLocations}
+            onRouteCalculated={handleRouteCalculated}
+            selectingLocation={showMapPicker ? mapPickerMode : null}
+            onLocationSelect={() => {}}
           />
         </Suspense>
       </div>
 
-      {/* Top Header */}
-      <div className="absolute top-0 left-0 right-0 z-20 safe-area-top">
-        <div className="p-4 flex items-center justify-between">
-          <Button 
-            variant="outline" 
-            size="icon" 
-            className="bg-background/95 backdrop-blur-sm shadow-lg border-border/50" 
-            onClick={() => setShowSideMenu(true)}
-          >
-            <Menu className="w-5 h-5" />
-          </Button>
-
-          <h1 className="text-lg font-bold">ران</h1>
-
-          <div className="flex items-center gap-2">
-            <SupportButton />
-            <Button variant="outline" size="icon" className="bg-background/95 backdrop-blur-sm shadow-lg border-border/50">
-              <Bell className="w-5 h-5" />
+      {/* Options Section - Bottom Half */}
+      <div className="h-1/2 w-full bg-background relative z-10 overflow-y-auto">
+        {/* Top Header */}
+        <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/50 safe-area-top">
+          <div className="p-4 flex items-center justify-between">
+            <Button
+              variant="outline"
+              size="icon"
+              className="bg-background/95 backdrop-blur-sm shadow-lg border-border/50"
+              onClick={() => setShowSideMenu(true)}
+            >
+              <Menu className="w-5 h-5" />
             </Button>
+
+            <h1 className="text-lg font-bold">ران</h1>
+
+            <div className="flex items-center gap-2">
+              <SupportButton />
+              <Button variant="outline" size="icon" className="bg-background/95 backdrop-blur-sm shadow-lg border-border/50">
+                <Bell className="w-5 h-5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="bg-background/95 backdrop-blur-sm shadow-lg border-border/50"
+                onClick={() => setShowCustomizationPanel(true)}
+              >
+                <Settings className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Search Overlay */}
-      <AnimatePresence>
-        {showSearchOverlay && !showBookingPanel && !showWaitingScreen && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            exit={{ opacity: 0, y: 50 }} 
-            className="absolute bottom-0 left-0 right-0 z-10 pointer-events-auto"
-          >
-            <div className="bg-gradient-to-t from-card via-card/98 to-card/90 backdrop-blur-lg rounded-t-[2rem] shadow-[0_-8px_30px_rgba(0,0,0,0.12)] pb-24 pt-2">
-              {/* Current Location Display */}
-              <div className="p-4 flex items-center gap-3 border-b border-border/20">
-                <button 
-                  onClick={getCurrentLocation} 
-                  disabled={isLocating} 
-                  className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors disabled:opacity-50"
-                >
-                  <Locate className={cn("w-5 h-5 text-primary", isLocating && "animate-pulse")} />
-                </button>
-                <div className="flex-1 text-right">
-                  <p className="text-xs text-warning-foreground">انطلق من موقعك الحالي</p>
-                  <p className="font-medium truncate text-base">
-                    {isLocating ? 'جاري تحديد الموقع...' : pickup || 'اضغط على الأيقونة لتحديد موقعك'}
-                  </p>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-xs text-primary" 
-                  onClick={() => openLocationSheet('pickup_only')}
-                >
-                  تغيير
-                </Button>
-              </div>
-
-              {/* Search Input */}
-              <div 
-                className="w-full p-4 flex items-center gap-3 border-b border-border/20"
-              >
-                <div className="w-10 h-10 bg-primary/10 items-center justify-center flex rounded-full">
-                  <Search className="text-primary h-5 w-5" />
-                </div>
-                <div className="flex-1 text-right">
-                  <p className="font-bold text-foreground text-base">إلى أين تريد الذهاب؟</p>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-xs text-primary" 
-                  onClick={() => openLocationSheet('dropoff')}
-                >
-                  تغيير
-                </Button>
-              </div>
-
-              {/* Saved Places Quick Icons */}
-              <div className="px-4 py-3 border-b border-border/20">
-                <SavedPlacesQuickIcons 
-                  userId={user?.id || null} 
-                  onSelect={({ lat, lng, address }) => {
-                    handleDestinationSelect(address, { lat, lng });
-                  }} 
-                  onAddNew={() => navigate('/rider/saved-places')} 
-                />
-              </div>
-
-              {/* Payment Method */}
-              <button 
-                className="w-full px-4 py-3 flex items-center justify-between" 
-                onClick={() => setShowPaymentSheet(true)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    {paymentMethod === 'wallet' ? <Wallet className="w-5 h-5 text-primary" /> : 
-                     paymentMethod === 'cash' ? <Banknote className="w-5 h-5 text-primary" /> : 
-                     <CreditCard className="w-5 h-5 text-primary" />}
+        {/* Search Overlay */}
+        <AnimatePresence>
+          {showSearchOverlay && !showBookingPanel && !showWaitingScreen && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="px-4 py-4"
+            >
+              <div className="bg-gradient-to-t from-card via-card/98 to-card/90 backdrop-blur-lg rounded-2xl shadow-lg p-4">
+                {/* Pickup Location Search */}
+                <div className="mb-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Navigation className="w-4 h-4 text-primary" />
+                    </div>
+                    <span className="text-sm font-medium text-muted-foreground">من أين تريد الانطلاق؟</span>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-base">
-                      {paymentMethod === 'wallet' ? 'المحفظة' : 
-                       paymentMethod === 'cash' ? 'نقداً' : 
-                       paymentMethod === 'card' ? 'بطاقة' : 
-                       paymentMethod === 'zain_cash' ? 'زين كاش' : 
-                       paymentMethod === 'nas_wallet' ? 'ناس' : 'الدفع'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">طريقة الدفع</p>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <LocationSearchInput
+                        placeholder="ابحث عن موقع الانطلاق..."
+                        value={pickupSearch}
+                        onChange={setPickupSearch}
+                        onLocationSelect={(location) => {
+                          setPickup(location.address);
+                          setPickupCoords({ lat: location.lat, lng: location.lng });
+                          setPickupSearch(location.address);
+                        }}
+                        type="pickup"
+                        userLocation={userLocation}
+                        className="w-full"
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0"
+                      onClick={() => openLocationSheet('pickup_only')}
+                    >
+                      <MapPin className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" className="text-xs text-primary p-0 h-auto">
-                  تغيير
-                </Button>
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* Booking Panel */}
-      <AnimatePresence>
-        {showBookingPanel && dropoffCoords && (
-          <motion.div 
-            initial={{ opacity: 0, y: 100 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            exit={{ opacity: 0, y: 100 }} 
-            className="absolute bottom-0 left-0 right-0 z-30"
-          >
+                {/* Dropoff Location Search */}
+                <div className="mb-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                      <MapPin className="w-4 h-4 text-blue-500" />
+                    </div>
+                    <span className="text-sm font-medium text-muted-foreground">إلى أين تريد الذهاب؟</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <LocationSearchInput
+                        placeholder="ابحث عن الوجهة..."
+                        value={dropoffSearch}
+                        onChange={setDropoffSearch}
+                        onLocationSelect={(location) => {
+                          setDropoff(location.address);
+                          setDropoffCoords({ lat: location.lat, lng: location.lng });
+                          setDropoffSearch(location.address);
+                          setShowBookingPanel(true);
+                          setShowSearchOverlay(false);
+                        }}
+                        type="dropoff"
+                        userLocation={userLocation}
+                        className="w-full"
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0"
+                      onClick={() => openLocationSheet('dropoff')}
+                    >
+                      <MapPin className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Saved Places Quick Icons */}
+                <div className="border-t border-border/20 pt-4">
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-muted-foreground mb-2">الأماكن المحفوظة للانطلاق</p>
+                    <SavedPlacesQuickIcons
+                      userId={user?.id || null}
+                      onSelect={({ lat, lng, address }) => {
+                        handlePickupSelectFromSaved(address, { lat, lng });
+                      }}
+                      onAddNew={() => navigate('/rider/saved-places')}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">الأماكن المحفوظة للوجهة</p>
+                    <SavedPlacesQuickIcons
+                      userId={user?.id || null}
+                      onSelect={({ lat, lng, address }) => {
+                        handleDestinationSelect(address, { lat, lng });
+                      }}
+                      onAddNew={() => navigate('/rider/saved-places')}
+                    />
+                  </div>
+                </div>
+
+                {/* Payment Method */}
+                <div className="border-t border-border/20 pt-4">
+                  <button
+                    className="w-full flex items-center justify-between"
+                    onClick={() => setShowPaymentSheet(true)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        {paymentMethod === 'wallet' ? <Wallet className="w-5 h-5 text-primary" /> :
+                         paymentMethod === 'cash' ? <Banknote className="w-5 h-5 text-primary" /> :
+                         <CreditCard className="w-5 h-5 text-primary" />}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium text-base">
+                          {paymentMethod === 'wallet' ? 'المحفظة' :
+                           paymentMethod === 'cash' ? 'نقداً' :
+                           paymentMethod === 'card' ? 'بطاقة' :
+                           paymentMethod === 'zain_cash' ? 'زين كاش' :
+                           paymentMethod === 'nas_wallet' ? 'ناس' : 'الدفع'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">طريقة الدفع</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" className="text-xs text-primary p-0 h-auto">
+                      تغيير
+                    </Button>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Booking Panel */}
+        <AnimatePresence>
+          {showBookingPanel && dropoffCoords && (
+            <motion.div
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              className="px-4 py-4"
+            >
             <div className="bg-background rounded-t-3xl shadow-2xl border-t border-border/50 max-h-[80vh] overflow-y-auto">
               {/* Header */}
               <div className="sticky top-0 bg-background z-10 p-4 border-b border-border/50 flex items-center gap-3">
@@ -670,7 +840,7 @@ const RiderHomeCustom: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
+      </div>
       {/* Location Bottom Sheet */}
       {showLocationSheet && (
         <Suspense fallback={null}>
@@ -695,6 +865,87 @@ const RiderHomeCustom: React.FC = () => {
           />
         </Suspense>
       )}
+
+      {/* Quick Gestures */}
+      <QuickGestures
+        onSwipeUp={handleQuickBook}
+        onDoubleTap={handleEmergency}
+        onLongPress={() => setShowCustomizationPanel(true)}
+        enabled={settings.gestures.swipe_book || settings.gestures.double_tap_emergency || settings.gestures.long_press_menu}
+      />
+
+      {/* Smart Features Components */}
+
+      {/* Dynamic Bubbles on Map */}
+      <DynamicBubbles
+        driverLocations={nearbyDriverLocations}
+        nearbyDriversCount={nearbyDriversCount}
+        userLocation={userLocation}
+        pickupCoords={pickupCoords}
+        dropoffCoords={dropoffCoords}
+        estimatedTime={routeDuration}
+        onBubbleClick={handleBubbleClick}
+      />
+
+      {/* Smart Side Bar */}
+      <SmartSideBar
+        isVisible={!showBookingPanel && !showWaitingScreen}
+        onQuickBook={handleQuickBook}
+        onFavoriteDrivers={() => navigate('/rider/favorites')}
+        onPromotions={() => showPromo('30%', '72 ساعة')}
+        onSavedPlaces={() => navigate('/rider/saved-places')}
+        onEmergency={handleEmergency}
+        nearbyDriversCount={nearbyDriversCount}
+        hasActivePromotions={true}
+      />
+
+      {/* Smart Map Suggestions */}
+      <SmartMapSuggestions
+        userLocation={userLocation}
+        currentHour={currentHour}
+        userHistory={[]} // TODO: Add user ride history
+        onSuggestionSelect={(address, coords) => {
+          setDropoff(address);
+          setDropoffCoords(coords);
+          setDropoffSearch(address);
+          setShowBookingPanel(true);
+          setShowSearchOverlay(false);
+        }}
+        isVisible={showSearchOverlay && !showBookingPanel}
+      />
+
+      {/* Animated Cards */}
+      {!showSearchOverlay && !showBookingPanel && !showWaitingScreen && (
+        <AnimatedCards
+          nearbyDriversCount={nearbyDriversCount}
+          estimatedTime={routeDuration}
+          currentFare={fareBreakdown?.total_fare}
+          averageRating={4.5}
+          trafficLevel="low"
+          monthlySavings={15000}
+          onCardClick={handleCardClick}
+          isLoading={fareLoading}
+        />
+      )}
+
+      {/* Smart Notifications */}
+      <SmartNotifications
+        notifications={notifications}
+        onNotificationAction={(id, action) => {
+          console.log('Notification action:', id, action);
+        }}
+        onNotificationDismiss={(id) => {
+          console.log('Notification dismissed:', id);
+        }}
+        position="top"
+        maxVisible={3}
+      />
+
+      {/* Customization Panel */}
+      <CustomizationPanel
+        isOpen={showCustomizationPanel}
+        onClose={() => setShowCustomizationPanel(false)}
+      />
 
       {/* Map Location Picker */}
       {showMapPicker && (
@@ -734,14 +985,27 @@ const RiderHomeCustom: React.FC = () => {
         </Suspense>
       )}
 
-      {/* Bottom Navigation */}
-      {!showBookingPanel && !showWaitingScreen && (
+      {/* Bottom Navigation - Hidden in split screen layout */}
+      {/* {!showBookingPanel && !showWaitingScreen && (
         <div className="absolute bottom-0 left-0 right-0 z-20">
           <RiderBottomNav />
         </div>
-      )}
+      )} */}
     </div>
   );
 };
 
-export default RiderHomeCustom;
+const RiderHomeWithProviders: React.FC = () => {
+  return (
+    <CustomizationProvider>
+      <SmartDarkModeProvider>
+        <SmartDarkModeOverlay>
+          <RiderHomeCustom />
+          <SmartDarkModeIndicator />
+        </SmartDarkModeOverlay>
+      </SmartDarkModeProvider>
+    </CustomizationProvider>
+  );
+};
+
+export default RiderHomeWithProviders;

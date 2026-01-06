@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import SavedPlaces from './SavedPlaces';
 import PopularPlaces from './PopularPlaces';
-import PredictiveDestinations from './PredictiveDestinations';
 import { supabase } from '@/integrations/supabase/client';
 
 interface SearchResult {
@@ -364,102 +363,141 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
     );
   };
 
+  // Render dropoff content with three main options
+  const renderDropoffContent = () => {
+    return (
+      <div className="space-y-4">
+        {/* Three main options for destination selection */}
+        <div className="grid grid-cols-1 gap-3">
+          {/* 1. Search by place name - Primary Option */}
+          <button
+            onClick={() => {
+              setActiveSearchField('dropoff');
+              dropoffInputRef.current?.focus();
+            }}
+            className="relative flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-blue-500/15 to-blue-600/5 border border-blue-500/30 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300 group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-transform">
+              <Search className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 text-right">
+              <p className="font-bold text-foreground">البحث عن اسم المكان</p>
+              <p className="text-xs text-muted-foreground mt-0.5">أدخل اسم المكان أو المعلم</p>
+            </div>
+            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-600 text-[10px] font-medium">
+              الأكثر دقة
+            </div>
+          </button>
+
+          {/* 2. Select from map */}
+          <button
+            onClick={() => onOpenMapPicker('dropoff')}
+            className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-green-500/15 to-green-600/5 border border-green-500/30 hover:border-green-500/50 hover:shadow-lg hover:shadow-green-500/10 transition-all duration-300 group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg shadow-green-500/30 group-hover:scale-105 transition-transform">
+              <MapPinned className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 text-right">
+              <p className="font-bold text-foreground">الخريطة</p>
+              <p className="text-xs text-muted-foreground mt-0.5">حدد موقعك بالضبط على الخريطة</p>
+            </div>
+            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-green-500/20 text-green-600 text-[10px] font-medium">
+              مرئي
+            </div>
+          </button>
+
+          {/* 3. Saved places */}
+          <button
+            onClick={() => {
+              // Scroll to saved places section
+              const savedSection = document.querySelector('[data-saved-places]');
+              savedSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+            className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-purple-500/15 to-purple-600/5 border border-purple-500/30 hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300 group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-105 transition-transform">
+              <Heart className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 text-right">
+              <p className="font-bold text-foreground">الأماكن المحفوظة</p>
+              <p className="text-xs text-muted-foreground mt-0.5">اختر من أماكنك المحفوظة</p>
+            </div>
+            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-600 text-[10px] font-medium">
+              سريع
+            </div>
+          </button>
+        </div>
+
+        {/* Saved Places Section */}
+        {userId && (
+          <div data-saved-places className="space-y-2">
+            <p className="text-xs text-muted-foreground px-1 flex items-center gap-2">
+              <Heart className="w-3 h-3" /> الأماكن المحفوظة
+            </p>
+            <SavedPlaces
+              userId={userId}
+              onSelect={(place) => {
+                onLocationSelect(
+                  { lat: place.lat, lng: place.lng, address: place.address, inService: true },
+                  'dropoff'
+                );
+                onClose();
+              }}
+              showAddButton={false}
+            />
+          </div>
+        )}
+
+        {/* Recent Locations */}
+        {recentLocations.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground px-1 flex items-center gap-2">
+              <History className="w-3 h-3" /> وجهات سابقة
+            </p>
+            <div className="space-y-1">
+              {recentLocations.slice(0, 3).map((location) => (
+                <button
+                  key={location.id}
+                  onClick={() => {
+                    handleSelectResult(location, 'dropoff');
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-secondary/30 hover:bg-secondary/60 transition-all duration-200 text-right group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Clock className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate text-sm group-hover:text-primary transition-colors">{location.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{location.category}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderDefaultContent = () => {
     // If in pickup-only mode, show the premium pickup interface
     if (isPickupOnlyMode) {
       return renderPickupOnlyContent();
     }
 
+    // For dropoff mode, show premium dropoff interface
+    if (activeSearchField === 'dropoff') {
+      return renderDropoffContent();
+    }
+
+    // Default fallback (shouldn't normally reach here)
     return (
-      <>
-        {/* Predictive Destinations - Smart suggestions */}
-        {userId && userLocation && activeSearchField === 'dropoff' && (
-          <div className="mb-4">
-            <PredictiveDestinations
-              userId={userId}
-              currentLocation={userLocation}
-              onPlaceSelect={(place) => {
-                onLocationSelect(
-                  { lat: place.location.lat, lng: place.location.lng, address: place.address, inService: true },
-                  'dropoff'
-                );
-              }}
-              className="py-0"
-            />
-          </div>
-        )}
-
-        {/* Popular Places - Nearby landmarks */}
-        {userLocation && activeSearchField === 'dropoff' && (
-          <div className="mb-4">
-            <PopularPlaces
-              currentLocation={userLocation}
-              onPlaceSelect={(place) => {
-                onLocationSelect(
-                  { lat: place.location.lat, lng: place.location.lng, address: place.address, inService: true },
-                  'dropoff'
-                );
-              }}
-              maxDistance={20}
-              maxPlaces={5}
-            />
-          </div>
-        )}
-
-        {/* Saved places */}
-        {userId && (
-          <SavedPlaces
-            userId={userId}
-            onSelect={(place) => {
-              onLocationSelect(
-                { lat: place.lat, lng: place.lng, address: place.address, inService: true },
-                activeSearchField
-              );
-              if (activeSearchField === 'pickup') {
-                setTimeout(() => {
-                  dropoffInputRef.current?.focus();
-                  setActiveSearchField('dropoff');
-                }, 100);
-              }
-            }}
-            showAddButton={false}
-          />
-        )}
-
-        {/* Recent locations */}
-        {recentLocations.length > 0 && (
-          <>
-            <p className="text-xs text-muted-foreground px-1 flex items-center gap-2 mt-3">
-              <Clock className="w-3 h-3" /> الأماكن الأخيرة
-            </p>
-            {recentLocations.map((location) => (
-              <button
-                key={location.id}
-                onClick={() => handleSelectResult(location, activeSearchField)}
-                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-secondary/80 transition-all duration-200 text-right group"
-              >
-                <div className="w-10 h-10 rounded-xl bg-secondary/80 flex items-center justify-center group-hover:bg-secondary transition-colors">
-                  <Clock className="w-4 h-4 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate group-hover:text-primary transition-colors text-sm">{location.name}</p>
-                  <p className="text-xs text-muted-foreground">{location.category}</p>
-                </div>
-              </button>
-            ))}
-          </>
-        )}
-
-        {/* Hint */}
-        {recentLocations.length === 0 && !userId && (
-          <div className="py-6 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-transparent mx-auto mb-3 flex items-center justify-center">
-              <Building2 className="w-8 h-8 text-primary/30" />
-            </div>
-            <p className="text-sm text-muted-foreground">ابحث عن موقع، معلم، أو منطقة</p>
-          </div>
-        )}
-      </>
+      <div className="py-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-transparent mx-auto mb-3 flex items-center justify-center">
+          <Building2 className="w-8 h-8 text-primary/30" />
+        </div>
+        <p className="text-sm text-muted-foreground">ابحث عن موقع، معلم، أو منطقة</p>
+      </div>
     );
   };
 
@@ -474,11 +512,11 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
         <DrawerHeader className="pb-3 relative">
           <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
           <div className="flex items-center justify-between relative">
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-secondary/80 transition-all duration-200 active:scale-95">
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-secondary/80 transition-all duration-200 active:scale-95" title="إغلاق">
               <X className="w-5 h-5" />
             </button>
             <DrawerTitle className="text-lg font-bold">
-              اختر موقع الانطلاق
+              {activeField === 'dropoff' ? 'إلى أين تريد الذهاب؟' : 'اختر موقع الانطلاق'}
             </DrawerTitle>
             <div className="w-9" />
           </div>
@@ -577,30 +615,6 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
                       <Search className="w-5 h-5 text-muted-foreground" />
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* Quick actions - Choose from map */}
-              <div className="flex gap-2">
-                {(!pickupCoords || activeField === 'pickup') && (
-                  <Button
-                    variant="outline"
-                    onClick={() => onOpenMapPicker('pickup')}
-                    className="flex-1 h-11 gap-2 rounded-xl border border-emerald-500/30 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all duration-300 text-xs"
-                  >
-                    <MapIcon className="w-4 h-4 text-emerald-500" />
-                    <span>اختر الانطلاق من الخريطة</span>
-                  </Button>
-                )}
-                {!isPickupOnlyMode && (
-                  <Button
-                    variant="outline"
-                    onClick={() => onOpenMapPicker('dropoff')}
-                    className="flex-1 h-11 gap-2 rounded-xl border border-blue-500/30 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all duration-300 text-xs"
-                  >
-                    <MapIcon className="w-4 h-4 text-blue-500" />
-                    <span>اختر الوجهة من الخريطة</span>
-                  </Button>
                 )}
               </div>
 

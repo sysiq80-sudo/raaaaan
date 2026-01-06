@@ -68,6 +68,7 @@ interface MapProps {
   pickupLocation?: { lat: number; lng: number } | null;
   dropoffLocation?: { lat: number; lng: number } | null;
   driverLocation?: { lat: number; lng: number } | null;
+  userLocation?: { lat: number; lng: number } | null;
   nearbyDrivers?: NearbyDriver[];
   selectingLocation?: 'pickup' | 'dropoff' | null;
   draggableMarkers?: boolean;
@@ -88,6 +89,7 @@ const Map = forwardRef<MapRef, MapProps>(({
   pickupLocation, 
   dropoffLocation,
   driverLocation,
+  userLocation,
   nearbyDrivers,
   selectingLocation,
   draggableMarkers = false,
@@ -104,7 +106,7 @@ const Map = forwardRef<MapRef, MapProps>(({
   // nearbyDriverMarkersRef removed - now using GeoJSON clustering
   const centerMarkerRef = useRef<HTMLDivElement | null>(null);
   
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [currentUserLocation, setCurrentUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [mapToken, setMapToken] = useState<string | null>(null);
@@ -517,7 +519,7 @@ const Map = forwardRef<MapRef, MapProps>(({
         navigator.geolocation.getCurrentPosition(
           (position) => {
             const { latitude, longitude } = position.coords;
-            setUserLocation({ lat: latitude, lng: longitude });
+            setCurrentUserLocation({ lat: latitude, lng: longitude });
             
             if (map.current) {
               // Add padding to account for bottom overlay (approx 40% of screen height)
@@ -607,6 +609,20 @@ const Map = forwardRef<MapRef, MapProps>(({
       map.current?.remove();
     };
   }, [mapToken, reverseGeocodeCenter]);
+
+  // Center map on user location when first detected
+  useEffect(() => {
+    if (!map.current || !userLocation) return;
+    
+    // Only center if this is the first time user location is set and no pickup location exists
+    if (!pickupLocation) {
+      map.current.flyTo({
+        center: [userLocation.lng, userLocation.lat],
+        zoom: 15,
+        duration: 1500
+      });
+    }
+  }, [userLocation, pickupLocation]);
 
   // Fetch and draw route when both locations are set
   useEffect(() => {
