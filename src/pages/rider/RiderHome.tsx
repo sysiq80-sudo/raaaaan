@@ -323,18 +323,16 @@ const RiderHome = () => {
   };
 
   const handleMapPickerConfirm = (location: { lat: number; lng: number; address: string }) => {
-    handleLocationSelect(location, mapPickerType);
-    if (mapPickerType === 'pickup') {
-      // After confirming pickup, close map picker and focus on dropoff field
-      setShowMapPicker(false);
-      setTimeout(() => {
-        setActiveLocationField('dropoff');
-        setShowLocationSheet(true);
-      }, 300);
-    } else {
-      // After confirming dropoff, close the picker
-      setShowMapPicker(false);
-    }
+    // This is only called for dropoff (pickup uses onPickupConfirmed)
+    handleLocationSelect(location, 'dropoff');
+    setShowMapPicker(false);
+    setMapPickerType('pickup'); // Reset mode for next time
+  };
+
+  const handlePickupConfirmed = (location: { lat: number; lng: number; address: string }) => {
+    // Save pickup location but don't close - MapLocationPicker will switch to dropoff mode
+    setPickupCoords({ lat: location.lat, lng: location.lng });
+    setPickup(location.address);
   };
 
   const handleMarkerDrag = (type: 'pickup' | 'dropoff', location: { lat: number; lng: number; address?: string }) => {
@@ -510,6 +508,7 @@ const RiderHome = () => {
         onClose={() => setShowMapPicker(false)}
         type={mapPickerType}
         onConfirm={handleMapPickerConfirm}
+        onPickupConfirmed={handlePickupConfirmed}
         initialLocation={mapPickerType === 'pickup' ? pickupCoords : dropoffCoords}
         userLocation={userLocation}
       />

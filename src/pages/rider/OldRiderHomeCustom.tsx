@@ -135,11 +135,11 @@ const RiderHomeCustom: React.FC = () => {
 
   // UI State
   const [showSideMenu, setShowSideMenu] = useState(false);
-  const [showSearchOverlay, setShowSearchOverlay] = useState(false);
+  const [showSearchOverlay, setShowSearchOverlay] = useState(true);
   const [showBookingPanel, setShowBookingPanel] = useState(false);
   const [showLocationSheet, setShowLocationSheet] = useState(false);
   const [locationSheetField, setLocationSheetField] = useState<'pickup' | 'dropoff' | 'pickup_only' | null>(null);
-  const [showMapPicker, setShowMapPicker] = useState(true);
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [mapPickerMode, setMapPickerMode] = useState<'pickup' | 'dropoff'>('pickup');
   const [isBooking, setIsBooking] = useState(false);
   const [showPaymentSheet, setShowPaymentSheet] = useState(false);
@@ -158,11 +158,8 @@ const RiderHomeCustom: React.FC = () => {
         setPickup(initialPickup || '');
         setShowSearchOverlay(false); // Hide search overlay since we have a location
       }
-    } else {
-      // If no state provided (direct access), redirect to welcome page to set initial location
-      navigate('/rider', { replace: true });
     }
-  }, [location.state, navigate]);
+  }, [location.state]);
 
   // Hooks - only enable when needed
   const {
@@ -336,10 +333,7 @@ const RiderHomeCustom: React.FC = () => {
     lat: number;
     lng: number;
   }) => {
-    console.log('🎯 handleDestinationSelect called with:', { address, coords });
-    
     if (selectingStopId) {
-      console.log('📍 Updating intermediate stop:', selectingStopId);
       const updatedStops = intermediateStops.map(stop => stop.id === selectingStopId ? {
         ...stop,
         address,
@@ -348,23 +342,14 @@ const RiderHomeCustom: React.FC = () => {
       setIntermediateStops(updatedStops);
       setSelectingStopId(null);
     } else {
-      console.log('📍 Setting dropoff location:', { address, coords });
       setDropoff(address);
       setDropoffCoords(coords);
       setDropoffSearch(address);
-      console.log('✅ Dropoff updated:', { address, coords });
-      console.log('📊 State before showing booking panel:', {
-        dropoff: address,
-        dropoffCoords: coords,
-        pickup,
-        pickupCoords
-      });
     }
     setShowSearchOverlay(false);
     setShowLocationSheet(false);
     setShowBookingPanel(true);
-    console.log('✅ Booking panel set to show');
-  }, [selectingStopId, intermediateStops, pickup, pickupCoords]);
+  }, [selectingStopId, intermediateStops]);
 
   // Handle pickup selection from saved places
   const handlePickupSelectFromSaved = useCallback((address: string, coords: {
@@ -382,10 +367,8 @@ const RiderHomeCustom: React.FC = () => {
     lat: number;
     lng: number;
   }) => {
-    console.log('🎯 handlePickupSelect called with:', { address, coords });
     setPickup(address);
     setPickupCoords(coords);
-    console.log('✅ Pickup saved:', { address, coords });
     setShowLocationSheet(false);
   }, []);
 
@@ -409,46 +392,36 @@ const RiderHomeCustom: React.FC = () => {
     }
   }, [handlePickupSelect, handleDestinationSelect]);
 
-  // Handle map picker confirm (only called for dropoff)
+  // Handle map picker confirm
   const handleMapPickerConfirm = useCallback((location: {
     lat: number;
     lng: number;
     address: string;
     inService?: boolean;
   }) => {
-    console.log('🎯 MapPicker dropoff confirmed:', location);
-    console.log('📊 Location received from MapPicker:', {
-      address: location.address,
-      lat: location.lat,
-      lng: location.lng,
-      inService: location.inService
-    });
-    
-    handleDestinationSelect(location.address, {
-      lat: location.lat,
-      lng: location.lng
-    });
-    console.log('✅ handleDestinationSelect called');
-    
-    // Close picker immediately after dropoff is confirmed
-    console.log('❌ Closing map picker');
-    setShowMapPicker(false);
-    setMapPickerMode('pickup'); // Reset mode for next time
-  }, [handleDestinationSelect]);
-
-  // Handle pickup confirmed in map picker (without closing)
-  const handlePickupConfirmedInMap = useCallback((location: {
-    lat: number;
-    lng: number;
-    address: string;
-  }) => {
-    console.log('✅ Pickup location confirmed');
-    handlePickupSelect(location.address, {
-      lat: location.lat,
-      lng: location.lng
-    });
-    // Don't close - MapLocationPicker will switch to dropoff mode automatically
-  }, [handlePickupSelect]);
+    if (mapPickerMode === 'pickup') {
+      handlePickupSelect(location.address, {
+        lat: location.lat,
+        lng: location.lng
+      });
+      // After confirming pickup, close map picker and focus on dropoff field
+      setShowMapPicker(false);
+      setTimeout(() => {
+        // Focus on dropoff input if available
+        const dropoffInput = document.querySelector('[data-field="dropoff"] input') as HTMLInputElement;
+        if (dropoffInput) {
+          dropoffInput.focus();
+        }
+      }, 100);
+    } else {
+      handleDestinationSelect(location.address, {
+        lat: location.lat,
+        lng: location.lng
+      });
+      // After confirming dropoff, close the picker
+      setShowMapPicker(false);
+    }
+  }, [mapPickerMode, handlePickupSelect, handleDestinationSelect]);
 
   // Open location sheet
   const openLocationSheet = useCallback((mode: 'pickup' | 'dropoff' | 'pickup_only') => {
@@ -621,7 +594,7 @@ const RiderHomeCustom: React.FC = () => {
       </Suspense>;
   }
   return <div className="h-screen w-full relative overflow-hidden flex flex-col">
-      {/* Top Header - Minimal design with only menu and app name */}
+      {/* Top Header - Fixed at top with transparent background */}
       <div className="absolute top-0 left-0 right-0 z-30 safe-area-top">
         <div className="p-4 flex items-center justify-between">
           <Button variant="outline" size="icon" className="bg-background/80 backdrop-blur-md shadow-lg border-border/30 hover:bg-background/90" onClick={() => setShowSideMenu(true)}>
@@ -630,8 +603,15 @@ const RiderHomeCustom: React.FC = () => {
 
           <h1 className="text-2xl font-bold text-foreground drop-shadow-md">ران</h1>
 
-          {/* Empty spacer for balance */}
-          <div className="w-10" />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" className="bg-background/80 backdrop-blur-md shadow-lg border-border/30 hover:bg-background/90">
+              <Bell className="w-5 h-5" />
+            </Button>
+            <SupportButton />
+            <Button variant="outline" size="icon" className="bg-background/80 backdrop-blur-md shadow-lg border-border/30 hover:bg-background/90" onClick={() => setShowCustomizationPanel(true)}>
+              <Settings className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -640,21 +620,6 @@ const RiderHomeCustom: React.FC = () => {
         <Suspense fallback={<MapSkeleton />}>
           <LazyMap className="h-full w-full rounded-none" fallbackHeight="h-full" pickupLocation={pickupCoords} dropoffLocation={dropoffCoords} nearbyDrivers={nearbyDriverLocations} onRouteCalculated={handleRouteCalculated} selectingLocation={showMapPicker ? mapPickerMode : null} onLocationSelect={() => {}} />
         </Suspense>
-        
-        {/* Current Location Button - Near map center pin */}
-        <button
-          onClick={getCurrentLocation}
-          disabled={isLocating}
-          className="absolute top-1/2 left-1/2 z-50 w-14 h-14 bg-card/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-2xl flex items-center justify-center hover:bg-accent transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ transform: 'translate(-140%, -50%)' }}
-          aria-label="تحديد موقعي الحالي"
-        >
-          {isLocating ? (
-            <div className="animate-spin rounded-full h-6 w-6 border-3 border-primary border-t-transparent" />
-          ) : (
-            <Navigation className="w-6 h-6 text-primary" />
-          )}
-        </button>
       </div>
 
       {/* Options Section - Bottom Half */}
@@ -775,14 +740,7 @@ const RiderHomeCustom: React.FC = () => {
 
         {/* Booking Panel */}
         <AnimatePresence>
-          {(() => {
-            console.log('🔍 Checking booking panel condition:', { 
-              showBookingPanel, 
-              dropoffCoords: !!dropoffCoords, 
-              shouldShow: showBookingPanel && !!dropoffCoords
-            });
-            return showBookingPanel && dropoffCoords;
-          })() && <motion.div initial={{
+          {showBookingPanel && dropoffCoords && <motion.div initial={{
           opacity: 0,
           y: 100
         }} animate={{
@@ -886,7 +844,7 @@ const RiderHomeCustom: React.FC = () => {
 
       {/* Map Location Picker */}
       {showMapPicker && <Suspense fallback={<MapSkeleton />}>
-          <MapLocationPicker isOpen={showMapPicker} onClose={() => setShowMapPicker(false)} type={mapPickerMode} onConfirm={handleMapPickerConfirm} onPickupConfirmed={handlePickupConfirmedInMap} initialLocation={mapPickerMode === 'pickup' ? pickupCoords : dropoffCoords} userLocation={userLocation} />
+          <MapLocationPicker isOpen={showMapPicker} onClose={() => setShowMapPicker(false)} type={mapPickerMode} onConfirm={handleMapPickerConfirm} initialLocation={mapPickerMode === 'pickup' ? pickupCoords : dropoffCoords} userLocation={userLocation} />
         </Suspense>}
 
       {/* Payment Method Sheet */}

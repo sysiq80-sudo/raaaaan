@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface UseRiderLocationOptions {
@@ -6,10 +6,17 @@ interface UseRiderLocationOptions {
   updateInterval?: number; // milliseconds
 }
 
+interface LocationCoords {
+  lat: number;
+  lng: number;
+}
+
 export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
   const { enabled = true, updateInterval = 30000 } = options; // Default: update every 30 seconds
   const lastUpdateRef = useRef<number>(0);
   const watchIdRef = useRef<number | null>(null);
+  const [location, setLocation] = useState<LocationCoords | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const updateLocation = useCallback(async (position: GeolocationPosition) => {
     const now = Date.now();
@@ -24,28 +31,33 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const location = {
+    const locationData = {
       lat: position.coords.latitude,
       lng: position.coords.longitude,
     };
 
-    const { error } = await supabase
+    // Update state
+    setLocation(locationData);
+    setError(null);
+
+    const { error: updateError } = await supabase
       .from('profiles')
       .update({ 
-        current_location: location,
+        current_location: locationData,
         updated_at: new Date().toISOString()
       })
       .eq('user_id', user.id);
 
-    if (error) {
-      console.error('Error updating rider location:', error);
+    if (updateError) {
+      console.error('Error updating rider location:', updateError);
     } else {
-      console.log('Rider location updated:', location);
+      console.log('Rider location updated:', locationData);
     }
   }, [updateInterval]);
 
-  const handleError = useCallback((error: GeolocationPositionError) => {
-    console.warn('Geolocation error:', error.message);
+  const handleError = useCallback((err: GeolocationPositionError) => {
+    console.warn('Geolocation error:', err.message);
+    setError(err.message);
   }, []);
 
   useEffect(() => {
@@ -56,7 +68,7 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
     // Get initial position
     navigator.geolocation.getCurrentPosition(updateLocation, handleError, {
       enableHighAccuracy: true,
-      timeout: 10000,
+      timeout: 30000,
       maximumAge: 0,
     });
 
@@ -66,7 +78,7 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
       handleError,
       {
         enableHighAccuracy: true,
-        timeout: 10000,
+        timeout: 30000,
         maximumAge: 5000,
       }
     );
@@ -97,4 +109,6 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
       window.addEventListener('beforeunload', clearLocation);
     };
   }, []);
+
+  return { location, error, isLoading: !location && !error };
 };

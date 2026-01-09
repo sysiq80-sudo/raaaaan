@@ -124,9 +124,10 @@ const DriverHome = () => {
       (error) => {
         console.error("Geolocation error:", error);
         toast({
-          title: "خطأ في تحديد الموقع",
-          description: "تأكد من تفعيل GPS وإعطاء الصلاحية",
-          variant: "destructive"
+          title: "⚠️ خطأ GPS",
+          description: "تفعيل الموقع مطلوب",
+          variant: "locationError" as any,
+          duration: 3000
         });
       },
       { enableHighAccuracy: true }

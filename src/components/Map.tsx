@@ -557,7 +557,7 @@ const Map = forwardRef<MapRef, MapProps>(({
             console.log('Geolocation error:', error.message);
             setLocationError('تعذر تحديد موقعك الحالي');
           },
-          { enableHighAccuracy: true, timeout: 10000 }
+          { enableHighAccuracy: true, timeout: 30000 }
         );
       }
 
@@ -628,13 +628,24 @@ const Map = forwardRef<MapRef, MapProps>(({
   useEffect(() => {
     if (!map.current || !pickupLocation || !dropoffLocation || !mapToken) return;
 
+    console.log('🗺️ Route calculation triggered with:', {
+      pickup: pickupLocation,
+      dropoff: dropoffLocation
+    });
+
     // Check if pickup and dropoff are the same location (within ~100m)
     const isSameLocation = 
       Math.abs(pickupLocation.lat - dropoffLocation.lat) < 0.001 && 
       Math.abs(pickupLocation.lng - dropoffLocation.lng) < 0.001;
     
+    console.log('📏 Distance check:', {
+      latDiff: Math.abs(pickupLocation.lat - dropoffLocation.lat),
+      lngDiff: Math.abs(pickupLocation.lng - dropoffLocation.lng),
+      isSameLocation
+    });
+    
     if (isSameLocation) {
-      console.log('Pickup and dropoff are the same location, skipping route calculation');
+      console.log('⚠️ Pickup and dropoff are the same location, skipping route calculation');
       return;
     }
 

@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { ArrowRight, Navigation, Loader2, MapPin, Target, AlertTriangle, Check, Sparkles } from 'lucide-react';
+import { ArrowRight, Navigation, Loader2, MapPin, Target, AlertTriangle, Check, Sparkles, Star } from 'lucide-react';
+import LocationSearchInput from '@/components/LocationSearchInput';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
+import { SavedPlace } from './SavedPlaces';
 
 interface ServiceAreaCheck {
   in_service: boolean;
@@ -17,6 +20,7 @@ interface MapLocationPickerProps {
   onConfirm: (location: { lat: number; lng: number; address: string; inService?: boolean }) => void;
   initialLocation?: { lat: number; lng: number } | null;
   userLocation?: { lat: number; lng: number } | null;
+  onPickupConfirmed?: (pickupLocation: { lat: number; lng: number; address: string; inService?: boolean }) => void;
 }
 
 const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
@@ -25,7 +29,8 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   type,
   onConfirm,
   initialLocation,
-  userLocation
+  userLocation,
+  onPickupConfirmed
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -35,6 +40,72 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   const [centerAddress, setCenterAddress] = useState<string>('');
   const [serviceAreaStatus, setServiceAreaStatus] = useState<ServiceAreaCheck | null>(null);
   const [isCheckingService, setIsCheckingService] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentMode, setCurrentMode] = useState<'pickup' | 'dropoff'>('pickup');
+  const [pickupLocation, setPickupLocation] = useState<{ lat: number; lng: number; address: string } | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
+  const [loadingSavedPlaces, setLoadingSavedPlaces] = useState(false);
+
+  // Set initial mode based on prop when component opens
+  useEffect(() => {
+    if (isOpen && !hasInitialized) {
+      setCurrentMode(type);
+      setPickupLocation(null);  // Clear pickup location when modal opens
+      setSearchQuery('');
+      setCenterAddress('');
+      setHasInitialized(true);
+    }
+    // Don't reset currentMode if already initialized - let internal state manage transitions
+  }, [isOpen, type, hasInitialized]);
+
+  // Reset initialization flag and internal state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setHasInitialized(false);
+      setCurrentMode('pickup'); // Reset to pickup for next time
+      setPickupLocation(null);
+    }
+  }, [isOpen]);
+
+  // Fetch user ID and saved places
+  useEffect(() => {
+    const fetchUserAndPlaces = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id) {
+          setUserId(session.user.id);
+          fetchSavedPlaces(session.user.id);
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      }
+    };
+
+    if (isOpen) {
+      fetchUserAndPlaces();
+    }
+  }, [isOpen]);
+
+  // Fetch saved places
+  const fetchSavedPlaces = async (userId: string) => {
+    setLoadingSavedPlaces(true);
+    try {
+      const { data, error } = await supabase
+        .from('saved_places')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setSavedPlaces(data || []);
+    } catch (error) {
+      console.error('Error fetching saved places:', error);
+    } finally {
+      setLoadingSavedPlaces(false);
+    }
+  };
 
   const ramadiCenter: [number, number] = [43.2954, 33.4262];
 
@@ -169,20 +240,86 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   };
 
   const handleConfirm = async () => {
-    if (!map.current) return;
+    console.log('🔘 Confirm button clicked');
+    console.log('📍 Current state:', {
+      currentMode,
+      type,
+      centerAddress,
+      hasPickupLocation: !!pickupLocation,
+      mapExists: !!map.current
+    });
+    
+    if (!map.current) {
+      console.log('❌ No map reference');
+      return;
+    }
+    
     const center = map.current.getCenter();
+    console.log('🗺️ Map center:', { lat: center.lat, lng: center.lng });
+    
     const serviceCheck = await checkServiceArea(center.lat, center.lng);
-    onConfirm({
+    const location = {
       lat: center.lat,
       lng: center.lng,
       address: centerAddress,
       inService: serviceCheck?.in_service
-    });
+    };
+    
+    console.log('📦 Location prepared:', location);
+
+    // If in pickup mode, save location and switch to dropoff mode
+    if (currentMode === 'pickup') {
+      console.log('✅ Pickup mode - saving location');
+      setPickupLocation(location);
+      setCurrentMode('dropoff');
+      setCenterAddress('');
+      setSearchQuery('');
+      setServiceAreaStatus(null);
+      
+      // Call the pickup confirmed callback if provided
+      if (onPickupConfirmed) {
+        console.log('📞 Calling onPickupConfirmed');
+        onPickupConfirmed(location);
+      }
+      
+      console.log('🔄 Staying open for dropoff selection');
+      return;  // Don't close, stay open for dropoff
+    }
+
+    // If in dropoff mode, confirm location and close
+    console.log('✅ Dropoff mode - confirming location');
+    onConfirm(location);
+  };
+
+  // Handle selecting a location from search suggestions
+  const handleSearchSelect = (location: { lat: number; lng: number; address: string; inService?: boolean }) => {
+    if (map.current) {
+      map.current.flyTo({
+        center: [location.lng, location.lat],
+        zoom: 16,
+        duration: 800
+      });
+    }
+    setCenterAddress(location.address);
+    checkServiceArea(location.lat, location.lng);
+  };
+
+  // Handle saved place selection
+  const handleSavedPlaceSelect = (place: SavedPlace) => {
+    if (map.current) {
+      map.current.flyTo({
+        center: [place.lng, place.lat],
+        zoom: 16,
+        duration: 800
+      });
+    }
+    setCenterAddress(place.address);
+    checkServiceArea(place.lat, place.lng);
   };
 
   if (!isOpen) return null;
 
-  const isPickup = type === 'pickup';
+  const isPickup = currentMode === 'pickup';
   
   // Always use distinct colors for pickup (green) and dropoff (blue)
   const pinColor = isPickup ? 'from-green-500 to-green-600' : 'from-blue-500 to-blue-600';
@@ -200,8 +337,19 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       <div className="bg-card/95 backdrop-blur-md border-b border-border/50 z-30">
         <div className="flex items-center justify-between p-4">
           <button
-            onClick={onClose}
+            onClick={() => {
+              if (!isPickup && pickupLocation) {
+                // If in dropoff mode and have pickup location, go back to edit pickup
+                setCurrentMode('pickup');
+                setCenterAddress(pickupLocation.address);
+                setSearchQuery('');
+              } else {
+                // Otherwise, close the modal
+                onClose();
+              }
+            }}
             className="p-2.5 rounded-xl hover:bg-secondary transition-all duration-200 active:scale-95"
+            title={!isPickup ? 'الرجوع لتحديد موقع الانطلاق' : 'إغلاق'}
           >
             <ArrowRight className="w-5 h-5" />
           </button>
@@ -209,14 +357,10 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
             {isPickup ? (
               <div className="flex items-center gap-2 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20">
                 <Target className="w-6 h-6 text-green-600" />
-                <span className="text-green-800">تحديد موقع الانطلاق</span>
-                <span className="text-lg">🚗</span>
               </div>
             ) : (
               <div className="flex items-center gap-2 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
                 <MapPin className="w-6 h-6 text-blue-600" />
-                <span className="text-blue-800">تحديد الوجهة</span>
-                <span className="text-lg">🎯</span>
               </div>
             )}
           </h1>
@@ -243,24 +387,6 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
         {/* Clean and simple location pin */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
           <div className="flex flex-col items-center">
-
-            {/* Compact type indicator */}
-            <div
-              className={`mb-2 px-3 py-1.5 rounded-lg backdrop-blur-md shadow-lg border text-sm font-semibold ${
-                isPickup
-                  ? 'bg-green-500/95 border-green-400 text-white'
-                  : 'bg-blue-500/95 border-blue-400 text-white'
-              }`}
-            >
-              <div className="flex items-center gap-1.5">
-                {isPickup ? (
-                  <Target className="w-4 h-4" />
-                ) : (
-                  <MapPin className="w-4 h-4" />
-                )}
-                <span>{isPickup ? 'الانطلاق' : 'الوجهة'}</span>
-              </div>
-            </div>
 
             {/* Clean map pin - needle tip indicates exact location */}
             <div className="relative">
@@ -318,7 +444,8 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
         {userLocation && (
           <button
             onClick={centerOnUser}
-            className="absolute bottom-4 left-4 w-14 h-14 bg-card/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-xl flex items-center justify-center hover:bg-accent transition-all duration-200 active:scale-95 z-20 group"
+            className="absolute bottom-5 left-4 w-14 h-14 bg-card/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-xl flex items-center justify-center hover:bg-accent transition-all duration-200 active:scale-95 z-40 group"
+            aria-label="تحديد موقعي الحالي"
           >
             <Navigation className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />
           </button>
@@ -344,21 +471,6 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
                   </p>
                 )}
                 <p className="text-amber-600 text-xs mt-1">اسحب الخريطة للانتقال إلى منطقة الخدمة</p>
-              </div>
-            </div>
-          )}
-
-          {serviceAreaStatus?.in_service && serviceAreaStatus.region && (
-            <div className="flex items-center gap-3 p-3 mb-3 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 shadow-lg">
-              <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0 shadow-inner">
-                <Check className="w-4 h-4 text-green-600" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-green-800 text-sm mb-1">✅ منطقة خدمة متاحة</p>
-                <p className="text-green-700 text-xs">
-                  المنطقة: <span className="font-medium">{serviceAreaStatus.region.name_ar}</span>
-                </p>
-                <p className="text-green-600 text-xs mt-1">يمكنك طلب رحلة من هذا الموقع</p>
               </div>
             </div>
           )}
@@ -399,6 +511,49 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
               )}
             </div>
           </div>
+
+          {/* Search input to set location by typing with suggestions */}
+          <div className="mb-3">
+            <LocationSearchInput
+              placeholder={isPickup ? 'اكتب لتحديد موقع الانطلاق...' : 'اكتب لتحديد الوجهة...'}
+              value={searchQuery}
+              onChange={setSearchQuery}
+              onLocationSelect={handleSearchSelect}
+              type={isPickup ? 'pickup' : 'dropoff'}
+              userLocation={userLocation}
+              className="w-full"
+            />
+          </div>
+
+          {/* Saved Places Section - Horizontal Scrolling (only show in dropoff mode) */}
+          {!isPickup && savedPlaces.length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-muted-foreground mb-3 px-1 flex items-center gap-2">
+                <Star className="w-3 h-3 text-amber-600" />
+                أماكني المحفوظة
+              </p>
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                {loadingSavedPlaces ? (
+                  <div className="flex items-center justify-center w-full py-4">
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  savedPlaces.map((place) => (
+                    <button
+                      key={place.id}
+                      onClick={() => handleSavedPlaceSelect(place)}
+                      className="flex flex-col items-center justify-center flex-shrink-0 w-24 h-28 p-2 rounded-xl border border-border/50 hover:border-amber-500 hover:bg-amber-500/10 hover:shadow-md transition-all duration-200 group overflow-hidden bg-card/50"
+                    >
+                      <div className="text-4xl leading-none mb-2">{place.icon || '📍'}</div>
+                      <p className="text-[11px] font-semibold text-foreground text-center line-clamp-2 leading-tight group-hover:text-amber-600 transition-colors">
+                        {place.name}
+                      </p>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Confirm button - compact styling */}
           <Button

@@ -23,6 +23,32 @@ export const useMapboxToken = () => {
     }
 
     try {
+      // Try to get token from Supabase function first
+      const response = await fetch(
+        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      if (response.ok) {
+        const tokenData = await response.json();
+        if (tokenData.token) {
+          const fetchedToken = tokenData.token;
+          
+          // Update cache
+          cachedToken = fetchedToken;
+          cacheTimestamp = now;
+          
+          setToken(fetchedToken);
+          return fetchedToken;
+        }
+      }
+      
+      // Fallback to database if function fails
       const { data } = await supabase
         .from('app_settings')
         .select('value')

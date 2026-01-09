@@ -23,7 +23,9 @@ import ContactUs from "./pages/ContactUs";
 import RiderHome from "./pages/rider/RiderHome";
 import RiderHomeClassic from "./pages/rider/RiderHomeClassic";
 import RiderHomeCustom from "./pages/rider/RiderHomeCustom";
+import OldRiderHomeCustom from "./pages/rider/OldRiderHomeCustom";
 import RiderHomeMap from "./pages/rider/RiderHomeMap";
+import RiderHomeWelcome from "./pages/rider/RiderHomeWelcome";
 import RiderRider from "./pages/rider/RiderRider";
 import RiderAuth from "./pages/rider/RiderAuth";
 import RiderRides from "./pages/rider/RiderRides";
@@ -84,7 +86,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <ConnectionStatus />
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<ErrorBoundary><Index /></ErrorBoundary>} />
@@ -97,7 +99,9 @@ const App = () => (
             <Route path="/track/:token" element={<ErrorBoundary><TrackRide /></ErrorBoundary>} />
 
             {/* Rider Routes */}
-            <Route path="/rider" element={<ErrorBoundary><RiderHomeCustom /></ErrorBoundary>} />
+            <Route path="/rider" element={<ErrorBoundary><RiderHomeWelcome /></ErrorBoundary>} />
+            <Route path="/oldrider" element={<ErrorBoundary><OldRiderHomeCustom /></ErrorBoundary>} />
+            <Route path="/rider-main" element={<ErrorBoundary><RiderHomeCustom /></ErrorBoundary>} />
             <Route path="/rider2" element={<ErrorBoundary><RiderHomeClassic /></ErrorBoundary>} />
             <Route path="/rider-1custom" element={<ErrorBoundary><RiderHomeCustom /></ErrorBoundary>} />
             <Route path="/rider11" element={<ErrorBoundary><RiderHomeCustom /></ErrorBoundary>} />

@@ -88,7 +88,12 @@ export const EmergencyTriangleButton: React.FC<EmergencyTriangleButtonProps> = (
 
   const sendLocationToEmergency = async () => {
     if (!currentLocation) {
-      toast({ title: 'لا يمكن تحديد موقعك', variant: 'destructive' });
+      toast({ 
+        title: '⚠️ موقعك غير متاح', 
+        description: 'يرجى تفعيل GPS',
+        variant: 'locationError' as any,
+        duration: 3000 
+      });
       return;
     }
 

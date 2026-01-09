@@ -131,21 +131,6 @@ export const AnimatedCards: React.FC<AnimatedCardsProps> = ({
   isLoading = false
 }) => {
   const cards = [
-    {
-      type: 'driver' as const,
-      title: 'سائقون قريبون',
-      subtitle: 'متاحون الآن',
-      value: nearbyDriversCount,
-      gradient: 'bg-gradient-to-r from-green-500 to-emerald-600',
-      onClick: () => onCardClick?.('drivers')
-    },
-    {
-      type: 'promo' as const,
-      title: 'عرض خاص',
-      subtitle: 'خصم 25% على الرحلة التالية',
-      gradient: 'bg-gradient-to-r from-orange-500 to-red-500',
-      onClick: () => onCardClick?.('promo')
-    },
     estimatedTime && {
       type: 'fare' as const,
       title: 'وقت الوصول',
@@ -161,28 +146,12 @@ export const AnimatedCards: React.FC<AnimatedCardsProps> = ({
       gradient: 'bg-gradient-to-r from-purple-500 to-pink-600',
       onClick: () => onCardClick?.('fare')
     },
-    {
-      type: 'rating' as const,
-      title: 'تقييم السائقين',
-      subtitle: 'متوسط التقييمات',
-      value: averageRating.toFixed(1),
-      gradient: 'bg-gradient-to-r from-yellow-500 to-amber-600',
-      onClick: () => onCardClick?.('rating')
-    },
     trafficLevel !== 'low' && {
       type: 'traffic' as const,
       title: 'الحالة المرورية',
       subtitle: trafficLevel === 'high' ? 'ازدحام مروري' : 'مرور متوسط',
       gradient: 'bg-gradient-to-r from-red-500 to-rose-600',
       onClick: () => onCardClick?.('traffic')
-    },
-    monthlySavings && {
-      type: 'savings' as const,
-      title: 'توفير شهري',
-      subtitle: 'مقارنة بالتاكسي التقليدي',
-      value: `${monthlySavings.toLocaleString()} د.ع`,
-      gradient: 'bg-gradient-to-r from-teal-500 to-green-600',
-      onClick: () => onCardClick?.('savings')
     }
   ].filter(Boolean);
 

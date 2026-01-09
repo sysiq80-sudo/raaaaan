@@ -513,16 +513,14 @@ const RiderHomeMap: React.FC = () => {
             }
             userLocation={userLocation}
             onConfirm={(location) => {
-              handleLocationSelect(location, mapPickerMode);
-              if (mapPickerMode === 'pickup') {
-                // After confirming pickup, close map picker and open location sheet for dropoff
-                setShowMapPicker(false);
-                setLocationSheetField('dropoff');
-                setShowLocationSheet(true);
-              } else {
-                // After confirming dropoff, close the picker
-                setShowMapPicker(false);
-              }
+              // This is only called for dropoff (pickup uses onPickupConfirmed)
+              handleLocationSelect(location, 'dropoff');
+              setShowMapPicker(false);
+              setMapPickerMode('pickup'); // Reset mode for next time
+            }}
+            onPickupConfirmed={(location) => {
+              // Save pickup but don't close - MapLocationPicker will switch to dropoff mode
+              handleLocationSelect(location, 'pickup');
             }}
             onClose={() => setShowMapPicker(false)}
           />
