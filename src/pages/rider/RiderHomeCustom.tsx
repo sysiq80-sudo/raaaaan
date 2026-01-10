@@ -353,17 +353,20 @@ const RiderHomeCustom: React.FC = () => {
       setDropoffCoords(coords);
       setDropoffSearch(address);
       console.log('✅ Dropoff updated:', { address, coords });
-      console.log('📊 State before showing booking panel:', {
+      console.log('📊 State after setting dropoff:', {
         dropoff: address,
         dropoffCoords: coords,
         pickup,
         pickupCoords
       });
+      // Use setTimeout to ensure state updates before showing panel
+      setTimeout(() => {
+        console.log('⏰ Opening booking panel after state update');
+        setShowBookingPanel(true);
+      }, 0);
     }
     setShowSearchOverlay(false);
     setShowLocationSheet(false);
-    setShowBookingPanel(true);
-    console.log('✅ Booking panel set to show');
   }, [selectingStopId, intermediateStops, pickup, pickupCoords]);
 
   // Handle pickup selection from saved places
@@ -424,16 +427,19 @@ const RiderHomeCustom: React.FC = () => {
       inService: location.inService
     });
     
+    console.log('📞 Calling handleDestinationSelect...');
     handleDestinationSelect(location.address, {
       lat: location.lat,
       lng: location.lng
     });
-    console.log('✅ handleDestinationSelect called');
+    console.log('✅ handleDestinationSelect completed');
     
-    // Close picker immediately after dropoff is confirmed
-    console.log('❌ Closing map picker');
-    setShowMapPicker(false);
-    setMapPickerMode('pickup'); // Reset mode for next time
+    // Close picker after a small delay to ensure state updates
+    setTimeout(() => {
+      console.log('❌ Closing map picker');
+      setShowMapPicker(false);
+      setMapPickerMode('pickup'); // Reset mode for next time
+    }, 100);
   }, [handleDestinationSelect]);
 
   // Handle pickup confirmed in map picker (without closing)
