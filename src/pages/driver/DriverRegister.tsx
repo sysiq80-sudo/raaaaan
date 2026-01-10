@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Gift, Sparkles, CheckCircle2, Phone, Lock, User, MapPin, Mail, ArrowRight, Clock, Wallet, Trophy } from 'lucide-react';
+import { Gift, Sparkles, CheckCircle2, Phone, Lock, User, MapPin, Mail, ArrowRight, Clock, Wallet, Trophy, Loader2 } from 'lucide-react';
 import logo from "@/assets/logo.png";
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -18,18 +18,14 @@ import {
   driverPasswordSchema,
   ANBAR_CITIES 
 } from '@/lib/validations';
-
-// Promo configuration
-const PROMO_END_DATE = new Date('2026-01-30');
+import { useDriverRegSettings } from '@/hooks/useDriverRegSettings';
 
 const DriverRegister = () => {
   const navigate = useNavigate();
+  const { settings, loading: loadingSettings, isPromoActive, daysRemaining } = useDriverRegSettings();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
-  // Check if promo is active
-  const isPromoActive = new Date() < PROMO_END_DATE;
   
   // Step 1: Terms acceptance
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -46,6 +42,15 @@ const DriverRegister = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const clearErrors = () => setErrors({});
+
+  // Show loading while settings are being fetched
+  if (loadingSettings) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const handleTermsAccept = () => {
     if (!acceptedTerms) {
@@ -197,7 +202,7 @@ const DriverRegister = () => {
   // Step 1: Welcome & Promo Offer
   const renderTermsStep = () => {
     if (isPromoActive) {
-      // Free registration promo (before 30.01.2026)
+      // Free registration promo (before end date)
       return (
         <Card className="border-primary/50 bg-gradient-to-br from-primary/10 via-background to-primary/5 overflow-hidden relative">
           {/* Decorative elements */}
@@ -214,10 +219,10 @@ const DriverRegister = () => {
               </div>
             </div>
             <CardTitle className="text-center text-2xl text-primary">
-              وية ران.. التسجيل بلاش والرصيد علينا! 😉
+              {settings.promo_title}
             </CardTitle>
             <CardDescription className="text-center text-lg mt-2">
-              كابتنا، لا تفوت الفرصة وسجل قبل ما يخلص الوقت!
+              {settings.promo_subtitle}
             </CardDescription>
           </CardHeader>
           
@@ -229,8 +234,8 @@ const DriverRegister = () => {
                   <CheckCircle2 className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="font-bold text-foreground">التفعيل: <span className="text-primary text-xl">0 دينار</span></p>
-                  <p className="text-sm text-muted-foreground">ما تدفع ولا فلس!</p>
+                  <p className="font-bold text-foreground">التفعيل: <span className="text-primary text-xl">{settings.promo_activation_fee.toLocaleString()} دينار</span></p>
+                  <p className="text-sm text-muted-foreground">{settings.promo_activation_fee_text}</p>
                 </div>
               </div>
               
@@ -239,27 +244,22 @@ const DriverRegister = () => {
                   <Gift className="w-5 h-5 text-yellow-600" />
                 </div>
                 <div>
-                  <p className="font-bold text-foreground">الرصيد: <span className="text-yellow-600 text-xl">25,000 دينار</span> هدية!</p>
-                  <p className="text-sm text-muted-foreground">أول ما يتفعل حسابك يجيك الرصيد، عندك 15 يوم تستفاد منها وتشتغل براحتك.</p>
+                  <p className="font-bold text-foreground">الرصيد: <span className="text-yellow-600 text-xl">{settings.promo_bonus_amount.toLocaleString()} دينار</span> هدية!</p>
+                  <p className="text-sm text-muted-foreground">{settings.promo_bonus_text}</p>
                 </div>
               </div>
             </div>
             
             {/* Countdown timer */}
-            {(() => {
-              const daysRemaining = Math.max(0, Math.ceil((PROMO_END_DATE.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
-              return (
-                <div className="flex items-center justify-center p-4 bg-gradient-to-r from-primary/20 via-primary/30 to-primary/20 rounded-xl border-2 border-primary/40">
-                  <div className="text-center">
-                    <p className="text-sm text-muted-foreground mb-1">باقي على انتهاء العرض</p>
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="text-4xl font-bold text-primary animate-pulse">{daysRemaining}</span>
-                      <span className="text-xl font-semibold text-primary">يوم</span>
-                    </div>
-                  </div>
+            <div className="flex items-center justify-center p-4 bg-gradient-to-r from-primary/20 via-primary/30 to-primary/20 rounded-xl border-2 border-primary/40">
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground mb-1">{settings.countdown_text}</p>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-4xl font-bold text-primary animate-pulse">{daysRemaining}</span>
+                  <span className="text-xl font-semibold text-primary">{settings.days_text}</span>
                 </div>
-              );
-            })()}
+              </div>
+            </div>
 
             {/* Urgency reminder */}
             <div className="flex items-center gap-3 p-4 bg-destructive/10 rounded-xl border border-destructive/20">
@@ -267,7 +267,7 @@ const DriverRegister = () => {
               <div>
                 <p className="font-bold text-destructive">⏰ تذكير مهم!</p>
                 <p className="text-sm text-muted-foreground">
-                  هذا العرض يخلص يوم <strong className="text-foreground">30.01.2026</strong>، وبعدها يرجع التفعيل بفلوس (25,000)، يعني سجل اليوم أحسن مما تدفع باجر!
+                  {settings.promo_urgency_text}
                 </p>
               </div>
             </div>
@@ -280,7 +280,13 @@ const DriverRegister = () => {
                 onCheckedChange={(checked) => setAcceptedTerms(checked as boolean)}
               />
               <Label htmlFor="terms" className="text-sm cursor-pointer leading-relaxed">
-                أوافق على <Link to="/terms" className="text-primary underline">شروط الاستخدام</Link> و<Link to="/privacy" className="text-primary underline">سياسة الخصوصية</Link>
+                {settings.terms_text.includes('أوافق على') ? (
+                  <>
+                    أوافق على <Link to="/terms" className="text-primary underline">شروط الاستخدام</Link> و<Link to="/privacy" className="text-primary underline">سياسة الخصوصية</Link>
+                  </>
+                ) : (
+                  settings.terms_text
+                )}
               </Label>
             </div>
 
@@ -291,14 +297,14 @@ const DriverRegister = () => {
               disabled={!acceptedTerms}
             >
               <Sparkles className="w-5 h-5 ml-2" />
-              سجل الآن واستفد من العرض! 🚀
+              {settings.promo_button_text}
             </Button>
           </CardContent>
         </Card>
       );
     }
     
-    // Paid registration (after 30.01.2026)
+    // Paid registration (after promo end date)
     return (
       <Card className="border-primary/30 bg-gradient-to-br from-background via-primary/5 to-background overflow-hidden relative">
         <CardHeader>
@@ -306,10 +312,10 @@ const DriverRegister = () => {
             <img src={logo} alt="RAAN" className="w-20 h-20" />
           </div>
           <CardTitle className="text-center text-2xl">
-            انضم ويانة بتطبيق RAAN 🚗
+            {settings.paid_title}
           </CardTitle>
           <CardDescription className="text-center text-lg mt-2">
-            وابدأ مشروعك صح!
+            {settings.paid_subtitle}
           </CardDescription>
         </CardHeader>
         
@@ -320,7 +326,7 @@ const DriverRegister = () => {
               <Wallet className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="font-bold text-foreground">رسوم التفعيل: <span className="text-primary">20,000 دينار</span></p>
+              <p className="font-bold text-foreground">رسوم التفعيل: <span className="text-primary">{settings.paid_activation_fee.toLocaleString()} دينار</span></p>
             </div>
           </div>
           
@@ -333,12 +339,12 @@ const DriverRegister = () => {
             
             <div className="flex items-start gap-2">
               <span className="text-primary">🎁</span>
-              <p className="text-sm">أول ما يتفعل حسابك ينزلك <strong>10,000 دينار</strong> رصيد صافي بالمحفظة.</p>
+              <p className="text-sm">{settings.paid_wallet_bonus_text}</p>
             </div>
             
             <div className="flex items-start gap-2">
               <span className="text-primary">🏆</span>
-              <p className="text-sm">تحدي: كمل <strong>15 طلب صباحي</strong> بأول أسبوع، وتستلم <strong>10,000 دينار</strong> مكافأة!</p>
+              <p className="text-sm">{settings.paid_challenge_text}</p>
             </div>
           </div>
           
@@ -348,7 +354,7 @@ const DriverRegister = () => {
             <div>
               <p className="font-bold text-green-600">💰 الزبدة:</p>
               <p className="text-sm text-muted-foreground">
-                الـ 20,000 اللي دفعتها رجعت لجيبك (10,000 رصيد + 10,000 مكافأة تسجيل أول مرة) ✅
+                {settings.paid_summary_text}
               </p>
             </div>
           </div>
@@ -357,7 +363,7 @@ const DriverRegister = () => {
           <div className="flex items-start gap-2 p-3 bg-muted/30 rounded-lg text-sm">
             <span>⚠️</span>
             <p className="text-muted-foreground">
-              <strong>تنويه صغير:</strong> رصيد المحفظة مخصص لعمولة التطبيق، يعني إذا صفرت لازم تشحنها حتى تكمل استقبال الطلبات.
+              <strong>تنويه صغير:</strong> {settings.paid_warning_text}
             </p>
           </div>
 
@@ -369,7 +375,13 @@ const DriverRegister = () => {
               onCheckedChange={(checked) => setAcceptedTerms(checked as boolean)}
             />
             <Label htmlFor="terms" className="text-sm cursor-pointer leading-relaxed">
-              أوافق على <Link to="/terms" className="text-primary underline">شروط الاستخدام</Link> و<Link to="/privacy" className="text-primary underline">سياسة الخصوصية</Link>
+              {settings.terms_text.includes('أوافق على') ? (
+                <>
+                  أوافق على <Link to="/terms" className="text-primary underline">شروط الاستخدام</Link> و<Link to="/privacy" className="text-primary underline">سياسة الخصوصية</Link>
+                </>
+              ) : (
+                settings.terms_text
+              )}
             </Label>
           </div>
 
@@ -379,7 +391,7 @@ const DriverRegister = () => {
             size="lg"
             disabled={!acceptedTerms}
           >
-            ابدأ التسجيل الآن 🚀
+            {settings.paid_button_text}
           </Button>
         </CardContent>
       </Card>

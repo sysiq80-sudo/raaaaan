@@ -77,6 +77,7 @@ import AdminPageEditor from "./pages/admin/AdminPageEditor";
 import AdminWalletRequests from "./pages/admin/AdminWalletRequests";
 import AdminSMSLogs from "./pages/admin/AdminSMSLogs";
 import AdminDriverVisibility from "./pages/admin/AdminDriverVisibility";
+import DriverRegistrationSettings from "./pages/admin/DriverRegistrationSettings";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -160,6 +161,7 @@ const App = () => (
             <Route path="/admin/wallet-requests" element={<ErrorBoundary><AdminWalletRequests /></ErrorBoundary>} />
             <Route path="/admin/sms-logs" element={<ErrorBoundary><AdminSMSLogs /></ErrorBoundary>} />
             <Route path="/admin/driver-visibility" element={<ErrorBoundary><AdminDriverVisibility /></ErrorBoundary>} />
+            <Route path="/admin/driver-registration-settings" element={<ErrorBoundary><DriverRegistrationSettings /></ErrorBoundary>} />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />

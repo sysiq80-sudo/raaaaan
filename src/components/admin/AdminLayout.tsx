@@ -29,7 +29,8 @@ import {
   CreditCard,
   Layers,
   Ban,
-  Megaphone
+  Megaphone,
+  FileText
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdminNotificationsBell } from "./AdminNotificationsBell";
@@ -114,6 +115,7 @@ const AdminLayout = ({ children, title, subtitle, actions }: AdminLayoutProps) =
     { icon: Car, label: "أنواع السيارات", href: "/admin/vehicle-types" },
     { icon: DollarSign, label: "إعدادات الأجرة", href: "/admin/fare-settings" },
     { icon: Car, label: "السائقين", href: "/admin/drivers" },
+    { icon: FileText, label: "إعدادات تسجيل السائقين", href: "/admin/driver-registration-settings" },
     { icon: UserCheck, label: "الركاب", href: "/admin/riders" },
     { icon: Route, label: "الرحلات", href: "/admin/rides" },
     { icon: Timer, label: "الرحلات المعلقة", href: "/admin/pending-rides" },
