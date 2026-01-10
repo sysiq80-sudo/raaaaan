@@ -7,66 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Loader2, Save } from "lucide-react";
-
-interface DriverRegistrationSettings {
-  id: string;
-  // Page Title and Description
-  page_title: string;
-  page_subtitle: string;
-  
-  // Hero Section
-  hero_title: string;
-  hero_description: string;
-  
-  // Requirements Section
-  requirements_title: string;
-  min_age: number;
-  min_age_text: string;
-  license_requirement: string;
-  vehicle_requirement: string;
-  insurance_requirement: string;
-  
-  // Benefits Section
-  benefits_title: string;
-  benefit_1_title: string;
-  benefit_1_description: string;
-  benefit_2_title: string;
-  benefit_2_description: string;
-  benefit_3_title: string;
-  benefit_3_description: string;
-  benefit_4_title: string;
-  benefit_4_description: string;
-  
-  // Commission and Earnings
-  commission_rate: number;
-  commission_text: string;
-  estimated_earnings_min: number;
-  estimated_earnings_max: number;
-  earnings_text: string;
-  
-  // Form Section
-  form_title: string;
-  form_description: string;
-  
-  // Contact Section
-  contact_title: string;
-  contact_phone: string;
-  contact_email: string;
-  contact_hours: string;
-  
-  // Status
-  is_active: boolean;
-  registration_enabled: boolean;
-  maintenance_message: string | null;
-}
+import { DriverRegistrationSettings as SettingsType } from "@/hooks/useDriverRegSettings";
 
 export default function DriverRegistrationSettings() {
-  const [settings, setSettings] = useState<DriverRegistrationSettings | null>(null);
+  const [settings, setSettings] = useState<SettingsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
     loadSettings();
@@ -84,11 +32,7 @@ export default function DriverRegistrationSettings() {
       setSettings(data);
     } catch (error) {
       console.error("Error loading settings:", error);
-      toast({
-        title: "خطأ",
-        description: "فشل تحميل الإعدادات",
-        variant: "destructive",
-      });
+      toast.error("فشل تحميل الإعدادات");
     } finally {
       setLoading(false);
     }
@@ -105,24 +49,17 @@ export default function DriverRegistrationSettings() {
         .eq("id", settings.id);
 
       if (error) throw error;
-
-      toast({
-        title: "نجح",
-        description: "تم حفظ الإعدادات بنجاح",
-      });
+      
+      toast.success("تم حفظ الإعدادات بنجاح");
     } catch (error) {
       console.error("Error saving settings:", error);
-      toast({
-        title: "خطأ",
-        description: "فشل حفظ الإعدادات",
-        variant: "destructive",
-      });
+      toast.error("فشل حفظ الإعدادات");
     } finally {
       setSaving(false);
     }
   };
 
-  const updateField = (field: keyof DriverRegistrationSettings, value: any) => {
+  const updateField = (field: keyof SettingsType, value: any) => {
     if (!settings) return;
     setSettings({ ...settings, [field]: value });
   };
@@ -130,511 +67,346 @@ export default function DriverRegistrationSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <Loader2 className="w-8 h-8 animate-spin" />
       </div>
     );
   }
 
   if (!settings) {
     return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-center text-muted-foreground">لا توجد إعدادات متاحة</p>
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">لا توجد إعدادات</p>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl" dir="rtl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">إعدادات صفحة تسجيل السائقين</h1>
-        <p className="text-muted-foreground mt-2">
-          إدارة جميع محتويات وإعدادات صفحة تسجيل السائقين
-        </p>
+    <div className="container mx-auto p-6 max-w-5xl" dir="rtl">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">إعدادات تسجيل السائقين</h1>
+          <p className="text-muted-foreground mt-1">تحكم في كل نصوص وأرقام صفحة التسجيل</p>
+        </div>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? (
+            <>
+              <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+              جاري الحفظ...
+            </>
+          ) : (
+            <>
+              <Save className="ml-2 h-4 w-4" />
+              حفظ التغييرات
+            </>
+          )}
+        </Button>
       </div>
 
-      <Card>
-        <CardContent className="p-6">
-          <Tabs defaultValue="main" className="w-full">
-            <TabsList className="grid w-full grid-cols-5 mb-6">
-              <TabsTrigger value="main">الإعدادات الرئيسية</TabsTrigger>
-              <TabsTrigger value="benefits">المزايا</TabsTrigger>
-              <TabsTrigger value="requirements">المتطلبات</TabsTrigger>
-              <TabsTrigger value="contact">معلومات الاتصال</TabsTrigger>
-              <TabsTrigger value="status">الحالة</TabsTrigger>
-            </TabsList>
+      <Tabs defaultValue="general" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="general">الإعدادات العامة</TabsTrigger>
+          <TabsTrigger value="promo">العرض الترويجي</TabsTrigger>
+          <TabsTrigger value="paid">التسجيل المدفوع</TabsTrigger>
+        </TabsList>
 
-            {/* Main Settings Tab */}
-            <TabsContent value="main" className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                {/* Page Title */}
+        {/* General Settings Tab */}
+        <TabsContent value="general" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>الإعدادات العامة</CardTitle>
+              <CardDescription>تفعيل/تعطيل العروض وتواريخها</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="enable_promo">تفعيل العرض الترويجي</Label>
+                <Switch
+                  id="enable_promo"
+                  checked={settings.enable_promo}
+                  onCheckedChange={(checked) => updateField('enable_promo', checked)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="promo_end_date">تاريخ انتهاء العرض</Label>
+                <Input
+                  id="promo_end_date"
+                  type="datetime-local"
+                  value={settings.promo_end_date?.slice(0, 16) || ''}
+                  onChange={(e) => updateField('promo_end_date', new Date(e.target.value).toISOString())}
+                />
+                <p className="text-xs text-muted-foreground">
+                  التاريخ الحالي: {new Date(settings.promo_end_date).toLocaleString('ar-IQ')}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="terms_text">نص الشروط والأحكام</Label>
+                <Input
+                  id="terms_text"
+                  value={settings.terms_text}
+                  onChange={(e) => updateField('terms_text', e.target.value)}
+                  dir="rtl"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="page_title">عنوان الصفحة</Label>
+                  <Label htmlFor="countdown_text">نص العد التنازلي</Label>
                   <Input
-                    id="page_title"
-                    value={settings.page_title}
-                    onChange={(e) => updateField("page_title", e.target.value)}
-                    className="text-right"
+                    id="countdown_text"
+                    value={settings.countdown_text}
+                    onChange={(e) => updateField('countdown_text', e.target.value)}
+                    dir="rtl"
                   />
                 </div>
-
-                {/* Page Subtitle */}
                 <div className="space-y-2">
-                  <Label htmlFor="page_subtitle">عنوان فرعي للصفحة</Label>
+                  <Label htmlFor="days_text">نص "يوم"</Label>
                   <Input
-                    id="page_subtitle"
-                    value={settings.page_subtitle}
-                    onChange={(e) => updateField("page_subtitle", e.target.value)}
-                    className="text-right"
+                    id="days_text"
+                    value={settings.days_text}
+                    onChange={(e) => updateField('days_text', e.target.value)}
+                    dir="rtl"
                   />
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                {/* Hero Title */}
+        {/* Promo Settings Tab */}
+        <TabsContent value="promo" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>إعدادات العرض الترويجي</CardTitle>
+              <CardDescription>نصوص وأرقام التسجيل المجاني</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="promo_title">العنوان الرئيسي</Label>
+                <Input
+                  id="promo_title"
+                  value={settings.promo_title}
+                  onChange={(e) => updateField('promo_title', e.target.value)}
+                  dir="rtl"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="promo_subtitle">العنوان الفرعي</Label>
+                <Input
+                  id="promo_subtitle"
+                  value={settings.promo_subtitle}
+                  onChange={(e) => updateField('promo_subtitle', e.target.value)}
+                  dir="rtl"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="hero_title">عنوان البطل</Label>
+                  <Label htmlFor="promo_activation_fee">رسوم التفعيل (دينار)</Label>
                   <Input
-                    id="hero_title"
-                    value={settings.hero_title}
-                    onChange={(e) => updateField("hero_title", e.target.value)}
-                    className="text-right"
-                  />
-                </div>
-
-                {/* Hero Description */}
-                <div className="space-y-2">
-                  <Label htmlFor="hero_description">وصف البطل</Label>
-                  <Textarea
-                    id="hero_description"
-                    value={settings.hero_description}
-                    onChange={(e) => updateField("hero_description", e.target.value)}
-                    className="text-right"
-                    rows={3}
-                  />
-                </div>
-
-                {/* Form Title */}
-                <div className="space-y-2">
-                  <Label htmlFor="form_title">عنوان النموذج</Label>
-                  <Input
-                    id="form_title"
-                    value={settings.form_title}
-                    onChange={(e) => updateField("form_title", e.target.value)}
-                    className="text-right"
-                  />
-                </div>
-
-                {/* Form Description */}
-                <div className="space-y-2">
-                  <Label htmlFor="form_description">وصف النموذج</Label>
-                  <Textarea
-                    id="form_description"
-                    value={settings.form_description}
-                    onChange={(e) => updateField("form_description", e.target.value)}
-                    className="text-right"
-                    rows={3}
-                  />
-                </div>
-
-                {/* Commission Rate */}
-                <div className="space-y-2">
-                  <Label htmlFor="commission_rate">معدل العمولة (%)</Label>
-                  <Input
-                    id="commission_rate"
+                    id="promo_activation_fee"
                     type="number"
-                    step="0.01"
-                    value={settings.commission_rate}
-                    onChange={(e) => updateField("commission_rate", parseFloat(e.target.value))}
-                    className="text-right"
+                    value={settings.promo_activation_fee}
+                    onChange={(e) => updateField('promo_activation_fee', parseInt(e.target.value))}
                   />
                 </div>
-
-                {/* Commission Text */}
                 <div className="space-y-2">
-                  <Label htmlFor="commission_text">نص العمولة</Label>
+                  <Label htmlFor="promo_bonus_amount">مبلغ المكافأة (دينار)</Label>
                   <Input
-                    id="commission_text"
-                    value={settings.commission_text}
-                    onChange={(e) => updateField("commission_text", e.target.value)}
-                    className="text-right"
-                  />
-                </div>
-
-                {/* Estimated Earnings Min */}
-                <div className="space-y-2">
-                  <Label htmlFor="estimated_earnings_min">الحد الأدنى للدخل المتوقع (دينار)</Label>
-                  <Input
-                    id="estimated_earnings_min"
+                    id="promo_bonus_amount"
                     type="number"
-                    value={settings.estimated_earnings_min}
-                    onChange={(e) => updateField("estimated_earnings_min", parseInt(e.target.value))}
-                    className="text-right"
+                    value={settings.promo_bonus_amount}
+                    onChange={(e) => updateField('promo_bonus_amount', parseInt(e.target.value))}
                   />
                 </div>
+              </div>
 
-                {/* Estimated Earnings Max */}
+              <div className="space-y-2">
+                <Label htmlFor="promo_activation_fee_text">نص رسوم التفعيل</Label>
+                <Input
+                  id="promo_activation_fee_text"
+                  value={settings.promo_activation_fee_text}
+                  onChange={(e) => updateField('promo_activation_fee_text', e.target.value)}
+                  dir="rtl"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="promo_bonus_text">نص المكافأة</Label>
+                <Input
+                  id="promo_bonus_text"
+                  value={settings.promo_bonus_text}
+                  onChange={(e) => updateField('promo_bonus_text', e.target.value)}
+                  dir="rtl"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="promo_urgency_text">نص الإلحاح</Label>
+                <Textarea
+                  id="promo_urgency_text"
+                  value={settings.promo_urgency_text}
+                  onChange={(e) => updateField('promo_urgency_text', e.target.value)}
+                  dir="rtl"
+                  rows={2}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="promo_button_text">نص الزر</Label>
+                <Input
+                  id="promo_button_text"
+                  value={settings.promo_button_text}
+                  onChange={(e) => updateField('promo_button_text', e.target.value)}
+                  dir="rtl"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Paid Settings Tab */}
+        <TabsContent value="paid" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>إعدادات التسجيل المدفوع</CardTitle>
+              <CardDescription>نصوص وأرقام التسجيل بعد انتهاء العرض</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="paid_title">العنوان الرئيسي</Label>
+                <Input
+                  id="paid_title"
+                  value={settings.paid_title}
+                  onChange={(e) => updateField('paid_title', e.target.value)}
+                  dir="rtl"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="paid_subtitle">العنوان الفرعي</Label>
+                <Input
+                  id="paid_subtitle"
+                  value={settings.paid_subtitle}
+                  onChange={(e) => updateField('paid_subtitle', e.target.value)}
+                  dir="rtl"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="estimated_earnings_max">الحد الأقصى للدخل المتوقع (دينار)</Label>
+                  <Label htmlFor="paid_activation_fee">رسوم التفعيل (دينار)</Label>
                   <Input
-                    id="estimated_earnings_max"
+                    id="paid_activation_fee"
                     type="number"
-                    value={settings.estimated_earnings_max}
-                    onChange={(e) => updateField("estimated_earnings_max", parseInt(e.target.value))}
-                    className="text-right"
+                    value={settings.paid_activation_fee}
+                    onChange={(e) => updateField('paid_activation_fee', parseInt(e.target.value))}
                   />
                 </div>
-
-                {/* Earnings Text */}
                 <div className="space-y-2">
-                  <Label htmlFor="earnings_text">نص الدخل</Label>
+                  <Label htmlFor="paid_wallet_bonus">مكافأة المحفظة (دينار)</Label>
                   <Input
-                    id="earnings_text"
-                    value={settings.earnings_text}
-                    onChange={(e) => updateField("earnings_text", e.target.value)}
-                    className="text-right"
+                    id="paid_wallet_bonus"
+                    type="number"
+                    value={settings.paid_wallet_bonus}
+                    onChange={(e) => updateField('paid_wallet_bonus', parseInt(e.target.value))}
                   />
                 </div>
               </div>
-            </TabsContent>
 
-            {/* Benefits Tab */}
-            <TabsContent value="benefits" className="space-y-6">
-              <div className="space-y-4">
-                {/* Benefits Title */}
-                <div className="space-y-2">
-                  <Label htmlFor="benefits_title">عنوان المزايا</Label>
-                  <Input
-                    id="benefits_title"
-                    value={settings.benefits_title}
-                    onChange={(e) => updateField("benefits_title", e.target.value)}
-                    className="text-right"
-                  />
-                </div>
-
-                {/* Benefit 1 */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">الميزة الأولى</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="benefit_1_title">العنوان</Label>
-                      <Input
-                        id="benefit_1_title"
-                        value={settings.benefit_1_title}
-                        onChange={(e) => updateField("benefit_1_title", e.target.value)}
-                        className="text-right"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="benefit_1_description">الوصف</Label>
-                      <Textarea
-                        id="benefit_1_description"
-                        value={settings.benefit_1_description}
-                        onChange={(e) => updateField("benefit_1_description", e.target.value)}
-                        className="text-right"
-                        rows={2}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Benefit 2 */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">الميزة الثانية</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="benefit_2_title">العنوان</Label>
-                      <Input
-                        id="benefit_2_title"
-                        value={settings.benefit_2_title}
-                        onChange={(e) => updateField("benefit_2_title", e.target.value)}
-                        className="text-right"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="benefit_2_description">الوصف</Label>
-                      <Textarea
-                        id="benefit_2_description"
-                        value={settings.benefit_2_description}
-                        onChange={(e) => updateField("benefit_2_description", e.target.value)}
-                        className="text-right"
-                        rows={2}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Benefit 3 */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">الميزة الثالثة</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="benefit_3_title">العنوان</Label>
-                      <Input
-                        id="benefit_3_title"
-                        value={settings.benefit_3_title}
-                        onChange={(e) => updateField("benefit_3_title", e.target.value)}
-                        className="text-right"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="benefit_3_description">الوصف</Label>
-                      <Textarea
-                        id="benefit_3_description"
-                        value={settings.benefit_3_description}
-                        onChange={(e) => updateField("benefit_3_description", e.target.value)}
-                        className="text-right"
-                        rows={2}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Benefit 4 */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">الميزة الرابعة</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="benefit_4_title">العنوان</Label>
-                      <Input
-                        id="benefit_4_title"
-                        value={settings.benefit_4_title}
-                        onChange={(e) => updateField("benefit_4_title", e.target.value)}
-                        className="text-right"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="benefit_4_description">الوصف</Label>
-                      <Textarea
-                        id="benefit_4_description"
-                        value={settings.benefit_4_description}
-                        onChange={(e) => updateField("benefit_4_description", e.target.value)}
-                        className="text-right"
-                        rows={2}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
+              <div className="space-y-2">
+                <Label htmlFor="paid_wallet_bonus_text">نص مكافأة المحفظة</Label>
+                <Input
+                  id="paid_wallet_bonus_text"
+                  value={settings.paid_wallet_bonus_text}
+                  onChange={(e) => updateField('paid_wallet_bonus_text', e.target.value)}
+                  dir="rtl"
+                />
               </div>
-            </TabsContent>
 
-            {/* Requirements Tab */}
-            <TabsContent value="requirements" className="space-y-6">
-              <div className="space-y-4">
-                {/* Requirements Title */}
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="requirements_title">عنوان المتطلبات</Label>
+                  <Label htmlFor="paid_challenge_rides">عدد رحلات التحدي</Label>
                   <Input
-                    id="requirements_title"
-                    value={settings.requirements_title}
-                    onChange={(e) => updateField("requirements_title", e.target.value)}
-                    className="text-right"
+                    id="paid_challenge_rides"
+                    type="number"
+                    value={settings.paid_challenge_rides}
+                    onChange={(e) => updateField('paid_challenge_rides', parseInt(e.target.value))}
                   />
                 </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  {/* Min Age */}
-                  <div className="space-y-2">
-                    <Label htmlFor="min_age">العمر الأدنى</Label>
-                    <Input
-                      id="min_age"
-                      type="number"
-                      value={settings.min_age}
-                      onChange={(e) => updateField("min_age", parseInt(e.target.value))}
-                      className="text-right"
-                    />
-                  </div>
-
-                  {/* Min Age Text */}
-                  <div className="space-y-2">
-                    <Label htmlFor="min_age_text">نص العمر الأدنى</Label>
-                    <Input
-                      id="min_age_text"
-                      value={settings.min_age_text}
-                      onChange={(e) => updateField("min_age_text", e.target.value)}
-                      className="text-right"
-                    />
-                  </div>
-
-                  {/* License Requirement */}
-                  <div className="space-y-2">
-                    <Label htmlFor="license_requirement">متطلبات الرخصة</Label>
-                    <Input
-                      id="license_requirement"
-                      value={settings.license_requirement}
-                      onChange={(e) => updateField("license_requirement", e.target.value)}
-                      className="text-right"
-                    />
-                  </div>
-
-                  {/* Vehicle Requirement */}
-                  <div className="space-y-2">
-                    <Label htmlFor="vehicle_requirement">متطلبات السيارة</Label>
-                    <Input
-                      id="vehicle_requirement"
-                      value={settings.vehicle_requirement}
-                      onChange={(e) => updateField("vehicle_requirement", e.target.value)}
-                      className="text-right"
-                    />
-                  </div>
-
-                  {/* Insurance Requirement */}
-                  <div className="space-y-2">
-                    <Label htmlFor="insurance_requirement">متطلبات التأمين</Label>
-                    <Input
-                      id="insurance_requirement"
-                      value={settings.insurance_requirement}
-                      onChange={(e) => updateField("insurance_requirement", e.target.value)}
-                      className="text-right"
-                    />
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Contact Tab */}
-            <TabsContent value="contact" className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                {/* Contact Title */}
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="contact_title">عنوان قسم التواصل</Label>
-                  <Input
-                    id="contact_title"
-                    value={settings.contact_title}
-                    onChange={(e) => updateField("contact_title", e.target.value)}
-                    className="text-right"
-                  />
-                </div>
-
-                {/* Contact Phone */}
                 <div className="space-y-2">
-                  <Label htmlFor="contact_phone">رقم الهاتف</Label>
+                  <Label htmlFor="paid_challenge_bonus">مكافأة التحدي (دينار)</Label>
                   <Input
-                    id="contact_phone"
-                    value={settings.contact_phone}
-                    onChange={(e) => updateField("contact_phone", e.target.value)}
-                    className="text-right"
-                    dir="ltr"
-                  />
-                </div>
-
-                {/* Contact Email */}
-                <div className="space-y-2">
-                  <Label htmlFor="contact_email">البريد الإلكتروني</Label>
-                  <Input
-                    id="contact_email"
-                    type="email"
-                    value={settings.contact_email}
-                    onChange={(e) => updateField("contact_email", e.target.value)}
-                    className="text-right"
-                    dir="ltr"
-                  />
-                </div>
-
-                {/* Contact Hours */}
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="contact_hours">ساعات العمل</Label>
-                  <Input
-                    id="contact_hours"
-                    value={settings.contact_hours}
-                    onChange={(e) => updateField("contact_hours", e.target.value)}
-                    className="text-right"
+                    id="paid_challenge_bonus"
+                    type="number"
+                    value={settings.paid_challenge_bonus}
+                    onChange={(e) => updateField('paid_challenge_bonus', parseInt(e.target.value))}
                   />
                 </div>
               </div>
-            </TabsContent>
 
-            {/* Status Tab */}
-            <TabsContent value="status" className="space-y-6">
-              <div className="space-y-6">
-                {/* Is Active */}
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="is_active" className="text-base">
-                      تفعيل الإعدادات
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      تحديد ما إذا كانت هذه الإعدادات نشطة ومرئية للمستخدمين
-                    </p>
-                  </div>
-                  <Switch
-                    id="is_active"
-                    checked={settings.is_active}
-                    onCheckedChange={(checked) => updateField("is_active", checked)}
-                  />
-                </div>
-
-                {/* Registration Enabled */}
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="registration_enabled" className="text-base">
-                      تفعيل التسجيل
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      السماح للسائقين الجدد بالتسجيل
-                    </p>
-                  </div>
-                  <Switch
-                    id="registration_enabled"
-                    checked={settings.registration_enabled}
-                    onCheckedChange={(checked) => updateField("registration_enabled", checked)}
-                  />
-                </div>
-
-                {/* Maintenance Message */}
-                <div className="space-y-2">
-                  <Label htmlFor="maintenance_message">رسالة الصيانة (اختياري)</Label>
-                  <Textarea
-                    id="maintenance_message"
-                    value={settings.maintenance_message || ""}
-                    onChange={(e) => updateField("maintenance_message", e.target.value || null)}
-                    className="text-right"
-                    rows={3}
-                    placeholder="رسالة تظهر عند تعطيل التسجيل"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="paid_challenge_text">نص التحدي</Label>
+                <Textarea
+                  id="paid_challenge_text"
+                  value={settings.paid_challenge_text}
+                  onChange={(e) => updateField('paid_challenge_text', e.target.value)}
+                  dir="rtl"
+                  rows={2}
+                />
               </div>
-            </TabsContent>
-          </Tabs>
 
-          {/* Save Button */}
-          <div className="mt-6 flex justify-end gap-4">
-            <Button
-              variant="outline"
-              onClick={loadSettings}
-              disabled={saving}
-            >
-              إلغاء التغييرات
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="min-w-[120px]"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                  جاري الحفظ...
-                </>
-              ) : (
-                <>
-                  <Save className="ml-2 h-4 w-4" />
-                  حفظ الإعدادات
-                </>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              <div className="space-y-2">
+                <Label htmlFor="paid_summary_text">نص الملخص</Label>
+                <Input
+                  id="paid_summary_text"
+                  value={settings.paid_summary_text}
+                  onChange={(e) => updateField('paid_summary_text', e.target.value)}
+                  dir="rtl"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="paid_warning_text">نص التحذير</Label>
+                <Input
+                  id="paid_warning_text"
+                  value={settings.paid_warning_text}
+                  onChange={(e) => updateField('paid_warning_text', e.target.value)}
+                  dir="rtl"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="paid_button_text">نص الزر</Label>
+                <Input
+                  id="paid_button_text"
+                  value={settings.paid_button_text}
+                  onChange={(e) => updateField('paid_button_text', e.target.value)}
+                  dir="rtl"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Sticky Save Button */}
+      <div className="fixed bottom-6 left-6">
+        <Button onClick={handleSave} disabled={saving} size="lg" className="shadow-lg">
+          {saving ? (
+            <>
+              <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+              جاري الحفظ...
+            </>
+          ) : (
+            <>
+              <Save className="ml-2 h-4 w-4" />
+              حفظ التغييرات
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
