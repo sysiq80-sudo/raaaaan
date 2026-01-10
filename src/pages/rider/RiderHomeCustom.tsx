@@ -580,12 +580,15 @@ const RiderHomeCustom: React.FC = () => {
         inService: location.inService,
       });
 
-      console.log("📞 Calling handleDestinationSelect...");
-      handleDestinationSelect(location.address, {
-        lat: location.lat,
-        lng: location.lng,
-      });
-      console.log("✅ handleDestinationSelect completed");
+      // Set dropoff directly - لتجنب مشاكل الـ callback dependencies
+      console.log("📍 Setting dropoff location directly");
+      setDropoff(location.address);
+      setDropoffCoords({ lat: location.lat, lng: location.lng });
+      setDropoffSearch(location.address);
+      
+      // فتح لوحة الحجز مباشرة
+      setShowBookingPanel(true);
+      console.log("✅ Dropoff set and booking panel opened");
 
       // Close picker after a small delay to ensure state updates
       setTimeout(() => {
@@ -594,7 +597,7 @@ const RiderHomeCustom: React.FC = () => {
         setMapPickerMode("pickup"); // Reset mode for next time
       }, 100);
     },
-    [handleDestinationSelect]
+    [] // لا يعتمد على أي شيء لتجنب مشاكل stale closure
   );
 
   // Handle pickup confirmed in map picker (without closing)
