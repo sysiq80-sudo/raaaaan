@@ -585,7 +585,7 @@ const RiderHomeCustom: React.FC = () => {
       setDropoff(location.address);
       setDropoffCoords({ lat: location.lat, lng: location.lng });
       setDropoffSearch(location.address);
-      
+
       // فتح لوحة الحجز مباشرة
       setShowBookingPanel(true);
       console.log("✅ Dropoff set and booking panel opened");
