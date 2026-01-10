@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 // Default public token as fallback
-const DEFAULT_TOKEN = 'pk.eyJ1IjoicmFhbmFpIiwiYSI6ImNtajQxYjQ1YzB3M3ozZnM0bW9xaDB2eXgifQ.k9lvJOuDjRHL198DEb9YVw';
+const DEFAULT_TOKEN =
+  "pk.eyJ1IjoicmFhbmFpIiwiYSI6ImNtajQxYjQ1YzB3M3ozZnM0bW9xaDB2eXgifQ.k9lvJOuDjRHL198DEb9YVw";
 
 // Cache the token in memory
 let cachedToken: string | null = null;
@@ -16,7 +17,7 @@ export const useMapboxToken = () => {
   const fetchToken = useCallback(async () => {
     // Check if cache is still valid
     const now = Date.now();
-    if (cachedToken && (now - cacheTimestamp) < CACHE_DURATION) {
+    if (cachedToken && now - cacheTimestamp < CACHE_DURATION) {
       setToken(cachedToken);
       setIsLoading(false);
       return cachedToken;
@@ -27,44 +28,44 @@ export const useMapboxToken = () => {
       const response = await fetch(
         `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token`,
         {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json'
-          }
+            "Content-Type": "application/json",
+          },
         }
       );
-      
+
       if (response.ok) {
         const tokenData = await response.json();
         if (tokenData.token) {
           const fetchedToken = tokenData.token;
-          
+
           // Update cache
           cachedToken = fetchedToken;
           cacheTimestamp = now;
-          
+
           setToken(fetchedToken);
           return fetchedToken;
         }
       }
-      
+
       // Fallback to database if function fails
       const { data } = await supabase
-        .from('app_settings')
-        .select('value')
-        .eq('key', 'mapbox_token')
-        .single();
-      
+        .from("app_settings")
+        .select("value")
+        .eq("key", "mapbox_token")
+        .maybeSingle();
+
       const fetchedToken = data?.value?.toString() || DEFAULT_TOKEN;
-      
+
       // Update cache
       cachedToken = fetchedToken;
       cacheTimestamp = now;
-      
+
       setToken(fetchedToken);
       return fetchedToken;
     } catch (error) {
-      console.error('Error fetching Mapbox token:', error);
+      console.error("Error fetching Mapbox token:", error);
       setToken(DEFAULT_TOKEN);
       return DEFAULT_TOKEN;
     } finally {
@@ -81,7 +82,7 @@ export const useMapboxToken = () => {
   return {
     token,
     isLoading,
-    refetch: fetchToken
+    refetch: fetchToken,
   };
 };
 
@@ -93,14 +94,14 @@ export const getMapboxToken = (): string => {
 // Preload token (call early in app initialization)
 export const preloadMapboxToken = async (): Promise<string> => {
   if (cachedToken) return cachedToken;
-  
+
   try {
     const { data } = await supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'mapbox_token')
-      .single();
-    
+      .from("app_settings")
+      .select("value")
+      .eq("key", "mapbox_token")
+      .maybeSingle();
+
     cachedToken = data?.value?.toString() || DEFAULT_TOKEN;
     cacheTimestamp = Date.now();
     return cachedToken;

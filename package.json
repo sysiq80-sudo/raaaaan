@@ -8,7 +8,11 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:migrations": "echo '🔍 فحص ملفات migrations...' && git diff --name-only HEAD | grep 'supabase/migrations' || echo '✅ لا توجد تعديلات'",
+    "check:deletes": "echo '🔍 فحص عمليات الحذف...' && grep -r '\\.delete()' src/ || echo '✅ لا توجد عمليات حذف جديدة'",
+    "check:all": "npm run check:migrations && npm run check:deletes",
+    "safety-check": "echo '⚠️ تذكير: اقرأ .github/copilot-instructions.md قبل أي push!'"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

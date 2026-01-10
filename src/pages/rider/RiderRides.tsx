@@ -4,6 +4,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { User } from "@supabase/supabase-js";
 import LiveRideTracker from "@/components/rider/LiveRideTracker";
 import RideWaitingScreen from "@/components/rider/RideWaitingScreen";
@@ -23,6 +41,7 @@ import {
   Star,
   Ban,
   MapPin,
+  AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -53,13 +72,18 @@ const RiderRides = () => {
   const [trackingRide, setTrackingRide] = useState<Ride | null>(null);
   const [rideToRate, setRideToRate] = useState<Ride | null>(null);
   const [cancellingRideId, setCancellingRideId] = useState<string | null>(null);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [rideToCancel, setRideToCancel] = useState<Ride | null>(null);
+  const [cancellationReason, setCancellationReason] = useState<string>("");
 
   // Enable real-time ride notifications with sounds
   useRideNotifications(user?.id || null);
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) {
         navigate("/auth");
         return;
@@ -77,39 +101,46 @@ const RiderRides = () => {
     if (!user) return;
 
     const channel = supabase
-      .channel('rider-rides')
+      .channel("rider-rides")
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'rides',
-          filter: `rider_id=eq.${user.id}`
+          event: "*",
+          schema: "public",
+          table: "rides",
+          filter: `rider_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('Ride change:', payload);
-          if (payload.eventType === 'INSERT') {
+          console.log("Ride change:", payload);
+          if (payload.eventType === "INSERT") {
             const newRide = payload.new as any;
-            setRides(prev => [{
-              ...newRide,
-              pickup_location: newRide.pickup_location,
-              dropoff_location: newRide.dropoff_location
-            }, ...prev]);
-          } else if (payload.eventType === 'UPDATE') {
+            setRides((prev) => [
+              {
+                ...newRide,
+                pickup_location: newRide.pickup_location,
+                dropoff_location: newRide.dropoff_location,
+              },
+              ...prev,
+            ]);
+          } else if (payload.eventType === "UPDATE") {
             const updatedRide = payload.new as any;
-            setRides(prev => prev.map(r => 
-              r.id === updatedRide.id ? {
-                ...updatedRide,
-                pickup_location: updatedRide.pickup_location,
-                dropoff_location: updatedRide.dropoff_location
-              } : r
-            ));
+            setRides((prev) =>
+              prev.map((r) =>
+                r.id === updatedRide.id
+                  ? {
+                      ...updatedRide,
+                      pickup_location: updatedRide.pickup_location,
+                      dropoff_location: updatedRide.dropoff_location,
+                    }
+                  : r
+              )
+            );
             // Update tracking ride if active
             if (trackingRide?.id === updatedRide.id) {
               setTrackingRide({
                 ...updatedRide,
                 pickup_location: updatedRide.pickup_location,
-                dropoff_location: updatedRide.dropoff_location
+                dropoff_location: updatedRide.dropoff_location,
               });
             }
           }
@@ -133,33 +164,44 @@ const RiderRides = () => {
       const mappedRides = data.map((r: any) => ({
         ...r,
         pickup_location: r.pickup_location as { lat: number; lng: number },
-        dropoff_location: r.dropoff_location as { lat: number; lng: number }
+        dropoff_location: r.dropoff_location as { lat: number; lng: number },
       }));
       setRides(mappedRides);
-      
+
       // Auto-open tracker for active rides
-      const activeRide = data.find((r: any) => 
-        ['pending', 'accepted', 'arrived', 'in_progress'].includes(r.status)
+      const activeRide = data.find((r: any) =>
+        ["pending", "accepted", "arrived", "in_progress"].includes(r.status)
       );
       if (activeRide) {
         setTrackingRide({
           ...activeRide,
-          pickup_location: activeRide.pickup_location as { lat: number; lng: number },
-          dropoff_location: activeRide.dropoff_location as { lat: number; lng: number }
+          pickup_location: activeRide.pickup_location as {
+            lat: number;
+            lng: number;
+          },
+          dropoff_location: activeRide.dropoff_location as {
+            lat: number;
+            lng: number;
+          },
         });
       }
 
       // Check for completed rides without rating
-      const unratedRide = data.find((r: any) => 
-        r.status === 'completed' && 
-        r.driver_rating === null && 
-        r.driver_id
+      const unratedRide = data.find(
+        (r: any) =>
+          r.status === "completed" && r.driver_rating === null && r.driver_id
       );
       if (unratedRide) {
         setRideToRate({
           ...unratedRide,
-          pickup_location: unratedRide.pickup_location as { lat: number; lng: number },
-          dropoff_location: unratedRide.dropoff_location as { lat: number; lng: number }
+          pickup_location: unratedRide.pickup_location as {
+            lat: number;
+            lng: number;
+          },
+          dropoff_location: unratedRide.dropoff_location as {
+            lat: number;
+            lng: number;
+          },
         });
       }
     }
@@ -167,14 +209,14 @@ const RiderRides = () => {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed':
+      case "completed":
         return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'cancelled':
+      case "cancelled":
         return <XCircle className="w-4 h-4 text-destructive" />;
-      case 'in_progress':
+      case "in_progress":
         return <Navigation className="w-4 h-4 text-primary animate-pulse" />;
-      case 'accepted':
-      case 'arrived':
+      case "accepted":
+      case "arrived":
         return <Car className="w-4 h-4 text-blue-500" />;
       default:
         return <Clock className="w-4 h-4 text-amber-500 animate-pulse" />;
@@ -183,84 +225,127 @@ const RiderRides = () => {
 
   const getStatusText = (status: string) => {
     const statusMap: Record<string, string> = {
-      pending: 'قيد الانتظار',
-      accepted: 'السائق في الطريق',
-      arrived: 'السائق وصل',
-      in_progress: 'جارية',
-      completed: 'مكتملة',
-      cancelled: 'ملغية'
+      pending: "قيد الانتظار",
+      accepted: "السائق في الطريق",
+      arrived: "السائق وصل",
+      in_progress: "جارية",
+      completed: "مكتملة",
+      cancelled: "ملغية",
     };
     return statusMap[status] || status;
   };
 
   const getVehicleTypeName = (type: string) => {
     const types: Record<string, string> = {
-      economy: 'اقتصادي',
-      comfort: 'مريح',
-      premium: 'فاخر',
-      women_only: 'نسائي'
+      economy: "اقتصادي",
+      comfort: "مريح",
+      premium: "فاخر",
+      women_only: "نسائي",
     };
     return types[type] || type;
   };
 
   const isActiveRide = (status: string) => {
-    return ['pending', 'accepted', 'arrived', 'in_progress'].includes(status);
+    return ["pending", "accepted", "arrived", "in_progress"].includes(status);
   };
 
   const canCancelRide = (status: string) => {
-    return ['pending', 'accepted'].includes(status);
+    // السماح بإلغاء الرحلات في حالة pending, accepted, أو in_progress
+    return ["pending", "accepted", "in_progress"].includes(status);
   };
 
-  const handleCancelRide = async (rideId: string) => {
-    setCancellingRideId(rideId);
+  const openCancelDialog = (ride: Ride) => {
+    setRideToCancel(ride);
+    setCancellationReason("");
+    setShowCancelDialog(true);
+  };
+
+  const handleCancelRide = async () => {
+    if (!rideToCancel || !cancellationReason) {
+      toast({
+        title: "خطأ",
+        description: "يرجى اختيار سبب الإلغاء",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCancellingRideId(rideToCancel.id);
+    setShowCancelDialog(false);
+
     try {
+      const isInProgress = rideToCancel.status === "in_progress";
+
+      // حساب الغرامة - 50% من الأجرة المقدرة للرحلات الجارية
+      const cancellationFee = isInProgress
+        ? Math.round((rideToCancel.estimated_fare || 0) * 0.5)
+        : 0;
+
       const { error } = await supabase
         .from("rides")
         .update({
-          status: 'cancelled',
-          cancelled_by: 'rider',
-          cancellation_reason: 'إلغاء من قبل الراكب'
+          status: "cancelled",
+          cancelled_by: "rider",
+          cancellation_reason: cancellationReason,
+          cancellation_fee: cancellationFee,
         })
-        .eq("id", rideId)
-        .in("status", ['pending', 'accepted']);
+        .eq("id", rideToCancel.id);
 
       if (error) throw error;
 
-      toast({
-        title: "تم إلغاء الرحلة",
-        description: "تم إلغاء طلبك بنجاح"
-      });
+      // إذا كانت هناك غرامة، نبه المستخدم
+      if (cancellationFee > 0) {
+        toast({
+          title: "⚠️ تم إلغاء الرحلة مع غرامة",
+          description: `تم فرض غرامة إلغاء: ${cancellationFee.toLocaleString()} د.ع`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "تم إلغاء الرحلة",
+          description: "تم إلغاء طلبك بنجاح",
+        });
+      }
 
       // Update local state
-      setRides(prev => prev.map(r => 
-        r.id === rideId ? { ...r, status: 'cancelled' } : r
-      ));
+      setRides((prev) =>
+        prev.map((r) =>
+          r.id === rideToCancel.id ? { ...r, status: "cancelled" } : r
+        )
+      );
+
+      // إذا كانت الرحلة المُلغاة هي الرحلة المتتبعة، أغلق التتبع
+      if (trackingRide?.id === rideToCancel.id) {
+        setTrackingRide(null);
+      }
     } catch (error: any) {
       console.error("Cancel error:", error);
       toast({
         title: "خطأ",
         description: "لا يمكن إلغاء هذه الرحلة",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setCancellingRideId(null);
+      setRideToCancel(null);
+      setCancellationReason("");
     }
   };
 
   const filterRides = (tab: string) => {
     switch (tab) {
-      case 'active':
-        return rides.filter(r => isActiveRide(r.status));
-      case 'completed':
-        return rides.filter(r => r.status === 'completed');
-      case 'cancelled':
-        return rides.filter(r => r.status === 'cancelled');
+      case "active":
+        return rides.filter((r) => isActiveRide(r.status));
+      case "completed":
+        return rides.filter((r) => r.status === "completed");
+      case "cancelled":
+        return rides.filter((r) => r.status === "cancelled");
       default:
         return rides;
     }
   };
 
-  const activeRidesCount = rides.filter(r => isActiveRide(r.status)).length;
+  const activeRidesCount = rides.filter((r) => isActiveRide(r.status)).length;
 
   if (loading) {
     return (
@@ -271,12 +356,12 @@ const RiderRides = () => {
   }
 
   // Show waiting screen for pending rides
-  if (trackingRide && trackingRide.status === 'pending') {
+  if (trackingRide && trackingRide.status === "pending") {
     return (
       <RideWaitingScreen
         rideId={trackingRide.id}
-        pickupAddress={trackingRide.pickup_address || 'موقع الانطلاق'}
-        dropoffAddress={trackingRide.dropoff_address || 'الوجهة'}
+        pickupAddress={trackingRide.pickup_address || "موقع الانطلاق"}
+        dropoffAddress={trackingRide.dropoff_address || "الوجهة"}
         estimatedFare={trackingRide.estimated_fare || 0}
         onCancel={async () => {
           await handleCancelRide(trackingRide.id);
@@ -300,12 +385,12 @@ const RiderRides = () => {
           onRideUpdate={(updatedRide) => {
             const mappedRide: Ride = {
               ...updatedRide,
-              driver_rating: updatedRide.driver_rating ?? null
+              driver_rating: updatedRide.driver_rating ?? null,
             };
-            if (updatedRide.status === 'completed') {
+            if (updatedRide.status === "completed") {
               // Let LiveRideTracker show the completed screen
               setTrackingRide(mappedRide);
-            } else if (updatedRide.status === 'cancelled') {
+            } else if (updatedRide.status === "cancelled") {
               setTrackingRide(null);
             } else {
               setTrackingRide(mappedRide);
@@ -327,6 +412,79 @@ const RiderRides = () => {
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              تأكيد إلغاء الرحلة
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right space-y-4">
+              <p>هل أنت متأكد من رغبتك في إلغاء هذه الرحلة؟</p>
+
+              {rideToCancel?.status === "in_progress" && (
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 space-y-1">
+                  <p className="text-destructive font-semibold text-sm">
+                    ⚠️ تحذير: غرامة إلغاء
+                  </p>
+                  <p className="text-destructive text-xs">
+                    سيتم فرض غرامة إلغاء بقيمة 50% من الأجرة المقدرة (
+                    {Math.round(
+                      (rideToCancel?.estimated_fare || 0) * 0.5
+                    ).toLocaleString()}{" "}
+                    د.ع) لأن الرحلة جارية حالياً.
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="cancel-reason" className="text-foreground">
+                  سبب الإلغاء <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={cancellationReason}
+                  onValueChange={setCancellationReason}
+                >
+                  <SelectTrigger id="cancel-reason" className="text-right">
+                    <SelectValue placeholder="اختر سبب الإلغاء" />
+                  </SelectTrigger>
+                  <SelectContent dir="rtl">
+                    <SelectItem value="تغيير في الخطة">
+                      تغيير في الخطة
+                    </SelectItem>
+                    <SelectItem value="السائق تأخر كثيراً">
+                      السائق تأخر كثيراً
+                    </SelectItem>
+                    <SelectItem value="وجدت وسيلة نقل أخرى">
+                      وجدت وسيلة نقل أخرى
+                    </SelectItem>
+                    <SelectItem value="مشكلة في التطبيق">
+                      مشكلة في التطبيق
+                    </SelectItem>
+                    <SelectItem value="طلبت عن طريق الخطأ">
+                      طلبت عن طريق الخطأ
+                    </SelectItem>
+                    <SelectItem value="ظروف طارئة">ظروف طارئة</SelectItem>
+                    <SelectItem value="سبب آخر">سبب آخر</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel>إلغاء القرار</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelRide}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!cancellationReason}
+            >
+              تأكيد الإلغاء
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Rating Dialog */}
       {rideToRate && rideToRate.driver_id && (
         <RatingDialog
@@ -341,7 +499,11 @@ const RiderRides = () => {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 glass">
         <div className="container flex items-center justify-between h-16">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/rider")}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/rider")}
+          >
             <ArrowRight className="w-5 h-5" />
           </Button>
           <h1 className="font-bold text-lg">رحلاتي</h1>
@@ -356,7 +518,10 @@ const RiderRides = () => {
             {user && <ScheduledRidesList />}
           </section>
 
-          <Tabs defaultValue={activeRidesCount > 0 ? "active" : "all"} className="w-full">
+          <Tabs
+            defaultValue={activeRidesCount > 0 ? "active" : "all"}
+            className="w-full"
+          >
             <TabsList className="grid w-full grid-cols-4 mb-6">
               <TabsTrigger value="all">الكل</TabsTrigger>
               <TabsTrigger value="active" className="relative">
@@ -371,7 +536,7 @@ const RiderRides = () => {
               <TabsTrigger value="cancelled">ملغية</TabsTrigger>
             </TabsList>
 
-            {['all', 'active', 'completed', 'cancelled'].map(tab => (
+            {["all", "active", "completed", "cancelled"].map((tab) => (
               <TabsContent key={tab} value={tab} className="space-y-4">
                 {filterRides(tab).length === 0 ? (
                   <Card>
@@ -381,15 +546,18 @@ const RiderRides = () => {
                     </CardContent>
                   </Card>
                 ) : (
-                  filterRides(tab).map(ride => (
-                    <Card 
-                      key={ride.id} 
+                  filterRides(tab).map((ride) => (
+                    <Card
+                      key={ride.id}
                       className={`overflow-hidden transition-all ${
-                        isActiveRide(ride.status) ? 'border-primary/50 shadow-glow' : ''
+                        isActiveRide(ride.status)
+                          ? "border-primary/50 shadow-glow"
+                          : ""
                       }`}
                     >
                       {/* Static Map for completed/cancelled rides - cheaper than interactive */}
-                      {(ride.status === 'completed' || ride.status === 'cancelled') && (
+                      {(ride.status === "completed" ||
+                        ride.status === "cancelled") && (
                         <div className="relative">
                           <StaticRideMap
                             pickupLocation={ride.pickup_location}
@@ -400,39 +568,48 @@ const RiderRides = () => {
                           />
                           <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-background/90 backdrop-blur-sm rounded-full px-2 py-1">
                             {getStatusIcon(ride.status)}
-                            <span className="text-xs font-medium">{getStatusText(ride.status)}</span>
+                            <span className="text-xs font-medium">
+                              {getStatusText(ride.status)}
+                            </span>
                           </div>
                         </div>
                       )}
-                      
+
                       <CardContent className="p-4">
                         {/* Header for active rides only (completed/cancelled have map header) */}
                         {isActiveRide(ride.status) && (
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
                               {getStatusIcon(ride.status)}
-                              <span className={`text-sm font-medium text-primary`}>
+                              <span
+                                className={`text-sm font-medium text-primary`}
+                              >
                                 {getStatusText(ride.status)}
                               </span>
                             </div>
                             <span className="text-xs text-muted-foreground">
-                              {new Date(ride.created_at).toLocaleDateString('ar-IQ')}
+                              {new Date(ride.created_at).toLocaleDateString(
+                                "ar-IQ"
+                              )}
                             </span>
                           </div>
                         )}
-                        
+
                         {/* Date and rating for non-active rides */}
                         {!isActiveRide(ride.status) && (
                           <div className="flex items-center justify-between mb-3">
                             <span className="text-xs text-muted-foreground">
-                              {new Date(ride.created_at).toLocaleDateString('ar-IQ', {
-                                weekday: 'short',
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
+                              {new Date(ride.created_at).toLocaleDateString(
+                                "ar-IQ",
+                                {
+                                  weekday: "short",
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }
+                              )}
                             </span>
                             {ride.driver_rating && (
                               <span className="flex items-center gap-1 text-xs text-warning">
@@ -447,13 +624,19 @@ const RiderRides = () => {
                           <div className="flex items-start gap-2">
                             <div className="w-3 h-3 mt-1 rounded-full bg-primary shrink-0" />
                             <p className="text-sm text-foreground line-clamp-1">
-                              {ride.pickup_address || `${ride.pickup_location.lat.toFixed(4)}, ${ride.pickup_location.lng.toFixed(4)}`}
+                              {ride.pickup_address ||
+                                `${ride.pickup_location.lat.toFixed(
+                                  4
+                                )}, ${ride.pickup_location.lng.toFixed(4)}`}
                             </p>
                           </div>
                           <div className="flex items-start gap-2">
                             <div className="w-3 h-3 mt-1 rounded-full bg-destructive shrink-0" />
                             <p className="text-sm text-foreground line-clamp-1">
-                              {ride.dropoff_address || `${ride.dropoff_location.lat.toFixed(4)}, ${ride.dropoff_location.lng.toFixed(4)}`}
+                              {ride.dropoff_address ||
+                                `${ride.dropoff_location.lat.toFixed(
+                                  4
+                                )}, ${ride.dropoff_location.lng.toFixed(4)}`}
                             </p>
                           </div>
                         </div>
@@ -461,11 +644,18 @@ const RiderRides = () => {
                         <div className="flex items-center justify-between pt-3 border-t border-border">
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <span>{getVehicleTypeName(ride.vehicle_type)}</span>
-                            {ride.distance_km && <span>{ride.distance_km} كم</span>}
+                            {ride.distance_km && (
+                              <span>{ride.distance_km} كم</span>
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-primary">
-                              {(ride.final_fare || ride.estimated_fare || 0).toLocaleString()} د.ع
+                              {(
+                                ride.final_fare ||
+                                ride.estimated_fare ||
+                                0
+                              ).toLocaleString()}{" "}
+                              د.ع
                             </span>
                             {isActiveRide(ride.status) && (
                               <Button
@@ -478,13 +668,13 @@ const RiderRides = () => {
                                 تتبع
                               </Button>
                             )}
-                            {/* Cancel button for pending/accepted rides */}
+                            {/* Cancel button for pending/accepted/in_progress rides */}
                             {canCancelRide(ride.status) && (
                               <Button
                                 size="sm"
                                 variant="outline"
                                 className="h-8 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                                onClick={() => handleCancelRide(ride.id)}
+                                onClick={() => openCancelDialog(ride)}
                                 disabled={cancellingRideId === ride.id}
                               >
                                 {cancellingRideId === ride.id ? (
@@ -498,17 +688,19 @@ const RiderRides = () => {
                               </Button>
                             )}
                             {/* Rate button for unrated completed rides */}
-                            {ride.status === 'completed' && !ride.driver_rating && ride.driver_id && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8"
-                                onClick={() => setRideToRate(ride)}
-                              >
-                                <Star className="w-4 h-4 ml-1" />
-                                قيّم
-                              </Button>
-                            )}
+                            {ride.status === "completed" &&
+                              !ride.driver_rating &&
+                              ride.driver_id && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8"
+                                  onClick={() => setRideToRate(ride)}
+                                >
+                                  <Star className="w-4 h-4 ml-1" />
+                                  قيّم
+                                </Button>
+                              )}
                           </div>
                         </div>
                       </CardContent>
