@@ -679,7 +679,23 @@ const Map = forwardRef<MapRef, MapProps>(
 
     // Fetch and draw route when both locations are set
     useEffect(() => {
-      if (!map.current || !pickupLocation || !dropoffLocation || !mapToken)
+      console.log("🗺️ Route useEffect triggered:", {
+        hasMap: !!map.current,
+        pickupLocation,
+        dropoffLocation,
+        mapToken: !!mapToken,
+        showRoute,
+        isLoading,
+      });
+
+      // Wait for map to be loaded
+      if (
+        !map.current ||
+        !pickupLocation ||
+        !dropoffLocation ||
+        !mapToken ||
+        isLoading
+      )
         return;
 
       // Skip if route display is disabled
@@ -786,6 +802,7 @@ const Map = forwardRef<MapRef, MapProps>(
       mapToken,
       showRoute,
       onRouteCalculated,
+      isLoading,
     ]);
 
     // Reverse geocode for marker drag

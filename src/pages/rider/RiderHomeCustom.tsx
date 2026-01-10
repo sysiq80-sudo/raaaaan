@@ -375,7 +375,10 @@ const RiderHomeCustom: React.FC = () => {
         // Fetch address for the coordinates
         const address = await fetchAddressFromCoords(coords.lat, coords.lng);
         setPickup(address);
+        setPickupSearch(address); // تحديث حقل البحث
         setIsLocating(false);
+        // إظهار واجهة البحث عن الوجهة بعد تحديد الموقع
+        setShowSearchOverlay(true);
         toast({
           title: "تم تحديد موقعك",
           description: address,
@@ -555,12 +558,15 @@ const RiderHomeCustom: React.FC = () => {
       address: string;
       inService?: boolean;
     }) => {
+      console.log("✅ handleMapPickerConfirm called:", location);
+
       // Set dropoff directly - لتجنب مشاكل الـ callback dependencies
       setDropoff(location.address);
       setDropoffCoords({ lat: location.lat, lng: location.lng });
       setDropoffSearch(location.address);
 
-      // فتح لوحة الحجز مباشرة
+      // إغلاق واجهة البحث وفتح لوحة الحجز مباشرة
+      setShowSearchOverlay(false);
       setShowBookingPanel(true);
 
       // Close picker after a small delay to ensure state updates
@@ -579,6 +585,10 @@ const RiderHomeCustom: React.FC = () => {
         lat: location.lat,
         lng: location.lng,
       });
+      // تحديث حقل البحث بالعنوان
+      setPickupSearch(location.address);
+      // إظهار واجهة البحث عن الوجهة في الصفحة الرئيسية
+      setShowSearchOverlay(true);
       // Don't close - MapLocationPicker will switch to dropoff mode automatically
     },
     [handlePickupSelect]
@@ -910,36 +920,64 @@ const RiderHomeCustom: React.FC = () => {
               className="px-4 py-2"
             >
               <div className="bg-gradient-to-t from-card via-card/98 to-card/90 backdrop-blur-lg rounded-2xl shadow-lg p-4">
-                {/* Pickup Location Search */}
+                {/* Pickup Location Display/Search */}
                 <div className="mb-4">
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <LocationSearchInput
-                        placeholder="ابحث عن موقع الانطلاق..."
-                        value={pickupSearch}
-                        onChange={setPickupSearch}
-                        onLocationSelect={(location) => {
-                          setPickup(location.address);
-                          setPickupCoords({
-                            lat: location.lat,
-                            lng: location.lng,
-                          });
-                          setPickupSearch(location.address);
+                  {/* إظهار موقع الانطلاق المحدد */}
+                  {pickupCoords && pickup ? (
+                    <div className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/30 rounded-xl">
+                      <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-green-600 font-medium">
+                          موقع الانطلاق
+                        </p>
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {pickup}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-green-600 hover:text-green-700"
+                        onClick={() => {
+                          setShowMapPicker(true);
+                          setMapPickerMode("pickup");
                         }}
-                        type="pickup"
-                        userLocation={userLocation}
-                        className="w-full"
-                      />
+                      >
+                        تغيير
+                      </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="shrink-0"
-                      onClick={() => openLocationSheet("pickup_only")}
-                    >
-                      <MapPin className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <LocationSearchInput
+                          placeholder="ابحث عن موقع الانطلاق..."
+                          value={pickupSearch}
+                          onChange={setPickupSearch}
+                          onLocationSelect={(location) => {
+                            setPickup(location.address);
+                            setPickupCoords({
+                              lat: location.lat,
+                              lng: location.lng,
+                            });
+                            setPickupSearch(location.address);
+                          }}
+                          type="pickup"
+                          userLocation={userLocation}
+                          className="w-full"
+                        />
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => openLocationSheet("pickup_only")}
+                      >
+                        <MapPin className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Dropoff Location Search */}
@@ -1329,7 +1367,13 @@ const RiderHomeCustom: React.FC = () => {
         <Suspense fallback={<MapSkeleton />}>
           <MapLocationPicker
             isOpen={showMapPicker}
-            onClose={() => setShowMapPicker(false)}
+            onClose={() => {
+              setShowMapPicker(false);
+              // إظهار واجهة البحث إذا تم تحديد موقع الانطلاق
+              if (pickupCoords) {
+                setShowSearchOverlay(true);
+              }
+            }}
             type={mapPickerMode}
             onConfirm={handleMapPickerConfirm}
             onPickupConfirmed={handlePickupConfirmedInMap}
