@@ -139,7 +139,7 @@ const RiderHomeCustom: React.FC = () => {
   const [showBookingPanel, setShowBookingPanel] = useState(false);
   const [showLocationSheet, setShowLocationSheet] = useState(false);
   const [locationSheetField, setLocationSheetField] = useState<'pickup' | 'dropoff' | 'pickup_only' | null>(null);
-  const [showMapPicker, setShowMapPicker] = useState(true);
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [mapPickerMode, setMapPickerMode] = useState<'pickup' | 'dropoff'>('pickup');
   const [isBooking, setIsBooking] = useState(false);
   const [showPaymentSheet, setShowPaymentSheet] = useState(false);
@@ -156,13 +156,13 @@ const RiderHomeCustom: React.FC = () => {
       if (initialPickupCoords) {
         setPickupCoords(initialPickupCoords);
         setPickup(initialPickup || '');
-        setShowSearchOverlay(false); // Hide search overlay since we have a location
+        setShowSearchOverlay(false);
       }
-    } else {
-      // If no state provided (direct access), redirect to welcome page to set initial location
-      navigate('/rider', { replace: true });
+    } else if (!pickupCoords) {
+      // If no state provided, try to get current location instead of redirecting
+      getCurrentLocation();
     }
-  }, [location.state, navigate]);
+  }, [location.state]);
 
   // Hooks - only enable when needed
   const {
@@ -307,11 +307,35 @@ const RiderHomeCustom: React.FC = () => {
     }, error => {
       console.error('Geolocation error:', error);
       setIsLocating(false);
+      
+      let title = "⚠️ تعذر تحديد الموقع";
+      let description = "";
+      
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          description = "الرجاء السماح بالوصول للموقع من إعدادات المتصفح";
+          break;
+        case error.POSITION_UNAVAILABLE:
+          description = "موقعك غير متوفر حالياً. حدد الموقع على الخريطة";
+          setShowMapPicker(true);
+          setMapPickerMode('pickup');
+          break;
+        case error.TIMEOUT:
+          description = "انتهت مهلة تحديد الموقع. حدد الموقع على الخريطة";
+          setShowMapPicker(true);
+          setMapPickerMode('pickup');
+          break;
+        default:
+          description = "حدث خطأ. حدد الموقع على الخريطة";
+          setShowMapPicker(true);
+          setMapPickerMode('pickup');
+      }
+      
       toast({
-        title: "⚠️ تعذر تحديد الموقع",
-        description: "السماح بالوصول للموقع مطلوب",
+        title,
+        description,
         variant: "locationError" as any,
-        duration: 3000
+        duration: 4000
       });
     }, {
       enableHighAccuracy: true,
@@ -359,15 +383,18 @@ const RiderHomeCustom: React.FC = () => {
         pickup,
         pickupCoords
       });
-      // Use setTimeout to ensure state updates before showing panel
-      setTimeout(() => {
-        console.log('⏰ Opening booking panel after state update');
-        setShowBookingPanel(true);
-      }, 0);
     }
     setShowSearchOverlay(false);
     setShowLocationSheet(false);
   }, [selectingStopId, intermediateStops, pickup, pickupCoords]);
+
+  // Auto-open booking panel when dropoff is set
+  useEffect(() => {
+    if (dropoff && dropoffCoords && !showWaitingScreen && !showLiveTracker && !selectingStopId) {
+      console.log('⏰ Opening booking panel - dropoff is set');
+      setShowBookingPanel(true);
+    }
+  }, [dropoff, dropoffCoords, showWaitingScreen, showLiveTracker, selectingStopId]);
 
   // Handle pickup selection from saved places
   const handlePickupSelectFromSaved = useCallback((address: string, coords: {
@@ -464,6 +491,7 @@ const RiderHomeCustom: React.FC = () => {
 
   // Book ride
   const handleBookRide = async () => {
+    // 1. Check authentication
     if (!user) {
       toast({
         title: "يجب تسجيل الدخول",
@@ -473,6 +501,19 @@ const RiderHomeCustom: React.FC = () => {
       navigate('/auth?redirect=/rider-1custom');
       return;
     }
+
+    // 2. Check if there's already an active ride
+    if (activeRide && activeRide.status !== 'completed' && activeRide.status !== 'cancelled') {
+      toast({
+        title: "لديك رحلة نشطة",
+        description: "الرجاء إنهاء الرحلة الحالية قبل حجز رحلة جديدة",
+        variant: "destructive"
+      });
+      setShowWaitingScreen(true);
+      return;
+    }
+
+    // 3. Check locations
     if (!pickupCoords || !dropoffCoords) {
       toast({
         title: "معلومات ناقصة",
@@ -481,6 +522,28 @@ const RiderHomeCustom: React.FC = () => {
       });
       return;
     }
+
+    // 4. Check fare
+    const totalFare = fareBreakdown?.total_fare || 0;
+    if (totalFare <= 0) {
+      toast({
+        title: "خطأ في حساب السعر",
+        description: "الرجاء إعادة المحاولة",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // 5. Check nearby drivers
+    if (nearbyDriversCount === 0) {
+      toast({
+        title: "لا يوجد سائقون متاحون",
+        description: "لا يوجد سائقون في منطقتك حالياً. جرّب مرة أخرى بعد قليل",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsBooking(true);
     try {
       const {
