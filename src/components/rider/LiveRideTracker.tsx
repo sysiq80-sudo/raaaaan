@@ -819,17 +819,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
               </div>
             </div>
 
-            {/* Rider confirms arrival at destination */}
-            {ride.status === 'in_progress' && (
-              <Button
-                className="w-full h-14 text-lg bg-green-600 hover:bg-green-700"
-                onClick={handleRiderArrived}
-              >
-                <CheckCircle className="w-5 h-5 ml-2" />
-                🏁 وصلت إلى وجهتي
-              </Button>
-            )}
-
             {/* Cancel Ride Button */}
             {['pending', 'accepted'].includes(ride.status) && (
               <>

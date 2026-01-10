@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Bell, MapPin, Search, Navigation, X, ArrowLeft, Locate, Wallet, CreditCard, Banknote, Settings } from 'lucide-react';
+import { Menu, Bell, MapPin, Search, Navigation, X, ArrowLeft, Locate, Wallet, CreditCard, Banknote, Settings, CheckCircle2, Clock, Car, AlertCircle, Route } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -137,6 +138,7 @@ const RiderHomeCustom: React.FC = () => {
   const [showSideMenu, setShowSideMenu] = useState(false);
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
   const [showBookingPanel, setShowBookingPanel] = useState(false);
+  const [showBookingConfirmation, setShowBookingConfirmation] = useState(false);
   const [showLocationSheet, setShowLocationSheet] = useState(false);
   const [locationSheetField, setLocationSheetField] = useState<'pickup' | 'dropoff' | 'pickup_only' | null>(null);
   const [showMapPicker, setShowMapPicker] = useState(false);
@@ -898,8 +900,39 @@ const RiderHomeCustom: React.FC = () => {
                   <PaymentMethodBadge method={paymentMethod} onClick={() => setShowPaymentSheet(true)} />
                 </div>
 
+                {/* Trip Summary */}
+                <div className="bg-muted/50 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Route className="w-4 h-4 text-primary" />
+                    <span>ملخص الرحلة</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="text-center p-2 bg-background rounded-lg">
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
+                        <Navigation className="w-3 h-3" />
+                        <span className="text-xs">المسافة</span>
+                      </div>
+                      <p className="font-bold text-sm">{routeDistance ? `${routeDistance.toFixed(1)} كم` : '---'}</p>
+                    </div>
+                    <div className="text-center p-2 bg-background rounded-lg">
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
+                        <Clock className="w-3 h-3" />
+                        <span className="text-xs">الوقت</span>
+                      </div>
+                      <p className="font-bold text-sm">{routeDuration ? `${Math.round(routeDuration)} د` : '---'}</p>
+                    </div>
+                    <div className="text-center p-2 bg-background rounded-lg">
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
+                        <Car className="w-3 h-3" />
+                        <span className="text-xs">سائقون</span>
+                      </div>
+                      <p className="font-bold text-sm text-green-600">{nearbyDriversCount || 0}</p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Book Button */}
-                <Button className="w-full h-14 text-lg font-bold" size="lg" onClick={handleBookRide} disabled={isBooking || fareLoading}>
+                <Button className="w-full h-14 text-lg font-bold" size="lg" onClick={() => setShowBookingConfirmation(true)} disabled={isBooking || fareLoading || nearbyDriversCount === 0}>
                   {isBooking ? <span className="flex items-center gap-2">
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       جاري الحجز...
@@ -967,6 +1000,91 @@ const RiderHomeCustom: React.FC = () => {
       {showSideMenu && <Suspense fallback={null}>
           <RiderSideMenu user={user} isOpen={showSideMenu} onClose={() => setShowSideMenu(false)} onLogout={handleLogout} />
         </Suspense>}
+
+      {/* Booking Confirmation Dialog */}
+      <Dialog open={showBookingConfirmation} onOpenChange={setShowBookingConfirmation}>
+        <DialogContent className="max-w-sm mx-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <CheckCircle2 className="w-5 h-5 text-primary" />
+              تأكيد الحجز
+            </DialogTitle>
+            <DialogDescription className="text-right">
+              يرجى مراجعة تفاصيل الرحلة قبل التأكيد
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Route Info */}
+            <div className="space-y-3 bg-muted/50 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-3 h-3 rounded-full bg-green-500 mt-1.5" />
+                <div className="flex-1">
+                  <p className="text-xs text-muted-foreground">من</p>
+                  <p className="font-medium text-sm">{pickup || 'موقعي الحالي'}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-3 h-3 rounded-full bg-red-500 mt-1.5" />
+                <div className="flex-1">
+                  <p className="text-xs text-muted-foreground">إلى</p>
+                  <p className="font-medium text-sm">{dropoff}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Trip Details */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-muted/30 rounded-lg p-2">
+                <p className="text-xs text-muted-foreground">المسافة</p>
+                <p className="font-bold">{routeDistance?.toFixed(1) || '---'} كم</p>
+              </div>
+              <div className="bg-muted/30 rounded-lg p-2">
+                <p className="text-xs text-muted-foreground">الوقت</p>
+                <p className="font-bold">{routeDuration ? Math.round(routeDuration) : '---'} د</p>
+              </div>
+              <div className="bg-muted/30 rounded-lg p-2">
+                <p className="text-xs text-muted-foreground">السعر</p>
+                <p className="font-bold text-primary">{fareBreakdown?.total_fare?.toLocaleString() || '---'}</p>
+              </div>
+            </div>
+
+            {/* Vehicle & Payment */}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">نوع المركبة:</span>
+              <span className="font-medium">{selectedVehicle === 'economy' ? 'اقتصادي' : selectedVehicle === 'comfort' ? 'مريح' : selectedVehicle === 'premium' ? 'فاخر' : 'نسائي'}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">طريقة الدفع:</span>
+              <span className="font-medium">{paymentMethod === 'cash' ? 'نقداً' : paymentMethod === 'wallet' ? 'المحفظة' : paymentMethod === 'card' ? 'بطاقة' : paymentMethod}</span>
+            </div>
+
+            {/* Drivers Available */}
+            {nearbyDriversCount > 0 && (
+              <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
+                <Car className="w-4 h-4" />
+                <span>{nearbyDriversCount} سائق متاح في منطقتك</span>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setShowBookingConfirmation(false)} className="flex-1">
+              تعديل
+            </Button>
+            <Button onClick={() => { setShowBookingConfirmation(false); handleBookRide(); }} disabled={isBooking} className="flex-1">
+              {isBooking ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  جاري...
+                </span>
+              ) : (
+                'تأكيد الحجز'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Bottom Navigation - Hidden in split screen layout */}
       {/* {!showBookingPanel && !showWaitingScreen && (
