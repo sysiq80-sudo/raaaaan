@@ -60,6 +60,28 @@
 |---------|---------|--------|
 | Leaked Password Protection معطل | 🟡 متوسط | يتطلب تفعيل يدوي |
 
+### 🔧 إصلاحات تمت (يناير 2026)
+
+| الإصلاح | الملف | الوصف |
+|---------|-------|-------|
+| ✅ MapPicker initial state | RiderHomeCustom.tsx | تغيير من true إلى false |
+| ✅ Navigation loop fix | RiderHomeCustom.tsx | استبدال navigate بـ getCurrentLocation |
+| ✅ GPS error handling | RiderHomeCustom.tsx | إضافة switch/case لجميع أكواد الخطأ |
+| ✅ setTimeout replacement | RiderHomeCustom.tsx | استبدال بـ useEffect |
+| ✅ Booking validations | RiderHomeCustom.tsx | 5 تحققات قبل الحجز |
+| ✅ حذف زر وصلت للوجهة | LiveRideTracker.tsx | الوظيفة للسائق فقط |
+
+### 🐛 سجل الأخطاء وحلولها
+
+| الخطأ | السبب | الحل | التاريخ |
+|-------|-------|------|---------|
+| MapPicker يفتح تلقائياً | `useState(true)` في showMapPicker | تغيير إلى `useState(false)` | 2026-01-10 |
+| حلقة navigation لانهائية | استدعاء `navigate()` في useEffect | استبدال بـ `getCurrentLocation()` | 2026-01-10 |
+| أخطاء GPS غير مفهومة | عدم معالجة كل أكواد الخطأ | إضافة switch/case شامل | 2026-01-10 |
+| Booking panel لا يظهر | setTimeout بدون انتظار الحالة | استبدال بـ useEffect | 2026-01-10 |
+| حجز بدون تحقق | عدم وجود validations | إضافة 5 تحققات | 2026-01-10 |
+| راكب يؤكد الوصول | زر للراكب بدلاً من السائق | حذف الزر من واجهة الراكب | 2026-01-10 |
+
 ---
 
 ## المرحلة 1: إصلاحات عاجلة 🔴
