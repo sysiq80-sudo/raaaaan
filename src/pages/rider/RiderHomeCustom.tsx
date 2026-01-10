@@ -446,13 +446,7 @@ const RiderHomeCustom: React.FC = () => {
         lng: number;
       }
     ) => {
-      console.log("🎯 handleDestinationSelect called with:", {
-        address,
-        coords,
-      });
-
       if (selectingStopId) {
-        console.log("📍 Updating intermediate stop:", selectingStopId);
         const updatedStops = intermediateStops.map((stop) =>
           stop.id === selectingStopId
             ? {
@@ -465,22 +459,14 @@ const RiderHomeCustom: React.FC = () => {
         setIntermediateStops(updatedStops);
         setSelectingStopId(null);
       } else {
-        console.log("📍 Setting dropoff location:", { address, coords });
         setDropoff(address);
         setDropoffCoords(coords);
         setDropoffSearch(address);
-        console.log("✅ Dropoff updated:", { address, coords });
-        console.log("📊 State after setting dropoff:", {
-          dropoff: address,
-          dropoffCoords: coords,
-          pickup,
-          pickupCoords,
-        });
       }
       setShowSearchOverlay(false);
       setShowLocationSheet(false);
     },
-    [selectingStopId, intermediateStops, pickup, pickupCoords]
+    [selectingStopId, intermediateStops]
   );
 
   // Auto-open booking panel when dropoff is set
@@ -492,7 +478,6 @@ const RiderHomeCustom: React.FC = () => {
       !showLiveTracker &&
       !selectingStopId
     ) {
-      console.log("⏰ Opening booking panel - dropoff is set");
       setShowBookingPanel(true);
     }
   }, [
@@ -529,10 +514,8 @@ const RiderHomeCustom: React.FC = () => {
         lng: number;
       }
     ) => {
-      console.log("🎯 handlePickupSelect called with:", { address, coords });
       setPickup(address);
       setPickupCoords(coords);
-      console.log("✅ Pickup saved:", { address, coords });
       setShowLocationSheet(false);
     },
     []
@@ -572,27 +555,16 @@ const RiderHomeCustom: React.FC = () => {
       address: string;
       inService?: boolean;
     }) => {
-      console.log("🎯 MapPicker dropoff confirmed:", location);
-      console.log("📊 Location received from MapPicker:", {
-        address: location.address,
-        lat: location.lat,
-        lng: location.lng,
-        inService: location.inService,
-      });
-
       // Set dropoff directly - لتجنب مشاكل الـ callback dependencies
-      console.log("📍 Setting dropoff location directly");
       setDropoff(location.address);
       setDropoffCoords({ lat: location.lat, lng: location.lng });
       setDropoffSearch(location.address);
 
       // فتح لوحة الحجز مباشرة
       setShowBookingPanel(true);
-      console.log("✅ Dropoff set and booking panel opened");
 
       // Close picker after a small delay to ensure state updates
       setTimeout(() => {
-        console.log("❌ Closing map picker");
         setShowMapPicker(false);
         setMapPickerMode("pickup"); // Reset mode for next time
       }, 100);
@@ -603,7 +575,6 @@ const RiderHomeCustom: React.FC = () => {
   // Handle pickup confirmed in map picker (without closing)
   const handlePickupConfirmedInMap = useCallback(
     (location: { lat: number; lng: number; address: string }) => {
-      console.log("✅ Pickup location confirmed");
       handlePickupSelect(location.address, {
         lat: location.lat,
         lng: location.lng,
@@ -1094,14 +1065,7 @@ const RiderHomeCustom: React.FC = () => {
 
         {/* Booking Panel */}
         <AnimatePresence>
-          {(() => {
-            console.log("🔍 Checking booking panel condition:", {
-              showBookingPanel,
-              dropoffCoords: !!dropoffCoords,
-              shouldShow: showBookingPanel && !!dropoffCoords,
-            });
-            return showBookingPanel && dropoffCoords;
-          })() && (
+          {showBookingPanel && dropoffCoords && (
             <motion.div
               initial={{
                 opacity: 0,
@@ -1345,10 +1309,10 @@ const RiderHomeCustom: React.FC = () => {
       <SmartNotifications
         notifications={notifications}
         onNotificationAction={(id, action) => {
-          console.log("Notification action:", id, action);
+          // Handle notification action
         }}
         onNotificationDismiss={(id) => {
-          console.log("Notification dismissed:", id);
+          // Handle notification dismiss
         }}
         position="top"
         maxVisible={3}
