@@ -32,6 +32,8 @@ export const useActiveRide = (userId: string | null) => {
   const [pendingRideId, setPendingRideId] = useState<string | null>(null);
   const [showWaitingScreen, setShowWaitingScreen] = useState(false);
   const [showLiveTracker, setShowLiveTracker] = useState(false);
+  const [completedRide, setCompletedRide] = useState<ActiveRide | null>(null);
+  const [showCompletedScreen, setShowCompletedScreen] = useState(false);
   const previousStatusRef = useRef<string | null>(null);
 
   // Helper to parse ride data
@@ -67,6 +69,20 @@ export const useActiveRide = (userId: string | null) => {
       );
 
       if (newStatus === "cancelled" || newStatus === "completed") {
+        // حفظ الرحلة المكتملة قبل مسحها لعرض شاشة التقييم
+        if (newStatus === "completed") {
+          const completedRideData = parseRideData(updatedRide);
+          setCompletedRide(completedRideData);
+          setShowCompletedScreen(true);
+          playSound("completed");
+          vibrate(VibrationPatterns.inProgress);
+          toast({
+            title: "🎉 تمت الرحلة بنجاح!",
+            description: "شكراً لاستخدامك ران - يرجى تقييم السائق",
+            duration: 5000,
+          });
+        }
+
         setActiveRide(null);
         setShowLiveTracker(false);
         setShowWaitingScreen(false);
@@ -273,6 +289,12 @@ export const useActiveRide = (userId: string | null) => {
     previousStatusRef.current = null;
   }, []);
 
+  // Function لإغلاق شاشة التقييم بعد إتمام التقييم
+  const clearCompletedRide = useCallback(() => {
+    setCompletedRide(null);
+    setShowCompletedScreen(false);
+  }, []);
+
   return {
     activeRide,
     setActiveRide,
@@ -282,6 +304,9 @@ export const useActiveRide = (userId: string | null) => {
     setShowWaitingScreen,
     showLiveTracker,
     setShowLiveTracker,
+    completedRide,
+    showCompletedScreen,
+    clearCompletedRide,
     clearActiveRide,
     refreshRide: checkActiveRide,
   };

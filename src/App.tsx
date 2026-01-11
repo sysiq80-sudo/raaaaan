@@ -79,6 +79,7 @@ import AdminWalletRequests from "./pages/admin/AdminWalletRequests";
 import AdminSMSLogs from "./pages/admin/AdminSMSLogs";
 import AdminDriverVisibility from "./pages/admin/AdminDriverVisibility";
 import DriverRegistrationSettings from "./pages/admin/DriverRegistrationSettings";
+import AdminRiderWaitSettings from "./pages/admin/AdminRiderWaitSettings";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -123,12 +124,12 @@ const App = () => (
               }
             />
 
-            {/* Rider Routes */}
+            {/* Main Rider Route - Go Page */}
             <Route
               path="/rider"
               element={
                 <ErrorBoundary>
-                  <RiderHomeWelcome />
+                  <GoPage />
                 </ErrorBoundary>
               }
             />
@@ -236,6 +237,7 @@ const App = () => (
                 </ErrorBoundary>
               }
             />
+            {/* Alternative route for GoPage (same content as /rider) */}
             <Route
               path="/go"
               element={
@@ -597,6 +599,14 @@ const App = () => (
               element={
                 <ErrorBoundary>
                   <DriverRegistrationSettings />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/rider-wait-settings"
+              element={
+                <ErrorBoundary>
+                  <AdminRiderWaitSettings />
                 </ErrorBoundary>
               }
             />

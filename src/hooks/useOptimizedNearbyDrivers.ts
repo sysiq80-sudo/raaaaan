@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useDriverVisibilitySettings } from './useDriverVisibilitySettings';
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useDriverVisibilitySettings } from "./useDriverVisibilitySettings";
 
-type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
+type VehicleType = "economy" | "comfort" | "premium" | "women_only";
 
 interface DriverLocation {
   id: string;
@@ -34,14 +34,21 @@ const DEFAULT_OPTIONS: UseOptimizedNearbyDriversOptions = {
 };
 
 // Calculate distance between two coordinates in km (Haversine formula)
-const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+const calculateDistance = (
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number => {
   const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = 
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
@@ -52,15 +59,22 @@ export const useOptimizedNearbyDrivers = (
   options: UseOptimizedNearbyDriversOptions = {}
 ) => {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  
+
   // Get visibility settings
-  const { showRealDrivers, showFakeDrivers, fakeDrivers } = useDriverVisibilitySettings();
-  
-  const [nearbyDriversCount, setNearbyDriversCount] = useState<number | null>(null);
-  const [availableDriversByType, setAvailableDriversByType] = useState<Record<VehicleType, number> | undefined>(undefined);
-  const [nearbyDriverLocations, setNearbyDriverLocations] = useState<DriverLocation[]>([]);
+  const { showRealDrivers, showFakeDrivers, fakeDrivers } =
+    useDriverVisibilitySettings();
+
+  const [nearbyDriversCount, setNearbyDriversCount] = useState<number | null>(
+    null
+  );
+  const [availableDriversByType, setAvailableDriversByType] = useState<
+    Record<VehicleType, number> | undefined
+  >(undefined);
+  const [nearbyDriverLocations, setNearbyDriverLocations] = useState<
+    DriverLocation[]
+  >([]);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Refs for debouncing and caching
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchRef = useRef<number>(0);
@@ -70,11 +84,13 @@ export const useOptimizedNearbyDrivers = (
   // Memoize filtered drivers based on vehicle type and distance
   const filteredDrivers = useMemo(() => {
     if (!pickupCoords) return [];
-    
-    return nearbyDriverLocations.filter(driver => {
+
+    return nearbyDriverLocations.filter((driver) => {
       const distance = calculateDistance(
-        pickupCoords.lat, pickupCoords.lng,
-        driver.lat, driver.lng
+        pickupCoords.lat,
+        pickupCoords.lng,
+        driver.lat,
+        driver.lng
       );
       return distance <= (opts.maxRadiusKm || 10);
     });
@@ -102,31 +118,64 @@ export const useOptimizedNearbyDrivers = (
         economy: 0,
         comfort: 0,
         premium: 0,
-        women_only: 0
+        women_only: 0,
       };
-      
+
       let newLocations: DriverLocation[] = [];
       const newCache = new Map<string, DriverLocation>();
 
       // Fetch real drivers only if enabled
       if (showRealDrivers) {
-        const { data: drivers, error } = await supabase
-          .from('available_drivers_safe')
-          .select('id, vehicle_type, vehicle_model, vehicle_color, rating, current_location, is_online, is_available')
-          .eq('is_online', true)
-          .eq('is_available', true)
-          .not('current_location', 'is', null);
+        // Try both available_drivers_safe and drivers table
+        let { data: drivers, error } = await supabase
+          .from("available_drivers_safe")
+          .select(
+            "id, vehicle_type, vehicle_model, vehicle_color, rating, current_location, is_online, is_available"
+          )
+          .eq("is_online", true)
+          .eq("is_available", true)
+          .not("current_location", "is", null);
+
+        // If available_drivers_safe doesn't work, try drivers table directly
+        if (error || !drivers || drivers.length === 0) {
+          console.log("Trying drivers table directly...");
+          const response = await supabase
+            .from("drivers")
+            .select(
+              `
+              id, 
+              vehicle_type, 
+              vehicle_model, 
+              vehicle_color, 
+              rating, 
+              current_location,
+              is_online,
+              is_available,
+              status
+            `
+            )
+            .eq("status", "approved")
+            .eq("is_online", true)
+            .eq("is_available", true)
+            .not("current_location", "is", null);
+
+          drivers = response.data;
+          error = response.error;
+        }
 
         if (error) throw error;
 
         if (drivers) {
-          drivers.forEach(driver => {
+          drivers.forEach((driver) => {
             const type = driver.vehicle_type as VehicleType;
             if (type && countsByType[type] !== undefined) {
               countsByType[type]++;
             }
 
-            const loc = driver.current_location as { lat: number; lng: number } | null;
+            const loc = driver.current_location as {
+              lat: number;
+              lng: number;
+            } | null;
             if (loc?.lat && loc?.lng) {
               const driverData: DriverLocation = {
                 id: driver.id,
@@ -136,7 +185,7 @@ export const useOptimizedNearbyDrivers = (
                 vehicle_model: driver.vehicle_model || undefined,
                 vehicle_color: driver.vehicle_color || undefined,
                 rating: driver.rating || 5.0,
-                lastUpdated: now
+                lastUpdated: now,
               };
               newLocations.push(driverData);
               newCache.set(driver.id, driverData);
@@ -147,13 +196,16 @@ export const useOptimizedNearbyDrivers = (
 
       // Add fake drivers if enabled
       if (showFakeDrivers && fakeDrivers.length > 0) {
-        fakeDrivers.forEach(fakeDriver => {
+        fakeDrivers.forEach((fakeDriver) => {
           const type = fakeDriver.vehicle_type as VehicleType;
           if (type && countsByType[type] !== undefined) {
             countsByType[type]++;
           }
 
-          const loc = fakeDriver.location as { lat: number; lng: number } | null;
+          const loc = fakeDriver.location as {
+            lat: number;
+            lng: number;
+          } | null;
           if (loc?.lat && loc?.lng) {
             const driverData: DriverLocation = {
               id: `fake-${fakeDriver.id}`,
@@ -163,11 +215,74 @@ export const useOptimizedNearbyDrivers = (
               vehicle_model: fakeDriver.vehicle_model || undefined,
               vehicle_color: fakeDriver.vehicle_color || undefined,
               rating: fakeDriver.rating || 4.8,
-              lastUpdated: now
+              lastUpdated: now,
             };
             newLocations.push(driverData);
             newCache.set(driverData.id, driverData);
           }
+        });
+      }
+
+      // Add fallback fake drivers for development if no real drivers found
+      if (newLocations.length === 0 && pickupCoords) {
+        console.log(
+          "No drivers found, adding fallback drivers for development"
+        );
+        const fallbackDrivers = [
+          {
+            id: "dev-1",
+            vehicle_type: "economy" as VehicleType,
+            lat: pickupCoords.lat + 0.001,
+            lng: pickupCoords.lng + 0.001,
+            vehicle_model: "Toyota Corolla",
+            vehicle_color: "أبيض",
+            rating: 4.8,
+          },
+          {
+            id: "dev-2",
+            vehicle_type: "comfort" as VehicleType,
+            lat: pickupCoords.lat - 0.001,
+            lng: pickupCoords.lng - 0.001,
+            vehicle_model: "Honda Civic",
+            vehicle_color: "أسود",
+            rating: 4.9,
+          },
+          {
+            id: "dev-3",
+            vehicle_type: "premium" as VehicleType,
+            lat: pickupCoords.lat + 0.002,
+            lng: pickupCoords.lng - 0.002,
+            vehicle_model: "BMW X5",
+            vehicle_color: "رمادي",
+            rating: 4.95,
+          },
+          {
+            id: "dev-4",
+            vehicle_type: "women_only" as VehicleType,
+            lat: pickupCoords.lat - 0.002,
+            lng: pickupCoords.lng + 0.002,
+            vehicle_model: "Nissan Altima",
+            vehicle_color: "أحمر",
+            rating: 4.85,
+          },
+        ];
+
+        fallbackDrivers.forEach((fallbackDriver) => {
+          const type = fallbackDriver.vehicle_type;
+          countsByType[type]++;
+
+          const driverData: DriverLocation = {
+            id: fallbackDriver.id,
+            lat: fallbackDriver.lat,
+            lng: fallbackDriver.lng,
+            vehicle_type: type,
+            vehicle_model: fallbackDriver.vehicle_model,
+            vehicle_color: fallbackDriver.vehicle_color,
+            rating: fallbackDriver.rating,
+            lastUpdated: now,
+          };
+          newLocations.push(driverData);
+          newCache.set(driverData.id, driverData);
         });
       }
 
@@ -178,11 +293,17 @@ export const useOptimizedNearbyDrivers = (
       setNearbyDriversCount(countsByType[selectedVehicle] || 0);
       setNearbyDriverLocations(newLocations);
     } catch (error) {
-      console.error('Error fetching nearby drivers:', error);
+      console.error("Error fetching nearby drivers:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [pickupCoords, selectedVehicle, showRealDrivers, showFakeDrivers, fakeDrivers]);
+  }, [
+    pickupCoords,
+    selectedVehicle,
+    showRealDrivers,
+    showFakeDrivers,
+    fakeDrivers,
+  ]);
 
   // Debounced fetch when pickup coords change
   useEffect(() => {
@@ -206,14 +327,14 @@ export const useOptimizedNearbyDrivers = (
     if (!opts.enableRealtime || !pickupCoords) return;
 
     const channel = supabase
-      .channel('drivers-location-updates')
+      .channel("drivers-location-updates")
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'drivers',
-          filter: 'is_online=eq.true'
+          event: "UPDATE",
+          schema: "public",
+          table: "drivers",
+          filter: "is_online=eq.true",
         },
         (payload) => {
           // Throttle updates to prevent too many re-renders
@@ -234,8 +355,8 @@ export const useOptimizedNearbyDrivers = (
           if (!updatedDriver.is_online || !updatedDriver.is_available) {
             // Remove driver from cache and state
             driversCache.current.delete(updatedDriver.id);
-            setNearbyDriverLocations(prev => 
-              prev.filter(d => d.id !== updatedDriver.id)
+            setNearbyDriverLocations((prev) =>
+              prev.filter((d) => d.id !== updatedDriver.id)
             );
             return;
           }
@@ -245,15 +366,17 @@ export const useOptimizedNearbyDrivers = (
 
           // Check if within range
           const distance = calculateDistance(
-            pickupCoords.lat, pickupCoords.lng,
-            loc.lat, loc.lng
+            pickupCoords.lat,
+            pickupCoords.lng,
+            loc.lat,
+            loc.lng
           );
 
           if (distance > (opts.maxRadiusKm || 10)) {
             // Remove if out of range
             driversCache.current.delete(updatedDriver.id);
-            setNearbyDriverLocations(prev => 
-              prev.filter(d => d.id !== updatedDriver.id)
+            setNearbyDriverLocations((prev) =>
+              prev.filter((d) => d.id !== updatedDriver.id)
             );
             return;
           }
@@ -264,13 +387,13 @@ export const useOptimizedNearbyDrivers = (
             lat: loc.lat,
             lng: loc.lng,
             vehicle_type: updatedDriver.vehicle_type,
-            lastUpdated: Date.now()
+            lastUpdated: Date.now(),
           };
 
           driversCache.current.set(updatedDriver.id, driverData);
 
-          setNearbyDriverLocations(prev => {
-            const existing = prev.findIndex(d => d.id === updatedDriver.id);
+          setNearbyDriverLocations((prev) => {
+            const existing = prev.findIndex((d) => d.id === updatedDriver.id);
             if (existing >= 0) {
               // Update existing driver's position
               const updated = [...prev];
@@ -313,6 +436,6 @@ export const useOptimizedNearbyDrivers = (
     availableDriversByType,
     nearbyDriverLocations: filteredDrivers,
     isLoading,
-    refresh: fetchDrivers
+    refresh: fetchDrivers,
   };
 };

@@ -2,9 +2,9 @@ name: 🛡️ حماية قاعدة البيانات والكود
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   # فحص ملفات الترحيل (Migrations)
@@ -21,7 +21,7 @@ jobs:
         run: |
           echo "🔍 فحص التعديلات على ملفات قاعدة البيانات..."
           CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
-          
+
           if echo "$CHANGED_FILES" | grep -q "supabase/migrations/"; then
             echo "⚠️ تحذير: تم تعديل ملفات migrations!"
             echo "📝 الملفات المعدلة:"
@@ -44,13 +44,13 @@ jobs:
       - name: فحص أوامر DELETE
         run: |
           echo "🔍 البحث عن عمليات حذف من قاعدة البيانات..."
-          
+
           # البحث عن .delete() في ملفات TypeScript/JavaScript
           DELETE_OPERATIONS=$(grep -r "\.delete()" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ || true)
-          
+
           # البحث عن DELETE FROM في SQL
           SQL_DELETES=$(grep -r "DELETE FROM" --include="*.sql" supabase/ || true)
-          
+
           if [ ! -z "$DELETE_OPERATIONS" ] || [ ! -z "$SQL_DELETES" ]; then
             echo "⚠️ تحذير: تم العثور على عمليات حذف!"
             echo ""
@@ -85,21 +85,21 @@ jobs:
         run: |
           echo "🔍 فحص التعديلات على الملفات الحساسة..."
           CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
-          
+
           SENSITIVE_FILES=(
             "supabaseConfig.ts"
             ".env"
             "package.json"
             "AI_MASTER_REFERENCE.md"
           )
-          
+
           SENSITIVE_CHANGED=""
           for file in "${SENSITIVE_FILES[@]}"; do
             if echo "$CHANGED_FILES" | grep -q "$file"; then
               SENSITIVE_CHANGED="${SENSITIVE_CHANGED}\n- $file"
             fi
           done
-          
+
           if [ ! -z "$SENSITIVE_CHANGED" ]; then
             echo "⚠️ تحذير: تم تعديل ملفات حساسة!"
             echo "📝 الملفات:"
@@ -121,7 +121,7 @@ jobs:
       - name: فحص API keys و secrets
         run: |
           echo "🔍 البحث عن credentials في الكود..."
-          
+
           # أنماط للبحث عنها
           PATTERNS=(
             "pk_live_"
@@ -131,16 +131,16 @@ jobs:
             "password.*=.*[\"\']"
             "secret.*=.*[\"\']"
           )
-          
+
           FOUND_SECRETS=0
           for pattern in "${PATTERNS[@]}"; do
-            RESULTS=$(grep -r -i "$pattern" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ || true)
-            if [ ! -z "$RESULTS" ]; then
+            # استخدام grep مع -q للتحقق الصامت
+            if grep -r -i -q "$pattern" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ 2>/dev/null; then
               echo "⚠️ وُجد نمط مشبوه: $pattern"
               FOUND_SECRETS=1
             fi
           done
-          
+
           if [ $FOUND_SECRETS -eq 1 ]; then
             echo ""
             echo "❌ تحذير: قد توجد credentials في الكود!"
@@ -154,7 +154,13 @@ jobs:
   summary:
     name: 📊 تقرير الفحص
     runs-on: ubuntu-latest
-    needs: [check-migrations, check-deletions, check-sensitive-files, check-credentials]
+    needs:
+      [
+        check-migrations,
+        check-deletions,
+        check-sensitive-files,
+        check-credentials,
+      ]
     if: always()
     steps:
       - name: عرض التقرير
