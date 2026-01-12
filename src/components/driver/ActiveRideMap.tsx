@@ -7,14 +7,14 @@ interface ActiveRideMapProps {
   driverLocation: { lat: number; lng: number } | null;
   pickupLocation: { lat: number; lng: number };
   dropoffLocation: { lat: number; lng: number };
-  rideStatus: 'accepted' | 'arrived' | 'in_progress';
+  rideStatus: "accepted" | "arrived" | "in_progress";
 }
 
-export const ActiveRideMap = ({ 
-  driverLocation, 
-  pickupLocation, 
+export const ActiveRideMap = ({
+  driverLocation,
+  pickupLocation,
   dropoffLocation,
-  rideStatus 
+  rideStatus,
 }: ActiveRideMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -23,10 +23,14 @@ export const ActiveRideMap = ({
   const dropoffMarker = useRef<mapboxgl.Marker | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{
+    distance: string;
+    duration: string;
+  } | null>(null);
 
   // Get target location based on ride status
-  const targetLocation = rideStatus === 'in_progress' ? dropoffLocation : pickupLocation;
+  const targetLocation =
+    rideStatus === "in_progress" ? dropoffLocation : pickupLocation;
 
   // Initialize map
   useEffect(() => {
@@ -40,9 +44,9 @@ export const ActiveRideMap = ({
         const response = await fetch(
           "https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token"
         );
-        
+
         if (!response.ok) throw new Error("فشل في تحميل الخريطة");
-        
+
         const data = await response.json();
         if (!data?.token) throw new Error("فشل في تحميل الخريطة");
 
@@ -55,7 +59,7 @@ export const ActiveRideMap = ({
           style: "mapbox://styles/mapbox/streets-v12",
           center: [center.lng, center.lat],
           zoom: 14,
-          attributionControl: false
+          attributionControl: false,
         });
 
         map.current.on("load", () => {
@@ -65,7 +69,6 @@ export const ActiveRideMap = ({
             fetchAndDrawRoute();
           }
         });
-
       } catch (err: any) {
         console.error("Map init error:", err);
         setError(err.message || "فشل في تحميل الخريطة");
@@ -83,7 +86,7 @@ export const ActiveRideMap = ({
   // Update markers when locations change
   useEffect(() => {
     if (!map.current || loading) return;
-    
+
     updateDriverMarker();
     if (driverLocation) {
       fetchAndDrawRoute();
@@ -108,7 +111,7 @@ export const ActiveRideMap = ({
         </div>
       </div>
     `;
-    
+
     pickupMarker.current = new mapboxgl.Marker({ element: pickupEl })
       .setLngLat([pickupLocation.lng, pickupLocation.lat])
       .addTo(map.current);
@@ -128,7 +131,7 @@ export const ActiveRideMap = ({
         </div>
       </div>
     `;
-    
+
     dropoffMarker.current = new mapboxgl.Marker({ element: dropoffEl })
       .setLngLat([dropoffLocation.lng, dropoffLocation.lat])
       .addTo(map.current);
@@ -161,7 +164,7 @@ export const ActiveRideMap = ({
           <div class="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
         </div>
       `;
-      
+
       driverMarker.current = new mapboxgl.Marker({ element: driverEl })
         .setLngLat([driverLocation.lng, driverLocation.lat])
         .addTo(map.current);
@@ -172,7 +175,7 @@ export const ActiveRideMap = ({
     if (!map.current) return;
 
     const bounds = new mapboxgl.LngLatBounds();
-    
+
     if (driverLocation) {
       bounds.extend([driverLocation.lng, driverLocation.lat]);
     }
@@ -181,7 +184,7 @@ export const ActiveRideMap = ({
 
     map.current.fitBounds(bounds, {
       padding: { top: 60, bottom: 60, left: 40, right: 40 },
-      duration: 1000
+      duration: 1000,
     });
   };
 
@@ -196,7 +199,7 @@ export const ActiveRideMap = ({
       if (!response.ok) return;
 
       const data = await response.json();
-      
+
       if (data.routes && data.routes[0]) {
         const route = data.routes[0];
         const coords = route.geometry.coordinates;
@@ -206,60 +209,62 @@ export const ActiveRideMap = ({
         const durationMin = Math.round(route.duration / 60);
         setRouteInfo({
           distance: `${distanceKm} كم`,
-          duration: `${durationMin} د`
+          duration: `${durationMin} د`,
         });
 
-        // Remove existing route layer
-        if (map.current.getLayer('route')) {
-          map.current.removeLayer('route');
-          map.current.removeSource('route');
+        // Remove existing route layers and source (order is important!)
+        if (map.current.getLayer("route-glow")) {
+          map.current.removeLayer("route-glow");
         }
-        if (map.current.getLayer('route-glow')) {
-          map.current.removeLayer('route-glow');
+        if (map.current.getLayer("route")) {
+          map.current.removeLayer("route");
+        }
+        if (map.current.getSource("route")) {
+          map.current.removeSource("route");
         }
 
         // Add route to map
-        map.current.addSource('route', {
-          type: 'geojson',
+        map.current.addSource("route", {
+          type: "geojson",
           data: {
-            type: 'Feature',
+            type: "Feature",
             properties: {},
             geometry: {
-              type: 'LineString',
-              coordinates: coords
-            }
-          }
+              type: "LineString",
+              coordinates: coords,
+            },
+          },
         });
 
         // Glow effect
         map.current.addLayer({
-          id: 'route-glow',
-          type: 'line',
-          source: 'route',
+          id: "route-glow",
+          type: "line",
+          source: "route",
           layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
+            "line-join": "round",
+            "line-cap": "round",
           },
           paint: {
-            'line-color': rideStatus === 'in_progress' ? '#ef4444' : '#22c55e',
-            'line-width': 10,
-            'line-opacity': 0.3
-          }
+            "line-color": rideStatus === "in_progress" ? "#ef4444" : "#22c55e",
+            "line-width": 10,
+            "line-opacity": 0.3,
+          },
         });
 
         // Main route line
         map.current.addLayer({
-          id: 'route',
-          type: 'line',
-          source: 'route',
+          id: "route",
+          type: "line",
+          source: "route",
           layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
+            "line-join": "round",
+            "line-cap": "round",
           },
           paint: {
-            'line-color': rideStatus === 'in_progress' ? '#ef4444' : '#22c55e',
-            'line-width': 5
-          }
+            "line-color": rideStatus === "in_progress" ? "#ef4444" : "#22c55e",
+            "line-width": 5,
+          },
         });
 
         // Fit bounds to include route
@@ -267,7 +272,7 @@ export const ActiveRideMap = ({
         coords.forEach((coord: [number, number]) => bounds.extend(coord));
         map.current.fitBounds(bounds, {
           padding: { top: 80, bottom: 80, left: 50, right: 50 },
-          duration: 1000
+          duration: 1000,
         });
       }
     } catch (err) {
@@ -293,27 +298,39 @@ export const ActiveRideMap = ({
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       )}
-      
+
       <div ref={mapContainer} className="absolute inset-0" />
-      
+
       {/* Route Info Overlay */}
       {routeInfo && (
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
           <div className="bg-card/95 backdrop-blur shadow-lg px-4 py-2 rounded-xl flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <Navigation className={`w-4 h-4 ${rideStatus === 'in_progress' ? 'text-red-500' : 'text-green-500'}`} />
-              <span className="font-bold text-foreground">{routeInfo.distance}</span>
+              <Navigation
+                className={`w-4 h-4 ${
+                  rideStatus === "in_progress"
+                    ? "text-red-500"
+                    : "text-green-500"
+                }`}
+              />
+              <span className="font-bold text-foreground">
+                {routeInfo.distance}
+              </span>
             </div>
             <div className="w-px h-5 bg-border" />
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-muted-foreground" />
-              <span className="font-bold text-foreground">{routeInfo.duration}</span>
+              <span className="font-bold text-foreground">
+                {routeInfo.duration}
+              </span>
             </div>
           </div>
-          <div className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white ${
-            rideStatus === 'in_progress' ? 'bg-red-500' : 'bg-green-500'
-          }`}>
-            {rideStatus === 'in_progress' ? 'للوجهة' : 'للعميل'}
+          <div
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white ${
+              rideStatus === "in_progress" ? "bg-red-500" : "bg-green-500"
+            }`}
+          >
+            {rideStatus === "in_progress" ? "للوجهة" : "للعميل"}
           </div>
         </div>
       )}

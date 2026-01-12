@@ -46,11 +46,16 @@ if not exist ".env" (
     echo.
 )
 
+:: الحصول على عنوان IP الفعلي للشبكة
+for /f "tokens=2 delims=:" %%i in ('ipconfig ^| findstr /c:"IPv4 Address"') do set NETWORK_IP=%%i
+
 echo 🚀 بدء تشغيل التطبيق...
 echo.
 echo ================================================
 echo    سيتم فتح التطبيق في المتصفح تلقائياً
-echo    الرابط: http://localhost:5173
+echo.
+echo    الرابط المحلي: http://localhost:8081
+echo    الرابط على الشبكة: http://%NETWORK_IP%:8081
 echo.
 echo    للإيقاف: اضغط Ctrl+C
 echo ================================================

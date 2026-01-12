@@ -74,6 +74,7 @@ const DriverHome = () => {
   const [rating, setRating] = useState(5.0);
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [adminActivated, setAdminActivated] = useState(true);
+  const [maxPickupRadius, setMaxPickupRadius] = useState(10);
 
   // Enable real-time notifications for new rides
   const { notificationPermission, requestNotificationPermission } =
@@ -228,7 +229,7 @@ const DriverHome = () => {
     const { data, error } = await supabase
       .from("drivers")
       .select(
-        "id, vehicle_type, is_online, rating, status, full_name, phone, current_location, vehicle_image_url, license_image_url, profile_image_url, vehicle_model, vehicle_plate, admin_activated"
+        "id, vehicle_type, is_online, rating, status, full_name, phone, current_location, vehicle_image_url, license_image_url, profile_image_url, vehicle_model, vehicle_plate, admin_activated, max_pickup_radius"
       )
       .eq("user_id", userId)
       .maybeSingle();
@@ -250,6 +251,8 @@ const DriverHome = () => {
         vehicle_type: data.vehicle_type,
         profile_image_url: data.profile_image_url,
         is_online: data.is_online,
+        max_pickup_radius: data.max_pickup_radius,
+        admin_activated: data.admin_activated,
       });
 
       setIsDriverRegistered(true);
@@ -261,6 +264,9 @@ const DriverHome = () => {
       setDriverPhone(data.phone ?? null);
       setDriverProfileImage(data.profile_image_url ?? null);
       setAdminActivated(data.admin_activated !== false);
+      setMaxPickupRadius(data.max_pickup_radius || 10);
+
+      console.log("🎯 Max Pickup Radius set to:", data.max_pickup_radius || 10);
 
       // Check if profile is complete
       const profileComplete = !!(
@@ -656,6 +662,7 @@ const DriverHome = () => {
                 vehicleType={vehicleType}
                 isOnline={isOnline}
                 driverLocation={currentLocation}
+                maxPickupRadius={maxPickupRadius}
                 onRideAccepted={() => {
                   console.log(
                     "[DriverHome] Ride accepted, ActiveRideCard will update via subscription"

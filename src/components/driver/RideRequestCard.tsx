@@ -4,7 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Clock, Wallet, X, Check, Loader2, Timer, Car } from "lucide-react";
+import {
+  MapPin,
+  Clock,
+  Wallet,
+  X,
+  Check,
+  Loader2,
+  Timer,
+  Car,
+} from "lucide-react";
 
 interface PendingRide {
   id: string;
@@ -26,6 +35,7 @@ interface RideRequestCardProps {
   isOnline: boolean;
   driverLocation?: { lat: number; lng: number } | null;
   onRideAccepted?: () => void;
+  maxPickupRadius?: number;
 }
 
 const getLocationString = (location: unknown): string => {
@@ -57,13 +67,15 @@ export const RideRequestCard = ({
   isOnline,
   driverLocation,
   onRideAccepted,
+  maxPickupRadius = 10,
 }: RideRequestCardProps) => {
   const { toast } = useToast();
   const [pendingRide, setPendingRide] = useState<PendingRide | null>(null);
   const [loading, setLoading] = useState(false);
-  const [actionType, setActionType] = useState<"accept" | "reject" | null>(null);
+  const [actionType, setActionType] = useState<"accept" | "reject" | null>(
+    null
+  );
   const [timeLeft, setTimeLeft] = useState(30);
-  const [maxSearchRadius, setMaxSearchRadius] = useState<number>(10);
   const [debugMode, setDebugMode] = useState(false);
 
   const canDriverServeRide = useCallback(
@@ -71,33 +83,17 @@ export const RideRequestCard = ({
       if (!driverType) return true;
       if (driverType === "women_only") return rideType === "women_only";
       if (rideType === "women_only") return driverType === "women_only";
-      const typeHierarchy: Record<string, number> = { economy: 1, comfort: 2, premium: 3 };
+      const typeHierarchy: Record<string, number> = {
+        economy: 1,
+        comfort: 2,
+        premium: 3,
+      };
       const d = typeHierarchy[driverType] || 1;
       const r = typeHierarchy[rideType] || 1;
       return d >= r;
     },
     []
   );
-
-  useEffect(() => {
-    const fetchSettings = async () => {
-      const { data } = await supabase
-        .from("app_settings")
-        .select("value")
-        .eq("key", "max_search_radius")
-        .single();
-      if (data?.value) {
-        const value =
-          typeof data.value === "number"
-            ? data.value
-            : typeof data.value === "string"
-            ? parseInt(data.value as string)
-            : 10;
-        setMaxSearchRadius(value || 10);
-      }
-    };
-    fetchSettings();
-  }, []);
 
   const fetchPendingRides = useCallback(async () => {
     if (!isOnline) {
@@ -106,31 +102,48 @@ export const RideRequestCard = ({
     }
     try {
       if (driverLocation) {
-        const radii = [Math.max(3, Math.min(5, maxSearchRadius)), 10, 20];
-        let found: any = null;
-        for (const radius of radii) {
-          const { data, error } = await supabase.rpc("get_nearby_pending_rides", {
-            driver_lat: driverLocation.lat,
-            driver_lng: driverLocation.lng,
-            max_radius_km: radius,
-            driver_vehicle_type: (vehicleType || "economy") as
-              | "economy"
-              | "comfort"
-              | "premium"
-              | "women_only",
-          });
-          if (!error && data && data.length > 0) {
-            found = data[0];
-            setMaxSearchRadius(radius);
-            break;
-          }
-        }
-        if (found) {
-          const ride = found;
+        // استخدم نطاق السائق المحدد فقط
+        console.log("🔍 [RideRequestCard] Searching for rides:", {
+          driver_lat: driverLocation.lat,
+          driver_lng: driverLocation.lng,
+          max_radius_km: maxPickupRadius,
+          driver_vehicle_type: vehicleType || "economy",
+        });
+
+        const { data, error } = await supabase.rpc("get_nearby_pending_rides", {
+          driver_lat: driverLocation.lat,
+          driver_lng: driverLocation.lng,
+          max_radius_km: maxPickupRadius,
+          driver_vehicle_type: (vehicleType || "economy") as
+            | "economy"
+            | "comfort"
+            | "premium"
+            | "women_only",
+        });
+
+        console.log("📦 [RideRequestCard] RPC Result:", {
+          data,
+          error,
+          count: data?.length || 0,
+        });
+
+        if (!error && data && data.length > 0) {
+          console.log(
+            "✅ [RideRequestCard] Found ride, creating newRide object..."
+          );
+          const ride = data[0];
+          console.log("📄 [RideRequestCard] Raw ride data:", ride);
+
           const newRide: PendingRide = {
             id: ride.id,
-            pickup_location: ride.pickup_location as { lat: number; lng: number },
-            dropoff_location: ride.dropoff_location as { lat: number; lng: number },
+            pickup_location: ride.pickup_location as {
+              lat: number;
+              lng: number;
+            },
+            dropoff_location: ride.dropoff_location as {
+              lat: number;
+              lng: number;
+            },
             pickup_address: ride.pickup_address,
             dropoff_address: ride.dropoff_address,
             estimated_fare: ride.estimated_fare,
@@ -140,38 +153,20 @@ export const RideRequestCard = ({
             created_at: ride.created_at,
             rider_id: ride.rider_id || "",
           };
+          console.log("🎉 [RideRequestCard] Setting pendingRide:", newRide);
           setPendingRide(newRide);
           setTimeLeft(30);
-          return;
-        }
-        const { data: fbData, error: fbError } = await supabase
-          .from("rides")
-          .select("*")
-          .eq("status", "pending")
-          .is("driver_id", null)
-          .order("created_at", { ascending: true })
-          .limit(3);
-        if (!fbError && fbData && fbData.length > 0) {
-          const candidate =
-            fbData.find((r: any) => canDriverServeRide(vehicleType, r.vehicle_type || "economy")) || fbData[0];
-          const newRide: PendingRide = {
-            id: candidate.id,
-            pickup_location: candidate.pickup_location as { lat: number; lng: number },
-            dropoff_location: candidate.dropoff_location as { lat: number; lng: number },
-            pickup_address: candidate.pickup_address,
-            dropoff_address: candidate.dropoff_address,
-            estimated_fare: candidate.estimated_fare,
-            distance_km: candidate.distance_km ? Number(candidate.distance_km) : null,
-            duration_minutes: candidate.duration_minutes,
-            vehicle_type: candidate.vehicle_type || "economy",
-            created_at: candidate.created_at,
-            rider_id: candidate.rider_id || "",
-          };
-          setPendingRide(newRide);
-          setTimeLeft(30);
-          return;
+          console.log("✅ [RideRequestCard] Ride set successfully!");
+        } else {
+          console.log("❌ [RideRequestCard] No rides found or error occurred");
+          // لا طلبات ضمن النطاق
+          setPendingRide(null);
         }
       } else {
+        // Fallback: ابحث عن أي طلب معلق إذا لم يكن هناك موقع سائق
+        console.log(
+          "🔄 [RideRequestCard] No driver location, using fallback query"
+        );
         const { data, error } = await supabase
           .from("rides")
           .select("*")
@@ -181,12 +176,21 @@ export const RideRequestCard = ({
           .limit(1);
         if (!error && data && data.length > 0) {
           const ride = data[0];
-          const canServe = canDriverServeRide(vehicleType, ride.vehicle_type || "economy");
+          const canServe = canDriverServeRide(
+            vehicleType,
+            ride.vehicle_type || "economy"
+          );
           if (canServe) {
             const newRide: PendingRide = {
               id: ride.id,
-              pickup_location: ride.pickup_location as { lat: number; lng: number },
-              dropoff_location: ride.dropoff_location as { lat: number; lng: number },
+              pickup_location: ride.pickup_location as {
+                lat: number;
+                lng: number;
+              },
+              dropoff_location: ride.dropoff_location as {
+                lat: number;
+                lng: number;
+              },
               pickup_address: ride.pickup_address,
               dropoff_address: ride.dropoff_address,
               estimated_fare: ride.estimated_fare,
@@ -207,19 +211,37 @@ export const RideRequestCard = ({
       console.error("[RideRequestCard] Error fetching rides:", error);
       setPendingRide(null);
     }
-  }, [isOnline, vehicleType, driverLocation, maxSearchRadius, canDriverServeRide]);
+  }, [
+    isOnline,
+    vehicleType,
+    driverLocation,
+    maxPickupRadius,
+    canDriverServeRide,
+  ]);
 
   useEffect(() => {
+    console.log("🔄 [RideRequestCard] useEffect triggered:", {
+      isOnline,
+      hasPendingRide: !!pendingRide,
+      hasLocation: !!driverLocation,
+      maxPickupRadius,
+      vehicleType,
+    });
+
     if (!isOnline) {
+      console.log("❌ [RideRequestCard] Driver is offline, skipping fetch");
       setPendingRide(null);
       return;
     }
+
+    console.log("▶️ [RideRequestCard] Calling fetchPendingRides...");
     fetchPendingRides();
     const pollInterval = setInterval(() => {
-      if (!pendingRide) fetchPendingRides();
+      console.log("🔁 [RideRequestCard] Polling for new rides...");
+      fetchPendingRides();
     }, 5000);
     return () => clearInterval(pollInterval);
-  }, [isOnline, pendingRide, fetchPendingRides]);
+  }, [isOnline, fetchPendingRides]);
 
   // Countdown timer effect
   useEffect(() => {
@@ -251,7 +273,11 @@ export const RideRequestCard = ({
       onRideAccepted?.();
       setPendingRide(null);
     } catch (e: any) {
-      toast({ title: "خطأ", description: e?.message || "تم قبول الطلب من سائق آخر", variant: "destructive" });
+      toast({
+        title: "خطأ",
+        description: e?.message || "تم قبول الطلب من سائق آخر",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
       setActionType(null);
@@ -275,6 +301,13 @@ export const RideRequestCard = ({
     setActionType(null);
   };
 
+  console.log("🖼️ [RideRequestCard] Render check:", {
+    isOnline,
+    hasPendingRide: !!pendingRide,
+    pendingRideId: pendingRide?.id,
+    willShowCard: isOnline && !!pendingRide,
+  });
+
   if (!isOnline || !pendingRide) {
     if (isOnline && !pendingRide) {
       return (
@@ -285,19 +318,29 @@ export const RideRequestCard = ({
                 <Clock className="w-6 h-6 text-orange-500" />
               </div>
             </div>
-            <h3 className="text-base font-bold text-foreground mb-2">بحث عن الطلبات...</h3>
+            <h3 className="text-base font-bold text-foreground mb-2">
+              بحث عن الطلبات...
+            </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              {driverLocation ? "لا توجد طلبات متاحة بالقرب منك حالياً" : "تفعيل الموقع لرؤية الطلبات المتاحة"}
+              {driverLocation
+                ? "لا توجد طلبات متاحة بالقرب منك حالياً"
+                : "تفعيل الموقع لرؤية الطلبات المتاحة"}
             </p>
             {debugMode && (
               <div className="mt-4 p-3 bg-muted rounded-lg text-xs text-left text-muted-foreground space-y-1">
-                <div>📍 الموقع: {driverLocation ? getLocationString(driverLocation) : "معطل"}</div>
+                <div>
+                  📍 الموقع:{" "}
+                  {driverLocation ? getLocationString(driverLocation) : "معطل"}
+                </div>
                 <div>🚗 نوع السيارة: {vehicleType || "غير محدد"}</div>
                 <div>📡 حالة الاتصال: {isOnline ? "متصل" : "غير متصل"}</div>
-                <div>🎯 نطاق البحث: {maxSearchRadius} كم</div>
+                <div>🎯 نطاق استقبال الطلبات: {maxPickupRadius} كم</div>
               </div>
             )}
-            <button onClick={() => setDebugMode(!debugMode)} className="mt-3 text-xs text-muted-foreground hover:text-foreground underline">
+            <button
+              onClick={() => setDebugMode(!debugMode)}
+              className="mt-3 text-xs text-muted-foreground hover:text-foreground underline"
+            >
               {debugMode ? "إخفاء التفاصيل" : "عرض التفاصيل"}
             </button>
           </div>
@@ -312,7 +355,9 @@ export const RideRequestCard = ({
       <div className="bg-primary px-4 pt-4 pb-3">
         <div className="h-1 bg-white/30 rounded-full overflow-hidden mb-3">
           <div
-            className={`h-full rounded-full transition-all duration-1000 ${timeLeft <= 10 ? "bg-red-400" : "bg-white"}`}
+            className={`h-full rounded-full transition-all duration-1000 ${
+              timeLeft <= 10 ? "bg-red-400" : "bg-white"
+            }`}
             style={{ width: `${(timeLeft / 30) * 100}%` }}
           />
         </div>
@@ -331,18 +376,26 @@ export const RideRequestCard = ({
             <CardContent className="p-3">
               <div className="flex items-center gap-2">
                 <Wallet className="w-4 h-4 text-primary" />
-                <span className="text-xs text-muted-foreground">الأجرة المتوقعة</span>
+                <span className="text-xs text-muted-foreground">
+                  الأجرة المتوقعة
+                </span>
               </div>
-              <div className="mt-2 text-xl font-bold text-foreground">{pendingRide.estimated_fare ?? "-"} د.ع</div>
+              <div className="mt-2 text-xl font-bold text-foreground">
+                {pendingRide.estimated_fare ?? "-"} د.ع
+              </div>
             </CardContent>
           </Card>
           <Card className="border border-border">
             <CardContent className="p-3">
               <div className="flex items-center gap-2">
                 <Car className="w-4 h-4 text-primary" />
-                <span className="text-xs text-muted-foreground">نوع السيارة</span>
+                <span className="text-xs text-muted-foreground">
+                  نوع السيارة
+                </span>
               </div>
-              <div className="mt-2 text-sm font-bold text-foreground">{getVehicleTypeName(pendingRide.vehicle_type)}</div>
+              <div className="mt-2 text-sm font-bold text-foreground">
+                {getVehicleTypeName(pendingRide.vehicle_type)}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -363,15 +416,21 @@ export const RideRequestCard = ({
               </div>
               <div className="flex-1 min-w-0 space-y-3">
                 <div>
-                  <p className="text-[10px] text-green-600 dark:text-green-400 font-semibold mb-0.5">نقطة الانطلاق</p>
+                  <p className="text-[10px] text-green-600 dark:text-green-400 font-semibold mb-0.5">
+                    نقطة الانطلاق
+                  </p>
                   <p className="text-xs text-foreground line-clamp-2 leading-relaxed">
-                    {pendingRide.pickup_address || getLocationString(pendingRide.pickup_location)}
+                    {pendingRide.pickup_address ||
+                      getLocationString(pendingRide.pickup_location)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-red-600 dark:text-red-400 font-semibold mb-0.5">الوجهة</p>
+                  <p className="text-[10px] text-red-600 dark:text-red-400 font-semibold mb-0.5">
+                    الوجهة
+                  </p>
                   <p className="text-xs text-foreground line-clamp-2 leading-relaxed">
-                    {pendingRide.dropoff_address || getLocationString(pendingRide.dropoff_location)}
+                    {pendingRide.dropoff_address ||
+                      getLocationString(pendingRide.dropoff_location)}
                   </p>
                 </div>
               </div>
