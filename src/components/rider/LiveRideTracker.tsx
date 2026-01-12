@@ -16,7 +16,7 @@ import { ChatButton } from '@/components/ride/RideChat';
 import { useBroadcastChannel } from '@/hooks/useBroadcastChannel';
 import { playSound, vibrate, VibrationPatterns, showNotification, requestNotificationPermission } from '@/utils/rideNotificationSounds';
 import { calculateLocalDistance } from '@/lib/mapUtils';
-import { X, Loader2, Shield, CheckCircle, Clock, MapPin, Edit2 } from 'lucide-react';
+import { X, Loader2, Shield, CheckCircle, Clock, MapPin, Edit2, Car } from 'lucide-react';
 
 interface Ride {
   id: string;
