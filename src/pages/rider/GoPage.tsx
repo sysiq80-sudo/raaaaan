@@ -465,7 +465,7 @@ const GoPage: React.FC = () => {
             duration_minutes: completedRide.duration_minutes,
             driver_id: completedRide.driver_id,
           }}
-          driverName={completedRide.driver?.full_name || "السائق"}
+          driverName={"السائق"}
           onClose={handleRideCompletion}
         />
       </Suspense>
@@ -505,8 +505,12 @@ const GoPage: React.FC = () => {
       <Suspense fallback={<ScreenSkeleton />}>
         <LiveRideTracker
           ride={activeRide}
-          onRideCompleted={resetBooking}
-          onRideCancelled={resetBooking}
+          onClose={resetBooking}
+          onRideUpdate={(updatedRide) => {
+            if (updatedRide.status === "completed" || updatedRide.status === "cancelled") {
+              resetBooking();
+            }
+          }}
         />
       </Suspense>
     );

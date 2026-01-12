@@ -363,8 +363,8 @@ const RiderRides = () => {
         pickupAddress={trackingRide.pickup_address || "موقع الانطلاق"}
         dropoffAddress={trackingRide.dropoff_address || "الوجهة"}
         estimatedFare={trackingRide.estimated_fare || 0}
-        onCancel={async () => {
-          await handleCancelRide(trackingRide.id);
+        onCancel={() => {
+          handleCancelRide(trackingRide.id);
           setTrackingRide(null);
         }}
         onDriverFound={() => {
