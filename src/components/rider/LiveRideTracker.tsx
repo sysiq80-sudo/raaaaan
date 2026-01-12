@@ -667,32 +667,48 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
 
-      {/* Header */}
-      <header className="flex items-center justify-between p-4 glass">
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X className="w-5 h-5" />
+      {/* Header with Logo, Title, and Close Button */}
+      <header className="flex items-center justify-between p-4 bg-card/20 backdrop-blur-xl border-b border-border/30 shadow-lg">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onClose}
+          className="hover:bg-destructive/10 transition-all hover:scale-110"
+        >
+          <X className="w-6 h-6 text-destructive" />
         </Button>
-        <h1 className="font-bold">تتبع الرحلة</h1>
+        
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
+            <Car className="w-5 h-5 text-primary-foreground" />
+          </div>
+          <span className="font-bold text-lg bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+            تتبع الرحلة
+          </span>
+        </div>
+
         <div className="w-10" />
       </header>
 
       {/* Progress Stepper - hidden during in_progress */}
       {ride.status !== 'in_progress' && (
-        <div className="bg-card/80 backdrop-blur-sm border-b">
+        <div className="bg-card/60 backdrop-blur-lg border-b border-border/30">
           <RideProgressStepper status={ride.status} estimatedArrival={estimatedArrival} />
         </div>
       )}
 
-      {/* Status Bar - Using new component */}
-      <RideStatusBar
-        status={ride.status}
-        estimatedArrival={estimatedArrival}
-        countdownSeconds={countdownSeconds}
-        showArrivedAlert={showArrivedAlert}
-        remainingDistance={remainingDistance}
-        onMyWay={handleOnMyWay}
-        sendQuickMessage={sendQuickMessage}
-      />
+      {/* Status Bar - Using new component with glassmorphism */}
+      <div className="bg-card/40 backdrop-blur-2xl border-b border-border/20">
+        <RideStatusBar
+          status={ride.status}
+          estimatedArrival={estimatedArrival}
+          countdownSeconds={countdownSeconds}
+          showArrivedAlert={showArrivedAlert}
+          remainingDistance={remainingDistance}
+          onMyWay={handleOnMyWay}
+          sendQuickMessage={sendQuickMessage}
+        />
+      </div>
 
       {/* Change Destination Sheet */}
       <ChangeDestinationSheet
