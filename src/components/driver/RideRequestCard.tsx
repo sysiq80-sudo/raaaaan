@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin,
   Clock,
@@ -13,6 +12,10 @@ import {
   Loader2,
   Timer,
   Car,
+  Navigation,
+  Route,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 
 interface PendingRide {
@@ -38,19 +41,6 @@ interface RideRequestCardProps {
   maxPickupRadius?: number;
 }
 
-const getLocationString = (location: unknown): string => {
-  if (
-    typeof location === "object" &&
-    location !== null &&
-    "lat" in location &&
-    "lng" in location
-  ) {
-    const loc = location as { lat: number; lng: number };
-    return `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`;
-  }
-  return "";
-};
-
 const getVehicleTypeName = (type: string) => {
   const types: Record<string, string> = {
     economy: "اقتصادي",
@@ -59,6 +49,45 @@ const getVehicleTypeName = (type: string) => {
     women_only: "نسائي",
   };
   return types[type] || type;
+};
+
+const getVehicleIcon = (type: string) => {
+  switch (type) {
+    case "premium":
+      return "🚘";
+    case "comfort":
+      return "🚗";
+    case "women_only":
+      return "👩‍💼";
+    default:
+      return "🚙";
+  }
+};
+
+// Play notification sound
+const playNotificationSound = () => {
+  try {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const playTone = (frequency: number, duration: number, startTime: number) => {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      oscillator.frequency.value = frequency;
+      oscillator.type = "sine";
+      gainNode.gain.setValueAtTime(0, startTime);
+      gainNode.gain.linearRampToValueAtTime(0.4, startTime + 0.05);
+      gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration);
+    };
+    const now = audioContext.currentTime;
+    playTone(880, 0.15, now);
+    playTone(1100, 0.15, now + 0.15);
+    playTone(1320, 0.2, now + 0.3);
+  } catch {
+    console.log("Audio not supported");
+  }
 };
 
 export const RideRequestCard = ({
@@ -72,11 +101,9 @@ export const RideRequestCard = ({
   const { toast } = useToast();
   const [pendingRide, setPendingRide] = useState<PendingRide | null>(null);
   const [loading, setLoading] = useState(false);
-  const [actionType, setActionType] = useState<"accept" | "reject" | null>(
-    null
-  );
+  const [actionType, setActionType] = useState<"accept" | "reject" | null>(null);
   const [timeLeft, setTimeLeft] = useState(30);
-  const [debugMode, setDebugMode] = useState(false);
+  const previousRideIdRef = useRef<string | null>(null);
 
   const canDriverServeRide = useCallback(
     (driverType: string | null, rideType: string): boolean => {
@@ -100,10 +127,11 @@ export const RideRequestCard = ({
       setPendingRide(null);
       return;
     }
+
     try {
+      // First try with location-based RPC if we have driver location
       if (driverLocation) {
-        // استخدم نطاق السائق المحدد فقط
-        console.log("🔍 [RideRequestCard] Searching for rides:", {
+        console.log("🔍 [RideRequestCard] Searching with location:", {
           driver_lat: driverLocation.lat,
           driver_lng: driverLocation.lng,
           max_radius_km: maxPickupRadius,
@@ -114,36 +142,15 @@ export const RideRequestCard = ({
           driver_lat: driverLocation.lat,
           driver_lng: driverLocation.lng,
           max_radius_km: maxPickupRadius,
-          driver_vehicle_type: (vehicleType || "economy") as
-            | "economy"
-            | "comfort"
-            | "premium"
-            | "women_only",
-        });
-
-        console.log("📦 [RideRequestCard] RPC Result:", {
-          data,
-          error,
-          count: data?.length || 0,
+          driver_vehicle_type: (vehicleType || "economy") as "economy" | "comfort" | "premium" | "women_only",
         });
 
         if (!error && data && data.length > 0) {
-          console.log(
-            "✅ [RideRequestCard] Found ride, creating newRide object..."
-          );
           const ride = data[0];
-          console.log("📄 [RideRequestCard] Raw ride data:", ride);
-
           const newRide: PendingRide = {
             id: ride.id,
-            pickup_location: ride.pickup_location as {
-              lat: number;
-              lng: number;
-            },
-            dropoff_location: ride.dropoff_location as {
-              lat: number;
-              lng: number;
-            },
+            pickup_location: ride.pickup_location as { lat: number; lng: number },
+            dropoff_location: ride.dropoff_location as { lat: number; lng: number },
             pickup_address: ride.pickup_address,
             dropoff_address: ride.dropoff_address,
             estimated_fare: ride.estimated_fare,
@@ -153,93 +160,111 @@ export const RideRequestCard = ({
             created_at: ride.created_at,
             rider_id: ride.rider_id || "",
           };
-          console.log("🎉 [RideRequestCard] Setting pendingRide:", newRide);
+          
+          // Play sound only for NEW rides
+          if (previousRideIdRef.current !== newRide.id) {
+            playNotificationSound();
+            if ("vibrate" in navigator) {
+              navigator.vibrate([300, 100, 300, 100, 400]);
+            }
+            previousRideIdRef.current = newRide.id;
+          }
+          
           setPendingRide(newRide);
           setTimeLeft(30);
-          console.log("✅ [RideRequestCard] Ride set successfully!");
-        } else {
-          console.log("❌ [RideRequestCard] No rides found or error occurred");
-          // لا طلبات ضمن النطاق
-          setPendingRide(null);
-        }
-      } else {
-        // Fallback: ابحث عن أي طلب معلق إذا لم يكن هناك موقع سائق
-        console.log(
-          "🔄 [RideRequestCard] No driver location, using fallback query"
-        );
-        const { data, error } = await supabase
-          .from("rides")
-          .select("*")
-          .eq("status", "pending")
-          .is("driver_id", null)
-          .order("created_at", { ascending: true })
-          .limit(1);
-        if (!error && data && data.length > 0) {
-          const ride = data[0];
-          const canServe = canDriverServeRide(
-            vehicleType,
-            ride.vehicle_type || "economy"
-          );
-          if (canServe) {
-            const newRide: PendingRide = {
-              id: ride.id,
-              pickup_location: ride.pickup_location as {
-                lat: number;
-                lng: number;
-              },
-              dropoff_location: ride.dropoff_location as {
-                lat: number;
-                lng: number;
-              },
-              pickup_address: ride.pickup_address,
-              dropoff_address: ride.dropoff_address,
-              estimated_fare: ride.estimated_fare,
-              distance_km: ride.distance_km ? Number(ride.distance_km) : null,
-              duration_minutes: ride.duration_minutes,
-              vehicle_type: ride.vehicle_type || "economy",
-              created_at: ride.created_at,
-              rider_id: ride.rider_id || "",
-            };
-            setPendingRide(newRide);
-            setTimeLeft(30);
-            return;
-          }
+          return;
         }
       }
+
+      // Fallback: Search for any pending ride that matches vehicle type
+      console.log("🔄 [RideRequestCard] Using fallback query");
+      const { data, error } = await supabase
+        .from("rides")
+        .select("*")
+        .eq("status", "pending")
+        .is("driver_id", null)
+        .order("created_at", { ascending: true })
+        .limit(1);
+
+      if (!error && data && data.length > 0) {
+        const ride = data[0];
+        const canServe = canDriverServeRide(vehicleType, ride.vehicle_type || "economy");
+        
+        if (canServe) {
+          const newRide: PendingRide = {
+            id: ride.id,
+            pickup_location: ride.pickup_location as { lat: number; lng: number },
+            dropoff_location: ride.dropoff_location as { lat: number; lng: number },
+            pickup_address: ride.pickup_address,
+            dropoff_address: ride.dropoff_address,
+            estimated_fare: ride.estimated_fare,
+            distance_km: ride.distance_km ? Number(ride.distance_km) : null,
+            duration_minutes: ride.duration_minutes,
+            vehicle_type: ride.vehicle_type || "economy",
+            created_at: ride.created_at,
+            rider_id: ride.rider_id || "",
+          };
+          
+          // Play sound only for NEW rides
+          if (previousRideIdRef.current !== newRide.id) {
+            playNotificationSound();
+            if ("vibrate" in navigator) {
+              navigator.vibrate([300, 100, 300, 100, 400]);
+            }
+            previousRideIdRef.current = newRide.id;
+          }
+          
+          setPendingRide(newRide);
+          setTimeLeft(30);
+          return;
+        }
+      }
+
       setPendingRide(null);
     } catch (error) {
       console.error("[RideRequestCard] Error fetching rides:", error);
       setPendingRide(null);
     }
-  }, [
-    isOnline,
-    vehicleType,
-    driverLocation,
-    maxPickupRadius,
-    canDriverServeRide,
-  ]);
+  }, [isOnline, vehicleType, driverLocation, maxPickupRadius, canDriverServeRide]);
 
+  // Subscribe to realtime ride insertions
   useEffect(() => {
-    console.log("🔄 [RideRequestCard] useEffect triggered:", {
-      isOnline,
-      hasPendingRide: !!pendingRide,
-      hasLocation: !!driverLocation,
-      maxPickupRadius,
-      vehicleType,
-    });
+    if (!isOnline || !driverId) return;
 
+    console.log("🔴 [RideRequestCard] Setting up realtime subscription");
+    
+    const channel = supabase
+      .channel(`ride-requests-${driverId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "rides",
+          filter: "status=eq.pending",
+        },
+        (payload) => {
+          console.log("⚡ [RideRequestCard] New ride inserted:", payload.new?.id);
+          // Immediately fetch to update UI
+          fetchPendingRides();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isOnline, driverId, fetchPendingRides]);
+
+  // Initial fetch and polling
+  useEffect(() => {
     if (!isOnline) {
-      console.log("❌ [RideRequestCard] Driver is offline, skipping fetch");
       setPendingRide(null);
       return;
     }
 
-    console.log("▶️ [RideRequestCard] Calling fetchPendingRides...");
     fetchPendingRides();
-    const pollInterval = setInterval(() => {
-      console.log("🔁 [RideRequestCard] Polling for new rides...");
-      fetchPendingRides();
-    }, 5000);
+    const pollInterval = setInterval(fetchPendingRides, 5000);
     return () => clearInterval(pollInterval);
   }, [isOnline, fetchPendingRides]);
 
@@ -250,6 +275,7 @@ export const RideRequestCard = ({
       setTimeLeft((prev) => {
         if (prev <= 1) {
           setPendingRide(null);
+          previousRideIdRef.current = null;
           fetchPendingRides();
           return 30;
         }
@@ -269,15 +295,17 @@ export const RideRequestCard = ({
         p_driver_id: driverId,
       });
       if (error) throw error;
-      toast({ title: "تم القبول", description: "تم قبول الطلب بنجاح" });
+      toast({ title: "✅ تم القبول", description: "تم قبول الطلب بنجاح" });
       onRideAccepted?.();
       setPendingRide(null);
+      previousRideIdRef.current = null;
     } catch (e: any) {
       toast({
         title: "خطأ",
         description: e?.message || "تم قبول الطلب من سائق آخر",
         variant: "destructive",
       });
+      fetchPendingRides();
     } finally {
       setLoading(false);
       setActionType(null);
@@ -296,183 +324,266 @@ export const RideRequestCard = ({
       });
     } catch {}
     setPendingRide(null);
+    previousRideIdRef.current = null;
     toast({ title: "تم التخطي", description: "سيتم عرض الطلب التالي" });
     setLoading(false);
     setActionType(null);
+    fetchPendingRides();
   };
 
-  console.log("🖼️ [RideRequestCard] Render check:", {
-    isOnline,
-    hasPendingRide: !!pendingRide,
-    pendingRideId: pendingRide?.id,
-    willShowCard: isOnline && !!pendingRide,
-  });
-
+  // Empty state - searching for rides
   if (!isOnline || !pendingRide) {
     if (isOnline && !pendingRide) {
       return (
-        <div className="mb-6 rounded-2xl overflow-hidden shadow-lg border-2 border-orange-400 bg-card">
-          <div className="px-4 py-6 text-center">
-            <div className="flex justify-center mb-3">
-              <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-950 flex items-center justify-center">
-                <Clock className="w-6 h-6 text-orange-500" />
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6"
+        >
+          <div className="relative overflow-hidden rounded-2xl border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 via-background to-primary/10 p-6">
+            {/* Animated background pattern */}
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 left-0 w-20 h-20 bg-primary rounded-full blur-3xl animate-pulse" />
+              <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary rounded-full blur-3xl animate-pulse delay-1000" />
+            </div>
+            
+            <div className="relative z-10 flex flex-col items-center text-center">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4"
+              >
+                <Navigation className="w-8 h-8 text-primary" />
+              </motion.div>
+              
+              <h3 className="text-lg font-bold text-foreground mb-2">
+                جاري البحث عن الطلبات...
+              </h3>
+              <p className="text-sm text-muted-foreground max-w-xs">
+                {driverLocation
+                  ? `نطاق البحث: ${maxPickupRadius} كم من موقعك الحالي`
+                  : "جاري تحديد موقعك..."}
+              </p>
+              
+              {/* Pulse animation */}
+              <div className="mt-4 flex items-center gap-2">
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                  className="w-2 h-2 rounded-full bg-primary"
+                />
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+                  className="w-2 h-2 rounded-full bg-primary"
+                />
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity, delay: 0.6 }}
+                  className="w-2 h-2 rounded-full bg-primary"
+                />
               </div>
             </div>
-            <h3 className="text-base font-bold text-foreground mb-2">
-              بحث عن الطلبات...
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              {driverLocation
-                ? "لا توجد طلبات متاحة بالقرب منك حالياً"
-                : "تفعيل الموقع لرؤية الطلبات المتاحة"}
-            </p>
-            {debugMode && (
-              <div className="mt-4 p-3 bg-muted rounded-lg text-xs text-left text-muted-foreground space-y-1">
-                <div>
-                  📍 الموقع:{" "}
-                  {driverLocation ? getLocationString(driverLocation) : "معطل"}
-                </div>
-                <div>🚗 نوع السيارة: {vehicleType || "غير محدد"}</div>
-                <div>📡 حالة الاتصال: {isOnline ? "متصل" : "غير متصل"}</div>
-                <div>🎯 نطاق استقبال الطلبات: {maxPickupRadius} كم</div>
-              </div>
-            )}
-            <button
-              onClick={() => setDebugMode(!debugMode)}
-              className="mt-3 text-xs text-muted-foreground hover:text-foreground underline"
-            >
-              {debugMode ? "إخفاء التفاصيل" : "عرض التفاصيل"}
-            </button>
           </div>
-        </div>
+        </motion.div>
       );
     }
     return null;
   }
 
+  // Active ride request card
   return (
-    <div className="mb-6 rounded-2xl overflow-hidden shadow-2xl border-2 border-primary">
-      <div className="bg-primary px-4 pt-4 pb-3">
-        <div className="h-1 bg-white/30 rounded-full overflow-hidden mb-3">
-          <div
-            className={`h-full rounded-full transition-all duration-1000 ${
-              timeLeft <= 10 ? "bg-red-400" : "bg-white"
-            }`}
-            style={{ width: `${(timeLeft / 30) * 100}%` }}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Timer className="w-5 h-5 text-white" />
-            <span className="text-white font-bold">{timeLeft}s</span>
-          </div>
-          <Badge className="bg-white text-primary font-bold">طلب جديد</Badge>
-        </div>
-      </div>
-
-      <div className="px-4 py-3 bg-card">
-        <div className="grid grid-cols-2 gap-3">
-          <Card className="border border-border">
-            <CardContent className="p-3">
-              <div className="flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-primary" />
-                <span className="text-xs text-muted-foreground">
-                  الأجرة المتوقعة
-                </span>
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: -20 }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        className="mb-6"
+      >
+        <div className="relative overflow-hidden rounded-3xl shadow-2xl shadow-primary/20 border-2 border-primary">
+          {/* Glowing header */}
+          <div className="relative bg-gradient-to-r from-primary via-primary to-green-500 px-5 py-4">
+            {/* Animated glow effect */}
+            <motion.div
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+            />
+            
+            <div className="relative z-10">
+              {/* Timer bar */}
+              <div className="h-1.5 bg-white/30 rounded-full overflow-hidden mb-3">
+                <motion.div
+                  initial={{ width: "100%" }}
+                  animate={{ width: `${(timeLeft / 30) * 100}%` }}
+                  className={`h-full rounded-full ${
+                    timeLeft <= 10 ? "bg-red-400" : "bg-white"
+                  }`}
+                />
               </div>
-              <div className="mt-2 text-xl font-bold text-foreground">
-                {pendingRide.estimated_fare ?? "-"} د.ع
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border border-border">
-            <CardContent className="p-3">
-              <div className="flex items-center gap-2">
-                <Car className="w-4 h-4 text-primary" />
-                <span className="text-xs text-muted-foreground">
-                  نوع السيارة
-                </span>
-              </div>
-              <div className="mt-2 text-sm font-bold text-foreground">
-                {getVehicleTypeName(pendingRide.vehicle_type)}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="bg-card rounded-xl border border-border overflow-hidden mt-3">
-          <div className="px-3 py-2 bg-muted/50 border-b border-border">
-            <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-primary" />
-              مسار الرحلة
-            </h3>
-          </div>
-          <div className="p-3">
-            <div className="flex gap-2.5">
-              <div className="flex flex-col items-center py-0.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                <div className="w-0.5 flex-1 bg-gradient-to-b from-green-500 to-red-500 my-1.5 min-h-[40px]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-              </div>
-              <div className="flex-1 min-w-0 space-y-3">
-                <div>
-                  <p className="text-[10px] text-green-600 dark:text-green-400 font-semibold mb-0.5">
-                    نقطة الانطلاق
-                  </p>
-                  <p className="text-xs text-foreground line-clamp-2 leading-relaxed">
-                    {pendingRide.pickup_address ||
-                      getLocationString(pendingRide.pickup_location)}
-                  </p>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <motion.div
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ duration: 0.5, repeat: Infinity }}
+                    className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5"
+                  >
+                    <Timer className="w-4 h-4 text-white" />
+                    <span className="text-white font-bold text-lg">{timeLeft}</span>
+                  </motion.div>
                 </div>
-                <div>
-                  <p className="text-[10px] text-red-600 dark:text-red-400 font-semibold mb-0.5">
-                    الوجهة
-                  </p>
-                  <p className="text-xs text-foreground line-clamp-2 leading-relaxed">
-                    {pendingRide.dropoff_address ||
-                      getLocationString(pendingRide.dropoff_location)}
-                  </p>
-                </div>
+                
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="flex items-center gap-2 bg-white rounded-full px-4 py-1.5"
+                >
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <span className="text-primary font-bold text-sm">طلب جديد!</span>
+                </motion.div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="px-4 py-3 bg-background border-t border-border">
-        <div className="flex gap-2.5">
-          <Button
-            variant="outline"
-            className="flex-1 h-12 text-sm border-2 border-destructive/30 text-destructive hover:bg-destructive hover:text-white hover:border-destructive rounded-xl"
-            onClick={handleReject}
-            disabled={loading}
-          >
-            {loading && actionType === "reject" ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <X className="w-4 h-4 ml-2" />
-                رفض
-              </>
+          {/* Main content */}
+          <div className="bg-card p-5">
+            {/* Fare and vehicle type */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+                className="bg-gradient-to-br from-primary/10 to-green-500/10 rounded-2xl p-4 border border-primary/20"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Wallet className="w-5 h-5 text-primary" />
+                  <span className="text-xs text-muted-foreground">الأجرة</span>
+                </div>
+                <div className="text-2xl font-bold text-primary">
+                  {pendingRide.estimated_fare?.toLocaleString() ?? "-"}
+                  <span className="text-sm font-normal mr-1">د.ع</span>
+                </div>
+              </motion.div>
+              
+              <motion.div
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-2xl p-4 border border-blue-500/20"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Car className="w-5 h-5 text-blue-500" />
+                  <span className="text-xs text-muted-foreground">النوع</span>
+                </div>
+                <div className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <span>{getVehicleIcon(pendingRide.vehicle_type)}</span>
+                  <span>{getVehicleTypeName(pendingRide.vehicle_type)}</span>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Distance and duration */}
+            {(pendingRide.distance_km || pendingRide.duration_minutes) && (
+              <motion.div
+                initial={{ y: 10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="flex items-center justify-center gap-6 mb-4 py-3 bg-muted/50 rounded-xl"
+              >
+                {pendingRide.distance_km && (
+                  <div className="flex items-center gap-2">
+                    <Route className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{pendingRide.distance_km.toFixed(1)} كم</span>
+                  </div>
+                )}
+                {pendingRide.duration_minutes && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{Math.round(pendingRide.duration_minutes)} دقيقة</span>
+                  </div>
+                )}
+              </motion.div>
             )}
-          </Button>
-          <Button
-            className="flex-1 h-12 text-sm bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/30"
-            onClick={handleAccept}
-            disabled={loading}
-          >
-            {loading && actionType === "accept" ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <Check className="w-4 h-4 ml-2" />
-                قبول
-              </>
-            )}
-          </Button>
+
+            {/* Route info */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="bg-muted/30 rounded-2xl p-4 border border-border"
+            >
+              <div className="flex gap-3">
+                <div className="flex flex-col items-center py-1">
+                  <div className="w-3 h-3 rounded-full bg-green-500 ring-4 ring-green-500/20" />
+                  <div className="w-0.5 flex-1 bg-gradient-to-b from-green-500 to-red-500 my-2 min-h-[50px]" />
+                  <div className="w-3 h-3 rounded-full bg-red-500 ring-4 ring-red-500/20" />
+                </div>
+                
+                <div className="flex-1 min-w-0 space-y-4">
+                  <div>
+                    <p className="text-xs text-green-600 dark:text-green-400 font-semibold mb-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      نقطة الانطلاق
+                    </p>
+                    <p className="text-sm text-foreground font-medium leading-relaxed">
+                      {pendingRide.pickup_address || "موقع غير محدد"}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-xs text-red-600 dark:text-red-400 font-semibold mb-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      الوجهة
+                    </p>
+                    <p className="text-sm text-foreground font-medium leading-relaxed">
+                      {pendingRide.dropoff_address || "موقع غير محدد"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="bg-background px-5 py-4 border-t border-border">
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 h-14 text-base border-2 border-red-200 dark:border-red-800 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500 rounded-xl transition-all duration-200"
+                onClick={handleReject}
+                disabled={loading}
+              >
+                {loading && actionType === "reject" ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <X className="w-5 h-5 ml-2" />
+                    رفض
+                  </>
+                )}
+              </Button>
+              
+              <Button
+                className="flex-[2] h-14 text-base bg-gradient-to-r from-primary to-green-500 hover:from-primary/90 hover:to-green-500/90 text-white font-bold rounded-xl shadow-lg shadow-primary/30 transition-all duration-200"
+                onClick={handleAccept}
+                disabled={loading}
+              >
+                {loading && actionType === "accept" ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Zap className="w-5 h-5 ml-2" />
+                    قبول الطلب
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 

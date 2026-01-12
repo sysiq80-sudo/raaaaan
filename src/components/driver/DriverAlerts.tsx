@@ -28,7 +28,7 @@ interface Alert {
 
 interface DriverAlertsProps {
   isProfileComplete: boolean;
-  notificationPermission: NotificationPermission;
+  notificationPermission: NotificationPermission | "unsupported";
   isOnline: boolean;
   adminActivated: boolean;
   driverStatus: string | null;

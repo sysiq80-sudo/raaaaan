@@ -552,6 +552,96 @@ export type Database = {
           },
         ]
       }
+      driver_registration_settings: {
+        Row: {
+          countdown_text: string
+          created_at: string
+          days_text: string
+          enable_promo: boolean
+          id: string
+          paid_activation_fee: number
+          paid_button_text: string
+          paid_challenge_bonus: number
+          paid_challenge_rides: number
+          paid_challenge_text: string
+          paid_subtitle: string
+          paid_summary_text: string
+          paid_title: string
+          paid_wallet_bonus: number
+          paid_wallet_bonus_text: string
+          paid_warning_text: string
+          promo_activation_fee: number
+          promo_activation_fee_text: string
+          promo_bonus_amount: number
+          promo_bonus_text: string
+          promo_button_text: string
+          promo_end_date: string
+          promo_subtitle: string
+          promo_title: string
+          promo_urgency_text: string
+          terms_text: string
+          updated_at: string
+        }
+        Insert: {
+          countdown_text?: string
+          created_at?: string
+          days_text?: string
+          enable_promo?: boolean
+          id?: string
+          paid_activation_fee?: number
+          paid_button_text?: string
+          paid_challenge_bonus?: number
+          paid_challenge_rides?: number
+          paid_challenge_text?: string
+          paid_subtitle?: string
+          paid_summary_text?: string
+          paid_title?: string
+          paid_wallet_bonus?: number
+          paid_wallet_bonus_text?: string
+          paid_warning_text?: string
+          promo_activation_fee?: number
+          promo_activation_fee_text?: string
+          promo_bonus_amount?: number
+          promo_bonus_text?: string
+          promo_button_text?: string
+          promo_end_date?: string
+          promo_subtitle?: string
+          promo_title?: string
+          promo_urgency_text?: string
+          terms_text?: string
+          updated_at?: string
+        }
+        Update: {
+          countdown_text?: string
+          created_at?: string
+          days_text?: string
+          enable_promo?: boolean
+          id?: string
+          paid_activation_fee?: number
+          paid_button_text?: string
+          paid_challenge_bonus?: number
+          paid_challenge_rides?: number
+          paid_challenge_text?: string
+          paid_subtitle?: string
+          paid_summary_text?: string
+          paid_title?: string
+          paid_wallet_bonus?: number
+          paid_wallet_bonus_text?: string
+          paid_warning_text?: string
+          promo_activation_fee?: number
+          promo_activation_fee_text?: string
+          promo_bonus_amount?: number
+          promo_bonus_text?: string
+          promo_button_text?: string
+          promo_end_date?: string
+          promo_subtitle?: string
+          promo_title?: string
+          promo_urgency_text?: string
+          terms_text?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       driver_subscriptions: {
         Row: {
           amount_paid: number | null
@@ -1981,6 +2071,45 @@ export type Database = {
           route_path?: string
           settings?: Json | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      rider_wait_settings: {
+        Row: {
+          auto_cancel_enabled: boolean
+          auto_cancel_message: string
+          created_at: string
+          id: string
+          max_wait_minutes: number
+          search_messages: Json
+          updated_at: string
+          updated_by: string | null
+          warning_message: string
+          warning_threshold: number
+        }
+        Insert: {
+          auto_cancel_enabled?: boolean
+          auto_cancel_message?: string
+          created_at?: string
+          id?: string
+          max_wait_minutes?: number
+          search_messages?: Json
+          updated_at?: string
+          updated_by?: string | null
+          warning_message?: string
+          warning_threshold?: number
+        }
+        Update: {
+          auto_cancel_enabled?: boolean
+          auto_cancel_message?: string
+          created_at?: string
+          id?: string
+          max_wait_minutes?: number
+          search_messages?: Json
+          updated_at?: string
+          updated_by?: string | null
+          warning_message?: string
+          warning_threshold?: number
         }
         Relationships: []
       }

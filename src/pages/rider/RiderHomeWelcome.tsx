@@ -194,7 +194,7 @@ const RiderHomeWelcome: React.FC = () => {
             onRouteCalculated={() => {}}
             selectingLocation={showMapPicker ? mapPickerMode : null}
             onLocationSelect={() => {}}
-            showUserLocation={true}
+            userLocation={pickupCoords}
           />
         </Suspense>
       </div>
@@ -299,9 +299,8 @@ const RiderHomeWelcome: React.FC = () => {
             isOpen={showSideMenu}
             onClose={() => setShowSideMenu(false)}
             user={user}
-            onNavigate={(path) => {
+            onLogout={() => {
               setShowSideMenu(false);
-              navigate(path);
             }}
           />
         )}
