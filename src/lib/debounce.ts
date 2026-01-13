@@ -22,15 +22,15 @@ export function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
  * يستخدم useCallback و useEffect
  */
 import React from "react";
-export function useDebouncedCallback<T extends (...args: unknown[]) => unknown>(
+export function useDebouncedCallback<T extends (...args: any[]) => any>(
   callback: T,
   delay: number,
-  dependencies: unknown[] | undefined = undefined
+  _dependencies: unknown[] | undefined = undefined
 ) {
-  const [debounced, setDebounced] = React.useState<T | null>(null);
+  const [debounced, setDebounced] = React.useState<((...args: Parameters<T>) => void) | null>(null);
 
   React.useEffect(() => {
-    const debouncedFunc = debounce(callback, delay) as T;
+    const debouncedFunc = debounce(callback, delay);
     setDebounced(() => debouncedFunc);
 
     return () => {

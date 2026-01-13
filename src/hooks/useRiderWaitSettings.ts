@@ -56,7 +56,7 @@ export const useRiderWaitSettings = () => {
 
       return {
         ...data,
-        search_messages: data.search_messages as SearchMessage[],
+        search_messages: (data.search_messages as unknown) as SearchMessage[],
       } as RiderWaitSettings;
     },
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes

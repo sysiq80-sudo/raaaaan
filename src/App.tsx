@@ -111,6 +111,16 @@ const App = () => (
               }
             />
 
+            {/* Rider Auth Route */}
+            <Route
+              path="/rider/auth"
+              element={
+                <ErrorBoundary>
+                  <Auth />
+                </ErrorBoundary>
+              }
+            />
+
             {/* Main Rider Route - Go Page */}
             <Route
               path="/rider"

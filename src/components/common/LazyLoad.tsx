@@ -82,18 +82,10 @@ export function createLazyComponent<T extends ComponentType<any>>(
 
 // تصدير Lazy Components الجاهزة للاستخدام
 export const LazyComponents = {
-    // Rider
-    RiderHome: createLazyComponent(
-        () => import('@/pages/rider/RiderHome'),
+    // Rider - GoPage is the main rider page now
+    GoPage: createLazyComponent(
+        () => import('@/pages/rider/GoPage'),
         'home'
-    ),
-    RiderRides: createLazyComponent(
-        () => import('@/pages/rider/RiderRides'),
-        'page'
-    ),
-    RiderSettings: createLazyComponent(
-        () => import('@/pages/rider/RiderSettings'),
-        'profile'
     ),
 
     // Heavy components

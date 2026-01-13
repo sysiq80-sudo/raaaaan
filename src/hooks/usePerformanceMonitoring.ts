@@ -148,7 +148,7 @@ export const usePerformanceMonitoring = (pageName: string) => {
     const interval = setInterval(() => {
       trackEvent("performance_report", {
         page: pageName,
-        metrics: metricsRef.current,
+        metrics_json: JSON.stringify(metricsRef.current),
       });
     }, 60000); // كل دقيقة
 

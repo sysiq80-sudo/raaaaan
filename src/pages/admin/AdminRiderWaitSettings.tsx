@@ -58,7 +58,7 @@ export default function AdminRiderWaitSettings() {
         .from("rider_wait_settings")
         .update({
           max_wait_minutes: maxWaitMinutes,
-          search_messages: searchMessages,
+          search_messages: searchMessages as unknown as import('@/integrations/supabase/types').Json,
           warning_message: warningMessage,
           warning_threshold: warningThreshold,
           auto_cancel_enabled: autoCancelEnabled,
