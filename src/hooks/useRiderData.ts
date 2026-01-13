@@ -42,54 +42,71 @@ export const useRiderData = () => {
     fetchUserData();
   }, []);
 
-  // Fetch Mapbox token
+  // Fetch Mapbox token - IMMEDIATELY on mount
   useEffect(() => {
+    let mounted = true;
+
     const fetchToken = async () => {
       try {
+        console.log("Fetching Mapbox token...");
         const response = await fetch(
           "https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token",
           { headers: { "Content-Type": "application/json" } }
         );
         const data = await response.json();
-        if (data.token) {
+        if (data.token && mounted) {
+          console.log("Mapbox token received");
           setMapToken(data.token);
         } else {
           throw new Error("No token received");
         }
       } catch (error) {
         console.error("Error fetching Mapbox token:", error);
-        toast({
-          title: "خطأ في الخريطة",
-          description: "فشل تحميل الخريطة. الرجاء إعادة المحاولة",
-          variant: "destructive",
-        });
+        // تم إلغاء التنبيه المنبثق - الحالة تظهر في الأيقونات
       }
     };
 
+    // Fetch immediately
     fetchToken();
+
+    return () => {
+      mounted = false;
+    };
   }, [toast]);
 
-  // Get user location
+  // Get user location - IMMEDIATELY on mount
   useEffect(() => {
+    let mounted = true;
+
     if (navigator.geolocation) {
+      console.log("Requesting user location...");
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
+          if (mounted) {
+            console.log(
+              "User location received:",
+              position.coords.latitude,
+              position.coords.longitude
+            );
+            setUserLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            });
+          }
         },
         (error) => {
           console.error("Geolocation error:", error);
-          toast({
-            title: "خطأ في الموقع",
-            description: "لم نتمكن من تحديد موقعك. الرجاء تفعيل خدمة الموقع",
-            variant: "destructive",
-          });
+          // تم إلغاء التنبيه المنبثق - الحالة تظهر في الأيقونات
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
+    } else {
+      console.warn("Geolocation not supported");
     }
+
+    return () => {
+      mounted = false;
+    };
   }, [toast]);
 
   return {

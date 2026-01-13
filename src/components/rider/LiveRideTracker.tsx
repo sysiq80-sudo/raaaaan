@@ -1,22 +1,47 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import FareBreakdownCard from '@/components/driver/FareBreakdownCard';
-import RideCompletedScreen from '@/components/rider/RideCompletedScreen';
-import RideProgressStepper from '@/components/rider/RideProgressStepper';
-import { EmergencyTriangleButton } from '@/components/rider/EmergencyTriangleButton';
-import { RideShareButton } from '@/components/rider/RideShareButton';
-import DriverInfoCard from '@/components/rider/DriverInfoCard';
-import RideStatusBar from '@/components/rider/RideStatusBar';
-import ChangeDestinationSheet from '@/components/rider/ChangeDestinationSheet';
-import { ChatButton } from '@/components/ride/RideChat';
-import { useBroadcastChannel } from '@/hooks/useBroadcastChannel';
-import { playSound, vibrate, VibrationPatterns, showNotification, requestNotificationPermission } from '@/utils/rideNotificationSounds';
-import { calculateLocalDistance } from '@/lib/mapUtils';
-import { X, Loader2, Shield, CheckCircle, Clock, MapPin, Edit2, Car } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import FareBreakdownCard from "@/components/driver/FareBreakdownCard";
+import RideCompletedScreen from "@/components/rider/RideCompletedScreen";
+import { EmergencyTriangleButton } from "@/components/rider/EmergencyTriangleButton";
+import { RideShareButton } from "@/components/rider/RideShareButton";
+import DriverInfoCard from "@/components/rider/DriverInfoCard";
+import RideStatusBar from "@/components/rider/RideStatusBar";
+import ChangeDestinationSheet from "@/components/rider/ChangeDestinationSheet";
+import { ChatButton } from "@/components/ride/RideChat";
+import { useBroadcastChannel } from "@/hooks/useBroadcastChannel";
+import {
+  playSound,
+  vibrate,
+  VibrationPatterns,
+  showNotification,
+  requestNotificationPermission,
+} from "@/utils/rideNotificationSounds";
+import { calculateLocalDistance } from "@/lib/mapUtils";
+import {
+  X,
+  Loader2,
+  Shield,
+  CheckCircle,
+  Clock,
+  MapPin,
+  Edit2,
+  Car,
+  Search,
+  UserCheck,
+  MapPinned,
+  Route,
+  Menu,
+  Bell,
+  Timer,
+  Navigation,
+} from "lucide-react";
+import RiderSideMenu from "@/components/rider/RiderSideMenu";
+import StatusIcons from "@/components/common/StatusIcons";
+import logo from "@/assets/logo.png";
 
 interface Ride {
   id: string;
@@ -54,7 +79,11 @@ interface LiveRideTrackerProps {
   onRideUpdate: (ride: Ride) => void;
 }
 
-const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRideUpdate }) => {
+const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
+  ride,
+  onClose,
+  onRideUpdate,
+}) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const driverMarkerRef = useRef<mapboxgl.Marker | null>(null);
@@ -70,24 +99,35 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
   const [previousStatus, setPreviousStatus] = useState<string>(ride.status);
   const [showArrivedAlert, setShowArrivedAlert] = useState(false);
   const [approachingNotified, setApproachingNotified] = useState(false);
-  const [driverApproachingNotified, setDriverApproachingNotified] = useState(false);
+  const [driverApproachingNotified, setDriverApproachingNotified] =
+    useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showDestinationChange, setShowDestinationChange] = useState(false);
-  const [remainingDistance, setRemainingDistance] = useState<number | null>(null);
-  const [routeCoordinates, setRouteCoordinates] = useState<Array<{lat: number; lng: number}>>([]);
+  const [remainingDistance, setRemainingDistance] = useState<number | null>(
+    null
+  );
+  const [routeCoordinates, setRouteCoordinates] = useState<
+    Array<{ lat: number; lng: number }>
+  >([]);
+  const [menuOpen, setMenuOpen] = useState(false);
   const { toast } = useToast();
 
   // Handle driver location update from broadcast
-  const handleDriverLocationUpdate = useCallback((location: { lat: number; lng: number }) => {
-    setDriver(prev => prev ? { ...prev, current_location: location } : null);
-    updateDriverMarker(location);
-    calculateETA(location);
-    if (ride.status === 'accepted') {
-      fetchDriverToPickupRoute(location);
-      checkDriverApproaching(location);
-    }
-  }, [ride.status]);
+  const handleDriverLocationUpdate = useCallback(
+    (location: { lat: number; lng: number }) => {
+      setDriver((prev) =>
+        prev ? { ...prev, current_location: location } : null
+      );
+      updateDriverMarker(location);
+      calculateETA(location);
+      if (ride.status === "accepted") {
+        fetchDriverToPickupRoute(location);
+        checkDriverApproaching(location);
+      }
+    },
+    [ride.status]
+  );
 
   // Use broadcast channel hook
   const { sendQuickMessage, handleRiderArrived } = useBroadcastChannel({
@@ -97,12 +137,17 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
     onDriverLocationUpdate: handleDriverLocationUpdate,
     onClose,
     setShowArrivedAlert,
-    setShowCompletedScreen
+    setShowCompletedScreen,
   });
 
   // Handle "I'm on my way" button for arrived status
   const handleOnMyWay = () => {
-    sendQuickMessage('rider_on_my_way', '✅ تم إبلاغ السائق', 'السائق يعلم أنك قادم');
+    console.log("[LiveRideTracker] Rider clicked: I'm on my way");
+    sendQuickMessage(
+      "rider_on_my_way",
+      "✅ تم إبلاغ السائق",
+      "السائق يعلم أنك قادم"
+    );
     setShowArrivedAlert(false);
   };
 
@@ -113,32 +158,32 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
 
   // Handle status changes via database updates (fallback)
   useEffect(() => {
-    if (ride.status === 'accepted' && previousStatus === 'pending') {
-      playSound('accepted');
+    if (ride.status === "accepted" && previousStatus === "pending") {
+      playSound("accepted");
       vibrate(VibrationPatterns.accepted);
 
       showNotification(
-        '🎉 تم قبول طلبك!',
-        `${driver?.full_name || 'السائق'} قَبِل طلبك وفي الطريق إليك`,
-        { tag: 'ride-accepted', duration: 8000 }
+        "🎉 تم قبول طلبك!",
+        `${driver?.full_name || "السائق"} قَبِل طلبك وفي الطريق إليك`,
+        { tag: "ride-accepted", duration: 8000 }
       );
 
       toast({
         title: "🎉 تم قبول طلبك!",
-        description: `${driver?.full_name || 'السائق'} في الطريق إليك الآن`,
+        description: `${driver?.full_name || "السائق"} في الطريق إليك الآن`,
         duration: 8000,
       });
     }
 
-    if (ride.status === 'arrived' && previousStatus !== 'arrived') {
-      playSound('arrived');
+    if (ride.status === "arrived" && previousStatus !== "arrived") {
+      playSound("arrived");
       vibrate(VibrationPatterns.arrived);
       setShowArrivedAlert(true);
 
       showNotification(
-        '🔔 السائق وصل!',
-        `${driver?.full_name || 'السائق'} وصل لموقعك - اخرج الآن`,
-        { tag: 'driver-arrived', requireInteraction: true }
+        "🔔 السائق وصل!",
+        `${driver?.full_name || "السائق"} وصل لموقعك - اخرج الآن`,
+        { tag: "driver-arrived", requireInteraction: true }
       );
 
       toast({
@@ -150,8 +195,8 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
       setTimeout(() => setShowArrivedAlert(false), 10000);
     }
 
-    if (ride.status === 'in_progress' && previousStatus === 'arrived') {
-      playSound('inProgress');
+    if (ride.status === "in_progress" && previousStatus === "arrived") {
+      playSound("inProgress");
       vibrate(VibrationPatterns.inProgress);
 
       toast({
@@ -166,7 +211,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
 
   // Show completed screen when ride is completed
   useEffect(() => {
-    if (ride.status === 'completed' && !ride.driver_rating) {
+    if (ride.status === "completed" && !ride.driver_rating) {
       setShowCompletedScreen(true);
     }
   }, [ride.status, ride.driver_rating]);
@@ -176,14 +221,14 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
     const fetchToken = async () => {
       try {
         const response = await fetch(
-          'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token'
+          "https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token"
         );
         const data = await response.json();
         if (data.token) {
           setMapToken(data.token);
         }
       } catch (error) {
-        console.error('Error fetching token:', error);
+        console.error("Error fetching token:", error);
       }
     };
     fetchToken();
@@ -195,16 +240,19 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
       if (!ride.driver_id) return;
 
       const { data, error } = await supabase
-        .from('drivers')
-        .select('*')
-        .eq('id', ride.driver_id)
+        .from("drivers")
+        .select("*")
+        .eq("id", ride.driver_id)
         .single();
 
       if (!error && data) {
         const driverData = data as any;
         setDriver({
           ...driverData,
-          current_location: driverData.current_location as { lat: number; lng: number } | null
+          current_location: driverData.current_location as {
+            lat: number;
+            lng: number;
+          } | null,
         });
       }
     };
@@ -220,39 +268,48 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
+      style: "mapbox://styles/mapbox/dark-v11",
       center: [ride.pickup_location.lng, ride.pickup_location.lat],
       zoom: 14,
       pitch: 45,
     });
 
-    map.current.on('load', () => {
+    map.current.on("load", () => {
       setIsLoading(false);
 
       // Add route source
-      map.current?.addSource('route', {
-        type: 'geojson',
-        data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } }
+      map.current?.addSource("route", {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [] },
+        },
       });
 
       // Route glow
       map.current?.addLayer({
-        id: 'route-glow',
-        type: 'line',
-        source: 'route',
-        paint: { 'line-color': '#00d9a5', 'line-width': 12, 'line-blur': 8, 'line-opacity': 0.4 }
+        id: "route-glow",
+        type: "line",
+        source: "route",
+        paint: {
+          "line-color": "#00d9a5",
+          "line-width": 12,
+          "line-blur": 8,
+          "line-opacity": 0.4,
+        },
       });
 
       // Route line
       map.current?.addLayer({
-        id: 'route',
-        type: 'line',
-        source: 'route',
-        paint: { 'line-color': '#00d9a5', 'line-width': 5, 'line-opacity': 1 }
+        id: "route",
+        type: "line",
+        source: "route",
+        paint: { "line-color": "#00d9a5", "line-width": 5, "line-opacity": 1 },
       });
 
       // Add pickup marker
-      const pickupEl = document.createElement('div');
+      const pickupEl = document.createElement("div");
       pickupEl.innerHTML = `
         <div class="flex flex-col items-center">
           <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-lg" style="background: linear-gradient(135deg, #00d9a5, #00b389);">
@@ -268,7 +325,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
         .addTo(map.current!);
 
       // Add dropoff marker (blue)
-      const dropoffEl = document.createElement('div');
+      const dropoffEl = document.createElement("div");
       dropoffEl.innerHTML = `
         <div class="flex flex-col items-center">
           <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-lg" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">
@@ -307,26 +364,35 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
 
       if (data.routes?.[0]) {
         const route = data.routes[0];
-        const source = map.current?.getSource('route') as mapboxgl.GeoJSONSource;
+        const source = map.current?.getSource(
+          "route"
+        ) as mapboxgl.GeoJSONSource;
         if (source) {
           source.setData({
-            type: 'Feature',
+            type: "Feature",
             properties: {},
-            geometry: { type: 'LineString', coordinates: route.geometry.coordinates }
+            geometry: {
+              type: "LineString",
+              coordinates: route.geometry.coordinates,
+            },
           });
         }
 
         // Save route coordinates for destination change calculations
-        const coords = route.geometry.coordinates.map((c: [number, number]) => ({ lng: c[0], lat: c[1] }));
+        const coords = route.geometry.coordinates.map(
+          (c: [number, number]) => ({ lng: c[0], lat: c[1] })
+        );
         setRouteCoordinates(coords);
         setRemainingDistance(route.distance / 1000); // Convert to km
 
         const bounds = new mapboxgl.LngLatBounds();
-        route.geometry.coordinates.forEach((coord: [number, number]) => bounds.extend(coord));
+        route.geometry.coordinates.forEach((coord: [number, number]) =>
+          bounds.extend(coord)
+        );
         map.current?.fitBounds(bounds, { padding: 80, duration: 1000 });
       }
     } catch (error) {
-      console.error('Error fetching route:', error);
+      console.error("Error fetching route:", error);
     }
   };
 
@@ -335,15 +401,23 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
     const rideChannel = supabase
       .channel(`ride-${ride.id}`)
       .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${ride.id}` },
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "rides",
+          filter: `id=eq.${ride.id}`,
+        },
         (payload) => {
           const updatedRide = payload.new as any;
           onRideUpdate({ ...ride, ...updatedRide });
 
-          if (updatedRide.status === 'completed') {
-            toast({ title: "تم إكمال الرحلة! ✅", description: "شكراً لاستخدامك ران" });
-          } else if (updatedRide.status === 'cancelled') {
+          if (updatedRide.status === "completed") {
+            toast({
+              title: "تم إكمال الرحلة! ✅",
+              description: "شكراً لاستخدامك ران",
+            });
+          } else if (updatedRide.status === "cancelled") {
             toast({ title: "تم إلغاء الرحلة", variant: "destructive" });
           }
         }
@@ -355,14 +429,24 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
       driverChannel = supabase
         .channel(`driver-location-${ride.driver_id}`)
         .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'drivers', filter: `id=eq.${ride.driver_id}` },
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "drivers",
+            filter: `id=eq.${ride.driver_id}`,
+          },
           (payload) => {
             const driverData = payload.new as any;
-            const newLocation = driverData.current_location as { lat: number; lng: number } | null;
+            const newLocation = driverData.current_location as {
+              lat: number;
+              lng: number;
+            } | null;
 
             if (newLocation) {
-              setDriver(prev => prev ? { ...prev, current_location: newLocation } : null);
+              setDriver((prev) =>
+                prev ? { ...prev, current_location: newLocation } : null
+              );
               updateDriverMarker(newLocation);
               calculateETA(newLocation);
               fetchDriverToPickupRoute(newLocation);
@@ -380,30 +464,42 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
 
   // Fallback polling for driver location
   useEffect(() => {
-    if (!ride.driver_id || ride.status === 'completed' || ride.status === 'cancelled') return;
+    if (
+      !ride.driver_id ||
+      ride.status === "completed" ||
+      ride.status === "cancelled"
+    )
+      return;
 
     const pollDriverLocation = async () => {
       try {
         const { data, error } = await supabase
-          .from('drivers')
-          .select('current_location')
-          .eq('id', ride.driver_id)
+          .from("drivers")
+          .select("current_location")
+          .eq("id", ride.driver_id)
           .single();
 
         if (!error && data?.current_location) {
-          const newLocation = data.current_location as { lat: number; lng: number };
+          const newLocation = data.current_location as {
+            lat: number;
+            lng: number;
+          };
 
-          if (!driver?.current_location ||
+          if (
+            !driver?.current_location ||
             newLocation.lat !== driver.current_location.lat ||
-            newLocation.lng !== driver.current_location.lng) {
-            setDriver(prev => prev ? { ...prev, current_location: newLocation } : null);
+            newLocation.lng !== driver.current_location.lng
+          ) {
+            setDriver((prev) =>
+              prev ? { ...prev, current_location: newLocation } : null
+            );
             updateDriverMarker(newLocation);
             calculateETA(newLocation);
             fetchDriverToPickupRoute(newLocation);
           }
         }
       } catch (err) {
-        console.error('Error polling driver location:', err);
+        console.error("Error polling driver location:", err);
       }
     };
 
@@ -414,8 +510,11 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
   }, [ride.driver_id, ride.status, driver?.current_location]);
 
   // Fetch and draw route from driver to pickup
-  const fetchDriverToPickupRoute = async (driverLocation: { lat: number; lng: number }) => {
-    if (!map.current || ride.status === 'in_progress') return;
+  const fetchDriverToPickupRoute = async (driverLocation: {
+    lat: number;
+    lng: number;
+  }) => {
+    if (!map.current || ride.status === "in_progress") return;
 
     try {
       const response = await fetch(
@@ -426,32 +525,47 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
       if (data.routes?.[0]) {
         const route = data.routes[0];
 
-        if (map.current.getSource('driver-route')) {
-          (map.current.getSource('driver-route') as mapboxgl.GeoJSONSource).setData({
-            type: 'Feature',
+        if (map.current.getSource("driver-route")) {
+          (
+            map.current.getSource("driver-route") as mapboxgl.GeoJSONSource
+          ).setData({
+            type: "Feature",
             properties: {},
-            geometry: { type: 'LineString', coordinates: route.geometry.coordinates }
+            geometry: {
+              type: "LineString",
+              coordinates: route.geometry.coordinates,
+            },
           });
         } else {
-          map.current.addSource('driver-route', {
-            type: 'geojson',
+          map.current.addSource("driver-route", {
+            type: "geojson",
             data: {
-              type: 'Feature',
+              type: "Feature",
               properties: {},
-              geometry: { type: 'LineString', coordinates: route.geometry.coordinates }
-            }
+              geometry: {
+                type: "LineString",
+                coordinates: route.geometry.coordinates,
+              },
+            },
           });
 
-          map.current.addLayer({
-            id: 'driver-route',
-            type: 'line',
-            source: 'driver-route',
-            paint: { 'line-color': '#3b82f6', 'line-width': 4, 'line-dasharray': [2, 2] }
-          }, 'route-glow');
+          map.current.addLayer(
+            {
+              id: "driver-route",
+              type: "line",
+              source: "driver-route",
+              paint: {
+                "line-color": "#3b82f6",
+                "line-width": 4,
+                "line-dasharray": [2, 2],
+              },
+            },
+            "route-glow"
+          );
         }
       }
     } catch (error) {
-      console.error('Error fetching driver route:', error);
+      console.error("Error fetching driver route:", error);
     }
   };
 
@@ -462,7 +576,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
     if (driverMarkerRef.current) {
       driverMarkerRef.current.setLngLat([location.lng, location.lat]);
     } else {
-      const driverEl = document.createElement('div');
+      const driverEl = document.createElement("div");
       driverEl.innerHTML = `
         <div class="relative">
           <div class="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-30"></div>
@@ -481,27 +595,36 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
     const bounds = new mapboxgl.LngLatBounds();
     bounds.extend([location.lng, location.lat]);
     bounds.extend([ride.pickup_location.lng, ride.pickup_location.lat]);
-    if (ride.status === 'in_progress') {
+    if (ride.status === "in_progress") {
       bounds.extend([ride.dropoff_location.lng, ride.dropoff_location.lat]);
     }
     map.current.fitBounds(bounds, { padding: 80, duration: 500 });
   };
 
   // Calculate distance between two points (Haversine formula)
-  const calculateDistanceMeters = (loc1: { lat: number; lng: number }, loc2: { lat: number; lng: number }): number => {
+  const calculateDistanceMeters = (
+    loc1: { lat: number; lng: number },
+    loc2: { lat: number; lng: number }
+  ): number => {
     const R = 6371000;
-    const dLat = (loc2.lat - loc1.lat) * Math.PI / 180;
-    const dLng = (loc2.lng - loc1.lng) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(loc1.lat * Math.PI / 180) * Math.cos(loc2.lat * Math.PI / 180) *
-      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const dLat = ((loc2.lat - loc1.lat) * Math.PI) / 180;
+    const dLng = ((loc2.lng - loc1.lng) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((loc1.lat * Math.PI) / 180) *
+        Math.cos((loc2.lat * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
 
   // Calculate ETA
   const calculateETA = async (driverLocation: { lat: number; lng: number }) => {
-    const targetLocation = ride.status === 'in_progress' ? ride.dropoff_location : ride.pickup_location;
+    const targetLocation =
+      ride.status === "in_progress"
+        ? ride.dropoff_location
+        : ride.pickup_location;
 
     try {
       const response = await fetch(
@@ -512,35 +635,45 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
         setEstimatedArrival(Math.round(data.routes[0].duration / 60));
       }
     } catch (error) {
-      console.error('Error calculating ETA:', error);
+      console.error("Error calculating ETA:", error);
     }
   };
 
   // Check if driver is approaching
-  const checkDriverApproaching = useCallback((driverLocation: { lat: number; lng: number }) => {
-    if (ride.status !== 'accepted' || driverApproachingNotified) return;
+  const checkDriverApproaching = useCallback(
+    (driverLocation: { lat: number; lng: number }) => {
+      if (ride.status !== "accepted" || driverApproachingNotified) return;
 
-    const distanceToPickup = calculateDistanceMeters(driverLocation, ride.pickup_location);
-
-    if (distanceToPickup <= 100) {
-      setDriverApproachingNotified(true);
-
-      playSound('driverApproaching');
-      vibrate(VibrationPatterns.driverApproaching);
-
-      toast({
-        title: "🚗 السائق اقترب جداً!",
-        description: "السائق على بعد أقل من 100 متر - اخرج الآن!",
-        duration: 10000,
-      });
-
-      showNotification(
-        '🚗 السائق يقترب!',
-        'السائق على بعد أقل من 100 متر من موقعك - اخرج الآن!',
-        { tag: 'driver-approaching', requireInteraction: true, duration: 10000 }
+      const distanceToPickup = calculateDistanceMeters(
+        driverLocation,
+        ride.pickup_location
       );
-    }
-  }, [ride.status, ride.pickup_location, driverApproachingNotified, toast]);
+
+      if (distanceToPickup <= 100) {
+        setDriverApproachingNotified(true);
+
+        playSound("driverApproaching");
+        vibrate(VibrationPatterns.driverApproaching);
+
+        toast({
+          title: "🚗 السائق اقترب جداً!",
+          description: "السائق على بعد أقل من 100 متر - اخرج الآن!",
+          duration: 10000,
+        });
+
+        showNotification(
+          "🚗 السائق يقترب!",
+          "السائق على بعد أقل من 100 متر من موقعك - اخرج الآن!",
+          {
+            tag: "driver-approaching",
+            requireInteraction: true,
+            duration: 10000,
+          }
+        );
+      }
+    },
+    [ride.status, ride.pickup_location, driverApproachingNotified, toast]
+  );
 
   // Initial driver marker and approaching check
   useEffect(() => {
@@ -553,7 +686,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
 
   // Countdown timer effect
   useEffect(() => {
-    if (ride.status !== 'in_progress' || !estimatedArrival) {
+    if (ride.status !== "in_progress" || !estimatedArrival) {
       setCountdownSeconds(null);
       return;
     }
@@ -561,7 +694,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
     setCountdownSeconds(estimatedArrival * 60);
 
     const timer = setInterval(() => {
-      setCountdownSeconds(prev => {
+      setCountdownSeconds((prev) => {
         if (prev === null || prev <= 0) return 0;
         return prev - 1;
       });
@@ -573,7 +706,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
   // Notify rider when approaching destination
   useEffect(() => {
     if (
-      ride.status === 'in_progress' &&
+      ride.status === "in_progress" &&
       countdownSeconds !== null &&
       countdownSeconds <= 120 &&
       countdownSeconds > 0 &&
@@ -581,7 +714,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
     ) {
       setApproachingNotified(true);
 
-      playSound('arrived');
+      playSound("arrived");
       vibrate([200, 100, 200]);
 
       toast({
@@ -591,9 +724,9 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
       });
 
       showNotification(
-        '📍 اقتربت من الوجهة!',
-        'ستصل خلال دقيقتين تقريباً - استعد للنزول',
-        { tag: 'approaching-destination', duration: 8000 }
+        "📍 اقتربت من الوجهة!",
+        "ستصل خلال دقيقتين تقريباً - استعد للنزول",
+        { tag: "approaching-destination", duration: 8000 }
       );
     }
   }, [countdownSeconds, ride.status, approachingNotified, toast]);
@@ -605,11 +738,11 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
 
   // Cancel ride handler
   const handleCancelRide = async () => {
-    if (!['pending', 'accepted'].includes(ride.status)) {
+    if (!["pending", "accepted"].includes(ride.status)) {
       toast({
         title: "لا يمكن إلغاء الرحلة",
         description: "لا يمكن إلغاء الرحلة بعد وصول السائق أو بدء التنقل",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -617,26 +750,26 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
     setIsCancelling(true);
 
     const { error } = await supabase
-      .from('rides')
+      .from("rides")
       .update({
-        status: 'cancelled',
-        cancelled_by: 'rider',
-        cancellation_reason: 'إلغاء من قبل الراكب'
+        status: "cancelled",
+        cancelled_by: "rider",
+        cancellation_reason: "إلغاء من قبل الراكب",
       })
-      .eq('id', ride.id);
+      .eq("id", ride.id);
 
     if (!error) {
-      playSound('cancelled');
+      playSound("cancelled");
       toast({
         title: "تم إلغاء الرحلة ❌",
-        description: "يمكنك طلب رحلة جديدة في أي وقت"
+        description: "يمكنك طلب رحلة جديدة في أي وقت",
       });
       onClose();
     } else {
       toast({
         title: "حدث خطأ",
         description: "لم نتمكن من إلغاء الرحلة، حاول مرة أخرى",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
 
@@ -656,9 +789,9 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
           estimated_fare: ride.estimated_fare,
           distance_km: ride.distance_km,
           duration_minutes: ride.duration_minutes,
-          driver_id: ride.driver_id
+          driver_id: ride.driver_id,
         }}
-        driverName={driver?.full_name || 'السائق'}
+        driverName={driver?.full_name || "السائق"}
         onClose={onClose}
       />
     );
@@ -666,48 +799,126 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
+      {/* Side Menu */}
+      <RiderSideMenu open={menuOpen} onOpenChange={setMenuOpen} />
 
-      {/* Header with Logo, Title, and Close Button */}
-      <header className="flex items-center justify-between p-4 bg-card/20 backdrop-blur-xl border-b border-border/30 shadow-lg">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={onClose}
-          className="hover:bg-destructive/10 transition-all hover:scale-110"
+      {/* Header - Menu Left, Logo Center, Status Icons Right */}
+      <header className="absolute top-3 left-0 right-0 z-10 px-3 flex items-center justify-between">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setMenuOpen(true)}
+          className="bg-card/90 backdrop-blur-xl hover:bg-card shadow-lg rounded-xl w-10 h-10 border border-border/20 hover:scale-105 transition-all"
         >
-          <X className="w-6 h-6 text-destructive" />
+          <Menu className="w-5 h-5" />
         </Button>
-        
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
-            <Car className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="font-bold text-lg bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            تتبع الرحلة
+
+        <div className="flex items-center gap-2 bg-card/90 backdrop-blur-xl px-3 py-2 rounded-xl shadow-lg border border-border/20">
+          <span className="font-bold text-base bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+            ران
           </span>
+          <img src={logo} alt="RAAN" className="w-8 h-8 rounded-lg shadow-sm" />
         </div>
 
-        <div className="w-10" />
+        <StatusIcons
+          userLocation={driver?.current_location || ride.pickup_location}
+        />
       </header>
 
-      {/* Progress Stepper - hidden during in_progress */}
-      {ride.status !== 'in_progress' && (
-        <div className="bg-card/60 backdrop-blur-lg border-b border-border/30">
-          <RideProgressStepper status={ride.status} estimatedArrival={estimatedArrival} />
-        </div>
-      )}
+      {/* Status Progress Column - Right Side */}
+      <div className="absolute top-16 right-3 z-10 flex flex-col gap-1.5">
+        {[
+          {
+            status: "accepted",
+            label: "السائق قَبِل",
+            icon: UserCheck,
+            color: "bg-blue-500",
+          },
+          {
+            status: "arrived",
+            label: "السائق وصل",
+            icon: MapPinned,
+            color: "bg-green-500",
+          },
+          {
+            status: "in_progress",
+            label: "جاري التوصيل",
+            icon: Route,
+            color: "bg-primary",
+          },
+          {
+            status: "completed",
+            label: "تم الوصول",
+            icon: CheckCircle,
+            color: "bg-emerald-500",
+          },
+        ].map((step, idx) => {
+          const currentIndex = [
+            "accepted",
+            "arrived",
+            "in_progress",
+            "completed",
+          ].indexOf(ride.status);
+          const isActive = ride.status === step.status;
+          const isPassed = currentIndex > idx;
+          const isFuture = currentIndex < idx;
+          const StepIcon = step.icon;
 
-      {/* Status Bar - Using new component with glassmorphism */}
-      <div className="bg-card/40 backdrop-blur-2xl border-b border-border/20">
-        <RideStatusBar
-          status={ride.status}
-          estimatedArrival={estimatedArrival}
-          countdownSeconds={countdownSeconds}
-          showArrivedAlert={showArrivedAlert}
-          remainingDistance={remainingDistance}
-          onMyWay={handleOnMyWay}
-          sendQuickMessage={sendQuickMessage}
-        />
+          return (
+            <div
+              key={step.status}
+              className={`flex items-center gap-2 backdrop-blur-xl rounded-lg px-2.5 py-1.5 shadow-md border transition-all duration-300 ${
+                isActive
+                  ? "bg-green-500/90 border-green-400 scale-105 shadow-lg shadow-green-500/20"
+                  : isPassed
+                  ? "bg-gray-400/70 border-gray-300/50"
+                  : isFuture
+                  ? `${step.color}/20 border-${step.color.replace(
+                      "bg-",
+                      ""
+                    )}/30 opacity-60`
+                  : "bg-card/70 border-border/20"
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-md flex items-center justify-center transition-all ${
+                  isActive
+                    ? "bg-white/20"
+                    : isPassed
+                    ? "bg-white/20"
+                    : isFuture
+                    ? step.color
+                    : "bg-muted"
+                }`}
+              >
+                <StepIcon
+                  className={`w-3 h-3 transition-all ${
+                    isActive
+                      ? "text-white"
+                      : isPassed
+                      ? "text-white"
+                      : isFuture
+                      ? "text-white"
+                      : "text-muted-foreground"
+                  }`}
+                />
+              </div>
+              <span
+                className={`text-[10px] font-bold whitespace-nowrap transition-all ${
+                  isActive
+                    ? "text-white"
+                    : isPassed
+                    ? "text-white"
+                    : isFuture
+                    ? "text-foreground/80"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {step.label}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       {/* Change Destination Sheet */}
@@ -717,16 +928,24 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
         rideId={ride.id}
         currentPosition={driver?.current_location || ride.pickup_location}
         originalDropoff={ride.dropoff_location}
-        originalDropoffAddress={ride.dropoff_address || ''}
+        originalDropoffAddress={ride.dropoff_address || ""}
         currentFare={ride.estimated_fare || 0}
         perKmFare={500}
         routeCoordinates={routeCoordinates}
         onDestinationChanged={(newDropoff, newAddress, newFare) => {
-          onRideUpdate({ ...ride, dropoff_location: newDropoff, dropoff_address: newAddress, estimated_fare: newFare });
+          onRideUpdate({
+            ...ride,
+            dropoff_location: newDropoff,
+            dropoff_address: newAddress,
+            estimated_fare: newFare,
+          });
         }}
         onStopAdded={(stop, stopAddress, addedFare) => {
-          onRideUpdate({ ...ride, estimated_fare: (ride.estimated_fare || 0) + addedFare });
-          toast({ title: '✅ تم إضافة المحطة', description: stopAddress });
+          onRideUpdate({
+            ...ride,
+            estimated_fare: (ride.estimated_fare || 0) + addedFare,
+          });
+          toast({ title: "✅ تم إضافة المحطة", description: stopAddress });
         }}
       />
 
@@ -740,6 +959,97 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
         )}
       </div>
 
+      {/* Arrived Alert - Outside Bottom Sheet */}
+      {ride.status === "arrived" && (
+        <div className="px-4 pb-2">
+          <div
+            className={`bg-green-500/10 backdrop-blur-2xl border border-green-500/30 rounded-2xl p-3 shadow-2xl ${
+              showArrivedAlert ? "animate-bounce" : ""
+            }`}
+          >
+            <div className="flex items-center gap-2 overflow-x-auto">
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="w-10 h-10 rounded-full bg-green-500/20 backdrop-blur-sm flex items-center justify-center animate-bounce border-2 border-green-500/40">
+                  <Bell className="w-5 h-5 text-green-600" />
+                </div>
+                <span className="font-bold text-sm text-green-600 whitespace-nowrap">
+                  🔔 السائق وصل! اخرج الآن
+                </span>
+              </div>
+
+              <div className="flex gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  className="bg-green-500 text-white hover:bg-green-600 font-bold h-10 text-xs shadow-lg whitespace-nowrap"
+                  onClick={handleOnMyWay}
+                >
+                  🚶 أنا قادم
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="bg-green-500/10 border-green-500/30 text-green-600 hover:bg-green-500/20 font-medium h-10 text-xs whitespace-nowrap"
+                  onClick={() =>
+                    sendQuickMessage(
+                      "rider_wait_moment",
+                      "✅ تم إبلاغ السائق",
+                      "السائق سينتظرك دقيقة"
+                    )
+                  }
+                >
+                  ⏱️ انتظرني دقيقة
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="bg-green-500/10 border-green-500/30 text-green-600 hover:bg-green-500/20 font-medium h-10 text-xs whitespace-nowrap"
+                  onClick={() =>
+                    sendQuickMessage(
+                      "rider_where_are_you",
+                      "✅ تم إرسال السؤال",
+                      "السائق سيوضح موقعه"
+                    )
+                  }
+                >
+                  📍 أين موقعك؟
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In Progress Status - Outside Bottom Sheet */}
+      {ride.status === "in_progress" && (
+        <div className="px-4 pb-2">
+          <div className="bg-primary/10 backdrop-blur-2xl border border-primary/30 rounded-2xl p-4 shadow-xl">
+            <p className="font-bold text-sm text-primary text-center mb-3">
+              🚗 بالطريق لوجهتك • استمتع برحلتك
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <div className="flex items-center gap-1.5 bg-background rounded-full px-3 py-1 shadow-sm">
+                <Timer className="w-3.5 h-3.5 text-primary" />
+                <span className="font-bold text-sm text-foreground">
+                  {countdownSeconds !== null && countdownSeconds > 0
+                    ? `${Math.floor(countdownSeconds / 60)} دقيقة`
+                    : "0 دقيقة"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-background rounded-full px-3 py-1 shadow-sm">
+                <Navigation className="w-3.5 h-3.5 text-primary" />
+                <span className="font-bold text-sm text-foreground">
+                  {remainingDistance
+                    ? remainingDistance < 1
+                      ? `${Math.round(remainingDistance * 1000)} م`
+                      : `${remainingDistance.toFixed(1)} كم`
+                    : "--"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom Sheet */}
       <div className="bg-card rounded-t-3xl shadow-xl border-t border-border p-4 space-y-4 max-h-[50vh] overflow-y-auto">
         {/* Safety & Share Bar */}
@@ -749,14 +1059,13 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
             <span>رحلة مؤمّنة</span>
           </div>
           <div className="flex items-center gap-2">
-            <EmergencyTriangleButton 
-              rideId={ride.id} 
-              currentLocation={driver?.current_location || ride.pickup_location} 
+            <EmergencyTriangleButton
+              rideId={ride.id}
+              currentLocation={driver?.current_location || ride.pickup_location}
             />
             <RideShareButton rideId={ride.id} />
           </div>
         </div>
-
 
         {/* Driver Info - Using new component */}
         <DriverInfoCard
@@ -769,12 +1078,16 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
         <div className="space-y-2 pt-3 border-t border-border">
           <div className="flex items-start gap-3">
             <div className="w-3 h-3 mt-1.5 rounded-full bg-primary" />
-            <p className="text-sm text-foreground flex-1">{ride.pickup_address || 'موقع الانطلاق'}</p>
+            <p className="text-sm text-foreground flex-1">
+              {ride.pickup_address || "موقع الانطلاق"}
+            </p>
           </div>
           <div className="flex items-start gap-3">
             <div className="w-3 h-3 mt-1.5 rounded-full bg-blue-500" />
-            <p className="text-sm text-foreground flex-1">{ride.dropoff_address || 'الوجهة'}</p>
-            {ride.status === 'in_progress' && (
+            <p className="text-sm text-foreground flex-1">
+              {ride.dropoff_address || "الوجهة"}
+            </p>
+            {ride.status === "in_progress" && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -789,15 +1102,23 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
         </div>
 
         {/* Quick Reply Buttons for Accepted Status */}
-        {ride.status === 'accepted' && (
+        {ride.status === "accepted" && (
           <div className="pt-3 border-t border-border">
-            <p className="text-xs text-muted-foreground mb-2 text-center">رسائل سريعة للسائق:</p>
+            <p className="text-xs text-muted-foreground mb-2 text-center">
+              رسائل سريعة للسائق:
+            </p>
             <div className="flex flex-wrap gap-2 justify-center">
               <Button
                 variant="outline"
                 size="sm"
                 className="bg-blue-500/10 border-blue-500/30 text-blue-600 hover:bg-blue-500/20 font-medium"
-                onClick={() => sendQuickMessage('rider_waiting', '✅ تم إبلاغ السائق', 'السائق يعلم أنك بالانتظار')}
+                onClick={() =>
+                  sendQuickMessage(
+                    "rider_waiting",
+                    "✅ تم إبلاغ السائق",
+                    "السائق يعلم أنك بالانتظار"
+                  )
+                }
               >
                 👋 أنا بالانتظار
               </Button>
@@ -805,7 +1126,13 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
                 variant="outline"
                 size="sm"
                 className="bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/20 font-medium"
-                onClick={() => sendQuickMessage('rider_where_are_you', '✅ تم إرسال السؤال', 'السائق سيوضح موقعه')}
+                onClick={() =>
+                  sendQuickMessage(
+                    "rider_where_are_you",
+                    "✅ تم إرسال السؤال",
+                    "السائق سيوضح موقعه"
+                  )
+                }
               >
                 📍 أين وصلت؟
               </Button>
@@ -813,9 +1140,8 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
           </div>
         )}
 
-
         {/* Fare Breakdown - Show for completed rides */}
-        {ride.status === 'completed' && ride.final_fare ? (
+        {ride.status === "completed" && ride.final_fare ? (
           <FareBreakdownCard
             baseFare={2000}
             distanceKm={ride.distance_km || 0}
@@ -831,12 +1157,14 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({ ride, onClose, onRide
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">الأجرة المتوقعة</p>
-                <p className="text-xl font-bold text-primary">{(ride.estimated_fare || 0).toLocaleString()} د.ع</p>
+                <p className="text-xl font-bold text-primary">
+                  {(ride.estimated_fare || 0).toLocaleString()} د.ع
+                </p>
               </div>
             </div>
 
             {/* Cancel Ride Button */}
-            {['pending', 'accepted'].includes(ride.status) && (
+            {["pending", "accepted"].includes(ride.status) && (
               <>
                 {!showCancelConfirm ? (
                   <Button

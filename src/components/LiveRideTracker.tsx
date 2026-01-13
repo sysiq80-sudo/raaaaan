@@ -1,25 +1,44 @@
-import { useEffect, useState, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import Map from '@/components/Map';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { 
-  Navigation, 
-  Phone, 
-  MessageCircle, 
+import { useEffect, useState, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import Map from "@/components/Map";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Navigation,
+  Phone,
+  MessageCircle,
   MapPin,
   Clock,
   User,
   Car,
   Loader2,
-  AlertCircle
-} from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+  AlertCircle,
+  Share2,
+  ShieldCheck,
+  ChevronUp,
+  ChevronDown,
+  Star,
+  X,
+  Send,
+  Search,
+  UserCheck,
+  CheckCircle2,
+  MapPinned,
+  Route,
+  Bell,
+  Timer,
+  HelpCircle,
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { motion, useDragControls, AnimatePresence } from "framer-motion";
 
 interface LiveRideTrackerProps {
   rideId: string;
-  userType: 'rider' | 'driver';
+  userType: "rider" | "driver";
   onRideComplete?: () => void;
+  onBack?: () => void;
 }
 
 interface RideData {
@@ -38,143 +57,247 @@ interface RideData {
     id: string;
     full_name: string;
     phone: string;
+    profile_image_url: string | null;
     vehicle_model: string | null;
     vehicle_color: string | null;
     vehicle_plate: string | null;
     rating: number;
     current_location: { lat: number; lng: number } | null;
   };
+  rider?: {
+    id: string;
+    full_name: string;
+    profile_image_url: string | null;
+  };
 }
 
-export const LiveRideTracker = ({ rideId, userType, onRideComplete }: LiveRideTrackerProps) => {
+export const LiveRideTracker = ({
+  rideId,
+  userType,
+  onRideComplete,
+  onBack,
+}: LiveRideTrackerProps) => {
   const { toast } = useToast();
   const [ride, setRide] = useState<RideData | null>(null);
-  const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [driverLocation, setDriverLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [eta, setEta] = useState<number | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
   const channelRef = useRef<any>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(true);
+  const [showArrivedAlert, setShowArrivedAlert] = useState(false);
+  const dragControls = useDragControls();
 
-  // جلب بيانات الرحلة
+  // Quick response messages when driver arrives
+  const arrivedResponses = [
+    { icon: "🚶", text: "أنا قادم", action: "coming" },
+    { icon: "⏱️", text: "انتظرني دقيقة", action: "wait" },
+    { icon: "📍", text: "أين موقعك؟", action: "where" },
+  ];
+
+  const quickMessages = [
+    "👋 أنا في الانتظار",
+    "📍 أين وصلت؟",
+    "👍 شكراً لك",
+    "⚠️ أنا متأخر قليلاً",
+  ];
+
+  // Status configuration
+  const statusConfig = {
+    pending: {
+      icon: Search,
+      label: "جاري البحث",
+      color: "text-amber-500",
+      bgColor: "bg-amber-500/10",
+      dotColor: "bg-amber-500",
+      description: "نبحث عن سائق قريب منك...",
+    },
+    searching: {
+      icon: Search,
+      label: "بانتظار سائق",
+      color: "text-orange-500",
+      bgColor: "bg-orange-500/10",
+      dotColor: "bg-orange-500",
+      description: "جاري إرسال الطلب للسائقين...",
+    },
+    accepted: {
+      icon: UserCheck,
+      label: "السائق قَبِل",
+      color: "text-blue-500",
+      bgColor: "bg-blue-500/10",
+      dotColor: "bg-blue-500",
+      description: "السائق في الطريق إليك",
+    },
+    arrived: {
+      icon: MapPinned,
+      label: "السائق وصل",
+      color: "text-green-500",
+      bgColor: "bg-green-500/10",
+      dotColor: "bg-green-500",
+      description: "السائق في موقع الانطلاق",
+    },
+    in_progress: {
+      icon: Route,
+      label: "جاري التوصيل",
+      color: "text-primary",
+      bgColor: "bg-primary/10",
+      dotColor: "bg-primary",
+      description: "أنت في رحلتك الآن",
+    },
+    completed: {
+      icon: CheckCircle2,
+      label: "تم الوصول",
+      color: "text-emerald-500",
+      bgColor: "bg-emerald-500/10",
+      dotColor: "bg-emerald-500",
+      description: "وصلت بسلامة!",
+    },
+  };
+
+  const allSteps = [
+    "pending",
+    "accepted",
+    "arrived",
+    "in_progress",
+    "completed",
+  ];
+
+  // Fetch ride data
   useEffect(() => {
     fetchRideData();
   }, [rideId]);
 
-  // الاشتراك في تحديثات الموقع الحية
+  // Subscribe to live updates
   useEffect(() => {
-    if (!ride?.driver_id) return;
+    if (!ride) return;
 
-    console.log('🔴 Subscribing to driver location updates:', ride.driver_id);
+    const driverId = ride.driver_id;
+    if (!driverId) return;
 
-    // الاشتراك في تحديثات موقع السائق
-    const channel = supabase
-      .channel(`driver-location-${ride.driver_id}`)
+    console.log("🔴 Subscribing to updates for ride:", rideId);
+
+    const rideChannel = supabase
+      .channel(`live-ride-${rideId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'drivers',
-          filter: `id=eq.${ride.driver_id}`
+          event: "UPDATE",
+          schema: "public",
+          table: "rides",
+          filter: `id=eq.${rideId}`,
         },
         (payload) => {
-          console.log('📍 Driver location updated:', payload.new.current_location);
-          const newLocation = payload.new.current_location as { lat: number; lng: number };
+          const newStatus = payload.new.status as string;
+          console.log("🚗 Ride status updated:", newStatus);
+          setRide((prev) => (prev ? { ...prev, status: newStatus } : null));
+
+          if (newStatus === "arrived" && ride.status !== "arrived") {
+            setShowArrivedAlert(true);
+            toast({
+              title: "السائق وصل! 🎯",
+              description: "السائق في موقع الانطلاق بانتظارك",
+            });
+            vibrateAndSound("arrived");
+          } else if (
+            newStatus === "in_progress" &&
+            ride.status !== "in_progress"
+          ) {
+            toast({
+              title: "الرحلة بدأت! 🚀",
+              description: "نتمنى لك رحلة آمنة وممتعة",
+            });
+          } else if (newStatus === "completed") {
+            toast({
+              title: "وصلت بالسلامة! ✅",
+              description: "تم إكمال الرحلة بنجاح. شكراً لاختيارك ران.",
+            });
+            if (onRideComplete) onRideComplete();
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "drivers",
+          filter: `id=eq.${driverId}`,
+        },
+        (payload) => {
+          const newLocation = payload.new.current_location as {
+            lat: number;
+            lng: number;
+          };
           if (newLocation) {
+            console.log("📍 Driver location updated:", newLocation);
             setDriverLocation(newLocation);
             calculateETA(newLocation);
           }
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'rides',
-          filter: `id=eq.${rideId}`
-        },
-        (payload) => {
-          console.log('🚗 Ride status updated:', payload.new.status);
-          const newStatus = payload.new.status as string;
-          
-          // تحديث حالة الرحلة
-          setRide(prev => prev ? { ...prev, status: newStatus } : null);
-          
-          // إشعارات حسب الحالة
-          if (newStatus === 'arrived') {
-            toast({
-              title: "السائق وصل! 🎯",
-              description: "السائق في موقع الانطلاق"
-            });
-            playArrivalSound();
-          } else if (newStatus === 'in_progress') {
-            toast({
-              title: "الرحلة بدأت! 🚗",
-              description: "أنت الآن في الطريق"
-            });
-          } else if (newStatus === 'completed') {
-            toast({
-              title: "وصلت بسلامة! ✅",
-              description: "تم إكمال الرحلة بنجاح"
-            });
-            if (onRideComplete) {
-              onRideComplete();
-            }
-          }
-        }
-      )
       .subscribe((status) => {
-        console.log('Subscription status:', status);
+        console.log("Subscription status:", status);
       });
 
-    channelRef.current = channel;
+    channelRef.current = rideChannel;
 
     return () => {
-      console.log('🔴 Unsubscribing from location updates');
+      console.log("🔴 Unsubscribing from ride updates");
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [ride?.driver_id, rideId]);
+  }, [ride?.id, ride?.driver_id]);
 
   const fetchRideData = async () => {
     try {
       const { data, error } = await supabase
-        .from('rides')
-        .select(`
+        .from("rides")
+        .select(
+          `
           *,
           driver:drivers(
             id,
             full_name,
             phone,
+            profile_image_url,
             vehicle_model,
             vehicle_color,
             vehicle_plate,
             rating,
             current_location
+          ),
+          rider:riders(
+            id,
+            full_name,
+            profile_image_url
           )
-        `)
-        .eq('id', rideId)
+        `
+        )
+        .eq("id", rideId)
         .single();
 
       if (error) throw error;
 
       setRide(data as unknown as RideData);
-      
-      // تعيين موقع السائق الحالي
+
       if (data.driver?.current_location) {
-        const location = data.driver.current_location as { lat: number; lng: number };
+        const location = data.driver.current_location as {
+          lat: number;
+          lng: number;
+        };
         setDriverLocation(location);
         calculateETA(location);
       }
-
     } catch (error) {
-      console.error('Error fetching ride:', error);
+      console.error("Error fetching ride:", error);
       toast({
         title: "خطأ",
         description: "فشل تحميل بيانات الرحلة",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -183,86 +306,90 @@ export const LiveRideTracker = ({ rideId, userType, onRideComplete }: LiveRideTr
 
   const calculateETA = async (driverLoc: { lat: number; lng: number }) => {
     if (!ride) return;
-
-    try {
-      // تحديد الوجهة بناءً على حالة الرحلة
-      const destination = ride.status === 'accepted' || ride.status === 'arrived'
+    const destination =
+      ride.status === "accepted" || ride.status === "arrived"
         ? ride.pickup_location
         : ride.dropoff_location;
+    if (!destination) return;
 
-      // استخدام Mapbox Directions API
+    try {
       const response = await fetch(
-        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=directions&start=${driverLoc.lng},${driverLoc.lat}&end=${destination.lng},${destination.lat}`
+        `https://api.mapbox.com/directions/v5/mapbox/driving/${driverLoc.lng},${
+          driverLoc.lat
+        };${destination.lng},${destination.lat}?access_token=${
+          import.meta.env.VITE_MAPBOX_TOKEN
+        }&overview=full&geometries=geojson`
       );
-      
       const data = await response.json();
-      
       if (data.routes?.[0]) {
         const route = data.routes[0];
         setDistance(parseFloat((route.distance / 1000).toFixed(1)));
         setEta(Math.round(route.duration / 60));
       }
     } catch (error) {
-      console.error('Error calculating ETA:', error);
+      console.error("Error calculating ETA:", error);
     }
   };
 
-  const playArrivalSound = () => {
-    try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.value = 800;
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.5);
-    } catch (e) {
-      console.log('Audio not supported');
-    }
-
-    if ('vibrate' in navigator) {
-      navigator.vibrate([200, 100, 200, 100, 200]);
+  const vibrateAndSound = (type: "arrived" | "message") => {
+    // Vibrate if supported
+    if (navigator.vibrate) {
+      navigator.vibrate(type === "arrived" ? [200, 100, 200] : [100]);
     }
   };
 
-  const getStatusText = (status: string) => {
-    const statusMap: Record<string, string> = {
-      pending: 'في انتظار سائق',
-      accepted: 'السائق في الطريق إليك',
-      arrived: 'السائق وصل',
-      in_progress: 'جارية',
-      completed: 'مكتملة',
-      cancelled: 'ملغية'
+  const handleArrivedResponse = async (action: string) => {
+    const messages: Record<string, string> = {
+      coming: "🚶 أنا قادم الآن",
+      wait: "⏱️ انتظرني دقيقة واحدة",
+      where: "📍 أين موقعك بالضبط؟",
     };
-    return statusMap[status] || status;
+    await handleSendQuickMessage(messages[action] || "");
+    setShowArrivedAlert(false);
   };
 
-  const getStatusColor = (status: string) => {
-    const colorMap: Record<string, string> = {
-      pending: 'bg-amber-500',
-      accepted: 'bg-blue-500',
-      arrived: 'bg-green-500',
-      in_progress: 'bg-primary',
-      completed: 'bg-green-600',
-      cancelled: 'bg-destructive'
-    };
-    return colorMap[status] || 'bg-muted';
+  const handleShareRide = () => {
+    if (navigator.share && ride) {
+      navigator
+        .share({
+          title: "تتبع رحلتي مع ران",
+          text: `أنا في رحلة مع ران. يمكنك متابعة موقعي مباشرة. السائق: ${ride.driver?.full_name}.`,
+          url: window.location.href, // Or a dedicated tracking link
+        })
+        .then(() => toast({ title: "تمت مشاركة الرحلة" }))
+        .catch((error) => console.log("Error sharing", error));
+    } else {
+      toast({
+        title: "المشاركة غير مدعومة",
+        description: "متصفحك لا يدعم ميزة المشاركة.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSendQuickMessage = async (message: string) => {
+    // This would ideally send a realtime message or push notification
+    toast({
+      title: "تم إرسال الرسالة",
+      description: `"${message}"`,
+    });
+    // Example of sending a message via Supabase (requires a 'messages' table)
+    /*
+    await supabase.from('ride_messages').insert({
+      ride_id: rideId,
+      sender_id: ride?.rider_id,
+      receiver_id: ride?.driver_id,
+      content: message,
+    });
+    */
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">جاري تحميل بيانات الرحلة...</p>
+      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
+        <div className="bg-background/30 backdrop-blur-sm rounded-full px-3 py-1.5 shadow-sm border border-border/20 flex items-center gap-2">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+          <p className="text-xs text-muted-foreground">جاري التحميل...</p>
         </div>
       </div>
     );
@@ -270,174 +397,383 @@ export const LiveRideTracker = ({ rideId, userType, onRideComplete }: LiveRideTr
 
   if (!ride) {
     return (
-      <div className="flex items-center justify-center min-h-screen p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-            <h3 className="text-lg font-bold mb-2">الرحلة غير موجودة</h3>
-            <p className="text-muted-foreground">لم نتمكن من العثور على هذه الرحلة</p>
-          </CardContent>
-        </Card>
+      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
+        <div className="bg-destructive/20 backdrop-blur-sm rounded-2xl px-4 py-2.5 shadow-sm border border-destructive/30 max-w-sm">
+          <div className="flex items-center gap-2 mb-1.5">
+            <AlertCircle className="w-4 h-4 text-destructive shrink-0" />
+            <p className="text-sm font-semibold text-destructive">
+              الرحلة غير موجودة
+            </p>
+          </div>
+          <Button
+            onClick={onBack}
+            size="sm"
+            variant="outline"
+            className="w-full h-7 text-xs bg-background/50 hover:bg-background/80"
+          >
+            العودة للرئيسية
+          </Button>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background relative">
-      {/* الخريطة */}
-      <div className="absolute inset-0">
-        <Map
-          className="h-full"
-          pickupLocation={ride.pickup_location}
-          dropoffLocation={ride.dropoff_location}
-          driverLocation={driverLocation}
-          showRoute={true}
-          centerOnDriver={ride.status === 'accepted' || ride.status === 'arrived'}
-        />
-      </div>
+  const getDriverName = () => ride.driver?.full_name?.split(" ")[0] || "السائق";
+  const currentStatus =
+    statusConfig[ride.status as keyof typeof statusConfig] ||
+    statusConfig.pending;
+  const CurrentStatusIcon = currentStatus.icon;
+  const currentStepIndex = allSteps.indexOf(ride.status);
 
-      {/* شريط الحالة العلوي */}
-      <div className="absolute top-0 left-0 right-0 z-40 p-4">
-        <Card className="border-0 shadow-xl">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${getStatusColor(ride.status)} animate-pulse`} />
-                <div>
-                  <p className="font-bold text-foreground">{getStatusText(ride.status)}</p>
-                  {eta !== null && distance !== null && (
-                    <p className="text-sm text-muted-foreground">
-                      {distance} كم • حوالي {eta} دقيقة
-                    </p>
-                  )}
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col justify-end pointer-events-none">
+      {/* Driver Arrived Alert - Floating notification */}
+      <AnimatePresence>
+        {(ride.status === "arrived" || showArrivedAlert) && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="absolute top-[-280px] inset-x-4 pointer-events-auto"
+          >
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-3xl p-4 shadow-2xl border border-green-400/30">
+              {/* Close button */}
+              <button
+                onClick={() => setShowArrivedAlert(false)}
+                className="absolute top-3 left-3 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+                aria-label="إغلاق"
+                title="إغلاق"
+              >
+                <X className="w-4 h-4 text-white" />
+              </button>
+
+              {/* Bell icon with pulse */}
+              <div className="flex justify-center mb-3">
+                <div className="relative">
+                  <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                    <Bell className="w-8 h-8 text-white animate-bounce" />
+                  </div>
+                  <div className="absolute inset-0 bg-white/20 rounded-full animate-ping" />
                 </div>
               </div>
-              {ride.status === 'in_progress' && (
-                <div className="flex items-center gap-2 text-primary">
-                  <Navigation className="w-5 h-5 animate-pulse" />
-                  <span className="text-sm font-medium">في الطريق</span>
+
+              {/* Title */}
+              <h3 className="text-xl font-bold text-white text-center mb-1">
+                🔔 السائق وصل!
+              </h3>
+              <p className="text-white/90 text-center text-sm mb-4">
+                اخرج الآن - السائق في انتظارك
+              </p>
+
+              {/* Quick Response Buttons */}
+              <div className="grid grid-cols-3 gap-2">
+                {arrivedResponses.map((response) => (
+                  <Button
+                    key={response.action}
+                    onClick={() => handleArrivedResponse(response.action)}
+                    className="h-auto py-3 flex flex-col items-center gap-1 bg-white/20 hover:bg-white/30 border-0 text-white rounded-xl transition-all"
+                    variant="ghost"
+                  >
+                    <span className="text-xl">{response.icon}</span>
+                    <span className="text-xs font-medium">{response.text}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Draggable Share Button */}
+      <motion.div
+        drag
+        dragControls={dragControls}
+        dragConstraints={{ top: -300, left: 0, right: 0, bottom: -50 }}
+        dragElastic={0.2}
+        className="absolute top-[-200px] right-4 pointer-events-auto"
+        onPointerDown={(e) => dragControls.start(e)}
+      >
+        <Button
+          size="icon"
+          className="w-14 h-14 rounded-full bg-gradient-to-r from-primary to-primary/80 backdrop-blur-md shadow-2xl text-white hover:scale-110 transition-transform"
+          onClick={handleShareRide}
+        >
+          <Share2 className="w-6 h-6" />
+        </Button>
+      </motion.div>
+
+      {/* Floating Status Pill - Always visible at top */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="absolute top-[-120px] inset-x-4 pointer-events-auto"
+      >
+        <div
+          className={`${currentStatus.bgColor} backdrop-blur-xl rounded-2xl p-3 shadow-lg border border-white/10`}
+        >
+          <div className="flex items-center justify-between">
+            {/* Current Status */}
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-12 h-12 rounded-xl ${currentStatus.bgColor} flex items-center justify-center`}
+              >
+                <CurrentStatusIcon
+                  className={`w-6 h-6 ${currentStatus.color}`}
+                />
+              </div>
+              <div>
+                <h4 className={`text-sm font-bold ${currentStatus.color}`}>
+                  {currentStatus.label}
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  {currentStatus.description}
+                </p>
+              </div>
+            </div>
+
+            {/* Progress Steps */}
+            <div className="flex items-center gap-1.5">
+              {allSteps.map((step, idx) => (
+                <div key={step} className="flex items-center">
+                  <motion.div
+                    initial={{ scale: 0.8 }}
+                    animate={{
+                      scale: idx === currentStepIndex ? 1.2 : 1,
+                      opacity: idx <= currentStepIndex ? 1 : 0.3,
+                    }}
+                    className={`w-2.5 h-2.5 rounded-full transition-all ${
+                      idx <= currentStepIndex
+                        ? idx === currentStepIndex
+                          ? `${
+                              currentStatus.dotColor
+                            } ring-2 ring-offset-1 ring-offset-background ${currentStatus.dotColor.replace(
+                              "bg-",
+                              "ring-"
+                            )}/30`
+                          : "bg-emerald-500"
+                        : "bg-muted-foreground/20"
+                    }`}
+                  />
+                  {idx < allSteps.length - 1 && (
+                    <div
+                      className={`w-3 h-0.5 mx-0.5 rounded ${
+                        idx < currentStepIndex
+                          ? "bg-emerald-500"
+                          : "bg-muted-foreground/20"
+                      }`}
+                    />
+                  )}
                 </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ETA inline */}
+          {eta !== null && (
+            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-white/10">
+              <Clock className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">
+                {ride.status === "in_progress" ? "الوصول خلال" : "يصل خلال"}
+              </span>
+              <span className="text-sm font-bold text-foreground">
+                {eta} دقيقة
+              </span>
+              {distance && (
+                <>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="text-xs text-muted-foreground">
+                    {distance} كم
+                  </span>
+                </>
               )}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+        </div>
+      </motion.div>
 
-      {/* معلومات السائق (للراكب فقط) */}
-      {userType === 'rider' && ride.driver && (
-        <div className="absolute bottom-0 left-0 right-0 z-40 p-4">
-          <Card className="border-0 shadow-2xl">
-            <CardContent className="p-4 space-y-4">
-              {/* معلومات السائق */}
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-2xl">
-                  👤
+      {/* Bottom Sheet */}
+      <div className="bg-background/90 backdrop-blur-xl rounded-t-3xl shadow-2xl border-t border-border/20 pointer-events-auto w-full max-w-md mx-auto max-h-[85vh] overflow-y-auto">
+        <motion.div
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          transition={{ type: "spring", damping: 30, stiffness: 200 }}
+        >
+          {/* Handle */}
+          <div
+            className="py-3 flex justify-center cursor-pointer"
+            onClick={() => setIsSheetOpen(!isSheetOpen)}
+          >
+            <div className="w-12 h-1.5 bg-muted-foreground/40 rounded-full hover:bg-muted-foreground/60 transition-colors" />
+          </div>
+
+          {/* Security Badge */}
+          <div className="px-4 pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 bg-green-500/10 text-green-600 rounded-full px-3 py-1.5 text-xs font-medium">
+                <ShieldCheck className="w-4 h-4" />
+                <span>رحلة مؤمّنة</span>
+              </div>
+              {/* Mini status reminder */}
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div
+                  className={`w-2 h-2 rounded-full animate-pulse ${currentStatus.dotColor}`}
+                />
+                <span>{currentStatus.label}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Content */}
+          <motion.div
+            initial={{ height: "auto" }}
+            animate={{ height: isSheetOpen ? "auto" : 0 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-6 space-y-4">
+              {/* Driver Info Card - Enhanced */}
+              <div className="bg-gradient-to-br from-card/80 to-card/40 rounded-2xl border border-border/50 p-4 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <Avatar className="w-18 h-18 border-3 border-primary/30 shadow-lg">
+                      <AvatarImage
+                        src={ride.driver?.profile_image_url || ""}
+                        alt={ride.driver?.full_name}
+                      />
+                      <AvatarFallback className="text-2xl bg-gradient-to-br from-primary/20 to-primary/5">
+                        {ride.driver?.full_name?.charAt(0) || "S"}
+                      </AvatarFallback>
+                    </Avatar>
+                    {/* Online indicator */}
+                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-3 border-card shadow-lg">
+                      <div className="absolute inset-0.5 bg-green-400 rounded-full animate-ping opacity-75" />
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-xl font-bold text-foreground truncate">
+                      {getDriverName()}
+                    </h2>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-1 text-amber-500 bg-amber-500/15 px-2 py-1 rounded-lg">
+                        <Star className="w-4 h-4 fill-current" />
+                        <span className="text-sm font-bold">
+                          {ride.driver?.rating?.toFixed(1) || "4.8"}
+                        </span>
+                      </div>
+                      <Badge variant="secondary" className="text-xs">
+                        {ride.driver?.vehicle_color}{" "}
+                        {ride.driver?.vehicle_model}
+                      </Badge>
+                    </div>
+                    {/* Vehicle plate - prominent */}
+                    <div className="mt-2 bg-muted/50 rounded-lg px-3 py-1.5 inline-flex items-center gap-2">
+                      <Car className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-lg font-black tracking-wider font-mono text-foreground">
+                        {ride.driver?.vehicle_plate || "---"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="font-bold text-foreground">{ride.driver.full_name}</p>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Car className="w-4 h-4" />
-                    <span>
-                      {ride.driver.vehicle_color} {ride.driver.vehicle_model}
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    className="flex-1 h-12 rounded-xl bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary transition-all"
+                    onClick={() => window.open(`tel:${ride.driver?.phone}`)}
+                  >
+                    <Phone className="w-5 h-5 ml-2" />
+                    اتصال
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 h-12 rounded-xl bg-green-500/5 hover:bg-green-500/10 border-green-500/20 text-green-600 transition-all"
+                    onClick={() =>
+                      window.open(`https://wa.me/${ride.driver?.phone}`)
+                    }
+                  >
+                    <MessageCircle className="w-5 h-5 ml-2" />
+                    واتساب
+                  </Button>
+                </div>
+              </div>
+
+              {/* Route Info - Compact */}
+              <div className="bg-muted/30 rounded-xl p-3">
+                <div className="flex items-center gap-3">
+                  {/* Visual route indicator */}
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-green-500 shadow-sm" />
+                    <div className="w-0.5 h-8 bg-gradient-to-b from-green-500 to-blue-500 rounded" />
+                    <div className="w-3 h-3 rounded-full bg-blue-500 shadow-sm" />
+                  </div>
+                  {/* Addresses */}
+                  <div className="flex-1 space-y-3">
+                    <div>
+                      <p className="text-[10px] text-green-600 font-semibold uppercase tracking-wide">
+                        من
+                      </p>
+                      <p className="text-sm text-foreground line-clamp-1">
+                        {ride.pickup_address}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-blue-600 font-semibold uppercase tracking-wide">
+                        إلى
+                      </p>
+                      <p className="text-sm text-foreground line-clamp-1">
+                        {ride.dropoff_address}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Messages - Grid style */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Send className="w-3.5 h-3.5" />
+                  رسالة سريعة
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {quickMessages.map((msg) => (
+                    <Button
+                      key={msg}
+                      variant="outline"
+                      size="sm"
+                      className="h-auto py-2 px-3 text-xs rounded-full bg-muted/30 hover:bg-muted/50 border-0 transition-all"
+                      onClick={() => handleSendQuickMessage(msg)}
+                    >
+                      {msg}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Fare - Bottom sticky */}
+              <div className="bg-gradient-to-r from-primary/15 via-primary/10 to-primary/5 rounded-2xl p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs text-muted-foreground block mb-0.5">
+                      الأجرة المتوقعة
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      💳 نقداً عند الوصول
                     </span>
                   </div>
-                  {ride.driver.vehicle_plate && (
-                    <p className="text-sm text-muted-foreground font-mono">
-                      {ride.driver.vehicle_plate}
-                    </p>
-                  )}
-                </div>
-                <div className="text-center">
-                  <div className="flex items-center gap-1">
-                    <span className="text-2xl">⭐</span>
-                    <span className="text-lg font-bold">{ride.driver.rating.toFixed(1)}</span>
+                  <div className="text-left">
+                    <span className="text-3xl font-black text-primary">
+                      {ride.estimated_fare?.toLocaleString() || "..."}
+                    </span>
+                    <span className="text-sm text-muted-foreground mr-1">
+                      د.ع
+                    </span>
                   </div>
                 </div>
               </div>
-
-              {/* أزرار الاتصال */}
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => window.open(`tel:${ride.driver?.phone}`)}
-                >
-                  <Phone className="w-4 h-4 ml-2" />
-                  اتصال
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => window.open(`sms:${ride.driver?.phone}`)}
-                >
-                  <MessageCircle className="w-4 h-4 ml-2" />
-                  رسالة
-                </Button>
-              </div>
-
-              {/* معلومات الرحلة */}
-              <div className="pt-3 border-t border-border space-y-2">
-                <div className="flex items-start gap-3">
-                  <div className="w-3 h-3 mt-1.5 rounded-full bg-primary shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">من</p>
-                    <p className="text-sm text-foreground">{ride.pickup_address}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-3 h-3 mt-1.5 rounded-full bg-destructive shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">إلى</p>
-                    <p className="text-sm text-foreground">{ride.dropoff_address}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* السعر */}
-              {ride.estimated_fare && (
-                <div className="flex items-center justify-between pt-3 border-t border-border">
-                  <span className="text-sm text-muted-foreground">السعر المتوقع</span>
-                  <span className="text-lg font-bold text-primary">
-                    {ride.estimated_fare.toLocaleString()} د.ع
-                  </span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* معلومات الراكب (للسائق فقط) */}
-      {userType === 'driver' && (
-        <div className="absolute bottom-0 left-0 right-0 z-40 p-4">
-          <Card className="border-0 shadow-2xl">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="w-6 h-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-bold text-foreground">راكب</p>
-                  <p className="text-sm text-muted-foreground">
-                    {ride.status === 'accepted' ? 'في انتظارك' : 'في الرحلة'}
-                  </p>
-                </div>
-              </div>
-
-              {/* الوجهة */}
-              <div className="pt-3 border-t border-border">
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-destructive mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">الوجهة</p>
-                    <p className="text-sm font-medium text-foreground">{ride.dropoff_address}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            </div>
+          </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 };

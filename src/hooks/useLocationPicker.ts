@@ -92,8 +92,21 @@ export const useLocationPicker = (
 
   // Initialize map
   useEffect(() => {
-    if (!mapContainer.current || !mapToken) return;
+    if (!mapContainer.current || !mapToken) {
+      console.log("Map initialization waiting:", {
+        hasContainer: !!mapContainer.current,
+        hasToken: !!mapToken,
+      });
+      return;
+    }
 
+    // Prevent duplicate initialization
+    if (map.current) {
+      console.log("Map already initialized");
+      return;
+    }
+
+    console.log("Initializing map with token");
     mapboxgl.accessToken = mapToken;
     const initialCenter = userLocation
       ? ([userLocation.lng, userLocation.lat] as [number, number])
@@ -107,9 +120,22 @@ export const useLocationPicker = (
       pitch: 0,
     });
 
+    // Add navigation control
     map.current.addControl(new mapboxgl.NavigationControl(), "top-left");
 
+    // Add geolocate control (center on user button)
+    const geolocateControl = new mapboxgl.GeolocateControl({
+      positionOptions: {
+        enableHighAccuracy: true,
+      },
+      trackUserLocation: true,
+      showUserHeading: true,
+      showUserLocation: true,
+    });
+    map.current.addControl(geolocateControl, "bottom-left");
+
     map.current.on("load", () => {
+      console.log("Map loaded successfully");
       setIsLoading(false);
       const center = map.current?.getCenter();
       if (center) reverseGeocode(center.lat, center.lng);
@@ -126,6 +152,11 @@ export const useLocationPicker = (
         new mapboxgl.Marker(el)
           .setLngLat([userLocation.lng, userLocation.lat])
           .addTo(map.current!);
+
+        // Trigger geolocate on initial load
+        setTimeout(() => {
+          geolocateControl.trigger();
+        }, 500);
       }
     });
 

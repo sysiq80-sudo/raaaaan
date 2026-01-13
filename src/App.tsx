@@ -20,19 +20,6 @@ import Help from "./pages/Help";
 import ContactUs from "./pages/ContactUs";
 
 // Rider Pages
-import RiderHome from "./pages/rider/RiderHome";
-import RiderHomeClassic from "./pages/rider/RiderHomeClassic";
-import RiderHomeCustom from "./pages/rider/RiderHomeCustom";
-import OldRiderHomeCustom from "./pages/rider/OldRiderHomeCustom";
-import RiderHomeMap from "./pages/rider/RiderHomeMap";
-import RiderHomeWelcome from "./pages/rider/RiderHomeWelcome";
-import RiderRider from "./pages/rider/RiderRider";
-import RiderAuth from "./pages/rider/RiderAuth";
-import RiderRides from "./pages/rider/RiderRides";
-import RiderPayments from "./pages/rider/RiderPayments";
-import RiderSettings from "./pages/rider/RiderSettings";
-import RiderSavedPlaces from "./pages/rider/RiderSavedPlaces";
-import RiderReferrals from "./pages/rider/RiderReferrals";
 import GoPage from "./pages/rider/GoPage";
 
 // Driver Pages
@@ -127,119 +114,6 @@ const App = () => (
             {/* Main Rider Route - Go Page */}
             <Route
               path="/rider"
-              element={
-                <ErrorBoundary>
-                  <GoPage />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/oldrider"
-              element={
-                <ErrorBoundary>
-                  <OldRiderHomeCustom />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/rider-main"
-              element={
-                <ErrorBoundary>
-                  <RiderHomeCustom />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/rider2"
-              element={
-                <ErrorBoundary>
-                  <RiderHomeClassic />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/rider-1custom"
-              element={
-                <ErrorBoundary>
-                  <RiderHomeCustom />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/rider11"
-              element={
-                <ErrorBoundary>
-                  <RiderHomeCustom />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/rider-map"
-              element={
-                <ErrorBoundary>
-                  <RiderHomeMap />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/rider/complete"
-              element={
-                <ErrorBoundary>
-                  <RiderRider />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/rider/auth"
-              element={
-                <ErrorBoundary>
-                  <RiderAuth />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/rider/rides"
-              element={
-                <ErrorBoundary>
-                  <RiderRides />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/rider/payments"
-              element={
-                <ErrorBoundary>
-                  <RiderPayments />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/rider/settings"
-              element={
-                <ErrorBoundary>
-                  <RiderSettings />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/rider/saved-places"
-              element={
-                <ErrorBoundary>
-                  <RiderSavedPlaces />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/rider/referrals"
-              element={
-                <ErrorBoundary>
-                  <RiderReferrals />
-                </ErrorBoundary>
-              }
-            />
-            {/* Alternative route for GoPage (same content as /rider) */}
-            <Route
-              path="/go"
               element={
                 <ErrorBoundary>
                   <GoPage />

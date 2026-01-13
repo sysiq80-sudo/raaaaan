@@ -26,6 +26,7 @@ import CompactVehicleSelector from "@/components/rider/CompactVehicleSelector";
 import PaymentMethodSheet from "@/components/rider/PaymentMethodSheet";
 import { ScheduleRideDialog } from "@/components/rider/ScheduleRideDialog";
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
+import StatusIcons from "@/components/common/StatusIcons";
 import { motion, AnimatePresence } from "framer-motion";
 
 // New custom hooks
@@ -507,7 +508,10 @@ const GoPage: React.FC = () => {
           ride={activeRide}
           onClose={resetBooking}
           onRideUpdate={(updatedRide) => {
-            if (updatedRide.status === "completed" || updatedRide.status === "cancelled") {
+            if (
+              updatedRide.status === "completed" ||
+              updatedRide.status === "cancelled"
+            ) {
               resetBooking();
             }
           }}
@@ -588,6 +592,9 @@ const GoPage: React.FC = () => {
                 </div>
               </motion.div>
             </div>
+
+            {/* Status Icons - Right side */}
+            <StatusIcons />
 
             <button
               onClick={() => setCurrentMode("dropoff")}
@@ -813,6 +820,9 @@ const GoPage: React.FC = () => {
             <img src={logo} alt="RAAN" className="w-7 h-7 rounded-lg" />
             <span className="font-bold text-lg">ران</span>
           </div>
+
+          {/* Status Icons - Right side */}
+          <StatusIcons userLocation={userLocation} />
 
           {/* زر الرجوع - فقط في dropoff */}
           {isDropoff ? (
