@@ -23,6 +23,35 @@ function formatPhoneNumber(phone: string): string {
   return cleaned;
 }
 
+// Get all possible phone email formats for user lookup
+function getPhoneEmailFormats(phone: string): string[] {
+  const cleaned = phone.replace(/\D/g, '');
+  const formats: string[] = [];
+  
+  // Add the cleaned number as-is
+  formats.push(`${cleaned}@raan.app`);
+  
+  // If starts with 964, also try without it and with 0
+  if (cleaned.startsWith('964')) {
+    const withoutCode = cleaned.slice(3);
+    formats.push(`${withoutCode}@raan.app`);
+    formats.push(`0${withoutCode}@raan.app`);
+  } 
+  // If starts with 0, also try without it and with 964
+  else if (cleaned.startsWith('0')) {
+    const withoutZero = cleaned.slice(1);
+    formats.push(`${withoutZero}@raan.app`);
+    formats.push(`964${withoutZero}@raan.app`);
+  }
+  // Plain number, try all variants
+  else {
+    formats.push(`0${cleaned}@raan.app`);
+    formats.push(`964${cleaned}@raan.app`);
+  }
+  
+  return formats;
+}
+
 // Get client IP from request headers
 function getClientIP(req: Request): string {
   const forwarded = req.headers.get('x-forwarded-for');
@@ -127,10 +156,7 @@ serve(async (req) => {
       // Continue anyway - but log it
     }
 
-    // Get the phone email format
-    const phoneEmail = `${formattedPhone}@raan.app`;
-
-    // Find user by email
+    // Get all users to search
     const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
     
     if (userError) {
@@ -138,9 +164,23 @@ serve(async (req) => {
       throw new Error('فشل في البحث عن المستخدم');
     }
 
-    const user = userData.users.find(u => u.email === phoneEmail);
+    // Get all possible phone email formats
+    const phoneEmailFormats = getPhoneEmailFormats(phone);
+    console.log(`Searching for user with emails: ${phoneEmailFormats.join(', ')}`);
+
+    // Find user by any of the email formats
+    let user = null;
+    for (const email of phoneEmailFormats) {
+      const foundUser = userData.users.find((u: { email?: string }) => u.email === email);
+      if (foundUser) {
+        user = foundUser;
+        console.log(`Found user with email: ${email}`);
+        break;
+      }
+    }
 
     if (!user) {
+      console.log(`No user found for any of: ${phoneEmailFormats.join(', ')}`);
       return new Response(
         JSON.stringify({ error: 'لم يتم العثور على حساب بهذا الرقم' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
