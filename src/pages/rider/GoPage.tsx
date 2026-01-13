@@ -594,7 +594,7 @@ const GoPage: React.FC = () => {
             </div>
 
             {/* Status Icons - Right side */}
-            <StatusIcons />
+            <StatusIcons userLocation={pickupLocation ? { lat: pickupLocation.lat, lng: pickupLocation.lng } : null} />
 
             <button
               onClick={() => setCurrentMode("dropoff")}

@@ -800,7 +800,12 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Side Menu */}
-      <RiderSideMenu open={menuOpen} onOpenChange={setMenuOpen} />
+      <RiderSideMenu 
+        user={null} 
+        open={menuOpen} 
+        onOpenChange={setMenuOpen}
+        onLogout={() => {}} 
+      />
 
       {/* Header - Menu Left, Logo Center, Status Icons Right */}
       <header className="absolute top-3 left-0 right-0 z-10 px-3 flex items-center justify-between">

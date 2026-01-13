@@ -7,10 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "./use-toast";
 
-type User = {
-  id: string;
-  email?: string;
-};
+import type { User } from "@supabase/supabase-js";
 
 export const useRiderData = () => {
   const { toast } = useToast();
