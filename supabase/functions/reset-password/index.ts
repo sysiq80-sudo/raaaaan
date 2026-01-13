@@ -126,8 +126,8 @@ serve(async (req) => {
     const formattedPhone = formatPhoneNumber(phone);
     console.log(`Processing password reset for phone: ${formattedPhone}, ip: ${clientIP}`);
 
-    // Verify that OTP was verified for password_reset (within 2 minutes for extra security)
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    // Verify that OTP was verified for password_reset (within 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const { data: otpRecord, error: otpError } = await supabase
       .from('otp_verifications')
       .select('*')
@@ -135,10 +135,10 @@ serve(async (req) => {
       .eq('purpose', 'password_reset')
       .eq('verified', true)
       .is('used_at', null) // CRITICAL: Must not be already used
-      .gte('created_at', twoMinutesAgo) // Tighter window: 2 minutes
+      .gte('created_at', fiveMinutesAgo)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (otpError || !otpRecord) {
       console.log(`No valid OTP found for ${formattedPhone}`);
