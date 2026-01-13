@@ -74,11 +74,13 @@ const Auth = () => {
     return formats;
   };
 
-  // Check if phone exists in database
+  // Check if phone exists in database (profiles) OR auth.users
   const checkPhoneNumber = async () => {
     setErrors({});
     
-    if (!phoneInput || phoneInput.replace(/\D/g, '').length < 10) {
+    const cleanedPhone = phoneInput.replace(/\D/g, '');
+    
+    if (!phoneInput || cleanedPhone.length < 10) {
       setErrors({ phone: 'يرجى إدخال رقم هاتف صحيح (10 أرقام على الأقل)' });
       return;
     }
@@ -89,23 +91,40 @@ const Auth = () => {
       const phoneFormats = formatPhoneForLookup(phoneInput);
       const orCondition = phoneFormats.map(p => `phone.eq.${p}`).join(',');
       
-      const { data, error } = await supabase
+      // Check profiles table first
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('id')
+        .select('id, phone')
         .or(orCondition)
         .limit(1);
       
-      if (error) {
-        console.error('Error checking phone:', error);
-        toast({
-          title: "خطأ",
-          description: "حدث خطأ أثناء التحقق من الرقم",
-          variant: "destructive",
-        });
-        return;
+      if (profileError) {
+        console.error('Error checking profiles:', profileError);
       }
       
-      if (data && data.length > 0) {
+      // Also try to sign in with the phone email to check if user exists in auth.users
+      // This helps catch users who are in auth.users but maybe profile phone format differs
+      const phoneEmail = `${cleanedPhone}@raan.app`;
+      
+      // Try a quick check by attempting signInWithPassword with wrong password
+      // If user doesn't exist, we get a specific error
+      const { error: authCheckError } = await supabase.auth.signInWithPassword({
+        email: phoneEmail,
+        password: '__check_only_not_real_password__',
+      });
+      
+      // User exists in auth.users if error is "Invalid login credentials" (wrong password)
+      // User doesn't exist if error is different (like "Invalid email or password")
+      const userExistsInAuth = authCheckError?.message === "Invalid login credentials";
+      
+      console.log('Phone check results:', {
+        profileFound: profileData && profileData.length > 0,
+        authUserExists: userExistsInAuth,
+        phoneFormats,
+        phoneEmail
+      });
+      
+      if ((profileData && profileData.length > 0) || userExistsInAuth) {
         // Phone exists - go to login
         setStep('login');
         toast({
