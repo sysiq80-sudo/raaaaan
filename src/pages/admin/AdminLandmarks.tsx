@@ -6,13 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Plus, 
-  Search, 
-  MapPin, 
-  Edit2, 
-  Trash2, 
-  Building2, 
+import {
+  Plus,
+  Search,
+  MapPin,
+  Edit2,
+  Trash2,
+  Building2,
   GraduationCap,
   ShoppingBag,
   Hospital,
@@ -34,7 +34,7 @@ import {
   XCircle,
   MoreVertical,
   Upload,
-  Map
+  Map,
 } from "lucide-react";
 import {
   Select,
@@ -65,21 +65,29 @@ import { LandmarksMapView } from "@/components/admin/LandmarksMapView";
 
 // Category configuration with icons and colors
 export const landmarkCategories = {
-  hospital: { label: 'مستشفى / مركز صحي', icon: Hospital, color: 'bg-red-500' },
-  university: { label: 'جامعة / كلية', icon: GraduationCap, color: 'bg-blue-500' },
-  school: { label: 'مدرسة', icon: Building2, color: 'bg-indigo-500' },
-  mosque: { label: 'مسجد / جامع', icon: Church, color: 'bg-emerald-500' },
-  market: { label: 'سوق / مجمع تجاري', icon: ShoppingBag, color: 'bg-orange-500' },
-  government: { label: 'دائرة حكومية', icon: Landmark, color: 'bg-purple-500' },
-  station: { label: 'محطة / موقف', icon: Train, color: 'bg-cyan-500' },
-  airport: { label: 'مطار', icon: Plane, color: 'bg-sky-500' },
-  gas_station: { label: 'محطة وقود', icon: Fuel, color: 'bg-yellow-500' },
-  restaurant: { label: 'مطعم / مقهى', icon: Utensils, color: 'bg-pink-500' },
-  hotel: { label: 'فندق', icon: Hotel, color: 'bg-violet-500' },
-  parking: { label: 'موقف سيارات', icon: ParkingCircle, color: 'bg-slate-500' },
-  landmark: { label: 'معلم بارز', icon: Flag, color: 'bg-amber-500' },
-  residential: { label: 'حي سكني', icon: Home, color: 'bg-teal-500' },
-  other: { label: 'أخرى', icon: MapPin, color: 'bg-gray-500' }
+  hospital: { label: "مستشفى / مركز صحي", icon: Hospital, color: "bg-red-500" },
+  university: {
+    label: "جامعة / كلية",
+    icon: GraduationCap,
+    color: "bg-blue-500",
+  },
+  school: { label: "مدرسة", icon: Building2, color: "bg-indigo-500" },
+  mosque: { label: "مسجد / جامع", icon: Church, color: "bg-emerald-500" },
+  market: {
+    label: "سوق / مجمع تجاري",
+    icon: ShoppingBag,
+    color: "bg-orange-500",
+  },
+  government: { label: "دائرة حكومية", icon: Landmark, color: "bg-purple-500" },
+  station: { label: "محطة / موقف", icon: Train, color: "bg-cyan-500" },
+  airport: { label: "مطار", icon: Plane, color: "bg-sky-500" },
+  gas_station: { label: "محطة وقود", icon: Fuel, color: "bg-yellow-500" },
+  restaurant: { label: "مطعم / مقهى", icon: Utensils, color: "bg-pink-500" },
+  hotel: { label: "فندق", icon: Hotel, color: "bg-violet-500" },
+  parking: { label: "موقف سيارات", icon: ParkingCircle, color: "bg-slate-500" },
+  landmark: { label: "معلم بارز", icon: Flag, color: "bg-amber-500" },
+  residential: { label: "حي سكني", icon: Home, color: "bg-teal-500" },
+  other: { label: "أخرى", icon: MapPin, color: "bg-gray-500" },
 };
 
 interface LandmarkData {
@@ -89,9 +97,11 @@ interface LandmarkData {
   category: string | null;
   location: { lat: number; lng: number };
   region_id: string | null;
+  governorate_id?: string | null;
   is_active: boolean;
   created_at: string;
   region?: { name_ar: string } | null;
+  governorate?: { name_ar: string } | null;
 }
 
 interface Region {
@@ -99,39 +109,65 @@ interface Region {
   name_ar: string;
 }
 
+interface Governorate {
+  id: string;
+  name_ar: string;
+  code: string;
+}
+
 const AdminLandmarks = () => {
   const { toast } = useToast();
   const [landmarks, setLandmarks] = useState<LandmarkData[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
+  const [governorates, setGovernorates] = useState<Governorate[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [regionFilter, setRegionFilter] = useState<string>("all");
+  const [governorateFilter, setGovernorateFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"grid" | "table" | "map">("grid");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
-  const [editingLandmark, setEditingLandmark] = useState<LandmarkData | null>(null);
+  const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
+  const [editingLandmark, setEditingLandmark] = useState<LandmarkData | null>(
+    null
+  );
 
   const fetchLandmarks = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("landmarks")
-      .select(`
+      .select(
+        `
         *,
-        region:regions(name_ar)
-      `)
+        region:regions(name_ar),
+        governorate:governorates!governorate_id(name_ar)
+      `
+      )
       .order("created_at", { ascending: false });
 
+    if (error) {
+      console.error("Error fetching landmarks:", error);
+      toast({
+        title: "خطأ",
+        description: "فشل في تحميل المعالم",
+        variant: "destructive",
+      });
+    }
+
     if (!error && data) {
-      setLandmarks(data.map(item => ({
-        ...item,
-        location: item.location as { lat: number; lng: number },
-        region: item.region
-      })));
+      setLandmarks(
+        data.map((item) => ({
+          ...item,
+          location: item.location as { lat: number; lng: number },
+          region: item.region,
+          governorate: item.governorate,
+        }))
+      );
     }
     setLoading(false);
-  }, []);
+  }, [toast]);
 
   const fetchRegions = useCallback(async () => {
     const { data } = await supabase
@@ -139,14 +175,28 @@ const AdminLandmarks = () => {
       .select("id, name_ar")
       .eq("is_active", true)
       .order("name_ar");
-    
+
     if (data) setRegions(data);
+  }, []);
+
+  const fetchGovernorates = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("governorates")
+      .select("id, name_ar, code")
+      .order("name_ar");
+
+    if (error) {
+      console.error("Error fetching governorates:", error);
+    } else if (data) {
+      setGovernorates(data);
+    }
   }, []);
 
   useEffect(() => {
     fetchLandmarks();
     fetchRegions();
-  }, [fetchLandmarks, fetchRegions]);
+    fetchGovernorates();
+  }, [fetchLandmarks, fetchRegions, fetchGovernorates]);
 
   const handleToggleActive = async (landmark: LandmarkData) => {
     const { error } = await supabase
@@ -157,7 +207,9 @@ const AdminLandmarks = () => {
     if (!error) {
       toast({
         title: landmark.is_active ? "تم إلغاء التفعيل" : "تم التفعيل",
-        description: `المعلم "${landmark.name_ar}" ${landmark.is_active ? 'غير فعال الآن' : 'فعال الآن'}`
+        description: `المعلم "${landmark.name_ar}" ${
+          landmark.is_active ? "غير فعال الآن" : "فعال الآن"
+        }`,
       });
       fetchLandmarks();
     }
@@ -172,60 +224,141 @@ const AdminLandmarks = () => {
       .eq("id", landmark.id);
 
     if (!error) {
-      toast({ title: "تم الحذف", description: `تم حذف المعلم "${landmark.name_ar}"` });
+      toast({
+        title: "تم الحذف",
+        description: `تم حذف المعلم "${landmark.name_ar}"`,
+      });
       fetchLandmarks();
     } else {
-      toast({ title: "خطأ", description: "فشل في حذف المعلم", variant: "destructive" });
+      toast({
+        title: "خطأ",
+        description: "فشل في حذف المعلم",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteAllByGovernorate = async () => {
+    if (governorateFilter === "all") {
+      toast({
+        title: "خطأ",
+        description: "يجب اختيار محافظة محددة للحذف",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const governorateName = governorates.find(
+      (g) => g.id === governorateFilter
+    )?.name_ar;
+
+    const landmarksToDelete = landmarks.filter(
+      (l) => l.governorate_id === governorateFilter
+    );
+
+    if (landmarksToDelete.length === 0) {
+      toast({
+        title: "تنبيه",
+        description: "لا توجد معالم لحذفها في هذه المحافظة",
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("landmarks")
+      .delete()
+      .eq("governorate_id", governorateFilter);
+
+    if (!error) {
+      toast({
+        title: "تم الحذف بنجاح",
+        description: `تم حذف ${landmarksToDelete.length} معلم من محافظة ${governorateName}`,
+      });
+      setShowDeleteAllDialog(false);
+      setGovernorateFilter("all");
+      fetchLandmarks();
+    } else {
+      toast({
+        title: "خطأ",
+        description: "فشل في حذف المعالم",
+        variant: "destructive",
+      });
     }
   };
 
   // Filter landmarks
-  const filteredLandmarks = landmarks.filter(landmark => {
-    const matchesSearch = 
+  const filteredLandmarks = landmarks.filter((landmark) => {
+    const matchesSearch =
       landmark.name_ar.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (landmark.name_en?.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    const matchesCategory = categoryFilter === "all" || landmark.category === categoryFilter;
-    const matchesRegion = regionFilter === "all" || landmark.region_id === regionFilter;
-    const matchesStatus = statusFilter === "all" || 
+      landmark.name_en?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesCategory =
+      categoryFilter === "all" || landmark.category === categoryFilter;
+    const matchesRegion =
+      regionFilter === "all" || landmark.region_id === regionFilter;
+    const matchesGovernorate =
+      governorateFilter === "all" ||
+      landmark.governorate_id === governorateFilter;
+    const matchesStatus =
+      statusFilter === "all" ||
       (statusFilter === "active" && landmark.is_active) ||
       (statusFilter === "inactive" && !landmark.is_active);
 
-    return matchesSearch && matchesCategory && matchesRegion && matchesStatus;
+    return (
+      matchesSearch &&
+      matchesCategory &&
+      matchesRegion &&
+      matchesGovernorate &&
+      matchesStatus
+    );
   });
 
   // Stats
   const stats = {
     total: landmarks.length,
-    active: landmarks.filter(l => l.is_active).length,
-    inactive: landmarks.filter(l => !l.is_active).length,
-    categories: Object.keys(landmarkCategories).map(cat => ({
-      category: cat,
-      count: landmarks.filter(l => l.category === cat).length
-    })).filter(c => c.count > 0)
+    active: landmarks.filter((l) => l.is_active).length,
+    inactive: landmarks.filter((l) => !l.is_active).length,
+    categories: Object.keys(landmarkCategories)
+      .map((cat) => ({
+        category: cat,
+        count: landmarks.filter((l) => l.category === cat).length,
+      }))
+      .filter((c) => c.count > 0),
   };
 
   const getCategoryIcon = (category: string | null) => {
-    const config = landmarkCategories[category as keyof typeof landmarkCategories] || landmarkCategories.other;
+    const config =
+      landmarkCategories[category as keyof typeof landmarkCategories] ||
+      landmarkCategories.other;
     const Icon = config.icon;
     return <Icon className="w-5 h-5" />;
   };
 
   const getCategoryLabel = (category: string | null) => {
-    return landmarkCategories[category as keyof typeof landmarkCategories]?.label || 'أخرى';
+    return (
+      landmarkCategories[category as keyof typeof landmarkCategories]?.label ||
+      "أخرى"
+    );
   };
 
   const getCategoryColor = (category: string | null) => {
-    return landmarkCategories[category as keyof typeof landmarkCategories]?.color || 'bg-gray-500';
+    return (
+      landmarkCategories[category as keyof typeof landmarkCategories]?.color ||
+      "bg-gray-500"
+    );
   };
 
   return (
-    <AdminLayout 
-      title="إدارة المعالم والأماكن" 
+    <AdminLayout
+      title="إدارة المعالم والأماكن"
       subtitle="إضافة وتعديل المعالم المعروفة لتسهيل تحديد المواقع"
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setShowImportDialog(true)} className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowImportDialog(true)}
+            className="gap-2"
+          >
             <Upload className="w-4 h-4" />
             استيراد من ملف
           </Button>
@@ -249,7 +382,7 @@ const AdminLandmarks = () => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
@@ -257,11 +390,13 @@ const AdminLandmarks = () => {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">معالم فعالة</p>
-              <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+              <p className="text-2xl font-bold text-green-600">
+                {stats.active}
+              </p>
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-gradient-to-br from-amber-500/10 to-amber-500/5 border-amber-500/20">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
@@ -269,11 +404,13 @@ const AdminLandmarks = () => {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">معالم معطلة</p>
-              <p className="text-2xl font-bold text-amber-600">{stats.inactive}</p>
+              <p className="text-2xl font-bold text-amber-600">
+                {stats.inactive}
+              </p>
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
@@ -281,7 +418,9 @@ const AdminLandmarks = () => {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">التصنيفات</p>
-              <p className="text-2xl font-bold text-purple-600">{stats.categories.length}</p>
+              <p className="text-2xl font-bold text-purple-600">
+                {stats.categories.length}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -300,7 +439,7 @@ const AdminLandmarks = () => {
                 className="pr-10"
               />
             </div>
-            
+
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="التصنيف" />
@@ -317,19 +456,50 @@ const AdminLandmarks = () => {
                 ))}
               </SelectContent>
             </Select>
-            
+
             <Select value={regionFilter} onValueChange={setRegionFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="المنطقة" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">كل المناطق</SelectItem>
-                {regions.map(region => (
-                  <SelectItem key={region.id} value={region.id}>{region.name_ar}</SelectItem>
+                {regions.map((region) => (
+                  <SelectItem key={region.id} value={region.id}>
+                    {region.name_ar}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            
+
+            <Select
+              value={governorateFilter}
+              onValueChange={setGovernorateFilter}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="المحافظة" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل المحافظات</SelectItem>
+                {governorates.map((gov) => (
+                  <SelectItem key={gov.id} value={gov.id}>
+                    {gov.name_ar}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {governorateFilter !== "all" && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteAllDialog(true)}
+                className="gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                حذف جميع معالم المحافظة
+              </Button>
+            )}
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="الحالة" />
@@ -373,9 +543,9 @@ const AdminLandmarks = () => {
 
       {/* Map View */}
       {viewMode === "map" && !loading && (
-        <LandmarksMapView 
-          landmarks={landmarks} 
-          onLandmarkClick={(landmark) => setEditingLandmark(landmark)} 
+        <LandmarksMapView
+          landmarks={landmarks}
+          onLandmarkClick={(landmark) => setEditingLandmark(landmark)}
         />
       )}
 
@@ -390,10 +560,9 @@ const AdminLandmarks = () => {
             <MapPin className="w-16 h-16 mx-auto text-muted-foreground/30 mb-4" />
             <h3 className="text-lg font-medium mb-2">لا توجد معالم</h3>
             <p className="text-muted-foreground mb-4">
-              {searchQuery || categoryFilter !== "all" || regionFilter !== "all" 
+              {searchQuery || categoryFilter !== "all" || regionFilter !== "all"
                 ? "لم يتم العثور على معالم تطابق البحث"
-                : "لم تتم إضافة أي معالم بعد"
-              }
+                : "لم تتم إضافة أي معالم بعد"}
             </p>
             <Button onClick={() => setShowAddDialog(true)}>
               <Plus className="w-4 h-4 ml-2" />
@@ -403,19 +572,36 @@ const AdminLandmarks = () => {
         </Card>
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredLandmarks.map(landmark => (
-            <Card key={landmark.id} className={`relative overflow-hidden transition-all hover:shadow-lg ${!landmark.is_active ? 'opacity-60' : ''}`}>
-              <div className={`absolute top-0 right-0 left-0 h-1 ${getCategoryColor(landmark.category)}`} />
+          {filteredLandmarks.map((landmark) => (
+            <Card
+              key={landmark.id}
+              className={`relative overflow-hidden transition-all hover:shadow-lg ${
+                !landmark.is_active ? "opacity-60" : ""
+              }`}
+            >
+              <div
+                className={`absolute top-0 right-0 left-0 h-1 ${getCategoryColor(
+                  landmark.category
+                )}`}
+              />
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg ${getCategoryColor(landmark.category)} text-white flex items-center justify-center`}>
+                    <div
+                      className={`w-10 h-10 rounded-lg ${getCategoryColor(
+                        landmark.category
+                      )} text-white flex items-center justify-center`}
+                    >
                       {getCategoryIcon(landmark.category)}
                     </div>
                     <div>
-                      <CardTitle className="text-base">{landmark.name_ar}</CardTitle>
+                      <CardTitle className="text-base">
+                        {landmark.name_ar}
+                      </CardTitle>
                       {landmark.name_en && (
-                        <p className="text-sm text-muted-foreground">{landmark.name_en}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {landmark.name_en}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -426,11 +612,15 @@ const AdminLandmarks = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setEditingLandmark(landmark)}>
+                      <DropdownMenuItem
+                        onClick={() => setEditingLandmark(landmark)}
+                      >
                         <Edit2 className="w-4 h-4 ml-2" />
                         تعديل
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleToggleActive(landmark)}>
+                      <DropdownMenuItem
+                        onClick={() => handleToggleActive(landmark)}
+                      >
                         {landmark.is_active ? (
                           <>
                             <XCircle className="w-4 h-4 ml-2" />
@@ -444,7 +634,7 @@ const AdminLandmarks = () => {
                         )}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={() => handleDelete(landmark)}
                         className="text-destructive focus:text-destructive"
                       >
@@ -463,21 +653,31 @@ const AdminLandmarks = () => {
                       {getCategoryLabel(landmark.category)}
                     </Badge>
                     {landmark.is_active ? (
-                      <Badge variant="default" className="bg-green-500">فعال</Badge>
+                      <Badge variant="default" className="bg-green-500">
+                        فعال
+                      </Badge>
                     ) : (
                       <Badge variant="secondary">معطل</Badge>
                     )}
                   </div>
-                  
+
+                  {landmark.governorate && (
+                    <p className="flex items-center gap-2 text-muted-foreground">
+                      <Flag className="w-4 h-4" />
+                      {landmark.governorate.name_ar}
+                    </p>
+                  )}
+
                   {landmark.region && (
                     <p className="flex items-center gap-2 text-muted-foreground">
                       <MapPin className="w-4 h-4" />
                       {landmark.region.name_ar}
                     </p>
                   )}
-                  
+
                   <p className="text-xs text-muted-foreground font-mono">
-                    {landmark.location.lat.toFixed(6)}, {landmark.location.lng.toFixed(6)}
+                    {landmark.location.lat.toFixed(6)},{" "}
+                    {landmark.location.lng.toFixed(6)}
                   </p>
                 </div>
               </CardContent>
@@ -491,6 +691,7 @@ const AdminLandmarks = () => {
               <TableRow>
                 <TableHead>المعلم</TableHead>
                 <TableHead>التصنيف</TableHead>
+                <TableHead>المحافظة</TableHead>
                 <TableHead>المنطقة</TableHead>
                 <TableHead>الإحداثيات</TableHead>
                 <TableHead>الحالة</TableHead>
@@ -498,17 +699,26 @@ const AdminLandmarks = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLandmarks.map(landmark => (
-                <TableRow key={landmark.id} className={!landmark.is_active ? 'opacity-60' : ''}>
+              {filteredLandmarks.map((landmark) => (
+                <TableRow
+                  key={landmark.id}
+                  className={!landmark.is_active ? "opacity-60" : ""}
+                >
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg ${getCategoryColor(landmark.category)} text-white flex items-center justify-center`}>
+                      <div
+                        className={`w-8 h-8 rounded-lg ${getCategoryColor(
+                          landmark.category
+                        )} text-white flex items-center justify-center`}
+                      >
                         {getCategoryIcon(landmark.category)}
                       </div>
                       <div>
                         <p className="font-medium">{landmark.name_ar}</p>
                         {landmark.name_en && (
-                          <p className="text-xs text-muted-foreground">{landmark.name_en}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {landmark.name_en}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -518,9 +728,15 @@ const AdminLandmarks = () => {
                       {getCategoryLabel(landmark.category)}
                     </Badge>
                   </TableCell>
-                  <TableCell>{landmark.region?.name_ar || '-'}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="gap-1">
+                      {landmark.governorate?.name_ar || "-"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{landmark.region?.name_ar || "-"}</TableCell>
                   <TableCell className="font-mono text-xs">
-                    {landmark.location.lat.toFixed(4)}, {landmark.location.lng.toFixed(4)}
+                    {landmark.location.lat.toFixed(4)},{" "}
+                    {landmark.location.lng.toFixed(4)}
                   </TableCell>
                   <TableCell>
                     {landmark.is_active ? (
@@ -560,15 +776,17 @@ const AdminLandmarks = () => {
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         regions={regions}
+        governorates={governorates}
         onSuccess={fetchLandmarks}
       />
-      
+
       {editingLandmark && (
         <EditLandmarkDialog
           open={!!editingLandmark}
           onOpenChange={(open) => !open && setEditingLandmark(null)}
           landmark={editingLandmark}
           regions={regions}
+          governorates={governorates}
           onSuccess={fetchLandmarks}
         />
       )}
@@ -578,8 +796,69 @@ const AdminLandmarks = () => {
         open={showImportDialog}
         onOpenChange={setShowImportDialog}
         regions={regions}
+        governorates={governorates}
         onSuccess={fetchLandmarks}
       />
+
+      {/* Delete All Dialog */}
+      {showDeleteAllDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <CardTitle className="text-destructive flex items-center gap-2">
+                <Trash2 className="w-5 h-5" />
+                تأكيد حذف جميع المعالم
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <p className="text-sm text-destructive font-medium">
+                  ⚠️ تحذير: هذا الإجراء لا يمكن التراجع عنه!
+                </p>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                أنت على وشك حذف{" "}
+                <strong>
+                  {
+                    filteredLandmarks.filter(
+                      (l) => l.governorate_id === governorateFilter
+                    ).length
+                  }
+                </strong>{" "}
+                معلم من محافظة{" "}
+                <strong>
+                  {
+                    governorates.find((g) => g.id === governorateFilter)
+                      ?.name_ar
+                  }
+                </strong>
+              </p>
+
+              <p className="text-sm">
+                هل أنت متأكد من حذف جميع المعالم في هذه المحافظة؟
+              </p>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteAllDialog(false)}
+                >
+                  إلغاء
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteAllByGovernorate}
+                  className="gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  تأكيد الحذف
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </AdminLayout>
   );
 };

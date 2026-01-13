@@ -232,7 +232,9 @@ const AdminLayout = ({
                   to={item.href}
                   className={cn(
                     "flex items-center rounded-lg transition-all duration-200",
-                    collapsed ? "justify-center p-3" : "gap-3 px-4 py-3",
+                    collapsed
+                      ? "justify-center p-3"
+                      : "gap-3 px-4 py-3 flex-row-reverse",
                     isActive
                       ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -240,7 +242,7 @@ const AdminLayout = ({
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   {!collapsed && (
-                    <span className="animate-fade-in whitespace-nowrap">
+                    <span className="animate-fade-in whitespace-nowrap flex-1 text-right">
                       {item.label}
                     </span>
                   )}
@@ -295,7 +297,7 @@ const AdminLayout = ({
               >
                 <CollapsibleTrigger
                   className={cn(
-                    "flex items-center w-full rounded-lg transition-all duration-200 gap-3 px-4 py-3",
+                    "flex items-center w-full rounded-lg transition-all duration-200 gap-3 px-4 py-3 flex-row-reverse",
                     advancedPricingItems.some(
                       (item) => location.pathname === item.href
                     )
@@ -323,14 +325,14 @@ const AdminLayout = ({
                         key={item.href}
                         to={item.href}
                         className={cn(
-                          "flex items-center rounded-lg transition-all duration-200 gap-3 px-4 py-2.5",
+                          "flex items-center rounded-lg transition-all duration-200 gap-3 px-4 py-2.5 flex-row-reverse",
                           isActive
                             ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
                             : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                         )}
                       >
                         <Icon className="w-4 h-4 flex-shrink-0" />
-                        <span className="whitespace-nowrap text-sm">
+                        <span className="whitespace-nowrap text-sm flex-1 text-right">
                           {item.label}
                         </span>
                       </Link>
@@ -366,11 +368,11 @@ const AdminLayout = ({
           ) : (
             <Button
               variant="ghost"
-              className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
+              className="w-full justify-between text-destructive hover:text-destructive hover:bg-destructive/10 flex-row-reverse"
               onClick={handleLogout}
             >
-              <LogOut className="w-4 h-4 ml-2" />
-              تسجيل الخروج
+              <LogOut className="w-4 h-4" />
+              <span className="flex-1 text-right">تسجيل الخروج</span>
             </Button>
           )}
         </div>

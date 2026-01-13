@@ -2,17 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Map as MapIcon, 
-  Layers, 
-  ZoomIn, 
-  ZoomOut, 
+import {
+  Map as MapIcon,
+  Layers,
+  ZoomIn,
+  ZoomOut,
   Locate,
   Eye,
-  EyeOff
+  EyeOff,
 } from "lucide-react";
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 import { landmarkCategories } from "@/pages/admin/AdminLandmarks";
 
 interface LandmarkData {
@@ -32,12 +32,15 @@ interface LandmarksMapViewProps {
   onLandmarkClick: (landmark: LandmarkData) => void;
 }
 
-export const LandmarksMapView = ({ landmarks, onLandmarkClick }: LandmarksMapViewProps) => {
+export const LandmarksMapView = ({
+  landmarks,
+  onLandmarkClick,
+}: LandmarksMapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  
+
   const [mapToken, setMapToken] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [showInactive, setShowInactive] = useState(true);
@@ -48,12 +51,12 @@ export const LandmarksMapView = ({ landmarks, onLandmarkClick }: LandmarksMapVie
     const fetchToken = async () => {
       try {
         const response = await fetch(
-          'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token'
+          "https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token"
         );
         const data = await response.json();
         if (data.token) setMapToken(data.token);
       } catch (error) {
-        console.error('Error fetching token:', error);
+        console.error("Error fetching token:", error);
       }
     };
     fetchToken();
@@ -64,27 +67,31 @@ export const LandmarksMapView = ({ landmarks, onLandmarkClick }: LandmarksMapVie
     if (!mapContainer.current || !mapToken) return;
 
     mapboxgl.accessToken = mapToken;
-    
+
     // Calculate center from landmarks or default to Ramadi
     const defaultCenter: [number, number] = [43.3074, 33.4235];
     let center = defaultCenter;
-    
+
     if (landmarks.length > 0) {
-      const avgLat = landmarks.reduce((sum, l) => sum + l.location.lat, 0) / landmarks.length;
-      const avgLng = landmarks.reduce((sum, l) => sum + l.location.lng, 0) / landmarks.length;
+      const avgLat =
+        landmarks.reduce((sum, l) => sum + l.location.lat, 0) /
+        landmarks.length;
+      const avgLng =
+        landmarks.reduce((sum, l) => sum + l.location.lng, 0) /
+        landmarks.length;
       center = [avgLng, avgLat];
     }
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
+      style: "mapbox://styles/mapbox/streets-v12",
       center,
       zoom: 12,
     });
 
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-left');
+    map.current.addControl(new mapboxgl.NavigationControl(), "top-left");
 
-    map.current.on('load', () => {
+    map.current.on("load", () => {
       setMapLoaded(true);
     });
 
@@ -98,23 +105,27 @@ export const LandmarksMapView = ({ landmarks, onLandmarkClick }: LandmarksMapVie
     if (!map.current || !mapLoaded) return;
 
     // Clear existing markers
-    markersRef.current.forEach(marker => marker.remove());
+    markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = [];
 
     // Filter landmarks
-    const filteredLandmarks = landmarks.filter(landmark => {
+    const filteredLandmarks = landmarks.filter((landmark) => {
       if (!showInactive && !landmark.is_active) return false;
-      if (selectedCategory && landmark.category !== selectedCategory) return false;
+      if (selectedCategory && landmark.category !== selectedCategory)
+        return false;
       return true;
     });
 
     // Add markers
-    filteredLandmarks.forEach(landmark => {
-      const categoryConfig = landmarkCategories[landmark.category as keyof typeof landmarkCategories] || landmarkCategories.other;
-      
+    filteredLandmarks.forEach((landmark) => {
+      const categoryConfig =
+        landmarkCategories[
+          landmark.category as keyof typeof landmarkCategories
+        ] || landmarkCategories.other;
+
       // Create custom marker element
-      const el = document.createElement('div');
-      el.className = 'landmark-marker';
+      const el = document.createElement("div");
+      el.className = "landmark-marker";
       el.style.cssText = `
         width: 36px;
         height: 36px;
@@ -126,28 +137,29 @@ export const LandmarksMapView = ({ landmarks, onLandmarkClick }: LandmarksMapVie
         transition: transform 0.2s;
         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         border: 2px solid white;
-        ${!landmark.is_active ? 'opacity: 0.5;' : ''}
+        ${!landmark.is_active ? "opacity: 0.5;" : ""}
       `;
-      
+
       // Set background color based on category
       const colorMap: Record<string, string> = {
-        hospital: '#ef4444',
-        university: '#3b82f6',
-        school: '#6366f1',
-        mosque: '#10b981',
-        market: '#f97316',
-        government: '#a855f7',
-        station: '#06b6d4',
-        airport: '#0ea5e9',
-        gas_station: '#eab308',
-        restaurant: '#ec4899',
-        hotel: '#8b5cf6',
-        parking: '#64748b',
-        landmark: '#f59e0b',
-        residential: '#14b8a6',
-        other: '#6b7280'
+        hospital: "#ef4444",
+        university: "#3b82f6",
+        school: "#6366f1",
+        mosque: "#10b981",
+        market: "#f97316",
+        government: "#a855f7",
+        station: "#06b6d4",
+        airport: "#0ea5e9",
+        gas_station: "#eab308",
+        restaurant: "#ec4899",
+        hotel: "#8b5cf6",
+        parking: "#64748b",
+        landmark: "#f59e0b",
+        residential: "#14b8a6",
+        other: "#6b7280",
       };
-      el.style.backgroundColor = colorMap[landmark.category || 'other'] || '#6b7280';
+      el.style.backgroundColor =
+        colorMap[landmark.category || "other"] || "#6b7280";
 
       // Add icon
       el.innerHTML = `
@@ -158,35 +170,50 @@ export const LandmarksMapView = ({ landmarks, onLandmarkClick }: LandmarksMapVie
       `;
 
       el.onmouseenter = () => {
-        el.style.transform = 'scale(1.2)';
+        el.style.transform = "scale(1.2)";
       };
       el.onmouseleave = () => {
-        el.style.transform = 'scale(1)';
+        el.style.transform = "scale(1)";
       };
 
       el.onclick = (e) => {
         e.stopPropagation();
-        
+
         // Close any existing popup
         popupRef.current?.remove();
-        
+
         // Create popup
-        const popup = new mapboxgl.Popup({ 
-          offset: 25, 
+        const popup = new mapboxgl.Popup({
+          offset: 25,
           closeButton: true,
           closeOnClick: false,
-          maxWidth: '280px'
+          maxWidth: "280px",
         })
           .setLngLat([landmark.location.lng, landmark.location.lat])
-          .setHTML(`
+          .setHTML(
+            `
             <div style="direction: rtl; text-align: right; padding: 8px 0;">
-              <h3 style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${landmark.name_ar}</h3>
-              ${landmark.name_en ? `<p style="color: #6b7280; font-size: 12px; margin-bottom: 8px;">${landmark.name_en}</p>` : ''}
+              <h3 style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${
+                landmark.name_ar
+              }</h3>
+              ${
+                landmark.name_en
+                  ? `<p style="color: #6b7280; font-size: 12px; margin-bottom: 8px;">${landmark.name_en}</p>`
+                  : ""
+              }
               <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
-                <span style="background: ${colorMap[landmark.category || 'other']}20; color: ${colorMap[landmark.category || 'other']}; padding: 2px 8px; border-radius: 4px; font-size: 11px;">
+                <span style="background: ${
+                  colorMap[landmark.category || "other"]
+                }20; color: ${
+              colorMap[landmark.category || "other"]
+            }; padding: 2px 8px; border-radius: 4px; font-size: 11px;">
                   ${categoryConfig.label}
                 </span>
-                ${landmark.region ? `<span style="color: #6b7280; font-size: 11px;">${landmark.region.name_ar}</span>` : ''}
+                ${
+                  landmark.region
+                    ? `<span style="color: #6b7280; font-size: 11px;">${landmark.region.name_ar}</span>`
+                    : ""
+                }
               </div>
               <button 
                 id="edit-landmark-${landmark.id}" 
@@ -195,14 +222,17 @@ export const LandmarksMapView = ({ landmarks, onLandmarkClick }: LandmarksMapVie
                 ✏️ تعديل المعلم
               </button>
             </div>
-          `)
+          `
+          )
           .addTo(map.current!);
 
         popupRef.current = popup;
 
         // Add click handler for edit button
         setTimeout(() => {
-          const editBtn = document.getElementById(`edit-landmark-${landmark.id}`);
+          const editBtn = document.getElementById(
+            `edit-landmark-${landmark.id}`
+          );
           if (editBtn) {
             editBtn.onclick = () => {
               popup.remove();
@@ -222,23 +252,25 @@ export const LandmarksMapView = ({ landmarks, onLandmarkClick }: LandmarksMapVie
 
   const handleZoomIn = () => map.current?.zoomIn();
   const handleZoomOut = () => map.current?.zoomOut();
-  
+
   const handleFitBounds = () => {
     if (!map.current || landmarks.length === 0) return;
-    
+
     const bounds = new mapboxgl.LngLatBounds();
-    landmarks.forEach(l => bounds.extend([l.location.lng, l.location.lat]));
+    landmarks.forEach((l) => bounds.extend([l.location.lng, l.location.lat]));
     map.current.fitBounds(bounds, { padding: 50 });
   };
 
-  const visibleCount = landmarks.filter(l => {
+  const visibleCount = landmarks.filter((l) => {
     if (!showInactive && !l.is_active) return false;
     if (selectedCategory && l.category !== selectedCategory) return false;
     return true;
   }).length;
 
   // Get unique categories from landmarks
-  const usedCategories = [...new Set(landmarks.map(l => l.category).filter(Boolean))];
+  const usedCategories = [
+    ...new Set(landmarks.map((l) => l.category).filter(Boolean)),
+  ];
 
   return (
     <Card className="overflow-hidden">
@@ -249,7 +281,7 @@ export const LandmarksMapView = ({ landmarks, onLandmarkClick }: LandmarksMapVie
             خريطة المعالم
             <Badge variant="secondary">{visibleCount} معلم</Badge>
           </CardTitle>
-          
+
           <div className="flex items-center gap-2">
             {/* Category Filter */}
             <div className="flex items-center gap-1 flex-wrap">
@@ -261,25 +293,31 @@ export const LandmarksMapView = ({ landmarks, onLandmarkClick }: LandmarksMapVie
               >
                 الكل
               </Button>
-              {usedCategories.slice(0, 5).map(cat => {
-                const config = landmarkCategories[cat as keyof typeof landmarkCategories];
+              {usedCategories.slice(0, 5).map((cat) => {
+                const config =
+                  landmarkCategories[cat as keyof typeof landmarkCategories] ||
+                  landmarkCategories.other;
+                if (!config) return null;
+                const Icon = config.icon;
                 return (
                   <Button
                     key={cat}
                     variant={selectedCategory === cat ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setSelectedCategory(cat === selectedCategory ? null : cat)}
+                    onClick={() =>
+                      setSelectedCategory(cat === selectedCategory ? null : cat)
+                    }
                     className="h-7 text-xs gap-1"
                   >
-                    <config.icon className="w-3 h-3" />
-                    {config.label.split('/')[0]}
+                    <Icon className="w-3 h-3" />
+                    {config.label.split("/")[0]}
                   </Button>
                 );
               })}
             </div>
 
             <div className="h-6 w-px bg-border" />
-            
+
             {/* Show/Hide inactive */}
             <Button
               variant="outline"
@@ -287,25 +325,44 @@ export const LandmarksMapView = ({ landmarks, onLandmarkClick }: LandmarksMapVie
               onClick={() => setShowInactive(!showInactive)}
               className="h-7 gap-1"
             >
-              {showInactive ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-              {showInactive ? 'إخفاء المعطلة' : 'إظهار المعطلة'}
+              {showInactive ? (
+                <Eye className="w-3 h-3" />
+              ) : (
+                <EyeOff className="w-3 h-3" />
+              )}
+              {showInactive ? "إخفاء المعطلة" : "إظهار المعطلة"}
             </Button>
           </div>
         </div>
       </CardHeader>
-      
+
       <CardContent className="p-0 relative">
         <div ref={mapContainer} className="h-[500px] w-full" />
-        
+
         {/* Map Controls */}
         <div className="absolute bottom-4 left-4 flex flex-col gap-2">
-          <Button variant="secondary" size="icon" onClick={handleZoomIn} className="h-8 w-8 shadow-md">
+          <Button
+            variant="secondary"
+            size="icon"
+            onClick={handleZoomIn}
+            className="h-8 w-8 shadow-md"
+          >
             <ZoomIn className="w-4 h-4" />
           </Button>
-          <Button variant="secondary" size="icon" onClick={handleZoomOut} className="h-8 w-8 shadow-md">
+          <Button
+            variant="secondary"
+            size="icon"
+            onClick={handleZoomOut}
+            className="h-8 w-8 shadow-md"
+          >
             <ZoomOut className="w-4 h-4" />
           </Button>
-          <Button variant="secondary" size="icon" onClick={handleFitBounds} className="h-8 w-8 shadow-md">
+          <Button
+            variant="secondary"
+            size="icon"
+            onClick={handleFitBounds}
+            className="h-8 w-8 shadow-md"
+          >
             <Locate className="w-4 h-4" />
           </Button>
         </div>
@@ -317,22 +374,35 @@ export const LandmarksMapView = ({ landmarks, onLandmarkClick }: LandmarksMapVie
             دليل الألوان
           </div>
           <div className="grid grid-cols-2 gap-1 text-[10px]">
-            {usedCategories.slice(0, 6).map(cat => {
-              const config = landmarkCategories[cat as keyof typeof landmarkCategories];
+            {usedCategories.slice(0, 6).map((cat) => {
+              const config =
+                landmarkCategories[cat as keyof typeof landmarkCategories] ||
+                landmarkCategories.other;
+              if (!config) return null;
               const colorMap: Record<string, string> = {
-                hospital: '#ef4444', university: '#3b82f6', school: '#6366f1',
-                mosque: '#10b981', market: '#f97316', government: '#a855f7',
-                station: '#06b6d4', airport: '#0ea5e9', gas_station: '#eab308',
-                restaurant: '#ec4899', hotel: '#8b5cf6', parking: '#64748b',
-                landmark: '#f59e0b', residential: '#14b8a6', other: '#6b7280'
+                hospital: "#ef4444",
+                university: "#3b82f6",
+                school: "#6366f1",
+                mosque: "#10b981",
+                market: "#f97316",
+                government: "#a855f7",
+                station: "#06b6d4",
+                airport: "#0ea5e9",
+                gas_station: "#eab308",
+                restaurant: "#ec4899",
+                hotel: "#8b5cf6",
+                parking: "#64748b",
+                landmark: "#f59e0b",
+                residential: "#14b8a6",
+                other: "#6b7280",
               };
               return (
                 <div key={cat} className="flex items-center gap-1">
-                  <div 
-                    className="w-3 h-3 rounded-full" 
-                    style={{ backgroundColor: colorMap[cat || 'other'] }}
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: colorMap[cat || "other"] }}
                   />
-                  <span className="truncate">{config.label.split('/')[0]}</span>
+                  <span className="truncate">{config.label.split("/")[0]}</span>
                 </div>
               );
             })}

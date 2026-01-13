@@ -19,15 +19,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Upload, 
-  FileSpreadsheet, 
+import {
+  Upload,
+  FileSpreadsheet,
   Download,
-  CheckCircle, 
-  XCircle, 
+  CheckCircle,
+  XCircle,
   Loader2,
   AlertTriangle,
-  FileText
+  FileText,
+  MapPin,
 } from "lucide-react";
 import { landmarkCategories } from "@/pages/admin/AdminLandmarks";
 
@@ -36,11 +37,18 @@ interface Region {
   name_ar: string;
 }
 
+interface Governorate {
+  id: string;
+  name_ar: string;
+  code: string;
+}
+
 interface ParsedLandmark {
   name_ar: string;
   name_en?: string;
   category?: string;
   region_name?: string;
+  governorate?: string;
   lat?: number;
   lng?: number;
   isValid: boolean;
@@ -51,20 +59,32 @@ interface ImportLandmarksDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   regions: Region[];
+  governorates: Governorate[];
   onSuccess: () => void;
 }
 
-export const ImportLandmarksDialog = ({ open, onOpenChange, regions, onSuccess }: ImportLandmarksDialogProps) => {
+export const ImportLandmarksDialog = ({
+  open,
+  onOpenChange,
+  regions,
+  governorates,
+  onSuccess,
+}: ImportLandmarksDialogProps) => {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const [step, setStep] = useState<'upload' | 'preview' | 'importing' | 'done'>('upload');
+
+  const [step, setStep] = useState<
+    "select-gov" | "upload" | "preview" | "importing" | "done"
+  >("select-gov");
+  const [selectedGovernorate, setSelectedGovernorate] =
+    useState<Governorate | null>(null);
   const [parsedData, setParsedData] = useState<ParsedLandmark[]>([]);
   const [importResults, setImportResults] = useState({ success: 0, failed: 0 });
   const [fileName, setFileName] = useState("");
 
   const resetDialog = () => {
-    setStep('upload');
+    setStep("select-gov");
+    setSelectedGovernorate(null);
     setParsedData([]);
     setImportResults({ success: 0, failed: 0 });
     setFileName("");
@@ -77,38 +97,41 @@ export const ImportLandmarksDialog = ({ open, onOpenChange, regions, onSuccess }
   };
 
   const parseCSV = (content: string): ParsedLandmark[] => {
-    const lines = content.trim().split('\n');
+    const lines = content.trim().split("\n");
     if (lines.length < 2) return [];
 
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+    const headers = lines[0]
+      .split(",")
+      .map((h) => h.trim().toLowerCase().replace(/"/g, ""));
     const data: ParsedLandmark[] = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+      const values = lines[i].split(",").map((v) => v.trim().replace(/"/g, ""));
       const row: Record<string, string> = {};
-      
+
       headers.forEach((header, idx) => {
-        row[header] = values[idx] || '';
+        row[header] = values[idx] || "";
       });
 
       const errors: string[] = [];
-      const name_ar = row['name_ar'] || row['الاسم'] || row['اسم المعلم'] || '';
-      const lat = parseFloat(row['lat'] || row['خط العرض'] || '0');
-      const lng = parseFloat(row['lng'] || row['خط الطول'] || '0');
+      const name_ar = row["name_ar"] || row["الاسم"] || row["اسم المعلم"] || "";
+      const lat = parseFloat(row["lat"] || row["خط العرض"] || "0");
+      const lng = parseFloat(row["lng"] || row["خط الطول"] || "0");
 
-      if (!name_ar) errors.push('الاسم العربي مطلوب');
-      if (!lat || lat < -90 || lat > 90) errors.push('خط العرض غير صالح');
-      if (!lng || lng < -180 || lng > 180) errors.push('خط الطول غير صالح');
+      if (!name_ar) errors.push("الاسم العربي مطلوب");
+      if (!lat || lat < -90 || lat > 90) errors.push("خط العرض غير صالح");
+      if (!lng || lng < -180 || lng > 180) errors.push("خط الطول غير صالح");
 
       data.push({
         name_ar,
-        name_en: row['name_en'] || row['الاسم الإنجليزي'] || '',
-        category: row['category'] || row['التصنيف'] || 'landmark',
-        region_name: row['region'] || row['المنطقة'] || '',
+        name_en: row["name_en"] || row["الاسم الإنجليزي"] || "",
+        category: row["category"] || row["التصنيف"] || "landmark",
+        region_name: row["region"] || row["المنطقة"] || "",
+        governorate: row["governorate"] || row["المحافظة"] || "",
         lat: lat || 0,
         lng: lng || 0,
         isValid: errors.length === 0,
-        errors
+        errors,
       });
     }
 
@@ -126,15 +149,15 @@ export const ImportLandmarksDialog = ({ open, onOpenChange, regions, onSuccess }
       const content = event.target?.result as string;
       const parsed = parseCSV(content);
       setParsedData(parsed);
-      setStep('preview');
+      setStep("preview");
     };
     reader.readAsText(file);
   };
 
   const findRegionId = (regionName: string): string | null => {
     if (!regionName) return null;
-    const found = regions.find(r => 
-      r.name_ar.includes(regionName) || regionName.includes(r.name_ar)
+    const found = regions.find(
+      (r) => r.name_ar.includes(regionName) || regionName.includes(r.name_ar)
     );
     return found?.id || null;
   };
@@ -145,60 +168,81 @@ export const ImportLandmarksDialog = ({ open, onOpenChange, regions, onSuccess }
       return normalized;
     }
     // Try to match Arabic labels
-    const found = Object.entries(landmarkCategories).find(([_, config]) => 
-      config.label.includes(category) || category.includes(config.label)
+    const found = Object.entries(landmarkCategories).find(
+      ([_, config]) =>
+        config.label.includes(category) || category.includes(config.label)
     );
-    return found?.[0] || 'landmark';
+    return found?.[0] || "landmark";
   };
 
   const handleImport = async () => {
-    setStep('importing');
+    if (!selectedGovernorate) {
+      toast({
+        title: "خطأ",
+        description: "يرجى اختيار المحافظة أولاً",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setStep("importing");
     let success = 0;
     let failed = 0;
 
-    const validItems = parsedData.filter(item => item.isValid);
+    const validItems = parsedData.filter((item) => item.isValid);
 
     for (const item of validItems) {
-      const { error } = await supabase.from("landmarks").insert({
+      const insertData = {
         name_ar: item.name_ar,
         name_en: item.name_en || null,
-        category: mapCategory(item.category || 'landmark'),
-        region_id: findRegionId(item.region_name || ''),
+        category: mapCategory(item.category || "landmark"),
+        region_id: findRegionId(item.region_name || "") || null,
+        governorate_id: selectedGovernorate.id,
         location: { lat: item.lat, lng: item.lng },
-        is_active: true
-      });
+        is_active: true,
+      };
+
+      const { error } = await supabase.from("landmarks").insert(insertData);
 
       if (error) {
         failed++;
-        console.error('Import error:', error);
+        console.error(
+          "Import error:",
+          error.message,
+          error.details,
+          error.hint,
+          insertData
+        );
       } else {
         success++;
       }
     }
 
     setImportResults({ success, failed });
-    setStep('done');
-    
+    setStep("done");
+
     if (success > 0) {
       onSuccess();
     }
   };
 
   const downloadTemplate = () => {
-    const template = `name_ar,name_en,category,region,lat,lng
-جامعة الأنبار,University of Anbar,university,مركز الرمادي,33.4235,43.3074
-مستشفى الرمادي,Ramadi Hospital,hospital,مركز الرمادي,33.4280,43.3120
-سوق الرمادي المركزي,Ramadi Central Market,market,مركز الرمادي,33.4250,43.3100`;
+    const template = `name_ar,name_en,name_ku,category,lat,lng,address_ar,phone_numbers,governorate
+جامعة الأنبار,University of Anbar,,university,33.4389,43.2978,الرمادي - الأنبار,+964 24 234 5000,الأنبار
+قلعة أربيل,Erbil Citadel,Qelay Hewlêr,landmark,36.1913,44.0092,مركز مدينة أربيل,,أربيل
+مستشفى الرمادي,Ramadi Hospital,,hospital,33.4156,43.3089,مركز الرمادي,+964 24 234 2222,الأنبار`;
 
-    const blob = new Blob(['\ufeff' + template], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const blob = new Blob(["\ufeff" + template], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = 'landmarks_template.csv';
+    link.download = "landmarks_template.csv";
     link.click();
   };
 
-  const validCount = parsedData.filter(p => p.isValid).length;
-  const invalidCount = parsedData.filter(p => !p.isValid).length;
+  const validCount = parsedData.filter((p) => p.isValid).length;
+  const invalidCount = parsedData.filter((p) => !p.isValid).length;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -213,10 +257,74 @@ export const ImportLandmarksDialog = ({ open, onOpenChange, regions, onSuccess }
           </DialogDescription>
         </DialogHeader>
 
-        {step === 'upload' && (
+        {step === "select-gov" && (
           <div className="space-y-6">
+            <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
+              <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                <MapPin className="w-8 h-8 text-primary" />
+              </div>
+              <h3 className="font-bold text-lg mb-2">اختر المحافظة أولاً</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                سيتم ربط جميع المعالم في الملف بهذه المحافظة
+              </p>
+
+              <div className="grid grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-2">
+                {governorates.map((gov) => (
+                  <Button
+                    key={gov.id}
+                    variant={
+                      selectedGovernorate?.id === gov.id ? "default" : "outline"
+                    }
+                    className="h-auto py-3 flex flex-col gap-1"
+                    onClick={() => setSelectedGovernorate(gov)}
+                  >
+                    <span className="font-bold">{gov.name_ar}</span>
+                    <span className="text-xs opacity-70">{gov.code}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={handleClose}>
+                إلغاء
+              </Button>
+              <Button
+                onClick={() => setStep("upload")}
+                disabled={!selectedGovernorate}
+                className="gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                التالي - رفع الملف
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {step === "upload" && (
+          <div className="space-y-6">
+            {/* Selected Governorate Badge */}
+            {selectedGovernorate && (
+              <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-primary" />
+                  <span className="font-medium">المحافظة المختارة:</span>
+                  <Badge variant="default" className="text-base px-3 py-1">
+                    {selectedGovernorate.name_ar}
+                  </Badge>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setStep("select-gov")}
+                >
+                  تغيير
+                </Button>
+              </div>
+            )}
+
             {/* Upload Area */}
-            <div 
+            <div
               className="border-2 border-dashed rounded-xl p-8 text-center hover:border-primary/50 transition-colors cursor-pointer bg-muted/20"
               onClick={() => fileInputRef.current?.click()}
             >
@@ -245,7 +353,12 @@ export const ImportLandmarksDialog = ({ open, onOpenChange, regions, onSuccess }
                   <p className="text-sm text-muted-foreground mb-3">
                     حمّل النموذج واملأه ببيانات المعالم، ثم ارفعه هنا
                   </p>
-                  <Button variant="outline" size="sm" onClick={downloadTemplate} className="gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadTemplate}
+                    className="gap-2"
+                  >
                     <Download className="w-4 h-4" />
                     تحميل النموذج CSV
                   </Button>
@@ -257,19 +370,50 @@ export const ImportLandmarksDialog = ({ open, onOpenChange, regions, onSuccess }
             <div className="space-y-2">
               <h4 className="font-medium">الأعمدة المطلوبة:</h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-                <Badge variant="outline" className="justify-start">name_ar (مطلوب)</Badge>
-                <Badge variant="outline" className="justify-start">lat (مطلوب)</Badge>
-                <Badge variant="outline" className="justify-start">lng (مطلوب)</Badge>
-                <Badge variant="secondary" className="justify-start">name_en (اختياري)</Badge>
-                <Badge variant="secondary" className="justify-start">category (اختياري)</Badge>
-                <Badge variant="secondary" className="justify-start">region (اختياري)</Badge>
+                <Badge variant="outline" className="justify-start">
+                  name_ar (مطلوب)
+                </Badge>
+                <Badge variant="outline" className="justify-start">
+                  lat (مطلوب)
+                </Badge>
+                <Badge variant="outline" className="justify-start">
+                  lng (مطلوب)
+                </Badge>
+                <Badge variant="secondary" className="justify-start">
+                  name_en (اختياري)
+                </Badge>
+                <Badge variant="secondary" className="justify-start">
+                  category (اختياري)
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="justify-start bg-primary/10"
+                >
+                  governorate (مهم)
+                </Badge>
+                <Badge variant="secondary" className="justify-start">
+                  region (اختياري)
+                </Badge>
               </div>
             </div>
           </div>
         )}
 
-        {step === 'preview' && (
+        {step === "preview" && (
           <div className="space-y-4">
+            {/* Selected Governorate */}
+            {selectedGovernorate && (
+              <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-primary" />
+                <span className="font-medium">
+                  سيتم إضافة المعالم إلى محافظة:
+                </span>
+                <Badge variant="default" className="text-base px-3 py-1">
+                  {selectedGovernorate.name_ar}
+                </Badge>
+              </div>
+            )}
+
             {/* Summary */}
             <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
               <FileSpreadsheet className="w-8 h-8 text-primary" />
@@ -302,19 +446,34 @@ export const ImportLandmarksDialog = ({ open, onOpenChange, regions, onSuccess }
                     <TableHead>الاسم العربي</TableHead>
                     <TableHead>الاسم الإنجليزي</TableHead>
                     <TableHead>التصنيف</TableHead>
-                    <TableHead>المنطقة</TableHead>
+                    <TableHead>المحافظة</TableHead>
                     <TableHead>الإحداثيات</TableHead>
                     <TableHead>الحالة</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {parsedData.map((item, idx) => (
-                    <TableRow key={idx} className={!item.isValid ? 'bg-destructive/5' : ''}>
-                      <TableCell className="font-mono text-xs">{idx + 1}</TableCell>
-                      <TableCell className="font-medium">{item.name_ar || '-'}</TableCell>
-                      <TableCell className="text-muted-foreground">{item.name_en || '-'}</TableCell>
-                      <TableCell>{landmarkCategories[item.category as keyof typeof landmarkCategories]?.label || item.category}</TableCell>
-                      <TableCell>{item.region_name || '-'}</TableCell>
+                    <TableRow
+                      key={idx}
+                      className={!item.isValid ? "bg-destructive/5" : ""}
+                    >
+                      <TableCell className="font-mono text-xs">
+                        {idx + 1}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {item.name_ar || "-"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {item.name_en || "-"}
+                      </TableCell>
+                      <TableCell>
+                        {landmarkCategories[
+                          item.category as keyof typeof landmarkCategories
+                        ]?.label || item.category}
+                      </TableCell>
+                      <TableCell className="text-primary font-medium">
+                        {item.governorate || "-"}
+                      </TableCell>
                       <TableCell className="font-mono text-xs">
                         {item.lat?.toFixed(4)}, {item.lng?.toFixed(4)}
                       </TableCell>
@@ -324,7 +483,9 @@ export const ImportLandmarksDialog = ({ open, onOpenChange, regions, onSuccess }
                         ) : (
                           <div className="flex items-center gap-1">
                             <AlertTriangle className="w-4 h-4 text-destructive" />
-                            <span className="text-xs text-destructive">{item.errors[0]}</span>
+                            <span className="text-xs text-destructive">
+                              {item.errors[0]}
+                            </span>
                           </div>
                         )}
                       </TableCell>
@@ -343,7 +504,7 @@ export const ImportLandmarksDialog = ({ open, onOpenChange, regions, onSuccess }
           </div>
         )}
 
-        {step === 'importing' && (
+        {step === "importing" && (
           <div className="py-12 text-center">
             <Loader2 className="w-12 h-12 mx-auto animate-spin text-primary mb-4" />
             <h3 className="font-medium text-lg mb-2">جاري الاستيراد...</h3>
@@ -353,14 +514,17 @@ export const ImportLandmarksDialog = ({ open, onOpenChange, regions, onSuccess }
           </div>
         )}
 
-        {step === 'done' && (
+        {step === "done" && (
           <div className="py-8 text-center">
             <div className="w-16 h-16 mx-auto rounded-full bg-green-500/20 flex items-center justify-center mb-4">
               <CheckCircle className="w-8 h-8 text-green-500" />
             </div>
             <h3 className="font-medium text-lg mb-2">تم الاستيراد بنجاح!</h3>
             <div className="flex items-center justify-center gap-4 mb-4">
-              <Badge variant="default" className="bg-green-500 text-lg py-1 px-3">
+              <Badge
+                variant="default"
+                className="bg-green-500 text-lg py-1 px-3"
+              >
                 {importResults.success} تم إضافتهم
               </Badge>
               {importResults.failed > 0 && (
@@ -376,21 +540,27 @@ export const ImportLandmarksDialog = ({ open, onOpenChange, regions, onSuccess }
         )}
 
         <DialogFooter>
-          {step === 'upload' && (
-            <Button variant="outline" onClick={handleClose}>إلغاء</Button>
+          {step === "upload" && (
+            <Button variant="outline" onClick={handleClose}>
+              إلغاء
+            </Button>
           )}
-          {step === 'preview' && (
+          {step === "preview" && (
             <>
-              <Button variant="outline" onClick={resetDialog}>اختيار ملف آخر</Button>
-              <Button onClick={handleImport} disabled={validCount === 0} className="gap-2">
+              <Button variant="outline" onClick={resetDialog}>
+                اختيار ملف آخر
+              </Button>
+              <Button
+                onClick={handleImport}
+                disabled={validCount === 0}
+                className="gap-2"
+              >
                 <Upload className="w-4 h-4" />
                 استيراد {validCount} معلم
               </Button>
             </>
           )}
-          {step === 'done' && (
-            <Button onClick={handleClose}>إغلاق</Button>
-          )}
+          {step === "done" && <Button onClick={handleClose}>إغلاق</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
