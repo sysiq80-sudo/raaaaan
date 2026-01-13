@@ -151,7 +151,7 @@ const Auth = () => {
     }
   };
 
-  // Handle login with password
+  // Handle login with password - try both rider and driver domains
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
@@ -164,15 +164,41 @@ const Auth = () => {
     setLoading(true);
     
     try {
-      const phoneEmail = `${phoneInput.replace(/\D/g, '')}@raan.app`;
+      const cleanedPhone = phoneInput.replace(/\D/g, '');
+      const phoneFormats = formatPhoneForLookup(phoneInput);
+      const domains = ['@raan.app', '@driver.raan.app'];
       
-      const { error } = await supabase.auth.signInWithPassword({
-        email: phoneEmail,
-        password: loginPassword,
-      });
+      // Generate all possible email combinations
+      const emailsToTry: string[] = [];
+      for (const phone of phoneFormats) {
+        for (const domain of domains) {
+          emailsToTry.push(`${phone}${domain}`);
+        }
+      }
       
-      if (error) {
-        if (error.message === "Invalid login credentials") {
+      let loginSuccess = false;
+      let lastError: any = null;
+      
+      // Try each email format until one works
+      for (const email of emailsToTry) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email,
+          password: loginPassword,
+        });
+        
+        if (!error) {
+          loginSuccess = true;
+          toast({
+            title: "مرحباً بك! ✅",
+            description: "تم تسجيل الدخول بنجاح",
+          });
+          break;
+        }
+        lastError = error;
+      }
+      
+      if (!loginSuccess && lastError) {
+        if (lastError.message === "Invalid login credentials") {
           setErrors({ password: 'كلمة المرور غير صحيحة' });
           toast({
             title: "خطأ في تسجيل الدخول",
@@ -182,15 +208,10 @@ const Auth = () => {
         } else {
           toast({
             title: "خطأ في تسجيل الدخول",
-            description: error.message,
+            description: lastError.message,
             variant: "destructive",
           });
         }
-      } else {
-        toast({
-          title: "مرحباً بك! ✅",
-          description: "تم تسجيل الدخول بنجاح",
-        });
       }
     } catch (error: any) {
       console.error('Login error:', error);
