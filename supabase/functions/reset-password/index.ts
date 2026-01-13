@@ -23,30 +23,33 @@ function formatPhoneNumber(phone: string): string {
   return cleaned;
 }
 
-// Get all possible phone email formats for user lookup
+// Get all possible phone email formats for user lookup (riders and drivers)
 function getPhoneEmailFormats(phone: string): string[] {
   const cleaned = phone.replace(/\D/g, '');
   const formats: string[] = [];
+  const domains = ['@raan.app', '@driver.raan.app']; // Both rider and driver domains
   
-  // Add the cleaned number as-is
-  formats.push(`${cleaned}@raan.app`);
+  // Generate phone variants
+  const phoneVariants: string[] = [cleaned];
   
-  // If starts with 964, also try without it and with 0
   if (cleaned.startsWith('964')) {
     const withoutCode = cleaned.slice(3);
-    formats.push(`${withoutCode}@raan.app`);
-    formats.push(`0${withoutCode}@raan.app`);
-  } 
-  // If starts with 0, also try without it and with 964
-  else if (cleaned.startsWith('0')) {
+    phoneVariants.push(withoutCode);
+    phoneVariants.push(`0${withoutCode}`);
+  } else if (cleaned.startsWith('0')) {
     const withoutZero = cleaned.slice(1);
-    formats.push(`${withoutZero}@raan.app`);
-    formats.push(`964${withoutZero}@raan.app`);
+    phoneVariants.push(withoutZero);
+    phoneVariants.push(`964${withoutZero}`);
+  } else {
+    phoneVariants.push(`0${cleaned}`);
+    phoneVariants.push(`964${cleaned}`);
   }
-  // Plain number, try all variants
-  else {
-    formats.push(`0${cleaned}@raan.app`);
-    formats.push(`964${cleaned}@raan.app`);
+  
+  // Combine all phone variants with all domains
+  for (const variant of phoneVariants) {
+    for (const domain of domains) {
+      formats.push(`${variant}${domain}`);
+    }
   }
   
   return formats;
