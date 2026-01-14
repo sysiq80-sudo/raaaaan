@@ -27,6 +27,8 @@ import PaymentMethodSheet from "@/components/rider/PaymentMethodSheet";
 import { ScheduleRideDialog } from "@/components/rider/ScheduleRideDialog";
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
 import StatusIcons from "@/components/common/StatusIcons";
+import NetworkStatusBar from "@/components/common/NetworkStatusBar";
+import StaticMapPlaceholder from "@/components/common/StaticMapPlaceholder";
 import { motion, AnimatePresence } from "framer-motion";
 
 // New custom hooks
@@ -35,6 +37,8 @@ import { useLocationPicker } from "@/hooks/useLocationPicker";
 import { useBookingFlow } from "@/hooks/useBookingFlow";
 import { useSearchAndPlaces } from "@/hooks/useSearchAndPlaces";
 import { useRideTracking } from "@/hooks/useRideTracking";
+import { useLastLocation } from "@/hooks/useLastLocation";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 // Performance & Enhancement hooks
 import {
@@ -53,6 +57,9 @@ const LiveRideTracker = lazy(
 );
 const RideCompletedScreen = lazy(
   () => import("@/components/rider/RideCompletedScreen")
+);
+const OnboardingFlow = lazy(
+  () => import("@/components/rider/OnboardingFlow")
 );
 
 // Loading skeleton
@@ -91,6 +98,9 @@ const GoPage: React.FC = () => {
   // Local storage hooks
   const { lastRide, saveLastRide } = useLastRide();
   const { preferences } = useRiderPreferences();
+  const { lastLocation, saveLocation } = useLastLocation();
+  const [hasSeenOnboarding] = useLocalStorage("raan_onboarding_completed", false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Offline support
   const { isOnline } = useOfflineMode();
@@ -194,6 +204,24 @@ const GoPage: React.FC = () => {
       setCenterAddress("");
     }
   }, [currentMode]);
+
+  // Check if user should see onboarding (first time)
+  useEffect(() => {
+    if (!hasSeenOnboarding && userId) {
+      setShowOnboarding(true);
+    }
+  }, [hasSeenOnboarding, userId]);
+
+  // Save user location when available
+  useEffect(() => {
+    if (userLocation && userLocation.lat && userLocation.lng) {
+      saveLocation({
+        lat: userLocation.lat,
+        lng: userLocation.lng,
+        address: "موقعك الحالي",
+      });
+    }
+  }, [userLocation, saveLocation]);
 
   // Fetch route when both locations are set (for initial location picker map)
   useEffect(() => {
@@ -455,6 +483,15 @@ const GoPage: React.FC = () => {
   const isPickup = currentMode === "pickup";
   const isDropoff = currentMode === "dropoff";
   const isBookingMode = currentMode === "booking";
+
+  // Show onboarding for new users
+  if (showOnboarding) {
+    return (
+      <Suspense fallback={<ScreenSkeleton />}>
+        <OnboardingFlow onComplete={() => setShowOnboarding(false)} />
+      </Suspense>
+    );
+  }
 
   // Show completed screen for rating
   if (showCompletedScreen && completedRide) {
@@ -923,17 +960,18 @@ const GoPage: React.FC = () => {
           </motion.div>
         </div>
 
-        {/* Loading overlay */}
+        {/* Loading overlay with static map placeholder */}
         {isLoading && (
-          <div className="absolute inset-0 bg-card/90 backdrop-blur-md flex items-center justify-center z-30">
-            <div className="text-center">
-              <Loader2 className="w-14 h-14 animate-spin mx-auto mb-4 text-primary" />
-              <p className="text-muted-foreground font-medium">
-                جاري تحميل الخريطة...
-              </p>
-            </div>
-          </div>
+          <StaticMapPlaceholder
+            lat={userLocation?.lat || lastLocation?.lat}
+            lng={userLocation?.lng || lastLocation?.lng}
+            zoom={14}
+            message="جاري تحميل الخريطة..."
+          />
         )}
+
+        {/* Network status bar */}
+        <NetworkStatusBar />
 
         {/* Center on user button */}
         {userLocation && (
