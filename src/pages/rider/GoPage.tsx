@@ -462,7 +462,7 @@ const GoPage: React.FC = () => {
 
       // Trigger ride matching
       await supabase.functions.invoke("match-ride", {
-        body: { ride_id: ride.id },
+        body: { rideId: ride.id },
       });
 
       toast({
