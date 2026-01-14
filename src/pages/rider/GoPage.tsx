@@ -212,9 +212,14 @@ const GoPage: React.FC = () => {
 
   // Local helper: center map on user location
   const centerOnUser = useCallback(() => {
-    // This will be called from the location picker hook
-    // The hook manages the map ref
-  }, []);
+    if (map.current && userLocation) {
+      map.current.flyTo({
+        center: [userLocation.lng, userLocation.lat],
+        zoom: 16,
+        duration: 800,
+      });
+    }
+  }, [userLocation]);
 
   // Local helper: handle location confirmation
   const handleConfirm = useCallback(async () => {

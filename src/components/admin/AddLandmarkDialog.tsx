@@ -163,6 +163,7 @@ export const AddLandmarkDialog = ({
         name_en: "",
         category: "landmark",
         region_id: "",
+        governorate_id: "",
         is_active: true,
         lat: 33.426,
         lng: 43.296,

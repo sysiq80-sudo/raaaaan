@@ -141,8 +141,7 @@ const AdminLandmarks = () => {
       .select(
         `
         *,
-        region:regions(name_ar),
-        governorate:governorates!governorate_id(name_ar)
+        region:regions(name_ar)
       `
       )
       .order("created_at", { ascending: false });
@@ -157,12 +156,29 @@ const AdminLandmarks = () => {
     }
 
     if (!error && data) {
+      // Fetch governorates separately to map names
+      const govIds = [...new Set(data.filter(d => d.governorate_id).map(d => d.governorate_id))];
+      let govMap: Record<string, string> = {};
+      
+      if (govIds.length > 0) {
+        const { data: govData } = await supabase
+          .from("governorates")
+          .select("id, name_ar")
+          .in("id", govIds as string[]);
+        
+        if (govData) {
+          govMap = govData.reduce((acc, g) => ({ ...acc, [g.id]: g.name_ar }), {} as Record<string, string>);
+        }
+      }
+      
       setLandmarks(
         data.map((item) => ({
           ...item,
           location: item.location as { lat: number; lng: number },
-          region: item.region,
-          governorate: item.governorate,
+          region: item.region as { name_ar: string } | null,
+          governorate: item.governorate_id && govMap[item.governorate_id] 
+            ? { name_ar: govMap[item.governorate_id] } 
+            : null,
         }))
       );
     }
@@ -180,15 +196,19 @@ const AdminLandmarks = () => {
   }, []);
 
   const fetchGovernorates = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("governorates")
-      .select("id, name_ar, code")
-      .order("name_ar");
+    try {
+      const { data, error } = await supabase
+        .from("governorates")
+        .select("id, name_ar, code")
+        .order("name_ar");
 
-    if (error) {
-      console.error("Error fetching governorates:", error);
-    } else if (data) {
-      setGovernorates(data);
+      if (error) {
+        console.error("Error fetching governorates:", error);
+      } else if (data) {
+        setGovernorates(data as Governorate[]);
+      }
+    } catch (err) {
+      console.error("Error in fetchGovernorates:", err);
     }
   }, []);
 
