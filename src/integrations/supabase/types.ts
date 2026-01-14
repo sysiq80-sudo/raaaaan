@@ -997,6 +997,51 @@ export type Database = {
         }
         Relationships: []
       }
+      governorates: {
+        Row: {
+          area_km2: number | null
+          capital_city: string | null
+          code: string
+          coordinates: Json | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          name_ar: string
+          name_en: string
+          name_ku: string | null
+          population: number | null
+          updated_at: string
+        }
+        Insert: {
+          area_km2?: number | null
+          capital_city?: string | null
+          code: string
+          coordinates?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          name_ar: string
+          name_en: string
+          name_ku?: string | null
+          population?: number | null
+          updated_at?: string
+        }
+        Update: {
+          area_km2?: number | null
+          capital_city?: string | null
+          code?: string
+          coordinates?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          name_ar?: string
+          name_en?: string
+          name_ku?: string | null
+          population?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ip_rate_limits: {
         Row: {
           action_type: string
@@ -1028,6 +1073,7 @@ export type Database = {
         Row: {
           category: string | null
           created_at: string
+          governorate_id: string | null
           id: string
           is_active: boolean | null
           location: Json
@@ -1038,6 +1084,7 @@ export type Database = {
         Insert: {
           category?: string | null
           created_at?: string
+          governorate_id?: string | null
           id?: string
           is_active?: boolean | null
           location: Json
@@ -1048,6 +1095,7 @@ export type Database = {
         Update: {
           category?: string | null
           created_at?: string
+          governorate_id?: string | null
           id?: string
           is_active?: boolean | null
           location?: Json
@@ -1056,6 +1104,13 @@ export type Database = {
           region_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "landmarks_governorate_id_fkey"
+            columns: ["governorate_id"]
+            isOneToOne: false
+            referencedRelation: "governorates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "landmarks_region_id_fkey"
             columns: ["region_id"]

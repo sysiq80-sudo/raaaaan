@@ -21,6 +21,10 @@ import ContactUs from "./pages/ContactUs";
 
 // Rider Pages
 import GoPage from "./pages/rider/GoPage";
+import RiderRidesPage from "./pages/rider/RiderRidesPage";
+import RiderPaymentsPage from "./pages/rider/RiderPaymentsPage";
+import RiderSavedPlacesPage from "./pages/rider/RiderSavedPlacesPage";
+import RiderSettingsPage from "./pages/rider/RiderSettingsPage";
 
 // Driver Pages
 import DriverHome from "./pages/driver/DriverHome";
@@ -127,6 +131,38 @@ const App = () => (
               element={
                 <ErrorBoundary>
                   <GoPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/rider/rides"
+              element={
+                <ErrorBoundary>
+                  <RiderRidesPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/rider/payments"
+              element={
+                <ErrorBoundary>
+                  <RiderPaymentsPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/rider/saved-places"
+              element={
+                <ErrorBoundary>
+                  <RiderSavedPlacesPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/rider/settings"
+              element={
+                <ErrorBoundary>
+                  <RiderSettingsPage />
                 </ErrorBoundary>
               }
             />
