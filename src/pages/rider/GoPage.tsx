@@ -212,7 +212,7 @@ const GoPage: React.FC = () => {
     }
   }, [hasSeenOnboarding, userId]);
 
-  // Save user location when available
+  // Save user location when available (only once when location is first detected)
   useEffect(() => {
     if (userLocation && userLocation.lat && userLocation.lng) {
       saveLocation({
@@ -221,7 +221,8 @@ const GoPage: React.FC = () => {
         address: "موقعك الحالي",
       });
     }
-  }, [userLocation, saveLocation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userLocation?.lat, userLocation?.lng]);
 
   // Fetch route when both locations are set (for initial location picker map)
   useEffect(() => {
