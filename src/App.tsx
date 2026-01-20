@@ -18,6 +18,7 @@ import TrackRide from "./pages/TrackRide";
 import About from "./pages/About";
 import Help from "./pages/Help";
 import ContactUs from "./pages/ContactUs";
+import PaymentResult from "./pages/payment/PaymentResult";
 
 // Rider Pages
 import GoPage from "./pages/rider/GoPage";
@@ -527,6 +528,16 @@ const App = () => (
               element={
                 <ErrorBoundary>
                   <AdminRiderWaitSettings />
+                </ErrorBoundary>
+              }
+            />
+
+            {/* Payment Result Route */}
+            <Route
+              path="/payment/result"
+              element={
+                <ErrorBoundary>
+                  <PaymentResult />
                 </ErrorBoundary>
               }
             />
