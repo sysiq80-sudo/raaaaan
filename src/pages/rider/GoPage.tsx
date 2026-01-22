@@ -1,5 +1,12 @@
-import React, { useEffect, useState, useCallback, lazy, Suspense } from "react";
-import { useNavigate } from "react-router-dom";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  lazy,
+  Suspense,
+  useRef,
+} from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
   ArrowRight,
@@ -58,9 +65,7 @@ const LiveRideTracker = lazy(
 const RideCompletedScreen = lazy(
   () => import("@/components/rider/RideCompletedScreen")
 );
-const OnboardingFlow = lazy(
-  () => import("@/components/rider/OnboardingFlow")
-);
+const OnboardingFlow = lazy(() => import("@/components/rider/OnboardingFlow"));
 
 // Loading skeleton
 const ScreenSkeleton = () => (
@@ -90,6 +95,8 @@ type PaymentMethodType =
 const GoPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchInputRef = useRef<any>(null);
 
   // Performance monitoring
   const metrics = usePerformanceMonitoring("GoPage");
@@ -99,7 +106,10 @@ const GoPage: React.FC = () => {
   const { lastRide, saveLastRide } = useLastRide();
   const { preferences } = useRiderPreferences();
   const { lastLocation, saveLocation } = useLastLocation();
-  const [hasSeenOnboarding] = useLocalStorage("raan_onboarding_completed", false);
+  const [hasSeenOnboarding] = useLocalStorage(
+    "raan_onboarding_completed",
+    false
+  );
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Offline support
@@ -205,6 +215,19 @@ const GoPage: React.FC = () => {
     }
   }, [currentMode]);
 
+  // Auto-focus search input when coming from saved places page
+  useEffect(() => {
+    const addPlace = searchParams.get("addPlace");
+    if (addPlace && searchInputRef.current) {
+      // Give UI time to render
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+        // Remove the param after using it
+        setSearchParams({});
+      }, 300);
+    }
+  }, [searchParams, setSearchParams]);
+
   // Check if user should see onboarding (first time)
   useEffect(() => {
     if (!hasSeenOnboarding && userId) {
@@ -241,14 +264,48 @@ const GoPage: React.FC = () => {
 
   // Local helper: center map on user location
   const centerOnUser = useCallback(() => {
-    if (map.current && userLocation) {
-      map.current.flyTo({
-        center: [userLocation.lng, userLocation.lat],
-        zoom: 16,
-        duration: 800,
+    if (!map.current) return;
+    
+    // Get fresh location when button is clicked
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const freshLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          
+          if (map.current) {
+            map.current.flyTo({
+              center: [freshLocation.lng, freshLocation.lat],
+              zoom: 16,
+              duration: 800,
+            });
+          }
+          
+          toast({
+            title: "تم التحديث",
+            description: "تم تحديث موقعك الحالي",
+          });
+        },
+        (error) => {
+          console.error("Location error:", error);
+          toast({
+            title: "خطأ",
+            description: "تعذر الحصول على موقعك الحالي",
+            variant: "destructive",
+          });
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } else {
+      toast({
+        title: "خطأ",
+        description: "متصفحك لا يدعم تحديد الموقع",
+        variant: "destructive",
       });
     }
-  }, [userLocation]);
+  }, [toast]);
 
   // Local helper: handle location confirmation
   const handleConfirm = useCallback(async () => {
@@ -637,7 +694,13 @@ const GoPage: React.FC = () => {
             </div>
 
             {/* Status Icons - Right side */}
-            <StatusIcons userLocation={pickupLocation ? { lat: pickupLocation.lat, lng: pickupLocation.lng } : null} />
+            <StatusIcons
+              userLocation={
+                pickupLocation
+                  ? { lat: pickupLocation.lat, lng: pickupLocation.lng }
+                  : null
+              }
+            />
 
             <button
               onClick={() => setCurrentMode("dropoff")}
@@ -887,6 +950,17 @@ const GoPage: React.FC = () => {
 
       {/* Map Container */}
       <div className="flex-1 relative">
+        {/* Map loading placeholder */}
+        {(!mapToken || isLoading) && (
+          <div className="absolute inset-0 bg-gray-900 flex items-center justify-center z-50">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-white text-lg">جاري تحميل الخريطة...</p>
+              <p className="text-gray-400 text-sm">الرجاء الانتظار</p>
+            </div>
+          </div>
+        )}
+
         <div ref={mapContainer} className="absolute inset-0" />
 
         {/* Drag instruction */}
@@ -1053,6 +1127,7 @@ const GoPage: React.FC = () => {
           <div className="mb-3">
             <div className="relative">
               <LocationSearchInput
+                ref={searchInputRef}
                 placeholder={
                   isPickup
                     ? "🔍 اكتب لتحديد موقع الانطلاق..."
@@ -1074,6 +1149,7 @@ const GoPage: React.FC = () => {
                 }}
                 type={isPickup ? "pickup" : "dropoff"}
                 userLocation={userLocation}
+                userId={userId}
                 className="w-full text-base font-medium placeholder:text-muted-foreground/70 placeholder:font-semibold"
               />
             </div>
