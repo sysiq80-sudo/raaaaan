@@ -31,8 +31,10 @@ import {
   Building2,
   Search,
   X,
+  Map,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import MapLocationPicker from "@/components/rider/MapLocationPicker";
 
 interface SearchResult {
   id: string;
@@ -102,6 +104,9 @@ const RiderSavedPlacesPage: React.FC = () => {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  
+  // Map picker state
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -339,6 +344,28 @@ const RiderSavedPlacesPage: React.FC = () => {
   // Open dialog without location (for search)
   const openAddDialog = () => {
     setShowAddDialog(true);
+  };
+
+  // Handle map location selection
+  const handleMapLocationSelect = (location: {
+    lat: number;
+    lng: number;
+    address: string;
+    inService?: boolean;
+  }) => {
+    setCurrentLocation({
+      lat: location.lat,
+      lng: location.lng,
+      address: location.address,
+    });
+    setShowMapPicker(false);
+    setShowAddDialog(true);
+  };
+
+  // Open map picker
+  const openMapPicker = () => {
+    setShowAddDialog(false);
+    setShowMapPicker(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -602,21 +629,33 @@ const RiderSavedPlacesPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Use Current Location Button */}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={getCurrentLocation}
-                disabled={gettingLocation}
-                className="w-full gap-2"
-              >
-                {gettingLocation ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Locate className="w-4 h-4" />
-                )}
-                استخدام موقعي الحالي
-              </Button>
+              {/* Location Selection Buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={getCurrentLocation}
+                  disabled={gettingLocation}
+                  className="gap-2"
+                >
+                  {gettingLocation ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Locate className="w-4 h-4" />
+                  )}
+                  موقعي الحالي
+                </Button>
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={openMapPicker}
+                  className="gap-2"
+                >
+                  <Map className="w-4 h-4" />
+                  اختر من الخريطة
+                </Button>
+              </div>
 
               {/* Selected Location Preview */}
               {currentLocation && (
@@ -724,6 +763,17 @@ const RiderSavedPlacesPage: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Map Location Picker */}
+      {showMapPicker && (
+        <MapLocationPicker
+          isOpen={showMapPicker}
+          onClose={() => setShowMapPicker(false)}
+          type="dropoff"
+          onConfirm={handleMapLocationSelect}
+          userLocation={currentLocation || undefined}
+        />
+      )}
     </div>
   );
 };
