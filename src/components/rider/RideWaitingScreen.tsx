@@ -504,19 +504,19 @@ export const RideWaitingScreen = ({
 
         {/* Main content */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          {/* Success Banner - Premium */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500 via-emerald-600 to-green-700 rounded-2xl p-4 text-white shadow-xl shadow-emerald-500/30">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+          {/* Success Banner - Premium with semantic colors */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl p-4 text-primary-foreground shadow-xl shadow-primary/30">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-primary-foreground/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
             <div className="relative flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 backdrop-blur-sm border border-white/20">
-                <Car className="w-7 h-7 text-white" />
+              <div className="w-14 h-14 rounded-2xl bg-primary-foreground/20 flex items-center justify-center shrink-0 backdrop-blur-sm border border-primary-foreground/20">
+                <Car className="w-7 h-7 text-primary-foreground" />
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-bold flex items-center gap-2">
                   <Sparkles className="w-5 h-5" />
                   تم قبول طلبك!
                 </h2>
-                <p className="text-white/90 text-sm mt-0.5">السائق في الطريق إليك الآن</p>
+                <p className="text-primary-foreground/90 text-sm mt-0.5">السائق في الطريق إليك الآن</p>
               </div>
             </div>
           </div>
@@ -527,17 +527,17 @@ export const RideWaitingScreen = ({
             <div className="p-4 bg-gradient-to-br from-muted/30 to-muted/10">
               <div className="flex items-center gap-4">
                 <div className="relative shrink-0">
-                  <Avatar className="w-16 h-16 border-3 border-emerald-500/40 shadow-lg shadow-emerald-500/20">
+                  <Avatar className="w-16 h-16 border-3 border-primary/40 shadow-lg shadow-primary/20">
                     <AvatarImage
                       src={acceptedDriver.profile_image_url || ""}
                       alt={acceptedDriver.full_name}
                     />
-                    <AvatarFallback className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 text-emerald-600 text-xl font-bold">
+                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary text-xl font-bold">
                       {acceptedDriver.full_name.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-card flex items-center justify-center">
-                    <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-primary rounded-full border-2 border-card flex items-center justify-center">
+                    <div className="w-2 h-2 bg-primary-foreground rounded-full animate-pulse" />
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -545,11 +545,11 @@ export const RideWaitingScreen = ({
                     {acceptedDriver.full_name}
                   </h3>
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    <div className="flex items-center gap-1 text-amber-600 bg-amber-500/10 px-2 py-1 rounded-lg text-xs font-bold">
-                      <Star className="w-3.5 h-3.5 fill-amber-500" />
+                    <div className="flex items-center gap-1 text-warning bg-warning/10 px-2 py-1 rounded-lg text-xs font-bold">
+                      <Star className="w-3.5 h-3.5 fill-current" />
                       <span>{acceptedDriver.rating?.toFixed(1) || "5.0"}</span>
                     </div>
-                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] px-2 py-0.5">
+                    <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] px-2 py-0.5">
                       <Sparkles className="w-3 h-3 ml-1" />
                       سائق موثوق
                     </Badge>
@@ -569,10 +569,10 @@ export const RideWaitingScreen = ({
                 </Button>
                 <Button
                   variant="outline"
-                  className="flex-1 h-11 rounded-xl bg-card hover:bg-emerald-500/5 border-border/50 transition-all"
+                  className="flex-1 h-11 rounded-xl bg-card hover:bg-success/5 border-border/50 transition-all"
                   onClick={() => window.open(`https://wa.me/${acceptedDriver.phone}`, "_blank")}
                 >
-                  <MessageCircle className="w-4 h-4 ml-2 text-emerald-600" />
+                  <MessageCircle className="w-4 h-4 ml-2 text-success" />
                   <span className="text-sm font-semibold">واتساب</span>
                 </Button>
               </div>
@@ -612,19 +612,19 @@ export const RideWaitingScreen = ({
             <div className="flex gap-3">
               {/* Vertical line */}
               <div className="flex flex-col items-center py-0.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
-                <div className="w-0.5 flex-1 bg-gradient-to-b from-emerald-500 to-blue-500 my-1.5" />
-                <div className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-blue-500/20" />
+                <div className="w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-primary/20" />
+                <div className="w-0.5 flex-1 bg-gradient-to-b from-primary to-accent my-1.5" />
+                <div className="w-2.5 h-2.5 rounded-full bg-accent ring-4 ring-accent/20" />
               </div>
               
               {/* Locations */}
               <div className="flex-1 min-w-0 space-y-4">
                 <div>
-                  <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider mb-0.5">الانطلاق</p>
+                  <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-0.5">الانطلاق</p>
                   <p className="text-sm font-semibold text-foreground line-clamp-1">{pickupAddress}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-0.5">الوجهة</p>
+                  <p className="text-[10px] text-accent-foreground font-bold uppercase tracking-wider mb-0.5">الوجهة</p>
                   <p className="text-sm font-semibold text-foreground line-clamp-1">{dropoffAddress}</p>
                 </div>
               </div>
@@ -643,7 +643,7 @@ export const RideWaitingScreen = ({
         <div className="p-4 bg-background/98 backdrop-blur-md border-t border-border/30 safe-area-bottom">
           <Button
             size="lg"
-            className="w-full h-14 bg-gradient-to-r from-emerald-500 via-emerald-600 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-xl shadow-xl shadow-emerald-500/30 text-base font-bold transition-all duration-300 hover:shadow-2xl active:scale-[0.98]"
+            className="w-full h-14 bg-gradient-to-r from-primary via-primary/90 to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground rounded-xl shadow-xl shadow-primary/30 text-base font-bold transition-all duration-300 hover:shadow-2xl active:scale-[0.98]"
             onClick={handleContinueToTracking}
           >
             <Navigation className="w-5 h-5 ml-2" />
@@ -738,19 +738,19 @@ export const RideWaitingScreen = ({
             <div className="flex gap-3">
               {/* Vertical timeline */}
               <div className="flex flex-col items-center py-0.5">
-                <div className="w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
-                <div className="w-0.5 flex-1 bg-gradient-to-b from-emerald-500 to-blue-500 my-2" />
-                <div className="w-3 h-3 rounded-full bg-blue-500 ring-4 ring-blue-500/20" />
+                <div className="w-3 h-3 rounded-full bg-primary ring-4 ring-primary/20" />
+                <div className="w-0.5 flex-1 bg-gradient-to-b from-primary to-accent my-2" />
+                <div className="w-3 h-3 rounded-full bg-accent ring-4 ring-accent/20" />
               </div>
               
               {/* Locations */}
               <div className="flex-1 space-y-5 min-w-0">
                 <div>
-                  <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider mb-1">نقطة الانطلاق</p>
+                  <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-1">نقطة الانطلاق</p>
                   <p className="text-sm font-semibold text-foreground line-clamp-2">{pickupAddress}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1">الوجهة</p>
+                  <p className="text-[10px] text-accent-foreground font-bold uppercase tracking-wider mb-1">الوجهة</p>
                   <p className="text-sm font-semibold text-foreground line-clamp-2">{dropoffAddress}</p>
                 </div>
               </div>
@@ -775,7 +775,7 @@ export const RideWaitingScreen = ({
         {/* Info badge */}
         <div className="flex items-center justify-center gap-2 py-2">
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Heart className="w-4 h-4 text-rose-400" />
+            <Heart className="w-4 h-4 text-destructive" />
             <span className="text-xs">نحن نعمل على إيجاد أفضل سائق لك</span>
           </div>
         </div>

@@ -45,16 +45,17 @@ const DriverInfoCard = ({ driver, rideId, rideStatus }: DriverInfoCardProps) => 
   ].filter(Boolean).join(' • ') || 'معلومات السيارة غير متوفرة';
 
   // Determine driver badge based on rating and rides
+  // Using semantic design tokens for badges
   const getDriverBadge = () => {
     const rating = driver.rating || 5;
     const rides = driver.total_rides || 0;
     
     if (rating >= 4.8 && rides >= 100) {
-      return { label: "سائق مميز", color: "bg-gradient-to-r from-amber-400 to-amber-600", icon: Star };
+      return { label: "سائق مميز", color: "bg-gradient-to-r from-warning to-warning/80", icon: Star };
     } else if (rating >= 4.5 && rides >= 50) {
-      return { label: "موثوق", color: "bg-gradient-to-r from-green-400 to-green-600", icon: Shield };
+      return { label: "موثوق", color: "bg-gradient-to-r from-success to-success/80", icon: Shield };
     } else if (rides >= 10) {
-      return { label: "معتمد", color: "bg-gradient-to-r from-blue-400 to-blue-600", icon: CheckCircle };
+      return { label: "معتمد", color: "bg-gradient-to-r from-info to-info/80", icon: CheckCircle };
     }
     return null;
   };
@@ -90,17 +91,17 @@ const DriverInfoCard = ({ driver, rideId, rideStatus }: DriverInfoCardProps) => 
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring" }}
-            className="absolute -bottom-1 -right-1 flex items-center gap-0.5 bg-gradient-to-r from-amber-100 to-amber-200 dark:from-amber-900/70 dark:to-amber-800/70 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-600 shadow-sm"
+            className="absolute -bottom-1 -right-1 flex items-center gap-0.5 bg-gradient-to-r from-warning/20 to-warning/30 dark:from-warning/30 dark:to-warning/20 px-2 py-0.5 rounded-full border border-warning/50 shadow-sm"
           >
-            <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-            <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
+            <Star className="w-3.5 h-3.5 fill-warning text-warning" />
+            <span className="text-xs font-bold text-warning-foreground dark:text-warning">
               {driver.rating?.toFixed(1) || '5.0'}
             </span>
           </motion.div>
 
           {/* شارة متصل */}
           <div className="absolute -top-1 -left-1">
-            <div className="w-4 h-4 bg-green-500 rounded-full border-2 border-background animate-pulse" />
+            <div className="w-4 h-4 bg-success rounded-full border-2 border-background animate-pulse" />
           </div>
         </div>
         
@@ -142,7 +143,7 @@ const DriverInfoCard = ({ driver, rideId, rideStatus }: DriverInfoCardProps) => 
             {driver.phone && (
               <a
                 href={`tel:${driver.phone}`}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-600 dark:text-green-400 rounded-full text-xs font-medium transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-success/10 hover:bg-success/20 text-success rounded-full text-xs font-medium transition-colors"
               >
                 <Phone className="w-3.5 h-3.5" />
                 اتصال
