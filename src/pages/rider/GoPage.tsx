@@ -718,52 +718,49 @@ const GoPage: React.FC = () => {
         </div>
 
         {/* Details - Bottom Half with rounded top */}
-        <div className="h-[55%] bg-background rounded-t-lg -mt-4 relative z-10 flex flex-col shadow-2xl">
+        <div className="h-[55%] bg-background rounded-t-3xl -mt-4 relative z-10 flex flex-col shadow-[0_-10px_40px_rgba(0,0,0,0.15)]">
           {/* Drag handle */}
-          <div className="flex justify-center pt-2 pb-1">
-            <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+          <div className="flex justify-center pt-3 pb-1">
+            <div className="w-12 h-1.5 rounded-full bg-muted-foreground/25" />
           </div>
 
           {/* Scrollable content */}
           <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-3">
-            {/* Route summary - Two lines with icons */}
+            {/* Route summary - Modern vertical timeline */}
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              className="bg-card rounded-md p-4 space-y-3 border border-border/30"
+              className="bg-card rounded-2xl p-4 border border-border/30 shadow-sm"
             >
-              {/* Pickup location */}
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-md bg-green-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <div className="w-3 h-3 rounded-full bg-green-500 ring-2 ring-green-500/30" />
+              <div className="flex gap-3">
+                {/* Vertical connecting line */}
+                <div className="flex flex-col items-center gap-0">
+                  <div className="w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
+                  <div className="w-0.5 flex-1 min-h-[32px] bg-gradient-to-b from-emerald-500 via-muted to-blue-500" />
+                  <div className="w-3 h-3 rounded-full bg-blue-500 ring-4 ring-blue-500/20" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] uppercase tracking-wide text-green-600 font-bold mb-1">
-                    📍 موقع الانطلاق
-                  </p>
-                  <p className="text-sm font-medium text-foreground line-clamp-2">
-                    {pickupLocation.address}
-                  </p>
-                </div>
-              </div>
-
-              {/* Divider line */}
-              <div className="flex items-center gap-2 pr-11">
-                <div className="flex-1 h-px bg-gradient-to-r from-green-500/20 via-muted to-blue-500/20" />
-              </div>
-
-              {/* Dropoff location */}
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-md bg-blue-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <div className="w-3 h-3 rounded-full bg-blue-500 ring-2 ring-blue-500/30" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] uppercase tracking-wide text-blue-600 font-bold mb-1">
-                    🎯 موقع الوصول
-                  </p>
-                  <p className="text-sm font-medium text-foreground line-clamp-2">
-                    {dropoffLocation.address}
-                  </p>
+                
+                {/* Locations */}
+                <div className="flex-1 space-y-4">
+                  {/* Pickup */}
+                  <div className="min-h-[32px]">
+                    <p className="text-[10px] uppercase tracking-wider text-emerald-600 font-bold mb-0.5">
+                      موقع الانطلاق
+                    </p>
+                    <p className="text-sm font-semibold text-foreground line-clamp-1">
+                      {pickupLocation.address}
+                    </p>
+                  </div>
+                  
+                  {/* Dropoff */}
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-blue-600 font-bold mb-0.5">
+                      الوجهة
+                    </p>
+                    <p className="text-sm font-semibold text-foreground line-clamp-1">
+                      {dropoffLocation.address}
+                    </p>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -782,45 +779,44 @@ const GoPage: React.FC = () => {
               />
             </motion.div>
 
-            {/* Fare & Payment Row - Single Line */}
+            {/* Fare & Payment Row - Enhanced */}
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.2 }}
               className="flex gap-2"
             >
-              {/* Fare summary - Single line */}
+              {/* Fare summary */}
               {fareBreakdown && (
-                <div className="flex-1 bg-card rounded-md px-4 py-3 border border-border/30 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="flex-1 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl px-3 py-2.5 border border-primary/20 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
                     <Zap className="w-4 h-4 text-primary" />
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-[11px] text-muted-foreground font-medium">
                       الأجرة
                     </span>
-                    <span className="text-xs bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded-full">
-                      تقديرية
-                    </span>
                   </div>
-                  <p className="font-bold text-lg text-primary">
-                    {(fareBreakdown.total_fare || 0).toLocaleString()} د.ع
+                  <p className="font-bold text-base text-primary">
+                    {(fareBreakdown.total_fare || 0).toLocaleString()} <span className="text-xs font-medium">د.ع</span>
                   </p>
                 </div>
               )}
 
-              {/* Payment method - Single line */}
-              <div
+              {/* Payment method */}
+              <button
                 onClick={() => setPaymentSheetOpen(true)}
-                className="flex-1 bg-card rounded-md px-4 py-3 border border-border/30 cursor-pointer hover:border-primary/30 transition-all active:scale-[0.98] flex items-center justify-between"
+                className="flex-1 bg-card rounded-xl px-3 py-2.5 border border-border/40 hover:border-primary/40 hover:bg-card/80 transition-all duration-200 active:scale-[0.98] flex items-center justify-between"
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">💵</span>
-                  <span className="text-xs text-muted-foreground">الدفع</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                    <span className="text-sm">💵</span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground font-medium">الدفع</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <p className="font-bold text-sm">نقداً</p>
-                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
                 </div>
-              </div>
+              </button>
             </motion.div>
 
             {/* Schedule option */}
@@ -847,27 +843,29 @@ const GoPage: React.FC = () => {
           </div>
 
           {/* Book button - Fixed at bottom */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-sm border-t border-border/20 safe-area-bottom">
-            <Button
-              onClick={handleBookRide}
-              disabled={isBooking || fareLoading}
-              className="w-full h-14 text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/80 rounded-md shadow-xl shadow-primary/25 hover:shadow-2xl transition-all active:scale-[0.98] text-black dark:text-black"
-            >
-              {isBooking ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  جاري الحجز...
-                </span>
-              ) : (
-                <span className="flex items-center gap-2 justify-center">
-                  <span className="text-xl">🚗</span>
-                  <span>احجز الآن</span>
-                  <span className="text-black dark:text-black font-bold">
-                    {fareBreakdown?.total_fare?.toLocaleString() || "---"} د.ع
+          <div className="absolute bottom-0 left-0 right-0 p-4 bg-background/98 backdrop-blur-md border-t border-border/20 safe-area-bottom">
+            <div className="max-w-lg mx-auto">
+              <Button
+                onClick={handleBookRide}
+                disabled={isBooking || fareLoading}
+                className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground"
+              >
+                {isBooking ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    جاري الحجز...
                   </span>
-                </span>
-              )}
-            </Button>
+                ) : (
+                  <span className="flex items-center gap-3 justify-center">
+                    <Navigation className="w-5 h-5" />
+                    <span>احجز الآن</span>
+                    <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
+                      {fareBreakdown?.total_fare?.toLocaleString() || "---"} د.ع
+                    </span>
+                  </span>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -912,18 +910,18 @@ const GoPage: React.FC = () => {
         className="absolute top-4 left-0 right-0 z-30"
       >
         <div className="flex items-center justify-between p-4">
-          {/* زر القائمة - دائماً في اليسار */}
+          {/* زر القائمة */}
           <button
             onClick={() => setMenuOpen(true)}
-            className="w-11 h-11 flex items-center justify-center rounded-md bg-card/90 backdrop-blur-md shadow-lg hover:bg-card hover:scale-105 transition-all duration-200 active:scale-95"
+            className="w-11 h-11 flex items-center justify-center rounded-xl bg-card/95 backdrop-blur-xl shadow-lg hover:bg-card hover:scale-105 transition-all duration-200 active:scale-95 border border-border/30"
             aria-label="القائمة الرئيسية"
           >
             <Menu className="w-5 h-5" />
           </button>
 
           {/* الشعار في المنتصف */}
-          <div className="flex items-center gap-2 bg-card/90 backdrop-blur-md rounded-md px-4 py-2.5 shadow-lg">
-            <img src={logo} alt="RAAN" className="w-7 h-7 rounded-md" />
+          <div className="flex items-center gap-2 bg-card/95 backdrop-blur-xl rounded-xl px-4 py-2.5 shadow-lg border border-border/30">
+            <img src={logo} alt="RAAN" className="w-7 h-7 rounded-lg" />
             <span className="font-bold text-lg">ران</span>
           </div>
 
@@ -937,10 +935,10 @@ const GoPage: React.FC = () => {
                 setCurrentMode("pickup");
                 setPickupLocation(null);
               }}
-              className="w-11 h-11 flex items-center justify-center rounded-md bg-gradient-to-br from-primary/90 to-primary backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95"
+              className="w-11 h-11 flex items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 backdrop-blur-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95"
               aria-label="رجوع"
             >
-              <ArrowRight className="w-5 h-5 text-white" />
+              <ArrowRight className="w-5 h-5 text-primary-foreground" />
             </button>
           ) : (
             <div className="w-11" />
@@ -1052,21 +1050,25 @@ const GoPage: React.FC = () => {
         {userLocation && (
           <button
             onClick={centerOnUser}
-            className="absolute bottom-5 left-4 w-14 h-14 bg-card/95 backdrop-blur-md rounded-md border border-border/50 shadow-xl flex items-center justify-center hover:bg-accent transition-all duration-200 active:scale-95 z-40 group"
+            className="absolute bottom-5 left-4 w-12 h-12 bg-card/98 backdrop-blur-xl rounded-xl border border-border/40 shadow-lg flex items-center justify-center hover:bg-accent hover:shadow-xl transition-all duration-200 active:scale-95 z-40 group"
             aria-label="تحديد موقعي"
           >
-            <Navigation className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />
+            <Navigation className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
           </button>
         )}
       </div>
 
-      {/* Bottom panel */}
+      {/* Bottom panel - Modern redesign */}
       <motion.div
         initial={{ y: 100 }}
         animate={{ y: 0 }}
-        className="bg-card/95 backdrop-blur-md border-t border-border/50 shadow-2xl z-30 rounded-t-lg"
+        className="bg-card/98 backdrop-blur-xl border-t border-border/30 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] z-30 rounded-t-3xl"
       >
-        <div className="p-3 sm:p-4">
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-12 h-1.5 rounded-full bg-muted-foreground/25" />
+        </div>
+        <div className="px-4 pb-4 pt-1 max-w-lg mx-auto">
           {/* Service area warning */}
           {localServiceAreaStatus && !localServiceAreaStatus.in_service && (
             <div className="flex items-center gap-3 p-3 mb-3 rounded-md bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30">
@@ -1087,40 +1089,36 @@ const GoPage: React.FC = () => {
             </div>
           )}
 
-          {/* Address display */}
-          <div className="flex items-start gap-3 mb-4 p-3 rounded-md border bg-card/50">
+          {/* Address display - Modern design */}
+          <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-gradient-to-r from-card to-card/80 border border-border/40 shadow-sm">
             <div
-              className={`w-12 h-12 rounded-md flex items-center justify-center shrink-0 border ${
+              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                 isPickup
-                  ? "bg-green-500/20 border-green-400"
-                  : "bg-blue-500/20 border-blue-400"
+                  ? "bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 ring-2 ring-emerald-500/30"
+                  : "bg-gradient-to-br from-blue-500/20 to-blue-600/10 ring-2 ring-blue-500/30"
               }`}
             >
               {isPickup ? (
-                <Target className="w-6 h-6 text-green-600" />
+                <Target className="w-5 h-5 text-emerald-500" />
               ) : (
-                <MapPin className="w-6 h-6 text-blue-600" />
+                <MapPin className="w-5 h-5 text-blue-500" />
               )}
             </div>
             <div className="flex-1 min-w-0">
               <p
-                className={`text-xs font-semibold px-2 py-1 rounded-full inline-block mb-1 ${
-                  isPickup
-                    ? "bg-green-100 text-green-800"
-                    : "bg-blue-100 text-blue-800"
+                className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${
+                  isPickup ? "text-emerald-600" : "text-blue-600"
                 }`}
               >
-                {isPickup ? "🚗 موقع الانطلاق" : "🎯 الوجهة"}
+                {isPickup ? "موقع الانطلاق" : "الوجهة"}
               </p>
-              <p className="font-semibold text-foreground text-sm line-clamp-2">
+              <p className="font-semibold text-foreground text-sm line-clamp-1">
                 {centerAddress || "جاري تحديد العنوان..."}
               </p>
-              {centerAddress && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  اسحب الخريطة لتغيير الموقع • اضغط للتأكيد
-                </p>
-              )}
             </div>
+            {centerAddress && (
+              <div className={`w-2 h-2 rounded-full animate-pulse ${isPickup ? "bg-emerald-500" : "bg-blue-500"}`} />
+            )}
           </div>
 
           {/* Search input - Enhanced */}
@@ -1130,8 +1128,8 @@ const GoPage: React.FC = () => {
                 ref={searchInputRef}
                 placeholder={
                   isPickup
-                    ? "🔍 اكتب لتحديد موقع الانطلاق..."
-                    : "🔍 اكتب لتحديد الوجهة..."
+                    ? "ابحث عن موقع الانطلاق..."
+                    : "ابحث عن الوجهة..."
                 }
                 value={searchQuery}
                 onChange={setSearchQuery}
@@ -1149,22 +1147,26 @@ const GoPage: React.FC = () => {
                 }}
                 type={isPickup ? "pickup" : "dropoff"}
                 userLocation={userLocation}
-                userId={userId}
+                
                 className="w-full text-base font-medium placeholder:text-muted-foreground/70 placeholder:font-semibold"
               />
             </div>
           </div>
 
-          {/* Saved places (dropoff only) */}
+          {/* Saved places (dropoff only) - Modern chips */}
           {isDropoff && savedPlaces.length > 0 && (
             <div className="mb-4">
-              <p className="text-xs font-semibold text-muted-foreground mb-3 px-1 flex items-center gap-2">
-                <Star className="w-3 h-3 text-amber-600" />
+              <p className="text-xs font-bold text-muted-foreground mb-2.5 flex items-center gap-1.5">
+                <Star className="w-3.5 h-3.5 text-amber-500" />
                 أماكني المحفوظة
               </p>
-              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
                 {loadingSavedPlaces ? (
-                  <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                  <div className="flex gap-2">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="w-20 h-20 rounded-xl bg-muted/50 animate-pulse" />
+                    ))}
+                  </div>
                 ) : (
                   savedPlaces.map((place) => (
                     <button
@@ -1181,10 +1183,10 @@ const GoPage: React.FC = () => {
                         setCenterAddress(location.address);
                         checkServiceArea(location.lat, location.lng);
                       }}
-                      className="flex flex-col items-center flex-shrink-0 w-24 h-28 p-2 rounded-md border border-border/50 hover:border-amber-500 hover:bg-amber-500/10 transition-all"
+                      className="flex flex-col items-center flex-shrink-0 w-20 p-2.5 rounded-xl border border-border/40 bg-card/50 hover:border-primary/50 hover:bg-primary/5 hover:shadow-md transition-all duration-200 active:scale-95"
                     >
-                      <div className="text-4xl mb-2">{place.icon || "📍"}</div>
-                      <p className="text-[11px] font-semibold text-center line-clamp-2">
+                      <div className="text-2xl mb-1.5">{place.icon || "📍"}</div>
+                      <p className="text-[10px] font-semibold text-center line-clamp-1 text-muted-foreground">
                         {place.name}
                       </p>
                     </button>
@@ -1194,15 +1196,15 @@ const GoPage: React.FC = () => {
             </div>
           )}
 
-          {/* Confirm button */}
+          {/* Confirm button - Enhanced */}
           <Button
             onClick={handleConfirm}
             disabled={!centerAddress || isCheckingService || isConfirming}
-            className={`w-full h-14 text-base sm:text-lg font-bold rounded-md shadow-lg transition-all active:scale-[0.98] ${
+            className={`w-full h-12 sm:h-14 text-sm sm:text-base font-bold rounded-xl shadow-lg transition-all duration-200 active:scale-[0.98] ${
               centerAddress
                 ? isPickup
-                  ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-green-500/30"
-                  : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-blue-500/30"
+                  ? "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-emerald-500/25 text-white"
+                  : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-blue-500/25 text-white"
                 : "bg-muted/50 text-muted-foreground cursor-not-allowed"
             }`}
           >
@@ -1217,7 +1219,11 @@ const GoPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Check className="w-5 h-5" />
                 <span>تأكيد {isPickup ? "موقع الانطلاق" : "الوجهة"}</span>
-                <span>{isPickup ? "🚗" : "🎯"}</span>
+                {isPickup ? (
+                  <Target className="w-4 h-4" />
+                ) : (
+                  <MapPin className="w-4 h-4" />
+                )}
               </div>
             )}
           </Button>
