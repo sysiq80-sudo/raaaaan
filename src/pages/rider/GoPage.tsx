@@ -630,7 +630,7 @@ const GoPage: React.FC = () => {
       >
         {/* Offline/Online status indicator */}
         {!isOnline && (
-          <div className="absolute top-0 left-0 right-0 z-50 bg-amber-500/90 backdrop-blur-md px-4 py-2 text-center text-sm font-medium text-white flex items-center justify-center gap-2">
+          <div className="absolute top-0 left-0 right-0 z-50 bg-destructive/90 backdrop-blur-md px-4 py-2 text-center text-sm font-medium text-destructive-foreground flex items-center justify-center gap-2">
             <AlertTriangle className="w-4 h-4" />
             <span>أنت بدون إنترنت - بعض الميزات قد لا تعمل</span>
           </div>
@@ -643,8 +643,8 @@ const GoPage: React.FC = () => {
           }`}
         >
           <div className="flex gap-2">
-            <div className="flex-1 h-1 rounded-full bg-green-500" />
-            <div className="flex-1 h-1 rounded-full bg-blue-500" />
+            <div className="flex-1 h-1 rounded-full bg-primary" />
+            <div className="flex-1 h-1 rounded-full bg-accent" />
             <div className="flex-1 h-1 rounded-full bg-primary animate-pulse" />
           </div>
         </div>
@@ -678,14 +678,14 @@ const GoPage: React.FC = () => {
                 className="bg-card/70 backdrop-blur-xl rounded-md px-3 py-2 flex items-center gap-3 shadow-lg border border-white/10"
               >
                 <div className="flex items-center gap-1.5">
-                  <Navigation className="w-3.5 h-3.5 text-green-500" />
+                  <Navigation className="w-3.5 h-3.5 text-primary" />
                   <span className="text-sm font-bold">
                     {routeDistance ? `${routeDistance.toFixed(1)} كم` : "---"}
                   </span>
                 </div>
                 <div className="w-px h-4 bg-border/30" />
                 <div className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-blue-500" />
+                  <Clock className="w-3.5 h-3.5 text-accent-foreground" />
                   <span className="text-sm font-bold">
                     {routeDuration ? `${Math.round(routeDuration)} د` : "---"}
                   </span>
@@ -735,16 +735,16 @@ const GoPage: React.FC = () => {
               <div className="flex gap-3">
                 {/* Vertical connecting line */}
                 <div className="flex flex-col items-center gap-0">
-                  <div className="w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
-                  <div className="w-0.5 flex-1 min-h-[32px] bg-gradient-to-b from-emerald-500 via-muted to-blue-500" />
-                  <div className="w-3 h-3 rounded-full bg-blue-500 ring-4 ring-blue-500/20" />
+                  <div className="w-3 h-3 rounded-full bg-primary ring-4 ring-primary/20" />
+                  <div className="w-0.5 flex-1 min-h-[32px] bg-gradient-to-b from-primary via-muted to-accent" />
+                  <div className="w-3 h-3 rounded-full bg-accent ring-4 ring-accent/20" />
                 </div>
                 
                 {/* Locations */}
                 <div className="flex-1 space-y-4">
                   {/* Pickup */}
                   <div className="min-h-[32px]">
-                    <p className="text-[10px] uppercase tracking-wider text-emerald-600 font-bold mb-0.5">
+                    <p className="text-[10px] uppercase tracking-wider text-primary font-bold mb-0.5">
                       موقع الانطلاق
                     </p>
                     <p className="text-sm font-semibold text-foreground line-clamp-1">
@@ -754,7 +754,7 @@ const GoPage: React.FC = () => {
                   
                   {/* Dropoff */}
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-blue-600 font-bold mb-0.5">
+                    <p className="text-[10px] uppercase tracking-wider text-accent-foreground font-bold mb-0.5">
                       الوجهة
                     </p>
                     <p className="text-sm font-semibold text-foreground line-clamp-1">
@@ -807,7 +807,7 @@ const GoPage: React.FC = () => {
                 className="flex-1 bg-card rounded-xl px-3 py-2.5 border border-border/40 hover:border-primary/40 hover:bg-card/80 transition-all duration-200 active:scale-[0.98] flex items-center justify-between"
               >
                 <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
                     <span className="text-sm">💵</span>
                   </div>
                   <span className="text-[11px] text-muted-foreground font-medium">الدفع</span>
@@ -892,12 +892,12 @@ const GoPage: React.FC = () => {
         <div className="flex gap-2">
           <div
             className={`flex-1 h-1 rounded-full transition-colors ${
-              isPickup || pickupLocation ? "bg-green-500" : "bg-muted/30"
+              isPickup || pickupLocation ? "bg-primary" : "bg-muted/30"
             }`}
           />
           <div
             className={`flex-1 h-1 rounded-full transition-colors ${
-              isDropoff || dropoffLocation ? "bg-blue-500" : "bg-muted/30"
+              isDropoff || dropoffLocation ? "bg-accent" : "bg-muted/30"
             }`}
           />
         </div>
@@ -950,11 +950,11 @@ const GoPage: React.FC = () => {
       <div className="flex-1 relative">
         {/* Map loading placeholder */}
         {(!mapToken || isLoading) && (
-          <div className="absolute inset-0 bg-gray-900 flex items-center justify-center z-50">
+          <div className="absolute inset-0 bg-background flex items-center justify-center z-50">
             <div className="text-center space-y-4">
               <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-white text-lg">جاري تحميل الخريطة...</p>
-              <p className="text-gray-400 text-sm">الرجاء الانتظار</p>
+              <p className="text-foreground text-lg">جاري تحميل الخريطة...</p>
+              <p className="text-muted-foreground text-sm">الرجاء الانتظار</p>
             </div>
           </div>
         )}
@@ -995,21 +995,21 @@ const GoPage: React.FC = () => {
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center shadow-xl border-3 border-white ${
                   isPickup
-                    ? "bg-gradient-to-br from-green-400 to-green-600"
-                    : "bg-gradient-to-br from-blue-400 to-blue-600"
+                    ? "bg-gradient-to-br from-primary/90 to-primary"
+                    : "bg-gradient-to-br from-accent to-accent"
                 }`}
               >
                 {isPickup ? (
-                  <Target className="w-5 h-5 text-white" />
+                  <Target className="w-5 h-5 text-primary-foreground" />
                 ) : (
-                  <MapPin className="w-5 h-5 text-white" />
+                  <MapPin className="w-5 h-5 text-accent-foreground" />
                 )}
               </div>
               <div
                 className={`w-1 h-8 mx-auto rounded-b-full ${
                   isPickup
-                    ? "bg-gradient-to-b from-green-500 to-green-600"
-                    : "bg-gradient-to-b from-blue-500 to-blue-600"
+                    ? "bg-gradient-to-b from-primary to-primary/80"
+                    : "bg-gradient-to-b from-accent to-accent/80"
                 }`}
               />
               {/* Shadow */}
@@ -1071,16 +1071,16 @@ const GoPage: React.FC = () => {
         <div className="px-4 pb-4 pt-1 max-w-lg mx-auto">
           {/* Service area warning */}
           {localServiceAreaStatus && !localServiceAreaStatus.in_service && (
-            <div className="flex items-center gap-3 p-3 mb-3 rounded-md bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30">
-              <div className="w-8 h-8 rounded-md bg-amber-500/20 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
+            <div className="flex items-center gap-3 p-3 mb-3 rounded-md bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/30">
+              <div className="w-8 h-8 rounded-md bg-destructive/20 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4 text-destructive" />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-amber-800 text-sm mb-1">
+                <p className="font-semibold text-destructive text-sm mb-1">
                   ⚠️ خارج منطقة الخدمة
                 </p>
                 {localServiceAreaStatus.nearest_region && (
-                  <p className="text-amber-700 text-xs">
+                  <p className="text-muted-foreground text-xs">
                     أقرب منطقة: {localServiceAreaStatus.nearest_region.name_ar}{" "}
                     ({localServiceAreaStatus.nearest_region.distance_km} كم)
                   </p>
@@ -1094,20 +1094,20 @@ const GoPage: React.FC = () => {
             <div
               className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                 isPickup
-                  ? "bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 ring-2 ring-emerald-500/30"
-                  : "bg-gradient-to-br from-blue-500/20 to-blue-600/10 ring-2 ring-blue-500/30"
+                  ? "bg-gradient-to-br from-primary/20 to-primary/10 ring-2 ring-primary/30"
+                  : "bg-gradient-to-br from-accent/20 to-accent/10 ring-2 ring-accent/30"
               }`}
             >
               {isPickup ? (
-                <Target className="w-5 h-5 text-emerald-500" />
+                <Target className="w-5 h-5 text-primary" />
               ) : (
-                <MapPin className="w-5 h-5 text-blue-500" />
+                <MapPin className="w-5 h-5 text-accent-foreground" />
               )}
             </div>
             <div className="flex-1 min-w-0">
               <p
                 className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${
-                  isPickup ? "text-emerald-600" : "text-blue-600"
+                  isPickup ? "text-primary" : "text-accent-foreground"
                 }`}
               >
                 {isPickup ? "موقع الانطلاق" : "الوجهة"}
@@ -1117,7 +1117,7 @@ const GoPage: React.FC = () => {
               </p>
             </div>
             {centerAddress && (
-              <div className={`w-2 h-2 rounded-full animate-pulse ${isPickup ? "bg-emerald-500" : "bg-blue-500"}`} />
+              <div className={`w-2 h-2 rounded-full animate-pulse ${isPickup ? "bg-primary" : "bg-accent"}`} />
             )}
           </div>
 
@@ -1147,8 +1147,7 @@ const GoPage: React.FC = () => {
                 }}
                 type={isPickup ? "pickup" : "dropoff"}
                 userLocation={userLocation}
-                
-                className="w-full text-base font-medium placeholder:text-muted-foreground/70 placeholder:font-semibold"
+                className="w-full"
               />
             </div>
           </div>
@@ -1157,7 +1156,7 @@ const GoPage: React.FC = () => {
           {isDropoff && savedPlaces.length > 0 && (
             <div className="mb-4">
               <p className="text-xs font-bold text-muted-foreground mb-2.5 flex items-center gap-1.5">
-                <Star className="w-3.5 h-3.5 text-amber-500" />
+                <Star className="w-3.5 h-3.5 text-primary" />
                 أماكني المحفوظة
               </p>
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
