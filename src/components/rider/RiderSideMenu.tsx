@@ -44,7 +44,7 @@ const MenuLink = ({
   <Link
     to={href}
     onClick={onClick}
-    className="flex items-center gap-3 p-3 rounded-xl text-foreground hover:bg-accent transition-colors"
+    className="flex items-center gap-3 p-3 rounded-md text-foreground hover:bg-accent transition-colors"
   >
     <span className="text-muted-foreground">{icon}</span>
     <span>{label}</span>
@@ -84,7 +84,7 @@ const RiderSideMenu = ({
       return (
         <button
           onClick={handleRegisterAsDriver}
-          className="w-full flex items-center gap-3 p-3 rounded-xl bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+          className="w-full flex items-center gap-3 p-3 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
         >
           <Car className="w-5 h-5" />
           <span className="font-medium">سجّل كسائق</span>
@@ -95,7 +95,7 @@ const RiderSideMenu = ({
       return (
         <button
           onClick={handleSwitchToDriver}
-          className="w-full flex items-center gap-3 p-3 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors border border-primary/20"
+          className="w-full flex items-center gap-3 p-3 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors border border-primary/20"
         >
           <Car className="w-5 h-5" />
           <span className="font-medium">التبديل لوضع السائق</span>
@@ -104,7 +104,7 @@ const RiderSideMenu = ({
     }
     if (driverStatus.status === "pending") {
       return (
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20">
+        <div className="flex items-center gap-3 p-3 rounded-md bg-amber-500/10 text-amber-600 border border-amber-500/20">
           <Clock className="w-5 h-5" />
           <span className="text-sm">طلب السائق قيد المراجعة</span>
         </div>
@@ -112,7 +112,7 @@ const RiderSideMenu = ({
     }
     if (driverStatus.status === "rejected") {
       return (
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-destructive/10 text-destructive border border-destructive/20">
+        <div className="flex items-center gap-3 p-3 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
           <XCircle className="w-5 h-5" />
           <span className="text-sm">تم رفض طلب السائق</span>
         </div>
@@ -120,7 +120,7 @@ const RiderSideMenu = ({
     }
     if (!driverStatus.isActivated) {
       return (
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-destructive/10 text-destructive border border-destructive/20">
+        <div className="flex items-center gap-3 p-3 rounded-md bg-destructive/10 text-destructive border border-destructive/20">
           <XCircle className="w-5 h-5" />
           <span className="text-sm">حساب السائق معطّل</span>
         </div>
@@ -202,7 +202,7 @@ const RiderSideMenu = ({
           <div className="pt-3 border-t border-border space-y-2">
             <button
               onClick={toggleBottomNav}
-              className="flex items-center gap-3 w-full p-3 rounded-xl text-foreground hover:bg-accent transition-colors"
+              className="flex items-center gap-3 w-full p-3 rounded-md text-foreground hover:bg-accent transition-colors"
             >
               <span className="text-muted-foreground">
                 {bottomNavEnabled ? (
@@ -250,7 +250,7 @@ const RiderSideMenu = ({
             <div className="pt-4 border-t border-border">
               <button
                 onClick={onLogout}
-                className="flex items-center gap-3 w-full p-3 rounded-xl text-destructive hover:bg-destructive/10 transition-colors"
+                className="flex items-center gap-3 w-full p-3 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
               >
                 <LogOut className="w-5 h-5" />
                 <span>تسجيل الخروج</span>

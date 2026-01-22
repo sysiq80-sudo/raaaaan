@@ -1,17 +1,17 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { 
-  CheckCircle, 
+import {
+  CheckCircle,
   MapPin,
   Route,
   Wallet,
   Clock,
-  Bookmark
+  Bookmark,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import SaveDestinationPrompt from "./SaveDestinationPrompt";
 import SmartRatingFlow from "./SmartRatingFlow";
-import confetti from 'canvas-confetti';
+import confetti from "canvas-confetti";
 
 interface RideCompletedScreenProps {
   ride: {
@@ -31,7 +31,7 @@ interface RideCompletedScreenProps {
 export const RideCompletedScreen = ({
   ride,
   driverName,
-  onClose
+  onClose,
 }: RideCompletedScreenProps) => {
   const [showSavePrompt, setShowSavePrompt] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -49,7 +49,7 @@ export const RideCompletedScreen = ({
       particleCount: 100,
       spread: 70,
       origin: { y: 0.6 },
-      colors: ['#00d9a5', '#00b389', '#fbbf24', '#f59e0b']
+      colors: ["#00d9a5", "#00b389", "#fbbf24", "#f59e0b"],
     });
   }, []);
 
@@ -63,7 +63,9 @@ export const RideCompletedScreen = ({
           <div className="w-16 h-16 mx-auto rounded-full bg-green-500/20 flex items-center justify-center animate-in zoom-in-50 duration-500">
             <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
-          <h1 className="text-xl font-bold text-foreground">الحمد لله على السلامة! 🤲</h1>
+          <h1 className="text-xl font-bold text-foreground">
+            الحمد لله على السلامة! 🤲
+          </h1>
           <p className="text-muted-foreground text-sm">شكراً لاستخدامك ران</p>
         </div>
       </div>
@@ -71,26 +73,32 @@ export const RideCompletedScreen = ({
       {/* Content */}
       <div className="flex-1 px-6 py-4 space-y-5 overflow-y-auto">
         {/* Fare Summary */}
-        <div className="bg-card rounded-2xl p-4 shadow-lg border border-border space-y-3">
+        <div className="bg-card rounded-md p-4 shadow-lg border border-border space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">المبلغ الإجمالي</span>
-            <span className="text-2xl font-bold text-primary">{fare.toLocaleString()} د.ع</span>
+            <span className="text-2xl font-bold text-primary">
+              {fare.toLocaleString()} د.ع
+            </span>
           </div>
-          
+
           <div className="border-t border-border pt-3 grid grid-cols-3 gap-2 text-center">
             <div className="flex flex-col items-center gap-1">
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <Route className="w-4 h-4 text-primary" />
               </div>
               <span className="text-xs text-muted-foreground">المسافة</span>
-              <span className="text-sm font-medium">{(ride.distance_km || 0).toFixed(1)} كم</span>
+              <span className="text-sm font-medium">
+                {(ride.distance_km || 0).toFixed(1)} كم
+              </span>
             </div>
             <div className="flex flex-col items-center gap-1">
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <Clock className="w-4 h-4 text-primary" />
               </div>
               <span className="text-xs text-muted-foreground">المدة</span>
-              <span className="text-sm font-medium">{ride.duration_minutes || 0} دقيقة</span>
+              <span className="text-sm font-medium">
+                {ride.duration_minutes || 0} دقيقة
+              </span>
             </div>
             <div className="flex flex-col items-center gap-1">
               <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center">
@@ -103,7 +111,7 @@ export const RideCompletedScreen = ({
         </div>
 
         {/* Trip Summary - Compact */}
-        <div className="bg-card rounded-xl p-3 border border-border">
+        <div className="bg-card rounded-md p-3 border border-border">
           <div className="flex items-center gap-3">
             <div className="flex flex-col items-center gap-1">
               <div className="w-2.5 h-2.5 rounded-full bg-primary" />
@@ -111,11 +119,15 @@ export const RideCompletedScreen = ({
               <div className="w-2.5 h-2.5 rounded-full bg-destructive" />
             </div>
             <div className="flex-1 min-w-0 space-y-2">
-              <p className="text-sm text-foreground truncate">{ride.pickup_address}</p>
-              <p className="text-sm text-foreground truncate">{ride.dropoff_address}</p>
+              <p className="text-sm text-foreground truncate">
+                {ride.pickup_address}
+              </p>
+              <p className="text-sm text-foreground truncate">
+                {ride.dropoff_address}
+              </p>
             </div>
           </div>
-          
+
           {/* Save destination button */}
           {ride.dropoff_address && (
             <Button
@@ -131,7 +143,7 @@ export const RideCompletedScreen = ({
         </div>
 
         {/* Smart Rating Flow */}
-        <div className="bg-card rounded-2xl p-5 border border-border">
+        <div className="bg-card rounded-md p-5 border border-border">
           <SmartRatingFlow
             rideId={ride.id}
             driverId={ride.driver_id}
@@ -151,7 +163,7 @@ export const RideCompletedScreen = ({
           destination={{
             address: ride.dropoff_address,
             lat: 0,
-            lng: 0
+            lng: 0,
           }}
         />
       )}
