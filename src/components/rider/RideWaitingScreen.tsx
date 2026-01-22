@@ -212,7 +212,7 @@ export const RideWaitingScreen = ({
 
     const messageTimer = setInterval(() => {
       setEncouragingMessageIndex(
-        (prev) => (prev + 1) % encouragingMessages.length
+        (prev) => (prev + 1) % encouragingMessages.length,
       );
     }, 5000); // Changed to 5 seconds
     return () => clearInterval(messageTimer);
@@ -275,7 +275,7 @@ export const RideWaitingScreen = ({
     const { data, error } = await supabase
       .from("drivers")
       .select(
-        "id, full_name, phone, profile_image_url, vehicle_model, vehicle_plate, vehicle_color, vehicle_type, rating"
+        "id, full_name, phone, profile_image_url, vehicle_model, vehicle_plate, vehicle_color, vehicle_type, rating",
       )
       .eq("id", driverId)
       .single();
@@ -319,7 +319,7 @@ export const RideWaitingScreen = ({
   useEffect(() => {
     console.log(
       "[RideWaiting] Setting up realtime subscriptions for ride:",
-      rideId
+      rideId,
     );
 
     // Database realtime subscription
@@ -354,7 +354,7 @@ export const RideWaitingScreen = ({
             });
             onCancel();
           }
-        }
+        },
       )
       .subscribe((status) => {
         console.log("[RideWaiting] DB subscription status:", status);
@@ -380,7 +380,7 @@ export const RideWaitingScreen = ({
             setRideStatus("accepted");
             handleDriverFound(payload.payload.driverId);
           }
-        }
+        },
       )
       .subscribe((status) => {
         console.log("[RideWaiting] Broadcast subscription status:", status);
@@ -498,7 +498,7 @@ export const RideWaitingScreen = ({
     return (
       <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col justify-end pointer-events-none">
         {/* The sheet card */}
-        <div className="bg-background rounded-t-3xl shadow-2xl border-t border-border/20 pointer-events-auto w-full max-w-md mx-auto max-h-[85vh] overflow-y-auto">
+        <div className="bg-background rounded-t-lg shadow-2xl border-t border-border/20 pointer-events-auto w-full max-w-md mx-auto max-h-[85vh] overflow-y-auto">
           {/* Header */}
           <div className="bg-card/50 backdrop-blur-sm border-b border-border/50 px-4 py-2 sticky top-0 z-10">
             <RideProgressStepper status="accepted" />
@@ -506,7 +506,7 @@ export const RideWaitingScreen = ({
 
           <div className="p-4 space-y-3 pb-8">
             {/* Success Banner */}
-            <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl p-3 text-white shadow-lg shadow-green-500/20">
+            <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-md p-3 text-white shadow-lg shadow-green-500/20">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 backdrop-blur-sm">
                   <Car className="w-5 h-5 text-white" />
@@ -519,7 +519,7 @@ export const RideWaitingScreen = ({
             </div>
 
             {/* Driver Card */}
-            <div className="bg-card rounded-xl border border-border/50 shadow-sm overflow-hidden">
+            <div className="bg-card rounded-md border border-border/50 shadow-sm overflow-hidden">
               {/* Driver Info */}
               <div className="p-3 border-b border-border/50 bg-muted/20">
                 <div className="flex items-center gap-3">
@@ -559,7 +559,7 @@ export const RideWaitingScreen = ({
                     <Button
                       variant="outline"
                       size="icon"
-                      className="w-10 h-10 rounded-full hover:bg-primary/10 hover:text-primary transition-colors hover:scale-105"
+                      className="w-10 h-10 rounded-md hover:bg-primary/10 hover:text-primary transition-colors hover:scale-105"
                       onClick={() =>
                         window.open(`tel:${acceptedDriver.phone}`, "_self")
                       }
@@ -569,11 +569,11 @@ export const RideWaitingScreen = ({
                     <Button
                       variant="outline"
                       size="icon"
-                      className="w-10 h-10 rounded-full hover:bg-green-500/10 hover:text-green-600 transition-colors hover:scale-105"
+                      className="w-10 h-10 rounded-md hover:bg-green-500/10 hover:text-green-600 transition-colors hover:scale-105"
                       onClick={() =>
                         window.open(
                           `https://wa.me/${acceptedDriver.phone}`,
-                          "_blank"
+                          "_blank",
                         )
                       }
                     >
@@ -586,7 +586,7 @@ export const RideWaitingScreen = ({
               {/* Vehicle Info */}
               <div className="p-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
                     <Car className="w-5 h-5 text-primary" />
                   </div>
                   <div>
@@ -613,7 +613,7 @@ export const RideWaitingScreen = ({
             </div>
 
             {/* Trip Summary */}
-            <div className="bg-card rounded-xl border border-border/50 p-3 shadow-sm">
+            <div className="bg-card rounded-md border border-border/50 p-3 shadow-sm">
               <div className="flex gap-3">
                 <div className="flex flex-col items-center py-1">
                   <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm shadow-green-500/50" />
@@ -651,7 +651,7 @@ export const RideWaitingScreen = ({
             {/* Track Button */}
             <Button
               size="lg"
-              className="w-full h-14 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl shadow-lg shadow-green-500/25 text-base font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full h-14 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-md shadow-lg shadow-green-500/25 text-base font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
               onClick={handleContinueToTracking}
             >
               <Navigation className="w-5 h-5 ml-2 animate-pulse" />
@@ -666,7 +666,7 @@ export const RideWaitingScreen = ({
   // Waiting State
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col justify-end pointer-events-none">
-      <div className="bg-background rounded-t-3xl shadow-2xl border-t border-border/20 pointer-events-auto w-full max-w-md mx-auto max-h-[85vh] overflow-y-auto">
+      <div className="bg-background rounded-t-lg shadow-2xl border-t border-border/20 pointer-events-auto w-full max-w-md mx-auto max-h-[85vh] overflow-y-auto">
         {/* Header */}
         <div className="bg-card/50 backdrop-blur-sm border-b border-border/50 px-4 py-2 sticky top-0 z-10">
           <RideProgressStepper status="pending" />
@@ -674,7 +674,7 @@ export const RideWaitingScreen = ({
 
         <div className="p-4 space-y-3 pb-8">
           {/* Search Animation */}
-          <div className="flex items-center gap-4 bg-primary/5 rounded-xl p-3 border border-primary/10">
+          <div className="flex items-center gap-4 bg-primary/5 rounded-md p-3 border border-primary/10">
             <div className="relative w-12 h-12 shrink-0">
               <div className="absolute inset-0 rounded-full border-2 border-primary/30 animate-ping" />
               <div className="relative w-full h-full rounded-full bg-primary/10 flex items-center justify-center border border-primary/30">
@@ -697,7 +697,7 @@ export const RideWaitingScreen = ({
           </div>
 
           {/* Timer & Progress */}
-          <div className="bg-card rounded-xl border border-border/50 p-3 shadow-sm">
+          <div className="bg-card rounded-md border border-border/50 p-3 shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
@@ -726,7 +726,7 @@ export const RideWaitingScreen = ({
                 style={{
                   width: `${Math.min(
                     (elapsedTime / 60 / maxWaitTimeout) * 100,
-                    100
+                    100,
                   )}%`,
                 }}
               />
@@ -741,7 +741,7 @@ export const RideWaitingScreen = ({
           </div>
 
           {/* Trip Details */}
-          <div className="bg-card rounded-xl border border-border/50 overflow-hidden shadow-sm">
+          <div className="bg-card rounded-md border border-border/50 overflow-hidden shadow-sm">
             <div className="px-3 py-2 bg-muted/50 border-b border-border/50 border-dashed">
               <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-primary" />
@@ -793,7 +793,7 @@ export const RideWaitingScreen = ({
           {/* Cancel Button */}
           <Button
             variant="outline"
-            className="w-full h-12 border-destructive/30 text-destructive hover:bg-destructive hover:text-white transition-all rounded-xl hover:scale-[1.01] active:scale-[0.99]"
+            className="w-full h-12 border-destructive/30 text-destructive hover:bg-destructive hover:text-white transition-all rounded-md hover:scale-[1.01] active:scale-[0.99]"
             onClick={handleCancelClick}
             disabled={cancelling}
           >

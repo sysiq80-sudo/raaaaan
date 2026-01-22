@@ -436,7 +436,7 @@ export const LiveRideTracker = ({
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
             className="absolute top-[-280px] inset-x-4 pointer-events-auto"
           >
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-3xl p-4 shadow-2xl border border-green-400/30">
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-md p-4 shadow-2xl border border-green-400/30">
               {/* Close button */}
               <button
                 onClick={() => setShowArrivedAlert(false)}
@@ -471,7 +471,7 @@ export const LiveRideTracker = ({
                   <Button
                     key={response.action}
                     onClick={() => handleArrivedResponse(response.action)}
-                    className="h-auto py-3 flex flex-col items-center gap-1 bg-white/20 hover:bg-white/30 border-0 text-white rounded-xl transition-all"
+                    className="h-auto py-3 flex flex-col items-center gap-1 bg-white/20 hover:bg-white/30 border-0 text-white rounded-md transition-all"
                     variant="ghost"
                   >
                     <span className="text-xl">{response.icon}</span>
@@ -509,13 +509,13 @@ export const LiveRideTracker = ({
         className="absolute top-[-120px] inset-x-4 pointer-events-auto"
       >
         <div
-          className={`${currentStatus.bgColor} backdrop-blur-xl rounded-2xl p-3 shadow-lg border border-white/10`}
+          className={`${currentStatus.bgColor} backdrop-blur-xl rounded-md p-3 shadow-lg border border-white/10`}
         >
           <div className="flex items-center justify-between">
             {/* Current Status */}
             <div className="flex items-center gap-3">
               <div
-                className={`w-12 h-12 rounded-xl ${currentStatus.bgColor} flex items-center justify-center`}
+                className={`w-12 h-12 rounded-md ${currentStatus.bgColor} flex items-center justify-center`}
               >
                 <CurrentStatusIcon
                   className={`w-6 h-6 ${currentStatus.color}`}
@@ -592,7 +592,7 @@ export const LiveRideTracker = ({
       </motion.div>
 
       {/* Bottom Sheet */}
-      <div className="bg-background/90 backdrop-blur-xl rounded-t-3xl shadow-2xl border-t border-border/20 pointer-events-auto w-full max-w-md mx-auto max-h-[85vh] overflow-y-auto">
+      <div className="bg-background/90 backdrop-blur-xl rounded-t-lg shadow-2xl border-t border-border/20 pointer-events-auto w-full max-w-md mx-auto max-h-[85vh] overflow-y-auto">
         <motion.div
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
@@ -631,7 +631,7 @@ export const LiveRideTracker = ({
           >
             <div className="px-4 pb-6 space-y-4">
               {/* Driver Info Card - Enhanced */}
-              <div className="bg-gradient-to-br from-card/80 to-card/40 rounded-2xl border border-border/50 p-4 shadow-sm">
+              <div className="bg-gradient-to-br from-card/80 to-card/40 rounded-md border border-border/50 p-4 shadow-sm">
                 <div className="flex items-center gap-4">
                   <div className="relative">
                     <Avatar className="w-18 h-18 border-3 border-primary/30 shadow-lg">
@@ -678,7 +678,7 @@ export const LiveRideTracker = ({
                 <div className="flex gap-2 mt-4">
                   <Button
                     variant="outline"
-                    className="flex-1 h-12 rounded-xl bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary transition-all"
+                    className="flex-1 h-12 rounded-md bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary transition-all"
                     onClick={() => window.open(`tel:${ride.driver?.phone}`)}
                   >
                     <Phone className="w-5 h-5 ml-2" />
@@ -686,7 +686,7 @@ export const LiveRideTracker = ({
                   </Button>
                   <Button
                     variant="outline"
-                    className="flex-1 h-12 rounded-xl bg-green-500/5 hover:bg-green-500/10 border-green-500/20 text-green-600 transition-all"
+                    className="flex-1 h-12 rounded-md bg-green-500/5 hover:bg-green-500/10 border-green-500/20 text-green-600 transition-all"
                     onClick={() =>
                       window.open(`https://wa.me/${ride.driver?.phone}`)
                     }
@@ -698,7 +698,7 @@ export const LiveRideTracker = ({
               </div>
 
               {/* Route Info - Compact */}
-              <div className="bg-muted/30 rounded-xl p-3">
+              <div className="bg-muted/30 rounded-md p-3">
                 <div className="flex items-center gap-3">
                   {/* Visual route indicator */}
                   <div className="flex flex-col items-center gap-1">
@@ -750,7 +750,7 @@ export const LiveRideTracker = ({
               </div>
 
               {/* Fare - Bottom sticky */}
-              <div className="bg-gradient-to-r from-primary/15 via-primary/10 to-primary/5 rounded-2xl p-4">
+              <div className="bg-gradient-to-r from-primary/15 via-primary/10 to-primary/5 rounded-md p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs text-muted-foreground block mb-0.5">
