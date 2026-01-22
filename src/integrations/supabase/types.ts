@@ -1960,20 +1960,6 @@ export type Database = {
             referencedRelation: "rides"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "ride_ratings_rider_id_fkey"
-            columns: ["rider_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ride_ratings_rider_id_fkey"
-            columns: ["rider_id"]
-            isOneToOne: false
-            referencedRelation: "rider_profile_safe"
-            referencedColumns: ["id"]
-          },
         ]
       }
       ride_reviews: {
@@ -2852,30 +2838,6 @@ export type Database = {
         }
         Relationships: []
       }
-      rider_profile_safe: {
-        Row: {
-          avatar_url: string | null
-          full_name: string | null
-          id: string | null
-          preferred_language: string | null
-          user_id: string | null
-        }
-        Insert: {
-          avatar_url?: string | null
-          full_name?: string | null
-          id?: string | null
-          preferred_language?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          avatar_url?: string | null
-          full_name?: string | null
-          id?: string | null
-          preferred_language?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
     }
     Functions: {
       accept_ride_safely: {
@@ -2924,6 +2886,7 @@ export type Database = {
         Args: { p_amount: number; p_driver_id: string; p_ride_id?: string }
         Returns: Json
       }
+      delete_ride_cascade: { Args: { ride_id_param: string }; Returns: Json }
       driver_has_active_ride_with_rider: {
         Args: { rider_user_id: string }
         Returns: boolean
@@ -3052,6 +3015,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin: { Args: never; Returns: boolean }
       is_name_banned: { Args: { p_name: string }; Returns: boolean }
       is_phone_blocked: { Args: { p_phone: string }; Returns: boolean }
       link_driver_by_phone: { Args: { p_phone: string }; Returns: Json }
