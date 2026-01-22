@@ -57,13 +57,13 @@ import { useOfflineMode } from "@/hooks/useOfflineMode";
 
 // Lazy load heavy components
 const RideWaitingScreen = lazy(
-  () => import("@/components/rider/RideWaitingScreen")
+  () => import("@/components/rider/RideWaitingScreen"),
 );
 const LiveRideTracker = lazy(
-  () => import("@/components/rider/LiveRideTracker")
+  () => import("@/components/rider/LiveRideTracker"),
 );
 const RideCompletedScreen = lazy(
-  () => import("@/components/rider/RideCompletedScreen")
+  () => import("@/components/rider/RideCompletedScreen"),
 );
 const OnboardingFlow = lazy(() => import("@/components/rider/OnboardingFlow"));
 
@@ -108,7 +108,7 @@ const GoPage: React.FC = () => {
   const { lastLocation, saveLocation } = useLastLocation();
   const [hasSeenOnboarding] = useLocalStorage(
     "raan_onboarding_completed",
-    false
+    false,
   );
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -184,10 +184,10 @@ const GoPage: React.FC = () => {
     "pickup" | "dropoff" | "booking"
   >("pickup");
   const [pickupLocation, setPickupLocation] = useState<LocationType | null>(
-    null
+    null,
   );
   const [dropoffLocation, setDropoffLocation] = useState<LocationType | null>(
-    null
+    null,
   );
   const [isConfirming, setIsConfirming] = useState(false);
   const [localServiceAreaStatus, setLocalServiceAreaStatus] =
@@ -198,14 +198,14 @@ const GoPage: React.FC = () => {
     pickupLocation,
     dropoffLocation,
     selectedVehicle,
-    routeDistance
+    routeDistance,
   );
 
   // Nearby drivers
   const { availableDriversByType } = useOptimizedNearbyDrivers(
     pickupLocation,
     selectedVehicle,
-    { enableRealtime: !!pickupLocation, debounceMs: 1000 }
+    { enableRealtime: !!pickupLocation, debounceMs: 1000 },
   );
 
   // Reset center address when mode changes
@@ -265,7 +265,7 @@ const GoPage: React.FC = () => {
   // Local helper: center map on user location
   const centerOnUser = useCallback(() => {
     if (!map.current) return;
-    
+
     // Get fresh location when button is clicked
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -274,7 +274,7 @@ const GoPage: React.FC = () => {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           };
-          
+
           if (map.current) {
             map.current.flyTo({
               center: [freshLocation.lng, freshLocation.lat],
@@ -282,7 +282,7 @@ const GoPage: React.FC = () => {
               duration: 800,
             });
           }
-          
+
           toast({
             title: "تم التحديث",
             description: "تم تحديث موقعك الحالي",
@@ -296,7 +296,7 @@ const GoPage: React.FC = () => {
             variant: "destructive",
           });
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
       );
     } else {
       toast({
@@ -331,7 +331,7 @@ const GoPage: React.FC = () => {
         try {
           const response = await fetch(
             `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=reverse-geocode&lat=${center.lat}&lng=${center.lng}`,
-            { headers: { "Content-Type": "application/json" } }
+            { headers: { "Content-Type": "application/json" } },
           );
           const data = await response.json();
           if (data.features?.[0]?.place_name) {
@@ -658,7 +658,7 @@ const GoPage: React.FC = () => {
           <div className="flex items-center justify-between gap-2">
             <button
               onClick={() => setMenuOpen(true)}
-              className="w-11 h-11 flex items-center justify-center rounded-2xl bg-card/90 backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0"
+              className="w-11 h-11 flex items-center justify-center rounded-md bg-card/90 backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0"
               aria-label="القائمة"
             >
               <Menu className="w-5 h-5" />
@@ -666,7 +666,7 @@ const GoPage: React.FC = () => {
 
             {/* Logo and Route info - Combined */}
             <div className="flex-1 flex items-center justify-center gap-2">
-              <div className="flex items-center gap-2 bg-card/90 backdrop-blur-md rounded-2xl px-4 py-2.5 shadow-lg">
+              <div className="flex items-center gap-2 bg-card/90 backdrop-blur-md rounded-md px-4 py-2.5 shadow-lg">
                 <img src={logo} alt="RAAN" className="w-7 h-7 rounded-lg" />
                 <span className="font-bold text-lg">ران</span>
               </div>
@@ -675,7 +675,7 @@ const GoPage: React.FC = () => {
                 initial={{ y: -20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.2 }}
-                className="bg-card/70 backdrop-blur-xl rounded-2xl px-3 py-2 flex items-center gap-3 shadow-lg border border-white/10"
+                className="bg-card/70 backdrop-blur-xl rounded-md px-3 py-2 flex items-center gap-3 shadow-lg border border-white/10"
               >
                 <div className="flex items-center gap-1.5">
                   <Navigation className="w-3.5 h-3.5 text-green-500" />
@@ -704,7 +704,7 @@ const GoPage: React.FC = () => {
 
             <button
               onClick={() => setCurrentMode("dropoff")}
-              className="w-11 h-11 flex items-center justify-center rounded-2xl bg-gradient-to-br from-primary/90 to-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0"
+              className="w-11 h-11 flex items-center justify-center rounded-md bg-gradient-to-br from-primary/90 to-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0"
               aria-label="رجوع"
             >
               <ArrowRight className="w-5 h-5 text-white" />
@@ -718,7 +718,7 @@ const GoPage: React.FC = () => {
         </div>
 
         {/* Details - Bottom Half with rounded top */}
-        <div className="h-[55%] bg-background rounded-t-3xl -mt-4 relative z-10 flex flex-col shadow-2xl">
+        <div className="h-[55%] bg-background rounded-t-lg -mt-4 relative z-10 flex flex-col shadow-2xl">
           {/* Drag handle */}
           <div className="flex justify-center pt-2 pb-1">
             <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
@@ -730,11 +730,11 @@ const GoPage: React.FC = () => {
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              className="bg-card rounded-2xl p-4 space-y-3 border border-border/30"
+              className="bg-card rounded-md p-4 space-y-3 border border-border/30"
             >
               {/* Pickup location */}
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-green-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-9 h-9 rounded-md bg-green-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <div className="w-3 h-3 rounded-full bg-green-500 ring-2 ring-green-500/30" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -754,7 +754,7 @@ const GoPage: React.FC = () => {
 
               {/* Dropoff location */}
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-9 h-9 rounded-md bg-blue-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <div className="w-3 h-3 rounded-full bg-blue-500 ring-2 ring-blue-500/30" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -791,7 +791,7 @@ const GoPage: React.FC = () => {
             >
               {/* Fare summary - Single line */}
               {fareBreakdown && (
-                <div className="flex-1 bg-card rounded-xl px-4 py-3 border border-border/30 flex items-center justify-between">
+                <div className="flex-1 bg-card rounded-md px-4 py-3 border border-border/30 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Zap className="w-4 h-4 text-primary" />
                     <span className="text-xs text-muted-foreground">
@@ -810,7 +810,7 @@ const GoPage: React.FC = () => {
               {/* Payment method - Single line */}
               <div
                 onClick={() => setPaymentSheetOpen(true)}
-                className="flex-1 bg-card rounded-xl px-4 py-3 border border-border/30 cursor-pointer hover:border-primary/30 transition-all active:scale-[0.98] flex items-center justify-between"
+                className="flex-1 bg-card rounded-md px-4 py-3 border border-border/30 cursor-pointer hover:border-primary/30 transition-all active:scale-[0.98] flex items-center justify-between"
               >
                 <div className="flex items-center gap-2">
                   <span className="text-lg">💵</span>
@@ -851,7 +851,7 @@ const GoPage: React.FC = () => {
             <Button
               onClick={handleBookRide}
               disabled={isBooking || fareLoading}
-              className="w-full h-14 text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/80 rounded-2xl shadow-xl shadow-primary/25 hover:shadow-2xl transition-all active:scale-[0.98] text-black dark:text-black"
+              className="w-full h-14 text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/80 rounded-md shadow-xl shadow-primary/25 hover:shadow-2xl transition-all active:scale-[0.98] text-black dark:text-black"
             >
               {isBooking ? (
                 <span className="flex items-center gap-2">
@@ -915,14 +915,14 @@ const GoPage: React.FC = () => {
           {/* زر القائمة - دائماً في اليسار */}
           <button
             onClick={() => setMenuOpen(true)}
-            className="w-11 h-11 flex items-center justify-center rounded-2xl bg-card/90 backdrop-blur-md shadow-lg hover:bg-card hover:scale-105 transition-all duration-200 active:scale-95"
+            className="w-11 h-11 flex items-center justify-center rounded-md bg-card/90 backdrop-blur-md shadow-lg hover:bg-card hover:scale-105 transition-all duration-200 active:scale-95"
             aria-label="القائمة الرئيسية"
           >
             <Menu className="w-5 h-5" />
           </button>
 
           {/* الشعار في المنتصف */}
-          <div className="flex items-center gap-2 bg-card/90 backdrop-blur-md rounded-2xl px-4 py-2.5 shadow-lg">
+          <div className="flex items-center gap-2 bg-card/90 backdrop-blur-md rounded-md px-4 py-2.5 shadow-lg">
             <img src={logo} alt="RAAN" className="w-7 h-7 rounded-lg" />
             <span className="font-bold text-lg">ران</span>
           </div>
@@ -937,7 +937,7 @@ const GoPage: React.FC = () => {
                 setCurrentMode("pickup");
                 setPickupLocation(null);
               }}
-              className="w-11 h-11 flex items-center justify-center rounded-2xl bg-gradient-to-br from-primary/90 to-primary backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95"
+              className="w-11 h-11 flex items-center justify-center rounded-md bg-gradient-to-br from-primary/90 to-primary backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95"
               aria-label="رجوع"
             >
               <ArrowRight className="w-5 h-5 text-white" />
@@ -1026,7 +1026,7 @@ const GoPage: React.FC = () => {
             <motion.div
               initial={{ y: 10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              className="mt-3 px-4 py-2 bg-card/95 backdrop-blur-md rounded-xl shadow-lg border border-border/50 max-w-[280px]"
+              className="mt-3 px-4 py-2 bg-card/95 backdrop-blur-md rounded-md shadow-lg border border-border/50 max-w-[280px]"
             >
               <p className="text-sm font-semibold text-foreground text-center line-clamp-2">
                 {centerAddress || "جاري تحديد العنوان..."}
@@ -1052,7 +1052,7 @@ const GoPage: React.FC = () => {
         {userLocation && (
           <button
             onClick={centerOnUser}
-            className="absolute bottom-5 left-4 w-14 h-14 bg-card/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-xl flex items-center justify-center hover:bg-accent transition-all duration-200 active:scale-95 z-40 group"
+            className="absolute bottom-5 left-4 w-14 h-14 bg-card/95 backdrop-blur-md rounded-md border border-border/50 shadow-xl flex items-center justify-center hover:bg-accent transition-all duration-200 active:scale-95 z-40 group"
             aria-label="تحديد موقعي"
           >
             <Navigation className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />
@@ -1064,12 +1064,12 @@ const GoPage: React.FC = () => {
       <motion.div
         initial={{ y: 100 }}
         animate={{ y: 0 }}
-        className="bg-card/95 backdrop-blur-md border-t border-border/50 shadow-2xl z-30 rounded-t-3xl"
+        className="bg-card/95 backdrop-blur-md border-t border-border/50 shadow-2xl z-30 rounded-t-lg"
       >
         <div className="p-3 sm:p-4">
           {/* Service area warning */}
           {localServiceAreaStatus && !localServiceAreaStatus.in_service && (
-            <div className="flex items-center gap-3 p-3 mb-3 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30">
+            <div className="flex items-center gap-3 p-3 mb-3 rounded-md bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30">
               <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4 text-amber-600" />
               </div>
@@ -1088,9 +1088,9 @@ const GoPage: React.FC = () => {
           )}
 
           {/* Address display */}
-          <div className="flex items-start gap-3 mb-4 p-3 rounded-xl border bg-card/50">
+          <div className="flex items-start gap-3 mb-4 p-3 rounded-md border bg-card/50">
             <div
-              className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${
+              className={`w-12 h-12 rounded-md flex items-center justify-center shrink-0 border ${
                 isPickup
                   ? "bg-green-500/20 border-green-400"
                   : "bg-blue-500/20 border-blue-400"
@@ -1181,7 +1181,7 @@ const GoPage: React.FC = () => {
                         setCenterAddress(location.address);
                         checkServiceArea(location.lat, location.lng);
                       }}
-                      className="flex flex-col items-center flex-shrink-0 w-24 h-28 p-2 rounded-xl border border-border/50 hover:border-amber-500 hover:bg-amber-500/10 transition-all"
+                      className="flex flex-col items-center flex-shrink-0 w-24 h-28 p-2 rounded-md border border-border/50 hover:border-amber-500 hover:bg-amber-500/10 transition-all"
                     >
                       <div className="text-4xl mb-2">{place.icon || "📍"}</div>
                       <p className="text-[11px] font-semibold text-center line-clamp-2">
@@ -1198,7 +1198,7 @@ const GoPage: React.FC = () => {
           <Button
             onClick={handleConfirm}
             disabled={!centerAddress || isCheckingService || isConfirming}
-            className={`w-full h-14 text-base sm:text-lg font-bold rounded-2xl shadow-lg transition-all active:scale-[0.98] ${
+            className={`w-full h-14 text-base sm:text-lg font-bold rounded-md shadow-lg transition-all active:scale-[0.98] ${
               centerAddress
                 ? isPickup
                   ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-green-500/30"
