@@ -45,7 +45,7 @@ const RideStatusBar = ({
   if (status === "arrived") {
     return (
       <div
-        className={`mx-4 mt-3 mb-2 bg-green-500/10 backdrop-blur-2xl border border-green-500/30 rounded-2xl p-3 shadow-2xl ${
+        className={`mx-4 mt-3 mb-2 bg-green-500/10 backdrop-blur-2xl border border-green-500/30 rounded-md p-3 shadow-2xl ${
           showArrivedAlert ? "animate-bounce" : ""
         }`}
       >
@@ -75,7 +75,7 @@ const RideStatusBar = ({
                 sendQuickMessage(
                   "rider_wait_moment",
                   "✅ تم إبلاغ السائق",
-                  "السائق سينتظرك دقيقة"
+                  "السائق سينتظرك دقيقة",
                 )
               }
             >
@@ -89,7 +89,7 @@ const RideStatusBar = ({
                 sendQuickMessage(
                   "rider_where_are_you",
                   "✅ تم إرسال السؤال",
-                  "السائق سيوضح موقعه"
+                  "السائق سيوضح موقعه",
                 )
               }
             >
@@ -104,7 +104,7 @@ const RideStatusBar = ({
   // Compact status bar for in_progress (top position)
   if (status === "in_progress") {
     return (
-      <div className="mx-4 mt-3 mb-2 bg-primary/10 backdrop-blur-2xl border border-primary/30 rounded-2xl p-4 shadow-xl">
+      <div className="mx-4 mt-3 mb-2 bg-primary/10 backdrop-blur-2xl border border-primary/30 rounded-md p-4 shadow-xl">
         {/* Text on top */}
         <p className="font-bold text-sm text-primary text-center mb-3">
           🚗 بالطريق لوجهتك • استمتع برحلتك
