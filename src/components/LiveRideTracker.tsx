@@ -398,7 +398,7 @@ export const LiveRideTracker = ({
   if (!ride) {
     return (
       <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
-        <div className="bg-destructive/20 backdrop-blur-sm rounded-2xl px-4 py-2.5 shadow-sm border border-destructive/30 max-w-sm">
+        <div className="bg-destructive/20 backdrop-blur-sm rounded-md px-4 py-2.5 shadow-sm border border-destructive/30 max-w-sm">
           <div className="flex items-center gap-2 mb-1.5">
             <AlertCircle className="w-4 h-4 text-destructive shrink-0" />
             <p className="text-sm font-semibold text-destructive">
