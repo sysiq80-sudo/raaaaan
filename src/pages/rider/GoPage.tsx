@@ -667,7 +667,7 @@ const GoPage: React.FC = () => {
             {/* Logo and Route info - Combined */}
             <div className="flex-1 flex items-center justify-center gap-2">
               <div className="flex items-center gap-2 bg-card/90 backdrop-blur-md rounded-md px-4 py-2.5 shadow-lg">
-                <img src={logo} alt="RAAN" className="w-7 h-7 rounded-lg" />
+                <img src={logo} alt="RAAN" className="w-7 h-7 rounded-md" />
                 <span className="font-bold text-lg">ران</span>
               </div>
 
@@ -923,7 +923,7 @@ const GoPage: React.FC = () => {
 
           {/* الشعار في المنتصف */}
           <div className="flex items-center gap-2 bg-card/90 backdrop-blur-md rounded-md px-4 py-2.5 shadow-lg">
-            <img src={logo} alt="RAAN" className="w-7 h-7 rounded-lg" />
+            <img src={logo} alt="RAAN" className="w-7 h-7 rounded-md" />
             <span className="font-bold text-lg">ران</span>
           </div>
 
@@ -1070,7 +1070,7 @@ const GoPage: React.FC = () => {
           {/* Service area warning */}
           {localServiceAreaStatus && !localServiceAreaStatus.in_service && (
             <div className="flex items-center gap-3 p-3 mb-3 rounded-md bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-md bg-amber-500/20 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4 text-amber-600" />
               </div>
               <div className="flex-1">
