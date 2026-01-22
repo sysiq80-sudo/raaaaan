@@ -90,7 +90,7 @@ export const useLocationPicker = (
     [checkServiceArea]
   );
 
-  // Initialize map
+  // Initialize map (only once with token)
   useEffect(() => {
     if (!mapContainer.current || !mapToken) {
       console.log("Map initialization waiting:", {
@@ -107,71 +107,89 @@ export const useLocationPicker = (
     }
 
     console.log("Initializing map with token");
+
+    // Set token BEFORE any map operation
     mapboxgl.accessToken = mapToken;
+
+    // Initialize map immediately (removed setTimeout)
+    if (!mapContainer.current || map.current) return;
+
+    // Use userLocation if available, otherwise Ramadi center
     const initialCenter = userLocation
       ? ([userLocation.lng, userLocation.lat] as [number, number])
       : ramadiCenter;
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: initialCenter,
-      zoom: 16,
-      pitch: 0,
-    });
-
-    // Add navigation control
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-left");
-
-    // Add geolocate control (center on user button)
-    const geolocateControl = new mapboxgl.GeolocateControl({
-      positionOptions: {
-        enableHighAccuracy: true,
-      },
-      trackUserLocation: true,
-      showUserHeading: true,
-      showUserLocation: true,
-    });
-    map.current.addControl(geolocateControl, "bottom-left");
-
-    map.current.on("load", () => {
-      console.log("Map loaded successfully");
+    try {
+      // Set loading to false immediately to show map faster
       setIsLoading(false);
-      const center = map.current?.getCenter();
-      if (center) reverseGeocode(center.lat, center.lng);
+      
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: initialCenter,
+        zoom: 16,
+        pitch: 0,
+      });
 
-      // Add user location marker
-      if (userLocation) {
-        const el = document.createElement("div");
-        el.innerHTML = `
-          <div class="relative">
-            <div class="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-30"></div>
-            <div class="relative w-4 h-4 rounded-full bg-blue-500 border-2 border-white shadow-lg"></div>
-          </div>
-        `;
-        new mapboxgl.Marker(el)
-          .setLngLat([userLocation.lng, userLocation.lat])
-          .addTo(map.current!);
+      // Add navigation control
+      map.current.addControl(new mapboxgl.NavigationControl(), "top-left");
 
-        // Trigger geolocate on initial load
-        setTimeout(() => {
-          geolocateControl.trigger();
-        }, 500);
-      }
-    });
+      // Add geolocate control (center on user button)
+      const geolocateControl = new mapboxgl.GeolocateControl({
+        positionOptions: {
+          enableHighAccuracy: true,
+        },
+        trackUserLocation: true,
+        showUserHeading: true,
+        showUserLocation: true,
+      });
+      map.current.addControl(geolocateControl, "bottom-left");
 
-    map.current.on("dragstart", () => setIsDragging(true));
-    map.current.on("dragend", () => {
-      setIsDragging(false);
-      const center = map.current?.getCenter();
-      if (center) reverseGeocode(center.lat, center.lng);
-    });
+      map.current.on("load", () => {
+        console.log("Map loaded successfully");
+        const center = map.current?.getCenter();
+        if (center) reverseGeocode(center.lat, center.lng);
+      });
 
+      map.current.on("dragstart", () => setIsDragging(true));
+      map.current.on("dragend", () => {
+        setIsDragging(false);
+        const center = map.current?.getCenter();
+        if (center) reverseGeocode(center.lat, center.lng);
+      });
+    } catch (error) {
+      console.error("Map initialization error:", error);
+      setIsLoading(false);
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapToken]); // Only re-run if mapToken changes
+
+  // Update map center when user location is available (separate effect)
+  useEffect(() => {
+    if (!map.current || !userLocation) return;
+
+    // Only fly to user location if map is already loaded
+    if (map.current.isStyleLoaded()) {
+      console.log("Flying to user location:", userLocation);
+      map.current.flyTo({
+        center: [userLocation.lng, userLocation.lat],
+        zoom: 16,
+        duration: 1000,
+      });
+    }
+  }, [userLocation]);
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
-      map.current?.remove();
-      map.current = null;
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
     };
-  }, [mapToken, userLocation, reverseGeocode, ramadiCenter]);
+  }, []);
 
   return {
     mapContainer,
