@@ -17,6 +17,7 @@ const CompactVehicleSelector = ({
   baseFare,
   availableDrivers,
 }: CompactVehicleSelectorProps) => {
+  // Using semantic design tokens for consistent theming
   const vehicles = [
     {
       type: "economy" as VehicleType,
@@ -24,9 +25,9 @@ const CompactVehicleSelector = ({
       emoji: "🚗",
       icon: Car,
       multiplier: 1.0,
-      gradient: "from-green-400 to-green-600",
-      bgGradient: "from-green-500/10 to-green-500/5",
-      iconColor: "text-green-600 dark:text-green-400",
+      gradient: "from-primary to-primary/80",
+      bgGradient: "from-primary/10 to-primary/5",
+      iconColor: "text-primary",
     },
     {
       type: "comfort" as VehicleType,
@@ -34,9 +35,9 @@ const CompactVehicleSelector = ({
       emoji: "🚙",
       icon: Armchair,
       multiplier: 1.3,
-      gradient: "from-blue-400 to-blue-600",
-      bgGradient: "from-blue-500/10 to-blue-500/5",
-      iconColor: "text-blue-600 dark:text-blue-400",
+      gradient: "from-info to-info/80",
+      bgGradient: "from-info/10 to-info/5",
+      iconColor: "text-info",
     },
     {
       type: "premium" as VehicleType,
@@ -44,9 +45,9 @@ const CompactVehicleSelector = ({
       emoji: "🚘",
       icon: Crown,
       multiplier: 1.6,
-      gradient: "from-amber-400 to-amber-600",
-      bgGradient: "from-amber-500/10 to-amber-500/5",
-      iconColor: "text-amber-600 dark:text-amber-400",
+      gradient: "from-warning to-warning/80",
+      bgGradient: "from-warning/10 to-warning/5",
+      iconColor: "text-warning",
     },
     {
       type: "women_only" as VehicleType,
@@ -54,9 +55,9 @@ const CompactVehicleSelector = ({
       emoji: "👩",
       icon: Users,
       multiplier: 1.2,
-      gradient: "from-pink-400 to-pink-600",
-      bgGradient: "from-pink-500/10 to-pink-500/5",
-      iconColor: "text-pink-600 dark:text-pink-400",
+      gradient: "from-accent to-accent/80",
+      bgGradient: "from-accent/10 to-accent/5",
+      iconColor: "text-accent-foreground",
     },
   ];
 
@@ -151,8 +152,8 @@ const CompactVehicleSelector = ({
                 animate={{ scale: 1 }}
                 className="absolute top-1 left-1"
               >
-                <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center">
-                  <span className="text-[9px] font-bold text-green-600 dark:text-green-400">
+                <div className="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center">
+                  <span className="text-[9px] font-bold text-success">
                     {driverCount > 9 ? "9+" : driverCount}
                   </span>
                 </div>

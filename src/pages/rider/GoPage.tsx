@@ -984,18 +984,28 @@ const GoPage: React.FC = () => {
               </div>
             </div>}
 
-          {/* Confirm button - Enhanced */}
-          <Button onClick={handleConfirm} disabled={!centerAddress || isCheckingService || isConfirming} className={`w-full h-12 sm:h-14 text-sm sm:text-base font-bold rounded-xl shadow-lg transition-all duration-200 active:scale-[0.98] ${centerAddress ? isPickup ? "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-emerald-500/25 text-white" : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-blue-500/25 text-white" : "bg-muted/50 text-muted-foreground cursor-not-allowed"}`}>
-            {isCheckingService || isConfirming ? <div className="flex items-center gap-2">
+          {/* Confirm button - Enhanced with semantic colors */}
+          <Button 
+            onClick={handleConfirm} 
+            disabled={!centerAddress || isCheckingService || isConfirming} 
+            className={`w-full h-12 sm:h-14 text-sm sm:text-base font-bold rounded-xl shadow-lg transition-all duration-200 active:scale-[0.98] ${
+              centerAddress 
+                ? "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary shadow-primary/25 text-primary-foreground" 
+                : "bg-muted/50 text-muted-foreground cursor-not-allowed"
+            }`}
+          >
+            {isCheckingService || isConfirming ? (
+              <div className="flex items-center gap-2">
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>
-                  {isConfirming ? "جاري التأكيد..." : "جاري التحقق..."}
-                </span>
-              </div> : <div className="flex items-center gap-2">
+                <span>{isConfirming ? "جاري التأكيد..." : "جاري التحقق..."}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
                 <Check className="w-5 h-5" />
                 <span>تأكيد {isPickup ? "موقع الانطلاق" : "الوجهة"}</span>
                 {isPickup ? <Target className="w-4 h-4" /> : <MapPin className="w-4 h-4" />}
-              </div>}
+              </div>
+            )}
           </Button>
         </div>
       </motion.div>
