@@ -4,6 +4,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import SavedPlaces from './SavedPlaces';
+import SavedPlacesQuickIcons from './SavedPlacesQuickIcons';
 import PopularPlaces from './PopularPlaces';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -262,6 +263,20 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
   const renderPickupOnlyContent = () => {
     return (
       <div className="space-y-4">
+        {/* Quick Saved Places Icons - Like Destination Panel */}
+        {userId && (
+          <SavedPlacesQuickIcons
+            userId={userId}
+            onSelect={(place) => {
+              onLocationSelect(
+                { lat: place.lat, lng: place.lng, address: place.address, inService: true },
+                'pickup'
+              );
+              onClose();
+            }}
+          />
+        )}
+
         {/* Premium pickup options grid */}
         <div className="grid grid-cols-2 gap-3">
           {/* Current Location - Primary Option */}
@@ -367,6 +382,20 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
   const renderDropoffContent = () => {
     return (
       <div className="space-y-4">
+        {/* Quick Saved Places Icons */}
+        {userId && (
+          <SavedPlacesQuickIcons
+            userId={userId}
+            onSelect={(place) => {
+              onLocationSelect(
+                { lat: place.lat, lng: place.lng, address: place.address, inService: true },
+                'dropoff'
+              );
+              onClose();
+            }}
+          />
+        )}
+
         {/* Three main options for destination selection */}
         <div className="grid grid-cols-1 gap-3">
           {/* 1. Search by place name - Primary Option */}
