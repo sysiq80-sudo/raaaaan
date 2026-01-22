@@ -955,8 +955,8 @@ const GoPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Saved places (dropoff only) - Modern chips */}
-          {isDropoff && savedPlaces.length > 0 && <div className="mb-4">
+          {/* Saved places - Show for both pickup and dropoff */}
+          {savedPlaces.length > 0 && <div className="mb-4">
               <p className="text-xs font-bold text-muted-foreground mb-2.5 flex items-center gap-1.5">
                 <Star className="w-3.5 h-3.5 text-primary" />
                 أماكني المحفوظة
