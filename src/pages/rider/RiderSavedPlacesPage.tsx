@@ -29,8 +29,18 @@ import {
   Cross,
   ShoppingBag,
   Building2,
+  Search,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+interface SearchResult {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
 
 interface SavedPlace {
   id: string;
@@ -86,6 +96,12 @@ const RiderSavedPlacesPage: React.FC = () => {
   // Location state
   const [currentLocation, setCurrentLocation] = useState<CurrentLocation | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -166,6 +182,65 @@ const RiderSavedPlacesPage: React.FC = () => {
       setGettingLocation(false);
     }
   }, [toast]);
+
+  // Search for places
+  const searchPlaces = useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('search-places', {
+        body: {
+          query,
+          lat: 33.3, // Default Iraq coordinates
+          lng: 44.4,
+        },
+      });
+
+      if (error) throw error;
+
+      const results: SearchResult[] = (data?.results || []).map((r: any) => ({
+        id: r.id || Math.random().toString(),
+        name: r.name || r.address,
+        address: r.address || r.name,
+        lat: r.lat,
+        lng: r.lng,
+      }));
+
+      setSearchResults(results);
+      setShowSearchResults(true);
+    } catch (error) {
+      console.error('Search error:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // Handle search input change with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery) {
+        searchPlaces(searchQuery);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchPlaces]);
+
+  // Handle selecting a search result
+  const handleSelectSearchResult = (result: SearchResult) => {
+    setCurrentLocation({
+      lat: result.lat,
+      lng: result.lng,
+      address: result.address,
+    });
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowSearchResults(false);
+  };
 
   const handleSavePlace = async () => {
     if (!userId || !currentLocation) return;
@@ -256,6 +331,14 @@ const RiderSavedPlacesPage: React.FC = () => {
     setCustomName('');
     setShowIconPicker(false);
     setCurrentLocation(null);
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowSearchResults(false);
+  };
+
+  // Open dialog without location (for search)
+  const openAddDialog = () => {
+    setShowAddDialog(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -336,15 +419,10 @@ const RiderSavedPlacesPage: React.FC = () => {
           <h1 className="text-xl font-bold flex-1">الأماكن المحفوظة</h1>
           <Button
             size="sm"
-            onClick={getCurrentLocation}
-            disabled={gettingLocation}
+            onClick={openAddDialog}
             className="gap-2"
           >
-            {gettingLocation ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Plus className="w-4 h-4" />
-            )}
+            <Plus className="w-4 h-4" />
             إضافة مكان
           </Button>
         </div>
@@ -469,25 +547,124 @@ const RiderSavedPlacesPage: React.FC = () => {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            {/* Location Selection Section */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium block">تحديد الموقع</label>
+              
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ابحث عن مكان أو عنوان..."
+                  className="pr-10"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSearchResults([]);
+                      setShowSearchResults(false);
+                    }}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 p-1 hover:bg-secondary rounded-full"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Search Results */}
+              {showSearchResults && searchResults.length > 0 && (
+                <div className="max-h-40 overflow-y-auto rounded-xl border bg-background shadow-lg">
+                  {searchResults.map((result) => (
+                    <button
+                      key={result.id}
+                      onClick={() => handleSelectSearchResult(result)}
+                      className="w-full p-3 text-right hover:bg-secondary/50 border-b last:border-b-0 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-primary shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{result.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{result.address}</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {isSearching && (
+                <div className="flex items-center justify-center py-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  <span className="text-xs text-muted-foreground mr-2">جاري البحث...</span>
+                </div>
+              )}
+
+              {/* Use Current Location Button */}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={getCurrentLocation}
+                disabled={gettingLocation}
+                className="w-full gap-2"
+              >
+                {gettingLocation ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Locate className="w-4 h-4" />
+                )}
+                استخدام موقعي الحالي
+              </Button>
+
+              {/* Selected Location Preview */}
+              {currentLocation && (
+                <div className="p-3 rounded-xl bg-accent/50 border border-accent">
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                      <MapPin className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">الموقع المحدد</p>
+                      <p className="font-medium truncate">{currentLocation.address}</p>
+                    </div>
+                    <button
+                      onClick={() => setCurrentLocation(null)}
+                      className="p-1 hover:bg-secondary rounded-full"
+                    >
+                      <X className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="border-t" />
+
             {/* Basic label selection */}
-            <div className="grid grid-cols-3 gap-2">
-              {PRESET_LABELS.map((preset) => (
-                <button
-                  key={preset.label}
-                  onClick={() => {
-                    setSelectedLabel(preset.label);
-                    setSelectedIcon(preset.icon);
-                  }}
-                  className={`p-3 rounded-xl text-center transition-all ${
-                    selectedLabel === preset.label
-                      ? 'bg-primary text-primary-foreground scale-105'
-                      : 'bg-secondary hover:bg-secondary/80'
-                  }`}
-                >
-                  <span className="text-xl block mb-1">{preset.icon}</span>
-                  <span className="text-xs font-medium">{preset.name}</span>
-                </button>
-              ))}
+            <div>
+              <label className="text-sm font-medium mb-2 block">نوع المكان</label>
+              <div className="grid grid-cols-3 gap-2">
+                {PRESET_LABELS.map((preset) => (
+                  <button
+                    key={preset.label}
+                    onClick={() => {
+                      setSelectedLabel(preset.label);
+                      setSelectedIcon(preset.icon);
+                    }}
+                    className={`p-3 rounded-xl text-center transition-all ${
+                      selectedLabel === preset.label
+                        ? 'bg-primary text-primary-foreground scale-105'
+                        : 'bg-secondary hover:bg-secondary/80'
+                    }`}
+                  >
+                    <span className="text-xl block mb-1">{preset.icon}</span>
+                    <span className="text-xs font-medium">{preset.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Extended icon picker */}
@@ -524,23 +701,13 @@ const RiderSavedPlacesPage: React.FC = () => {
 
             {/* Custom name input */}
             <div>
-              <label className="text-sm text-muted-foreground mb-2 block">اسم المكان</label>
+              <label className="text-sm text-muted-foreground mb-2 block">اسم المكان (اختياري)</label>
               <Input
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value)}
                 placeholder={PRESET_LABELS.find(p => p.label === selectedLabel)?.name || "مثال: بيت جدتي"}
               />
             </div>
-
-            {/* Location preview */}
-            {currentLocation && (
-              <div className="p-3 rounded-xl bg-secondary/50">
-                <div className="flex items-center gap-2 text-sm">
-                  <MapPin className="w-4 h-4 text-primary shrink-0" />
-                  <span className="truncate">{currentLocation.address}</span>
-                </div>
-              </div>
-            )}
 
             <Button
               onClick={handleSavePlace}
