@@ -1,9 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   ArrowRight,
   MapPin,
@@ -12,12 +18,19 @@ import {
   Star,
   Plus,
   Trash2,
-  Edit3,
   Loader2,
   Navigation,
+  Locate,
+  Check,
+  Heart,
+  GraduationCap,
+  Dumbbell,
+  Utensils,
+  Cross,
+  ShoppingBag,
+  Building2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { PRESET_LABELS, EXTENDED_ICONS } from "@/components/rider/SavedPlaces";
 
 interface SavedPlace {
   id: string;
@@ -29,12 +42,50 @@ interface SavedPlace {
   icon: string;
 }
 
+interface CurrentLocation {
+  lat: number;
+  lng: number;
+  address: string;
+}
+
+const PRESET_LABELS = [
+  { label: 'home', name: 'المنزل', icon: '🏠', lucideIcon: Home },
+  { label: 'work', name: 'العمل', icon: '💼', lucideIcon: Briefcase },
+  { label: 'favorite', name: 'مفضل', icon: '⭐', lucideIcon: Star },
+];
+
+const EXTENDED_ICONS = [
+  { icon: '🏠', label: 'home', name: 'منزل', lucideIcon: Home },
+  { icon: '💼', label: 'work', name: 'عمل', lucideIcon: Briefcase },
+  { icon: '⭐', label: 'favorite', name: 'مفضل', lucideIcon: Star },
+  { icon: '❤️', label: 'loved', name: 'محبب', lucideIcon: Heart },
+  { icon: '🎓', label: 'school', name: 'مدرسة/جامعة', lucideIcon: GraduationCap },
+  { icon: '💪', label: 'gym', name: 'نادي رياضي', lucideIcon: Dumbbell },
+  { icon: '🍽️', label: 'restaurant', name: 'مطعم', lucideIcon: Utensils },
+  { icon: '🏥', label: 'hospital', name: 'مستشفى', lucideIcon: Cross },
+  { icon: '🛍️', label: 'shopping', name: 'تسوق', lucideIcon: ShoppingBag },
+  { icon: '🏢', label: 'office', name: 'مكتب', lucideIcon: Building2 },
+  { icon: '📍', label: 'other', name: 'آخر', lucideIcon: MapPin },
+];
+
 const RiderSavedPlacesPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [places, setPlaces] = useState<SavedPlace[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  
+  // Dialog state
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [selectedLabel, setSelectedLabel] = useState<string>('home');
+  const [selectedIcon, setSelectedIcon] = useState<string>('🏠');
+  const [customName, setCustomName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [showIconPicker, setShowIconPicker] = useState(false);
+  
+  // Location state
+  const [currentLocation, setCurrentLocation] = useState<CurrentLocation | null>(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -68,6 +119,143 @@ const RiderSavedPlacesPage: React.FC = () => {
       setPlaces(data);
     }
     setLoading(false);
+  };
+
+  const getCurrentLocation = useCallback(async () => {
+    setGettingLocation(true);
+    
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+        });
+      });
+
+      const { latitude, longitude } = position.coords;
+      
+      // Reverse geocode using Supabase function
+      const { data, error } = await supabase.functions.invoke('search-places', {
+        body: {
+          action: 'reverse',
+          lat: latitude,
+          lng: longitude,
+        },
+      });
+
+      if (error) throw error;
+
+      const address = data?.address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+      
+      setCurrentLocation({
+        lat: latitude,
+        lng: longitude,
+        address: address,
+      });
+      
+      setShowAddDialog(true);
+      
+    } catch (error: any) {
+      console.error('Error getting location:', error);
+      toast({
+        title: "خطأ في تحديد الموقع",
+        description: error.message || "تعذر الحصول على موقعك الحالي",
+        variant: "destructive",
+      });
+    } finally {
+      setGettingLocation(false);
+    }
+  }, [toast]);
+
+  const handleSavePlace = async () => {
+    if (!userId || !currentLocation) return;
+    
+    const preset = PRESET_LABELS.find(p => p.label === selectedLabel);
+    const isBasicLabel = ['home', 'work'].includes(selectedLabel);
+    const name = isBasicLabel ? preset?.name || customName : customName || preset?.name || 'مكان جديد';
+    
+    if (!name) {
+      toast({
+        title: "خطأ",
+        description: "يرجى إدخال اسم للمكان",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (isBasicLabel) {
+        // Check if home/work already exists
+        const existing = places.find(p => p.label === selectedLabel);
+        if (existing) {
+          const { error } = await supabase
+            .from('saved_places')
+            .update({
+              address: currentLocation.address,
+              lat: currentLocation.lat,
+              lng: currentLocation.lng,
+              name: name
+            })
+            .eq('id', existing.id);
+
+          if (error) throw error;
+          toast({ title: "تم تحديث المكان بنجاح ✅" });
+        } else {
+          const { error } = await supabase
+            .from('saved_places')
+            .insert({
+              user_id: userId,
+              name: name,
+              label: selectedLabel,
+              address: currentLocation.address,
+              lat: currentLocation.lat,
+              lng: currentLocation.lng,
+              icon: selectedIcon
+            });
+
+          if (error) throw error;
+          toast({ title: "تم حفظ المكان بنجاح ✅" });
+        }
+      } else {
+        // Insert new custom place
+        const { error } = await supabase
+          .from('saved_places')
+          .insert({
+            user_id: userId,
+            name: name,
+            label: selectedLabel,
+            address: currentLocation.address,
+            lat: currentLocation.lat,
+            lng: currentLocation.lng,
+            icon: selectedIcon
+          });
+
+        if (error) throw error;
+        toast({ title: "تم حفظ المكان بنجاح ✅" });
+      }
+
+      await fetchPlaces();
+      handleCloseDialog();
+    } catch (error: any) {
+      console.error('Error saving place:', error);
+      toast({
+        title: "خطأ في الحفظ",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCloseDialog = () => {
+    setShowAddDialog(false);
+    setSelectedLabel('home');
+    setSelectedIcon('🏠');
+    setCustomName('');
+    setShowIconPicker(false);
+    setCurrentLocation(null);
   };
 
   const handleDelete = async (id: string) => {
@@ -145,37 +333,65 @@ const RiderSavedPlacesPage: React.FC = () => {
           >
             <ArrowRight className="w-5 h-5" />
           </Button>
-          <h1 className="text-xl font-bold">الأماكن المحفوظة</h1>
+          <h1 className="text-xl font-bold flex-1">الأماكن المحفوظة</h1>
+          <Button
+            size="sm"
+            onClick={getCurrentLocation}
+            disabled={gettingLocation}
+            className="gap-2"
+          >
+            {gettingLocation ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Plus className="w-4 h-4" />
+            )}
+            إضافة مكان
+          </Button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-4 max-w-lg mx-auto">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : places.length === 0 ? (
           <div className="text-center py-20 space-y-4">
-            <MapPin className="w-16 h-16 mx-auto text-muted-foreground/50" />
-            <p className="text-muted-foreground">لا توجد أماكن محفوظة</p>
+            <div className="w-20 h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+              <MapPin className="w-10 h-10 text-primary" />
+            </div>
+            <h2 className="text-lg font-bold">لا توجد أماكن محفوظة</h2>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              يمكنك حفظ الأماكن المفضلة من صفحة الحجز لسهولة الوصول إليها لاحقاً
+              احفظ أماكنك المفضلة مثل المنزل والعمل للوصول السريع إليها
             </p>
-            <Button onClick={() => navigate("/rider")} className="gap-2">
-              <Plus className="w-4 h-4" />
-              أضف مكاناً جديداً
+            <Button 
+              onClick={getCurrentLocation} 
+              disabled={gettingLocation}
+              className="gap-2"
+            >
+              {gettingLocation ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Locate className="w-4 h-4" />
+              )}
+              حفظ موقعي الحالي
             </Button>
           </div>
         ) : (
           <>
-            {/* Quick add buttons */}
+            {/* Quick add buttons for home/work if not set */}
             <div className="grid grid-cols-2 gap-3">
               {!places.find((p) => p.label === "home") && (
                 <Button
                   variant="outline"
                   className="h-auto py-4 flex-col gap-2 hover:bg-blue-500/10 hover:border-blue-500/30"
-                  onClick={() => navigate("/rider")}
+                  onClick={() => {
+                    setSelectedLabel('home');
+                    setSelectedIcon('🏠');
+                    getCurrentLocation();
+                  }}
+                  disabled={gettingLocation}
                 >
                   <Home className="w-6 h-6 text-blue-500" />
                   <span>أضف المنزل</span>
@@ -185,7 +401,12 @@ const RiderSavedPlacesPage: React.FC = () => {
                 <Button
                   variant="outline"
                   className="h-auto py-4 flex-col gap-2 hover:bg-amber-500/10 hover:border-amber-500/30"
-                  onClick={() => navigate("/rider")}
+                  onClick={() => {
+                    setSelectedLabel('work');
+                    setSelectedIcon('💼');
+                    getCurrentLocation();
+                  }}
+                  disabled={gettingLocation}
                 >
                   <Briefcase className="w-6 h-6 text-amber-500" />
                   <span>أضف العمل</span>
@@ -239,6 +460,103 @@ const RiderSavedPlacesPage: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Add Place Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={handleCloseDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>حفظ مكان جديد</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Basic label selection */}
+            <div className="grid grid-cols-3 gap-2">
+              {PRESET_LABELS.map((preset) => (
+                <button
+                  key={preset.label}
+                  onClick={() => {
+                    setSelectedLabel(preset.label);
+                    setSelectedIcon(preset.icon);
+                  }}
+                  className={`p-3 rounded-xl text-center transition-all ${
+                    selectedLabel === preset.label
+                      ? 'bg-primary text-primary-foreground scale-105'
+                      : 'bg-secondary hover:bg-secondary/80'
+                  }`}
+                >
+                  <span className="text-xl block mb-1">{preset.icon}</span>
+                  <span className="text-xs font-medium">{preset.name}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Extended icon picker */}
+            <div>
+              <button
+                onClick={() => setShowIconPicker(!showIconPicker)}
+                className="text-xs text-primary hover:underline"
+              >
+                {showIconPicker ? 'إخفاء الأيقونات' : 'اختيار أيقونة مختلفة'}
+              </button>
+              
+              {showIconPicker && (
+                <div className="grid grid-cols-6 gap-2 mt-3 p-3 rounded-xl bg-secondary/30 animate-in fade-in-50 duration-200">
+                  {EXTENDED_ICONS.map((iconOption) => (
+                    <button
+                      key={iconOption.label}
+                      onClick={() => {
+                        setSelectedIcon(iconOption.icon);
+                        setSelectedLabel(iconOption.label);
+                      }}
+                      className={`p-2 rounded-lg text-center transition-all ${
+                        selectedIcon === iconOption.icon
+                          ? 'bg-primary text-primary-foreground'
+                          : 'hover:bg-secondary'
+                      }`}
+                      title={iconOption.name}
+                    >
+                      <span className="text-lg">{iconOption.icon}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Custom name input */}
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">اسم المكان</label>
+              <Input
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                placeholder={PRESET_LABELS.find(p => p.label === selectedLabel)?.name || "مثال: بيت جدتي"}
+              />
+            </div>
+
+            {/* Location preview */}
+            {currentLocation && (
+              <div className="p-3 rounded-xl bg-secondary/50">
+                <div className="flex items-center gap-2 text-sm">
+                  <MapPin className="w-4 h-4 text-primary shrink-0" />
+                  <span className="truncate">{currentLocation.address}</span>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={handleSavePlace}
+              disabled={saving || !currentLocation}
+              className="w-full"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin ml-2" />
+              ) : (
+                <Check className="w-4 h-4 ml-2" />
+              )}
+              حفظ المكان
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
