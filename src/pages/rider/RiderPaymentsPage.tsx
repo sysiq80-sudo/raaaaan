@@ -98,10 +98,7 @@ const RiderPaymentsPage: React.FC = () => {
   };
 
   const handleTopUp = () => {
-    toast({
-      title: "قريباً",
-      description: "ميزة شحن المحفظة ستكون متاحة قريباً",
-    });
+    navigate("/rider/wallet-topup");
   };
 
   return (
