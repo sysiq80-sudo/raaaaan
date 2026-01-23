@@ -24,6 +24,7 @@ import PaymentResult from "./pages/payment/PaymentResult";
 import GoPage from "./pages/rider/GoPage";
 import RiderRidesPage from "./pages/rider/RiderRidesPage";
 import RiderPaymentsPage from "./pages/rider/RiderPaymentsPage";
+import WalletTopupPage from "./pages/rider/WalletTopupPage";
 import RiderSavedPlacesPage from "./pages/rider/RiderSavedPlacesPage";
 import RiderSettingsPage from "./pages/rider/RiderSettingsPage";
 
@@ -148,6 +149,14 @@ const App = () => (
               element={
                 <ErrorBoundary>
                   <RiderPaymentsPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/rider/wallet-topup"
+              element={
+                <ErrorBoundary>
+                  <WalletTopupPage />
                 </ErrorBoundary>
               }
             />
