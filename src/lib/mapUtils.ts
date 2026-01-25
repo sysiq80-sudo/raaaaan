@@ -16,6 +16,7 @@ export interface Region {
   name_ar: string;
   name_en?: string | null;
   coordinates: Array<{ lat: number; lng: number }>;
+  priority?: number;
 }
 
 export interface DriverPosition {
@@ -47,7 +48,30 @@ export function calculateDistanceMeters(from: Coordinates, to: Coordinates): num
 }
 
 /**
+ * Calculate polygon area using Turf.js
+ */
+export function calculatePolygonArea(coordinates: Array<{ lat: number; lng: number }>): number {
+  if (!coordinates || coordinates.length < 3) return 0;
+  
+  const coords = coordinates.map(c => [c.lng, c.lat]);
+  // Close the polygon if not closed
+  if (coords[0][0] !== coords[coords.length - 1][0] || 
+      coords[0][1] !== coords[coords.length - 1][1]) {
+    coords.push(coords[0]);
+  }
+  
+  try {
+    const polygon = turf.polygon([coords]);
+    return turf.area(polygon); // Returns area in square meters
+  } catch (error) {
+    console.warn('Error calculating polygon area:', error);
+    return Infinity;
+  }
+}
+
+/**
  * Check if a point is within a service area polygon locally
+ * Uses priority logic: smaller/higher-priority regions take precedence
  * No need for Edge Function call
  */
 export function isPointInServiceArea(
@@ -55,6 +79,7 @@ export function isPointInServiceArea(
   regions: Region[]
 ): { inService: boolean; region: Region | null } {
   const pt = turf.point([point.lng, point.lat]);
+  const matchedRegions: Array<{ region: Region; area: number }> = [];
 
   for (const region of regions) {
     if (!region.coordinates || region.coordinates.length < 3) continue;
@@ -71,14 +96,33 @@ export function isPointInServiceArea(
       const polygon = turf.polygon([coords]);
       
       if (turf.booleanPointInPolygon(pt, polygon)) {
-        return { inService: true, region };
+        const area = turf.area(polygon);
+        matchedRegions.push({ region, area });
       }
     } catch (error) {
       console.warn('Invalid polygon for region:', region.id, error);
     }
   }
 
-  return { inService: false, region: null };
+  if (matchedRegions.length === 0) {
+    return { inService: false, region: null };
+  }
+
+  // Sort by priority (higher first), then by area (smaller first)
+  matchedRegions.sort((a, b) => {
+    const priorityA = a.region.priority ?? 0;
+    const priorityB = b.region.priority ?? 0;
+    
+    // Higher priority first
+    if (priorityB !== priorityA) {
+      return priorityB - priorityA;
+    }
+    
+    // Smaller area (more specific) first
+    return a.area - b.area;
+  });
+
+  return { inService: true, region: matchedRegions[0].region };
 }
 
 /**

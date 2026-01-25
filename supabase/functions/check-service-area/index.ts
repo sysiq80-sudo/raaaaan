@@ -60,6 +60,23 @@ function getPolygonCentroid(polygon: Array<{ lat: number; lng: number }>): { lat
   return { lat, lng };
 }
 
+// Calculate polygon area using Shoelace formula
+function calculatePolygonArea(polygon: Array<{ lat: number; lng: number }>): number {
+  if (!polygon || polygon.length < 3) return 0;
+  
+  let area = 0;
+  const n = polygon.length;
+  
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    // Using lat/lng approximation (good enough for comparison)
+    area += polygon[i].lng * polygon[j].lat;
+    area -= polygon[j].lng * polygon[i].lat;
+  }
+  
+  return Math.abs(area / 2) * 111319.9 * 111319.9; // Convert to approximate square meters
+}
+
 // Fetch regions with caching
 async function getRegions(supabase: any): Promise<any[]> {
   const now = Date.now();
@@ -73,7 +90,7 @@ async function getRegions(supabase: any): Promise<any[]> {
   console.log('🔄 Fetching regions from database');
   const { data: regions, error } = await supabase
     .from('regions')
-    .select('id, name_ar, name_en, coordinates, base_fare, per_km_fare, waiting_fare_per_min')
+    .select('id, name_ar, name_en, coordinates, base_fare, per_km_fare, waiting_fare_per_min, priority')
     .eq('is_active', true);
 
   if (error) {
@@ -117,7 +134,11 @@ serve(async (req) => {
     const regions = await getRegions(supabase);
 
     const point = { lat, lng };
-    let matchedRegion = null;
+    const matchedRegions: Array<{
+      region: any;
+      area: number;
+      priority: number;
+    }> = [];
     let nearestRegion = null;
     let nearestDistance = Infinity;
 
@@ -128,15 +149,19 @@ serve(async (req) => {
       if (coordinates && coordinates.length >= 3) {
         // Check if point is inside polygon
         if (isPointInPolygon(point, coordinates)) {
-          matchedRegion = {
-            id: region.id,
-            name_ar: region.name_ar,
-            name_en: region.name_en,
-            base_fare: region.base_fare,
-            per_km_fare: region.per_km_fare,
-            waiting_fare_per_min: region.waiting_fare_per_min
-          };
-          break;
+          const area = calculatePolygonArea(coordinates);
+          matchedRegions.push({
+            region: {
+              id: region.id,
+              name_ar: region.name_ar,
+              name_en: region.name_en,
+              base_fare: region.base_fare,
+              per_km_fare: region.per_km_fare,
+              waiting_fare_per_min: region.waiting_fare_per_min
+            },
+            area,
+            priority: region.priority || 0
+          });
         }
 
         // Calculate distance to region centroid
@@ -153,6 +178,21 @@ serve(async (req) => {
           };
         }
       }
+    }
+
+    // Select the best matching region (highest priority, then smallest area)
+    let matchedRegion = null;
+    if (matchedRegions.length > 0) {
+      matchedRegions.sort((a, b) => {
+        // Higher priority first
+        if (b.priority !== a.priority) {
+          return b.priority - a.priority;
+        }
+        // Smaller area (more specific) first
+        return a.area - b.area;
+      });
+      matchedRegion = matchedRegions[0].region;
+      console.log(`📍 Point matched ${matchedRegions.length} regions, selected: ${matchedRegion.name_ar} (priority: ${matchedRegions[0].priority}, area: ${Math.round(matchedRegions[0].area)}m²)`);
     }
 
     const endTime = performance.now();

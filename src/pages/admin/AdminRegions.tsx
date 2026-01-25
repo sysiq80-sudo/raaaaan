@@ -22,7 +22,10 @@ import {
   CheckCircle2,
   XCircle,
   Timer,
-  Calendar
+  Calendar,
+  Target,
+  ArrowUp,
+  Loader2
 } from "lucide-react";
 
 interface Region {
@@ -36,6 +39,7 @@ interface Region {
   weekend_wait_timeout_minutes: number;
   is_active: boolean;
   coordinates: Array<{ lat: number; lng: number }> | null;
+  priority: number;
 }
 
 const AdminRegions = () => {
@@ -55,7 +59,13 @@ const AdminRegions = () => {
     waiting_fare_per_min: 100,
     wait_timeout_minutes: 10,
     weekend_wait_timeout_minutes: 15,
+    priority: 0,
   });
+
+  // State for point testing
+  const [testPoint, setTestPoint] = useState<{ lat: string; lng: string }>({ lat: "", lng: "" });
+  const [testResult, setTestResult] = useState<any>(null);
+  const [isTestingPoint, setIsTestingPoint] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -79,7 +89,8 @@ const AdminRegions = () => {
       // Transform coordinates from Json to proper type
       const transformedData = (data || []).map(region => ({
         ...region,
-        coordinates: region.coordinates as Array<{ lat: number; lng: number }> | null
+        coordinates: region.coordinates as Array<{ lat: number; lng: number }> | null,
+        priority: region.priority ?? 0
       }));
       setRegions(transformedData);
     }
@@ -127,6 +138,7 @@ const AdminRegions = () => {
       waiting_fare_per_min: region.waiting_fare_per_min,
       wait_timeout_minutes: region.wait_timeout_minutes || 10,
       weekend_wait_timeout_minutes: region.weekend_wait_timeout_minutes || 15,
+      priority: region.priority ?? 0,
     });
     setDialogOpen(true);
   };
@@ -173,8 +185,57 @@ const AdminRegions = () => {
       waiting_fare_per_min: 100,
       wait_timeout_minutes: 10,
       weekend_wait_timeout_minutes: 15,
+      priority: 0,
     });
     setDialogOpen(true);
+  };
+
+  // Test a point against all regions
+  const handleTestPoint = async () => {
+    const lat = parseFloat(testPoint.lat);
+    const lng = parseFloat(testPoint.lng);
+    
+    if (isNaN(lat) || isNaN(lng)) {
+      toast({
+        title: "خطأ",
+        description: "الرجاء إدخال إحداثيات صحيحة",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsTestingPoint(true);
+    try {
+      const response = await fetch(
+        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/check-service-area?lat=${lat}&lng=${lng}`
+      );
+      const result = await response.json();
+      setTestResult(result);
+      
+      if (result.in_service) {
+        toast({
+          title: "✅ داخل منطقة الخدمة",
+          description: `المنطقة: ${result.region?.name_ar}`
+        });
+      } else {
+        toast({
+          title: "⚠️ خارج منطقة الخدمة",
+          description: result.nearest_region 
+            ? `أقرب منطقة: ${result.nearest_region.name_ar} (${result.nearest_region.distance_km} كم)`
+            : "لا توجد مناطق خدمة قريبة",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error("Test point error:", error);
+      toast({
+        title: "خطأ",
+        description: "فشل في اختبار النقطة",
+        variant: "destructive"
+      });
+    } finally {
+      setIsTestingPoint(false);
+    }
   };
 
   const handleSaveCoordinates = async (regionId: string, coordinates: Array<{ lat: number; lng: number }>) => {
@@ -294,6 +355,28 @@ const AdminRegions = () => {
 
           <div className="border-t pt-4 mt-4">
             <h4 className="font-medium mb-3 flex items-center gap-2">
+              <ArrowUp className="w-4 h-4 text-primary" />
+              الأولوية
+            </h4>
+            <p className="text-xs text-muted-foreground mb-4">
+              المناطق ذات الأولوية الأعلى تُختار عند التداخل (المناطق الفرعية = أولوية أعلى)
+            </p>
+            <div className="relative">
+              <ArrowUp className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={formData.priority}
+                onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
+                className="pr-10"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">0 = منطقة رئيسية، 10+ = منطقة فرعية</p>
+          </div>
+
+          <div className="border-t pt-4 mt-4">
+            <h4 className="font-medium mb-3 flex items-center gap-2">
               <Timer className="w-4 h-4 text-primary" />
               إعدادات وقت انتظار الراكب
             </h4>
@@ -366,6 +449,72 @@ const AdminRegions = () => {
             onSaveCoordinates={handleSaveCoordinates}
             onDeleteCoordinates={handleDeleteCoordinates}
           />
+          
+          {/* Point Testing Tool */}
+          <Card className="mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Target className="w-4 h-4" />
+                اختبار نقطة
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="خط العرض (lat)"
+                  value={testPoint.lat}
+                  onChange={(e) => setTestPoint(prev => ({ ...prev, lat: e.target.value }))}
+                  dir="ltr"
+                  className="text-sm"
+                />
+                <Input
+                  placeholder="خط الطول (lng)"
+                  value={testPoint.lng}
+                  onChange={(e) => setTestPoint(prev => ({ ...prev, lng: e.target.value }))}
+                  dir="ltr"
+                  className="text-sm"
+                />
+              </div>
+              <Button 
+                onClick={handleTestPoint} 
+                disabled={isTestingPoint}
+                className="w-full"
+                size="sm"
+              >
+                {isTestingPoint ? (
+                  <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                ) : (
+                  <Target className="w-4 h-4 ml-2" />
+                )}
+                اختبار الموقع
+              </Button>
+              
+              {testResult && (
+                <div className={`p-3 rounded-lg text-sm ${
+                  testResult.in_service 
+                    ? 'bg-primary/10 text-primary' 
+                    : 'bg-destructive/10 text-destructive'
+                }`}>
+                  {testResult.in_service ? (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>داخل الخدمة: {testResult.region?.name_ar}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <XCircle className="w-4 h-4" />
+                      <span>
+                        خارج الخدمة
+                        {testResult.nearest_region && (
+                          <> - أقرب: {testResult.nearest_region.name_ar} ({testResult.nearest_region.distance_km} كم)</>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Regions List Section */}
@@ -442,7 +591,7 @@ const AdminRegions = () => {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-4 gap-2 mb-4">
+                    <div className="grid grid-cols-5 gap-2 mb-4">
                       <div className="text-center p-2 bg-muted/50 rounded-lg">
                         <p className="text-xs text-muted-foreground mb-1">البداية</p>
                         <p className="font-bold text-sm">{region.base_fare.toLocaleString()}</p>
@@ -458,6 +607,10 @@ const AdminRegions = () => {
                       <div className="text-center p-2 bg-primary/10 rounded-lg">
                         <p className="text-xs text-muted-foreground mb-1">الإلغاء</p>
                         <p className="font-bold text-sm text-primary">{region.wait_timeout_minutes || 10}د</p>
+                      </div>
+                      <div className="text-center p-2 bg-secondary rounded-lg">
+                        <p className="text-xs text-muted-foreground mb-1">الأولوية</p>
+                        <p className="font-bold text-sm text-secondary-foreground">{region.priority}</p>
                       </div>
                     </div>
 

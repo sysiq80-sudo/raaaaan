@@ -391,6 +391,37 @@ const GoPage: React.FC = () => {
       return;
     }
 
+    // Check if pickup location is in service area
+    try {
+      const pickupServiceCheck = await checkServiceArea(pickupLocation.lat, pickupLocation.lng);
+      if (pickupServiceCheck && !pickupServiceCheck.in_service) {
+        toast({
+          title: "⚠️ موقع الانطلاق خارج منطقة الخدمة",
+          description: pickupServiceCheck.nearest_region 
+            ? `أقرب منطقة خدمة: ${pickupServiceCheck.nearest_region.name_ar} (${pickupServiceCheck.nearest_region.distance_km} كم)`
+            : "الرجاء اختيار موقع داخل مناطق الخدمة المتاحة",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Check if dropoff location is in service area
+      const dropoffServiceCheck = await checkServiceArea(dropoffLocation.lat, dropoffLocation.lng);
+      if (dropoffServiceCheck && !dropoffServiceCheck.in_service) {
+        toast({
+          title: "⚠️ الوجهة خارج منطقة الخدمة",
+          description: dropoffServiceCheck.nearest_region 
+            ? `أقرب منطقة خدمة: ${dropoffServiceCheck.nearest_region.name_ar} (${dropoffServiceCheck.nearest_region.distance_km} كم)`
+            : "الرجاء اختيار وجهة داخل مناطق الخدمة المتاحة",
+          variant: "destructive"
+        });
+        return;
+      }
+    } catch (error) {
+      console.error("Service area check error:", error);
+      // Continue with booking if service check fails
+    }
+
     // Check fare
     const totalFare = fareBreakdown?.total_fare || 0;
     if (totalFare <= 0) {
