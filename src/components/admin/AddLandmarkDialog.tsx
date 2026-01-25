@@ -256,16 +256,16 @@ export const AddLandmarkDialog = ({
             <div className="space-y-2">
               <Label>المنطقة</Label>
               <Select
-                value={formData.region_id}
+                value={formData.region_id || "none"}
                 onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, region_id: value }))
+                  setFormData((prev) => ({ ...prev, region_id: value === "none" ? "" : value }))
                 }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="اختر المنطقة" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">بدون منطقة</SelectItem>
+                  <SelectItem value="none">بدون منطقة</SelectItem>
                   {regions.map((region) => (
                     <SelectItem key={region.id} value={region.id}>
                       {region.name_ar}
@@ -279,16 +279,16 @@ export const AddLandmarkDialog = ({
           <div className="space-y-2">
             <Label>المحافظة</Label>
             <Select
-              value={formData.governorate_id}
+              value={formData.governorate_id || "none"}
               onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, governorate_id: value }))
+                setFormData((prev) => ({ ...prev, governorate_id: value === "none" ? "" : value }))
               }
             >
               <SelectTrigger>
                 <SelectValue placeholder="اختر المحافظة" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">بدون محافظة</SelectItem>
+                <SelectItem value="none">بدون محافظة</SelectItem>
                 {governorates.map((gov) => (
                   <SelectItem key={gov.id} value={gov.id}>
                     {gov.name_ar}
@@ -298,52 +298,6 @@ export const AddLandmarkDialog = ({
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>التصنيف</Label>
-              <Select
-                value={formData.category}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, category: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(landmarkCategories).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>
-                      <span className="flex items-center gap-2">
-                        <config.icon className="w-4 h-4" />
-                        {config.label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>المنطقة</Label>
-              <Select
-                value={formData.region_id}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, region_id: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="اختر المنطقة" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">بدون منطقة</SelectItem>
-                  {regions.map((region) => (
-                    <SelectItem key={region.id} value={region.id}>
-                      {region.name_ar}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
           {/* Map */}
           <div className="space-y-2">
