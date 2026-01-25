@@ -118,7 +118,9 @@ const DriverRegister = () => {
 
     try {
       const normalizedPhone = normalizeIraqiPhone(phone);
-      const authEmail = email || `${normalizedPhone.replace(/\D/g, '')}@driver.raan.app`;
+      // Convert phone to 964xxx format for valid email (emails can't start with 0)
+      const phoneForEmail = normalizedPhone.replace(/\D/g, '').replace(/^0/, '964');
+      const authEmail = email || `${phoneForEmail}@driver.raan.app`;
       
       // 1. Create Supabase auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
