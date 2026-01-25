@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from '@/components/ui/button';
-import { Loader2, Trash2, Save, Plus, Pencil, MousePointer, AlertTriangle } from 'lucide-react';
+import { Loader2, Trash2, Save, Plus, Pencil, MousePointer, AlertTriangle, Layers } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface Region {
   id: string;
@@ -10,6 +11,7 @@ interface Region {
   name_en: string | null;
   coordinates: Array<{ lat: number; lng: number }> | null;
   is_active: boolean;
+  priority?: number;
 }
 
 interface RegionMapEditorProps {
@@ -20,9 +22,29 @@ interface RegionMapEditorProps {
   onDeleteCoordinates: (regionId: string) => void;
 }
 
-const REGION_COLORS = [
-  '#00d9a5', '#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6', 
-  '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'
+// Priority-based color scheme - higher priority = warmer/brighter colors
+const getPriorityColor = (priority: number): string => {
+  if (priority >= 15) return '#ef4444'; // Red - highest (neighborhoods)
+  if (priority >= 10) return '#f59e0b'; // Amber - high (cities)
+  if (priority >= 5) return '#3b82f6';  // Blue - medium (districts)
+  if (priority >= 1) return '#22c55e';  // Green - low (countries/provinces)
+  return '#6b7280'; // Gray - undefined
+};
+
+const getPriorityLabel = (priority: number): string => {
+  if (priority >= 15) return 'حي';
+  if (priority >= 10) return 'مدينة';
+  if (priority >= 5) return 'منطقة';
+  if (priority >= 1) return 'محافظة';
+  return 'غير محدد';
+};
+
+const PRIORITY_LEGEND = [
+  { min: 15, label: 'أحياء', color: '#ef4444' },
+  { min: 10, label: 'مدن', color: '#f59e0b' },
+  { min: 5, label: 'مناطق', color: '#3b82f6' },
+  { min: 1, label: 'محافظات', color: '#22c55e' },
+  { min: 0, label: 'غير محدد', color: '#6b7280' },
 ];
 
 const RegionMapEditor: React.FC<RegionMapEditorProps> = ({
@@ -210,28 +232,32 @@ const RegionMapEditor: React.FC<RegionMapEditorProps> = ({
     };
   }, [mapToken, onSelectRegion]);
 
-  // Function to update regions on map
+  // Function to update regions on map with priority-based colors
   const updateRegionsOnMap = useCallback(() => {
     if (!map.current?.isStyleLoaded()) return;
 
-    const features = regions
+    // Sort regions by priority (lower priority renders first, so higher priority appears on top)
+    const sortedRegions = [...regions]
       .filter(r => r.coordinates && r.coordinates.length >= 3)
-      .map((region, index) => ({
-        type: 'Feature' as const,
-        properties: {
-          id: region.id,
-          name: region.name_ar,
-          color: REGION_COLORS[index % REGION_COLORS.length],
-          selected: region.id === selectedRegionId
-        },
-        geometry: {
-          type: 'Polygon' as const,
-          coordinates: [[
-            ...region.coordinates!.map(c => [c.lng, c.lat]),
-            [region.coordinates![0].lng, region.coordinates![0].lat]
-          ]]
-        }
-      }));
+      .sort((a, b) => (a.priority || 0) - (b.priority || 0));
+
+    const features = sortedRegions.map((region) => ({
+      type: 'Feature' as const,
+      properties: {
+        id: region.id,
+        name: region.name_ar,
+        priority: region.priority || 0,
+        color: getPriorityColor(region.priority || 0),
+        selected: region.id === selectedRegionId
+      },
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [[
+          ...region.coordinates!.map(c => [c.lng, c.lat]),
+          [region.coordinates![0].lng, region.coordinates![0].lat]
+        ]]
+      }
+    }));
 
     const source = map.current?.getSource('regions') as mapboxgl.GeoJSONSource;
     if (source) {
@@ -409,8 +435,20 @@ const RegionMapEditor: React.FC<RegionMapEditorProps> = ({
           <>
             {selectedRegionId && (
               <div className="bg-card p-3 rounded-lg shadow-lg border border-border mb-2">
-                <p className="font-medium text-sm mb-1">{selectedRegion?.name_ar}</p>
-                <p className="text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 mb-1">
+                  <div 
+                    className="w-4 h-4 rounded-sm border border-white/20" 
+                    style={{ backgroundColor: getPriorityColor(selectedRegion?.priority || 0) }}
+                  />
+                  <p className="font-medium text-sm">{selectedRegion?.name_ar}</p>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>الأولوية: {selectedRegion?.priority || 0}</span>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    {getPriorityLabel(selectedRegion?.priority || 0)}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
                   {selectedRegion?.coordinates && selectedRegion.coordinates.length >= 3
                     ? `${selectedRegion.coordinates.length} نقطة محددة`
                     : 'لم يتم تحديد الحدود بعد'}
@@ -502,11 +540,34 @@ const RegionMapEditor: React.FC<RegionMapEditorProps> = ({
         )}
       </div>
 
-      {/* Legend */}
+      {/* Priority Legend */}
+      <div className="absolute bottom-3 left-3 z-20 bg-card/95 backdrop-blur-sm p-3 rounded-lg shadow-lg border border-border">
+        <div className="flex items-center gap-2 mb-2">
+          <Layers className="w-4 h-4 text-primary" />
+          <p className="text-xs font-medium text-muted-foreground">دليل الأولويات</p>
+        </div>
+        <div className="space-y-1.5">
+          {PRIORITY_LEGEND.map((item) => (
+            <div key={item.min} className="flex items-center gap-2">
+              <div 
+                className="w-4 h-3 rounded-sm border border-white/20" 
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="text-xs">{item.label}</span>
+              <span className="text-[10px] text-muted-foreground">({item.min}+)</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Regions List */}
       <div className="absolute bottom-3 right-3 z-20 bg-card/95 backdrop-blur-sm p-3 rounded-lg shadow-lg max-h-48 overflow-y-auto border border-border">
         <p className="text-xs font-medium mb-2 text-muted-foreground">المناطق ({regions.length})</p>
         <div className="space-y-1">
-          {regions.map((region, index) => (
+          {regions
+            .slice()
+            .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+            .map((region) => (
             <button
               key={region.id}
               onClick={() => onSelectRegion(region.id)}
@@ -518,9 +579,12 @@ const RegionMapEditor: React.FC<RegionMapEditorProps> = ({
             >
               <div 
                 className="w-3 h-3 rounded-sm shrink-0 border border-white/20" 
-                style={{ backgroundColor: REGION_COLORS[index % REGION_COLORS.length] }}
+                style={{ backgroundColor: getPriorityColor(region.priority || 0) }}
               />
               <span className="text-xs truncate flex-1">{region.name_ar}</span>
+              <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
+                {region.priority || 0}
+              </Badge>
               {region.coordinates && region.coordinates.length >= 3 ? (
                 <span className="text-[10px] text-primary">✓</span>
               ) : (
