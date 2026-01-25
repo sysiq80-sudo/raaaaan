@@ -16,6 +16,7 @@ import RiderSideMenu from "@/components/rider/RiderSideMenu";
 import StatusIcons from "@/components/common/StatusIcons";
 import NetworkStatusBar from "@/components/common/NetworkStatusBar";
 import StaticMapPlaceholder from "@/components/common/StaticMapPlaceholder";
+import RiderNotificationsBell from "@/components/rider/RiderNotificationsBell";
 import { motion, AnimatePresence } from "framer-motion";
 
 // New custom hooks
@@ -676,11 +677,14 @@ const GoPage: React.FC = () => {
               </motion.div>
             </div>
 
-            {/* Status Icons - Right side */}
-            <StatusIcons userLocation={pickupLocation ? {
-            lat: pickupLocation.lat,
-            lng: pickupLocation.lng
-          } : null} />
+            {/* Notifications & Status Icons - Right side */}
+            <div className="flex items-center gap-1">
+              {userId && <RiderNotificationsBell userId={userId} />}
+              <StatusIcons userLocation={pickupLocation ? {
+                lat: pickupLocation.lat,
+                lng: pickupLocation.lng
+              } : null} />
+            </div>
 
             <button onClick={() => setCurrentMode("dropoff")} className="w-11 h-11 flex items-center justify-center rounded-md bg-gradient-to-br from-primary/90 to-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0" aria-label="رجوع">
               <ArrowRight className="w-5 h-5 text-white" />
@@ -874,8 +878,11 @@ const GoPage: React.FC = () => {
             <span className="font-bold text-lg">ران</span>
           </div>
 
-          {/* Status Icons - Right side */}
-          <StatusIcons userLocation={userLocation} />
+          {/* Notifications & Status Icons - Right side */}
+          <div className="flex items-center gap-1">
+            {userId && <RiderNotificationsBell userId={userId} />}
+            <StatusIcons userLocation={userLocation} />
+          </div>
 
           {/* زر الرجوع - فقط في dropoff */}
           {isDropoff ? <button onClick={() => {
