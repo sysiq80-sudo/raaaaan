@@ -3103,6 +3103,7 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_name_banned: { Args: { p_name: string }; Returns: boolean }
       is_phone_blocked: { Args: { p_phone: string }; Returns: boolean }
+      is_phone_registered: { Args: { p_phone: string }; Returns: boolean }
       link_driver_by_phone: { Args: { p_phone: string }; Returns: Json }
       log_api_usage: {
         Args: {

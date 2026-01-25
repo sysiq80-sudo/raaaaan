@@ -84,7 +84,7 @@ const Auth = () => {
     return formats;
   };
 
-  // Check if phone exists in database (profiles) OR auth.users
+  // Check if phone exists using secure RPC function
   const checkPhoneNumber = async () => {
     setErrors({});
 
@@ -98,42 +98,23 @@ const Auth = () => {
     setCheckingPhone(true);
 
     try {
-      // Generate all possible phone formats
-      const phoneFormats = formatPhoneForLookup(phoneInput);
-      
-      // Also add the original input as-is
-      if (!phoneFormats.includes(phoneInput)) {
-        phoneFormats.push(phoneInput);
+      console.log("Checking phone via RPC:", phoneInput);
+
+      // Use the secure RPC function that bypasses RLS
+      const { data: isRegistered, error: rpcError } = await supabase.rpc(
+        "is_phone_registered",
+        { p_phone: phoneInput }
+      );
+
+      if (rpcError) {
+        console.error("RPC error:", rpcError);
+        throw rpcError;
       }
 
-      console.log("Checking phone formats:", phoneFormats);
+      console.log("Phone registration check result:", isRegistered);
 
-      // Try multiple queries to find the phone
-      let profileFound = false;
-      
-      for (const phoneFormat of phoneFormats) {
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("id, phone, full_name")
-          .eq("phone", phoneFormat)
-          .limit(1);
-
-        if (profileError) {
-          console.error("Error checking profiles:", profileError);
-          continue;
-        }
-
-        console.log(`Phone check for ${phoneFormat}:`, profileData);
-
-        if (profileData && profileData.length > 0) {
-          profileFound = true;
-          console.log("Found existing profile:", profileData[0]);
-          break;
-        }
-      }
-
-      if (profileFound) {
-        // Phone exists in profiles - go to login
+      if (isRegistered) {
+        // Phone exists - go to login
         setStep("login");
         toast({
           title: "مرحباً بعودتك! 👋",
