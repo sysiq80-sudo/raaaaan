@@ -1706,6 +1706,7 @@ export type Database = {
           name_en: string | null
           name_ku: string | null
           per_km_fare: number
+          priority: number | null
           updated_at: string
           wait_timeout_minutes: number | null
           waiting_fare_per_min: number
@@ -1721,6 +1722,7 @@ export type Database = {
           name_en?: string | null
           name_ku?: string | null
           per_km_fare?: number
+          priority?: number | null
           updated_at?: string
           wait_timeout_minutes?: number | null
           waiting_fare_per_min?: number
@@ -1736,6 +1738,7 @@ export type Database = {
           name_en?: string | null
           name_ku?: string | null
           per_km_fare?: number
+          priority?: number | null
           updated_at?: string
           wait_timeout_minutes?: number | null
           waiting_fare_per_min?: number

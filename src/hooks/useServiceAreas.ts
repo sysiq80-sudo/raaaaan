@@ -23,15 +23,16 @@ export function useServiceAreas() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('regions')
-        .select('id, name_ar, name_en, coordinates, base_fare, per_km_fare, waiting_fare_per_min')
+        .select('id, name_ar, name_en, coordinates, base_fare, per_km_fare, waiting_fare_per_min, priority')
         .eq('is_active', true);
 
       if (error) throw error;
 
-      // Parse coordinates from JSON
+      // Parse coordinates from JSON and include priority
       return (data || []).map(region => ({
         ...region,
-        coordinates: (region.coordinates as any)?.coordinates || region.coordinates || []
+        coordinates: (region.coordinates as any)?.coordinates || region.coordinates || [],
+        priority: region.priority ?? 0
       })) as Region[];
     },
     ...semiStaticDataConfig,
