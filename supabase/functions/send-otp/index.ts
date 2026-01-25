@@ -141,25 +141,44 @@ serve(async (req) => {
 
     if (action === 'send' || action === 'resend') {
       // === Check if user already exists in auth.users for registration ===
-      if (purpose === 'rider_registration' || purpose === 'driver_registration') {
+      if (purpose === 'driver_registration') {
+        // Prefer checking the drivers table (fast + avoids scanning auth users)
+        const { data: existingDrivers, error: driversError } = await supabase.rpc('find_driver_by_phone', {
+          p_phone: formattedPhone,
+        });
+
+        if (!driversError && Array.isArray(existingDrivers) && existingDrivers.length > 0) {
+          console.log(`Driver already exists for phone: ${formattedPhone}`);
+          await logSMS(supabase, formattedPhone, 'otp', purpose, 'none', 'blocked', clientIP, userAgent, 'Driver already registered');
+          return new Response(
+            JSON.stringify({
+              error: 'هذا الرقم مسجل مسبقاً. الرجاء تسجيل الدخول بدلاً من التسجيل.',
+              user_exists: true,
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      if (purpose === 'rider_registration') {
         const phoneEmail = `${formattedPhone}@raan.app`;
         console.log(`Checking if user exists: ${phoneEmail}`);
-        
+
         // Try to find user by email in auth.users
         const { data: existingUsers, error: listError } = await supabase.auth.admin.listUsers();
-        
+
         if (!listError && existingUsers?.users) {
           const userExists = existingUsers.users.some(
             (u: any) => u.email === phoneEmail || u.phone === formattedPhone
           );
-          
+
           if (userExists) {
             console.log(`User already exists: ${phoneEmail}`);
             await logSMS(supabase, formattedPhone, 'otp', purpose, 'none', 'blocked', clientIP, userAgent, 'User already registered');
             return new Response(
-              JSON.stringify({ 
+              JSON.stringify({
                 error: 'هذا الرقم مسجل مسبقاً. الرجاء تسجيل الدخول بدلاً من التسجيل.',
-                user_exists: true 
+                user_exists: true,
               }),
               { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
