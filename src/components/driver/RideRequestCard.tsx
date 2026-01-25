@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { logger } from "@/lib/logger";
 import {
   MapPin,
   Clock,
@@ -86,7 +87,7 @@ const playNotificationSound = () => {
     playTone(1100, 0.15, now + 0.15);
     playTone(1320, 0.2, now + 0.3);
   } catch {
-    console.log("Audio not supported");
+    logger.debug("RideRequestCard", "Audio not supported");
   }
 };
 
@@ -131,7 +132,7 @@ export const RideRequestCard = ({
     try {
       // First try with location-based RPC if we have driver location
       if (driverLocation) {
-        console.log("🔍 [RideRequestCard] Searching with location:", {
+        logger.debug("RideRequestCard", "Searching with location", {
           driver_lat: driverLocation.lat,
           driver_lng: driverLocation.lng,
           max_radius_km: maxPickupRadius,
@@ -177,7 +178,7 @@ export const RideRequestCard = ({
       }
 
       // Fallback: Search for any pending ride that matches vehicle type
-      console.log("🔄 [RideRequestCard] Using fallback query");
+      logger.debug("RideRequestCard", "Using fallback query");
       const { data, error } = await supabase
         .from("rides")
         .select("*")
@@ -222,7 +223,7 @@ export const RideRequestCard = ({
 
       setPendingRide(null);
     } catch (error) {
-      console.error("[RideRequestCard] Error fetching rides:", error);
+      logger.error("RideRequestCard", "Error fetching rides", error);
       setPendingRide(null);
     }
   }, [isOnline, vehicleType, driverLocation, maxPickupRadius, canDriverServeRide]);
@@ -231,7 +232,7 @@ export const RideRequestCard = ({
   useEffect(() => {
     if (!isOnline || !driverId) return;
 
-    console.log("🔴 [RideRequestCard] Setting up realtime subscription");
+    logger.debug("RideRequestCard", "Setting up realtime subscription");
     
     const channel = supabase
       .channel(`ride-requests-${driverId}`)
@@ -244,7 +245,7 @@ export const RideRequestCard = ({
           filter: "status=eq.pending",
         },
         (payload) => {
-          console.log("⚡ [RideRequestCard] New ride inserted:", payload.new?.id);
+          logger.debug("RideRequestCard", "New ride inserted", payload.new?.id);
           // Immediately fetch to update UI
           fetchPendingRides();
         }

@@ -7,6 +7,7 @@ import { NavigationButton } from "./NavigationButton";
 import { ActiveRideMap } from "./ActiveRideMap";
 import { DriverRideCompleted } from "./DriverRideCompleted";
 import { ChatButton } from "@/components/ride/RideChat";
+import { logger } from "@/lib/logger";
 import {
   playSound,
   vibrate,
@@ -205,10 +206,10 @@ export const ActiveRideCard = ({
           filter: `driver_id=eq.${driverId}`,
         },
         (payload) => {
-          console.log(
-            "[ActiveRideCard] 📡 Ride update via realtime:",
-            payload.eventType,
-            payload.new
+          logger.debug(
+            "ActiveRideCard",
+            "Ride update via realtime",
+            { eventType: payload.eventType, ride: payload.new }
           );
 
           // Immediately update state for faster response
@@ -220,7 +221,7 @@ export const ActiveRideCard = ({
               updatedRide.status === "completed" ||
               updatedRide.status === "cancelled"
             ) {
-              console.log("[ActiveRideCard] Ride ended:", updatedRide.status);
+              logger.info("ActiveRideCard", "Ride ended", updatedRide.status);
 
               if (updatedRide.status === "completed") {
                 // Show completed screen
@@ -292,10 +293,11 @@ export const ActiveRideCard = ({
         }
       )
       .subscribe((status) => {
-        console.log("[ActiveRideCard] Subscription status:", status);
+        logger.debug("ActiveRideCard", "Subscription status", status);
         if (status === "CHANNEL_ERROR") {
-          console.error(
-            "[ActiveRideCard] Channel error - setting up polling fallback"
+          logger.error(
+            "ActiveRideCard",
+            "Channel error - setting up polling fallback"
           );
         }
       });
@@ -315,8 +317,9 @@ export const ActiveRideCard = ({
   useEffect(() => {
     if (!activeRide) return;
 
-    console.log(
-      "[ActiveRideCard] Setting up broadcast channel for ride:",
+    logger.debug(
+      "ActiveRideCard",
+      "Setting up broadcast channel for ride",
       activeRide.id
     );
 
@@ -328,11 +331,12 @@ export const ActiveRideCard = ({
     });
 
     channel.subscribe((status) => {
-      console.log("[ActiveRideCard] Broadcast channel status:", status);
+      logger.debug("ActiveRideCard", "Broadcast channel status", status);
       if (status === "SUBSCRIBED") {
         broadcastChannel.current = channel;
-        console.log(
-          "[ActiveRideCard] ✅ Channel ready for instant communication"
+        logger.info(
+          "ActiveRideCard",
+          "Channel ready for instant communication"
         );
 
         // Send initial location immediately when channel is ready
@@ -350,7 +354,7 @@ export const ActiveRideCard = ({
     });
 
     return () => {
-      console.log("[ActiveRideCard] Cleaning up broadcast channel");
+      logger.debug("ActiveRideCard", "Cleaning up broadcast channel");
       supabase.removeChannel(channel);
       broadcastChannel.current = null;
     };
@@ -373,14 +377,14 @@ export const ActiveRideCard = ({
             ...extraPayload,
           },
         });
-        console.log(`[Driver] ⚡ Sent broadcast: ${event}`);
+        logger.debug("ActiveRideCard", `Sent broadcast: ${event}`);
       } catch (error) {
-        console.error(`[Driver] Failed to send broadcast ${event}:`, error);
+        logger.error("ActiveRideCard", `Failed to send broadcast ${event}`, error);
       }
     } else {
-      console.warn(
-        "[Driver] Broadcast channel not ready, event queued:",
-        event
+      logger.warn(
+        "ActiveRideCard",
+        `Broadcast channel not ready, event queued: ${event}`
       );
     }
   };
@@ -399,7 +403,7 @@ export const ActiveRideCard = ({
           timestamp: new Date().toISOString(),
         },
       })
-      .catch((err) => console.error("[Driver] Location broadcast error:", err));
+      .catch((err) => logger.error("ActiveRideCard", "Location broadcast error", err));
   }, [driverLocation?.lat, driverLocation?.lng, activeRide?.id]);
 
   // Send quick message to rider
@@ -424,15 +428,16 @@ export const ActiveRideCard = ({
   useEffect(() => {
     if (!activeRide) return;
 
-    console.log(
-      "[ActiveRideCard] Setting up rider message listener for ride:",
+    logger.debug(
+      "ActiveRideCard",
+      "Setting up rider message listener for ride",
       activeRide.id
     );
 
     const commChannel = supabase
       .channel(`ride-comm-${activeRide.id}`)
       .on("broadcast", { event: "ride_completed_by_rider" }, (payload) => {
-        console.log("[Driver] Received: ride_completed_by_rider", payload);
+        logger.debug("ActiveRideCard", "Received: ride_completed_by_rider", payload);
 
         playSound("completed");
         vibrate(VibrationPatterns.completed);
@@ -453,7 +458,7 @@ export const ActiveRideCard = ({
         fetchActiveRide();
       })
       .on("broadcast", { event: "rider_arrived" }, (payload) => {
-        console.log("[Driver] Received: rider_arrived", payload);
+        logger.debug("ActiveRideCard", "Received: rider_arrived", payload);
 
         playSound("riderArrived");
         vibrate(VibrationPatterns.riderArrived);
@@ -471,7 +476,7 @@ export const ActiveRideCard = ({
         );
       })
       .on("broadcast", { event: "rider_on_my_way" }, (payload) => {
-        console.log("[Driver] Received: rider_on_my_way", payload);
+        logger.debug("ActiveRideCard", "Received: rider_on_my_way", payload);
 
         playSound("riderOnWay");
         vibrate(VibrationPatterns.riderOnWay);
@@ -488,7 +493,7 @@ export const ActiveRideCard = ({
         });
       })
       .on("broadcast", { event: "rider_wait_moment" }, (payload) => {
-        console.log("[Driver] Received: rider_wait_moment", payload);
+        logger.debug("ActiveRideCard", "Received: rider_wait_moment", payload);
 
         playSound("riderWait");
         vibrate(VibrationPatterns.riderWait);
@@ -505,7 +510,7 @@ export const ActiveRideCard = ({
         });
       })
       .on("broadcast", { event: "rider_where_are_you" }, (payload) => {
-        console.log("[Driver] Received: rider_where_are_you", payload);
+        logger.debug("ActiveRideCard", "Received: rider_where_are_you", payload);
 
         playSound("riderQuestion");
         vibrate(VibrationPatterns.riderQuestion);
@@ -523,7 +528,7 @@ export const ActiveRideCard = ({
         );
       })
       .on("broadcast", { event: "rider_waiting" }, (payload) => {
-        console.log("[Driver] Received: rider_waiting", payload);
+        logger.debug("ActiveRideCard", "Received: rider_waiting", payload);
 
         playSound("confirm");
         vibrate([100, 50, 100]);
@@ -535,9 +540,9 @@ export const ActiveRideCard = ({
         });
       })
       .subscribe((status) => {
-        console.log("[ActiveRideCard] Rider messages channel status:", status);
+        logger.debug("ActiveRideCard", "Rider messages channel status", status);
         if (status === "SUBSCRIBED") {
-          console.log("[ActiveRideCard] ✅ Ready to receive rider messages");
+          logger.info("ActiveRideCard", "Ready to receive rider messages");
         }
       });
 
