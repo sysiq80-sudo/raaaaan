@@ -243,74 +243,8 @@ const Auth = () => {
       return;
     }
 
-    // FOR DEVELOPMENT: Skip OTP and register directly
-    // TODO: Enable OTP in production
-    setLoading(true);
-    try {
-      const phoneEmail = `${phoneInput.replace(/\D/g, "")}@raan.app`;
-
-      console.log("Creating user with email:", phoneEmail);
-
-      const { data, error } = await supabase.auth.signUp({
-        email: phoneEmail,
-        password: registerPassword,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            full_name: fullName,
-            phone: phoneInput,
-            auth_method: "phone",
-          },
-        },
-      });
-
-      if (error) {
-        console.error("SignUp error:", error);
-        setErrors({ general: error.message });
-        toast({
-          title: "خطأ في التسجيل",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (data.user) {
-        // Update profile with phone number
-        const { error: profileError } = await supabase.from("profiles").upsert(
-          {
-            user_id: data.user.id,
-            phone: phoneInput,
-            full_name: fullName,
-            email: optionalEmail || null,
-          },
-          { onConflict: "user_id" },
-        );
-
-        if (profileError) {
-          console.error("Profile update error:", profileError);
-        }
-
-        toast({
-          title: "تم إنشاء الحساب! ✅",
-          description: "مرحباً بك في ران",
-        });
-        navigate("/rider");
-      }
-    } catch (error: any) {
-      console.error("Signup error:", error);
-      setErrors({ general: error.message });
-      toast({
-        title: "خطأ في التسجيل",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-
-    // Original OTP flow (commented out for development)
-    // setStep("otp");
+    // إرسال OTP للتحقق من الرقم
+    setStep("otp");
   };
 
   // Handle OTP verification success

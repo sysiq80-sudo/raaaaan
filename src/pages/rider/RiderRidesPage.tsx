@@ -107,7 +107,7 @@ const RiderRidesPage: React.FC = () => {
   };
 
   const handleRebook = (ride: RideHistory) => {
-    // Navigate to go page with pre-filled locations
+    // Navigate to go page with pre-filled locations and vehicle type
     const params = new URLSearchParams({
       pickup_lat: ride.pickup_location.lat.toString(),
       pickup_lng: ride.pickup_location.lng.toString(),
@@ -115,6 +115,8 @@ const RiderRidesPage: React.FC = () => {
       dropoff_lat: ride.dropoff_location.lat.toString(),
       dropoff_lng: ride.dropoff_location.lng.toString(),
       dropoff_address: ride.dropoff_address || "",
+      vehicle_type: ride.vehicle_type || "economy",
+      rebook: "true",
     });
     navigate(`/rider?${params.toString()}`);
   };
