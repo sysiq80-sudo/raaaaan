@@ -94,6 +94,9 @@ const DriverRegister = () => {
   };
 
   const handleRegister = async () => {
+    // Prevent double-submit (can trigger repeated signup requests)
+    if (isLoading) return;
+
     clearErrors();
     
     // Validate password with Zod
@@ -118,56 +121,84 @@ const DriverRegister = () => {
 
     try {
       const normalizedPhone = normalizeIraqiPhone(phone);
-      // Convert phone to 964xxx format for valid email (emails can't start with 0)
-      const phoneForEmail = normalizedPhone.replace(/\D/g, '').replace(/^0/, '964');
-      const authEmail = email || `${phoneForEmail}@driver.raan.app`;
-      
-      // 1. Create Supabase auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: authEmail,
-        password: password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/driver`,
-          data: {
-            full_name: fullName,
-            phone: normalizedPhone,
-            role: 'driver'
-          }
-        }
+
+      // 1) Create auth user via Edge Function (avoids Supabase email rate limits)
+      const { data: signupData, error: signupError } = await supabase.functions.invoke('driver-signup', {
+        body: {
+          phone: normalizedPhone,
+          password,
+          fullName: fullName.trim(),
+          email: email.trim() || null,
+          gender,
+          workCity,
+        },
       });
 
-      if (authError) {
-        if (authError.message.includes("already registered")) {
+      if (signupError) {
+        const serverBody = (signupError as any)?.context?.body;
+        const serverMsg =
+          (serverBody && typeof serverBody === 'object' ? serverBody.error : undefined) ||
+          (typeof serverBody === 'string'
+            ? (() => {
+                try {
+                  const parsed = JSON.parse(serverBody);
+                  return parsed?.error;
+                } catch {
+                  return undefined;
+                }
+              })()
+            : undefined);
+
+        const msg = serverMsg || signupError.message || 'فشل إنشاء الحساب';
+
+        if (msg.toLowerCase().includes('already registered') || msg.includes('مسجل')) {
           toast.error('رقم الهاتف مسجل مسبقاً، يرجى تسجيل الدخول');
           navigate('/driver/auth');
           return;
         }
-        throw authError;
+
+        // Show server-provided Arabic error if available
+        throw new Error(msg);
       }
 
-      if (authData.user) {
-        // 2. Create driver record with pending status
-        const { error: driverError } = await supabase
-          .from('drivers')
-          .insert({
-            user_id: authData.user.id,
-            full_name: fullName.trim(),
-            phone: normalizedPhone,
-            email: email.trim() || null,
-            gender: gender,
-            status: 'pending',
-            is_online: false,
-            is_available: false,
-            vehicle_type: gender === 'female' ? 'women_only' : 'economy'
-          });
+      const authEmail = signupData?.authEmail as string | undefined;
+      const userId = signupData?.userId as string | undefined;
 
-        if (driverError) {
-          console.error('Driver insert error:', driverError);
-        }
-
-        // Show success
-        setCurrentStep(5);
+      if (!authEmail || !userId) {
+        throw new Error('فشل إنشاء الحساب (بيانات ناقصة)');
       }
+
+      // 2) Sign in to establish session
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: authEmail,
+        password,
+      });
+
+      if (signInError) throw signInError;
+
+      const effectiveUserId = signInData.user?.id || userId;
+
+      // 3) Create driver record with pending status
+      const { error: driverError } = await supabase
+        .from('drivers')
+        .insert({
+          user_id: effectiveUserId,
+          full_name: fullName.trim(),
+          phone: normalizedPhone,
+          email: email.trim() || null,
+          gender: gender,
+          status: 'pending',
+          is_online: false,
+          is_available: false,
+          vehicle_type: gender === 'female' ? 'women_only' : 'economy'
+        });
+
+      if (driverError) {
+        console.error('Driver insert error:', driverError);
+      }
+
+      // Show success
+      setCurrentStep(5);
     } catch (error: any) {
       console.error('Registration error:', error);
       toast.error(error.message || 'حدث خطأ أثناء التسجيل');
