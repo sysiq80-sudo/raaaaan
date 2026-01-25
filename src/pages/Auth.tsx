@@ -96,27 +96,41 @@ const Auth = () => {
     setCheckingPhone(true);
 
     try {
+      // Generate all possible phone formats
       const phoneFormats = formatPhoneForLookup(phoneInput);
-      const orCondition = phoneFormats.map((p) => `phone.eq.${p}`).join(",");
-
-      // Check profiles table first
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, phone")
-        .or(orCondition)
-        .limit(1);
-
-      if (profileError) {
-        console.error("Error checking profiles:", profileError);
+      
+      // Also add the original input as-is
+      if (!phoneFormats.includes(phoneInput)) {
+        phoneFormats.push(phoneInput);
       }
 
-      console.log("Phone check results:", {
-        profileFound: profileData && profileData.length > 0,
-        profileData,
-        phoneFormats,
-      });
+      console.log("Checking phone formats:", phoneFormats);
 
-      if (profileData && profileData.length > 0) {
+      // Try multiple queries to find the phone
+      let profileFound = false;
+      
+      for (const phoneFormat of phoneFormats) {
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, phone, full_name")
+          .eq("phone", phoneFormat)
+          .limit(1);
+
+        if (profileError) {
+          console.error("Error checking profiles:", profileError);
+          continue;
+        }
+
+        console.log(`Phone check for ${phoneFormat}:`, profileData);
+
+        if (profileData && profileData.length > 0) {
+          profileFound = true;
+          console.log("Found existing profile:", profileData[0]);
+          break;
+        }
+      }
+
+      if (profileFound) {
         // Phone exists in profiles - go to login
         setStep("login");
         toast({
