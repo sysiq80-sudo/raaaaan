@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -33,6 +34,7 @@ const Auth = () => {
 
   // Login step
   const [loginPassword, setLoginPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
 
   // Register step
@@ -503,6 +505,21 @@ const Auth = () => {
                         {errors.password}
                       </p>
                     )}
+                  </div>
+
+                  {/* Remember Me Checkbox */}
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="rememberMe"
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    />
+                    <Label
+                      htmlFor="rememberMe"
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      تذكرني
+                    </Label>
                   </div>
 
                   <Button type="submit" className="w-full" disabled={loading}>
