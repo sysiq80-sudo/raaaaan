@@ -228,6 +228,19 @@ const GoPage: React.FC = () => {
     initializeBookingMap(pickupLocation, dropoffLocation);
   }, [currentMode, pickupLocation, dropoffLocation, initializeBookingMap]);
 
+  // تحذير المستخدم قبل مغادرة الصفحة أثناء الحجز
+  useEffect(() => {
+    if (currentMode === "booking" && dropoffLocation) {
+      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = "هل أنت متأكد من مغادرة الصفحة؟ سيتم إلغاء الحجز الحالي.";
+        return e.returnValue;
+      };
+      window.addEventListener("beforeunload", handleBeforeUnload);
+      return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }
+  }, [currentMode, dropoffLocation]);
+
   // Local helper: center map on user location
   const centerOnUser = useCallback(() => {
     if (!map.current) return;
@@ -362,6 +375,16 @@ const GoPage: React.FC = () => {
 
   // Handle booking submission
   const handleBookRide = async () => {
+    // التحقق من الاتصال بالإنترنت
+    if (!isOnline) {
+      toast({
+        title: "لا يوجد اتصال بالإنترنت",
+        description: "تحقق من اتصالك بالإنترنت وحاول مرة أخرى",
+        variant: "destructive"
+      });
+      return;
+    }
+
     if (!userId) {
       toast({
         title: "يجب تسجيل الدخول",
@@ -431,6 +454,30 @@ const GoPage: React.FC = () => {
         variant: "destructive"
       });
       return;
+    }
+
+    // التحقق من رصيد المحفظة إذا كان الدفع بالمحفظة
+    if (paymentMethod === "wallet") {
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("wallet_balance")
+          .eq("user_id", userId)
+          .single();
+        
+        const walletBalance = profile?.wallet_balance || 0;
+        if (walletBalance < totalFare) {
+          toast({
+            title: "رصيد غير كافٍ",
+            description: `رصيد المحفظة: ${walletBalance.toLocaleString()} د.ع - الأجرة المتوقعة: ${totalFare.toLocaleString()} د.ع`,
+            variant: "destructive"
+          });
+          setPaymentSheetOpen(true);
+          return;
+        }
+      } catch (error) {
+        console.error("Wallet balance check error:", error);
+      }
     }
 
     // Save last ride for quick rebooking
