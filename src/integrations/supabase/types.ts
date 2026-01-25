@@ -2076,6 +2076,78 @@ export type Database = {
           },
         ]
       }
+      rider_notification_preferences: {
+        Row: {
+          created_at: string | null
+          driver_arrival: boolean | null
+          id: string
+          promo_offers: boolean | null
+          push_enabled: boolean | null
+          ride_updates: boolean | null
+          scheduled_reminders: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          driver_arrival?: boolean | null
+          id?: string
+          promo_offers?: boolean | null
+          push_enabled?: boolean | null
+          ride_updates?: boolean | null
+          scheduled_reminders?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          driver_arrival?: boolean | null
+          id?: string
+          promo_offers?: boolean | null
+          push_enabled?: boolean | null
+          ride_updates?: boolean | null
+          scheduled_reminders?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      rider_notifications: {
+        Row: {
+          body: string
+          created_at: string | null
+          data: Json | null
+          id: string
+          is_read: boolean | null
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          is_read?: boolean | null
+          read_at?: string | null
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          is_read?: boolean | null
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       rider_page_layouts: {
         Row: {
           created_at: string | null
@@ -2885,6 +2957,16 @@ export type Database = {
         Returns: boolean
       }
       cleanup_old_push_tokens: { Args: never; Returns: number }
+      create_rider_notification: {
+        Args: {
+          p_body: string
+          p_data?: Json
+          p_title: string
+          p_type?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       deduct_driver_commission: {
         Args: { p_amount: number; p_driver_id: string; p_ride_id?: string }
         Returns: Json
