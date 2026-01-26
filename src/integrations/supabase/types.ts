@@ -3157,7 +3157,13 @@ export type Database = {
     Enums: {
       app_role: "admin" | "moderator" | "user"
       driver_status: "pending" | "approved" | "rejected" | "suspended"
-      payment_method: "cash" | "zain_cash" | "asia_hawala" | "qi_card"
+      payment_method:
+        | "cash"
+        | "zain_cash"
+        | "asia_hawala"
+        | "qi_card"
+        | "nas_wallet"
+        | "nass"
       ride_status:
         | "pending"
         | "accepted"
@@ -3295,7 +3301,14 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "moderator", "user"],
       driver_status: ["pending", "approved", "rejected", "suspended"],
-      payment_method: ["cash", "zain_cash", "asia_hawala", "qi_card"],
+      payment_method: [
+        "cash",
+        "zain_cash",
+        "asia_hawala",
+        "qi_card",
+        "nas_wallet",
+        "nass",
+      ],
       ride_status: [
         "pending",
         "accepted",
