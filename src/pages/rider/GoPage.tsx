@@ -787,12 +787,19 @@ const GoPage: React.FC = () => {
               <button onClick={() => setPaymentSheetOpen(true)} className="flex-1 bg-card rounded-xl px-3 py-2.5 border border-border/40 hover:border-primary/40 hover:bg-card/80 transition-all duration-200 active:scale-[0.98] flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <span className="text-sm">💵</span>
+                    <span className="text-sm">{paymentMethod === 'cash' ? '💵' : paymentMethod === 'wallet' ? '👛' : paymentMethod === 'card' ? '💳' : '📱'}</span>
                   </div>
                   <span className="text-[11px] text-muted-foreground font-medium">الدفع</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <p className="font-bold text-sm">نقداً</p>
+                  <p className="font-bold text-sm">
+                    {paymentMethod === 'cash' ? 'نقداً' : 
+                     paymentMethod === 'wallet' ? 'المحفظة' : 
+                     paymentMethod === 'card' ? 'البطاقة' : 
+                     paymentMethod === 'zain_cash' ? 'زين كاش' : 
+                     paymentMethod === 'super_key' ? 'سوبر كي' : 
+                     paymentMethod === 'nas_wallet' ? 'ناس ولت' : 'نقداً'}
+                  </p>
                   <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
                 </div>
               </button>
