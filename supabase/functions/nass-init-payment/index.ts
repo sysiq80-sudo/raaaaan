@@ -104,9 +104,21 @@ serve(async (req) => {
       );
     }
 
-    const authData: NassAuthResponse = await authResponse.json();
-    const accessToken = authData.access_token;
-    console.log('NASS authentication successful');
+    const authData = await authResponse.json();
+    console.log('NASS auth response:', JSON.stringify(authData));
+    
+    // Extract token - could be in different fields
+    const accessToken = authData.access_token || authData.token || authData.accessToken || authData.data?.access_token || authData.data?.token;
+    
+    if (!accessToken) {
+      console.error('No access token in response:', authData);
+      return new Response(
+        JSON.stringify({ success: false, error: 'No access token received from payment gateway' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log('NASS authentication successful, token length:', accessToken.length);
 
     // Generate unique order ID
     const orderId = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -114,33 +126,52 @@ serve(async (req) => {
 
     // Step 2: Create transaction in NASS
     console.log('Creating NASS transaction...');
+    console.log('Transaction URL:', `${nassBaseUrl}/transaction`);
+    
+    const transactionBody = {
+      orderId: orderId,
+      orderDesc: orderDesc,
+      amount: amount,
+      currency: '368', // IQD
+      transactionType: '1',
+      backRef: backRef,
+      notifyUrl: callbackUrl
+    };
+    console.log('Transaction body:', JSON.stringify(transactionBody));
+    
     const transactionResponse = await fetch(`${nassBaseUrl}/transaction`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
       },
-      body: JSON.stringify({
-        orderId: orderId,
-        orderDesc: orderDesc,
-        amount: amount,
-        currency: '368', // IQD
-        transactionType: '1',
-        backRef: backRef,
-        notifyUrl: callbackUrl
-      })
+      body: JSON.stringify(transactionBody)
     });
 
+    const responseText = await transactionResponse.text();
+    console.log('NASS transaction response status:', transactionResponse.status);
+    console.log('NASS transaction response:', responseText);
+
     if (!transactionResponse.ok) {
-      const errorText = await transactionResponse.text();
-      console.error('NASS transaction failed:', transactionResponse.status, errorText);
+      console.error('NASS transaction failed:', transactionResponse.status, responseText);
       return new Response(
-        JSON.stringify({ success: false, error: 'Failed to create payment transaction' }),
+        JSON.stringify({ success: false, error: 'Failed to create payment transaction', details: responseText }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    let transactionData: NassTransactionResponse;
+    try {
+      transactionData = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse transaction response:', responseText);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid response from payment gateway' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const transactionData: NassTransactionResponse = await transactionResponse.json();
     console.log('NASS transaction created:', transactionData.success);
 
     if (!transactionData.success || !transactionData.data?.url) {
