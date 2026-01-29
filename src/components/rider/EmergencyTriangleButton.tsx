@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Phone, MapPin, Settings, X } from 'lucide-react';
+import { AlertTriangle, Phone, MapPin, Settings, X, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,6 +10,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { ComplaintDialog } from '@/components/common/ComplaintDialog';
 
 interface EmergencyContact {
   id: string;
@@ -28,9 +29,12 @@ export const EmergencyTriangleButton: React.FC<EmergencyTriangleButtonProps> = (
 }) => {
   const [showDialog, setShowDialog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showComplaintDialog, setShowComplaintDialog] = useState(false);
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [newContact, setNewContact] = useState({ name: '', phone: '' });
   const [sending, setSending] = useState(false);
+  const [endingRide, setEndingRide] = useState(false);
+  const [driverName, setDriverName] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -86,6 +90,88 @@ export const EmergencyTriangleButton: React.FC<EmergencyTriangleButtonProps> = (
     window.location.href = 'tel:911';
   };
 
+  const handleEndRideEmergency = async () => {
+    if (!rideId) {
+      toast({ title: 'لا توجد رحلة نشطة', variant: 'destructive' });
+      return;
+    }
+
+    setEndingRide(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // جلب معلومات السائق
+      const { data: rideData } = await supabase
+        .from('rides')
+        .select('driver_id, drivers(full_name)')
+        .eq('id', rideId)
+        .single();
+
+      if (rideData?.drivers) {
+        setDriverName((rideData.drivers as any).full_name || 'السائق');
+      }
+
+      // تسجيل استخدام الطوارئ
+      await supabase.from('emergency_usage_log').insert({
+        user_id: user.id,
+        user_type: 'rider',
+        action_type: 'end_ride',
+        ride_id: rideId,
+        location: currentLocation,
+        reason: 'emergency_end'
+      });
+
+      // إنهاء الرحلة بعلامة طوارئ
+      const { error } = await supabase
+        .from('rides')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          emergency_completed: true,
+          emergency_end_reason: 'rider_ended',
+          ended_by: 'rider'
+        })
+        .eq('id', rideId);
+
+      if (error) {
+        console.error('❌ Error ending ride:', error);
+        throw new Error('فشل إنهاء الرحلة: ' + error.message);
+      }
+
+      console.log('✅ Ride ended successfully');
+
+      // انتظار 500ms للتأكد من تحديث الـ subscription
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      toast({ 
+        title: '✅ تم إنهاء الرحلة', 
+        description: 'تم إنهاء الرحلة بنجاح. يمكنك الآن تقديم شكوى إذا كنت بحاجة لذلك.',
+        duration: 5000
+      });
+
+      // إغلاق نافذة الطوارئ وفتح نافذة الشكوى
+      setShowDialog(false);
+      
+      // فتح نافذة الشكوى فقط إذا أراد المستخدم
+      // بعد 1 ثانية لإعطاء الوقت للنظام للتحديث
+      setTimeout(() => {
+        setShowComplaintDialog(true);
+      }, 1000);
+
+    } catch (error: any) {
+      console.error('❌ Error ending ride:', error);
+      toast({ 
+        title: 'فشل إنهاء الرحلة', 
+        description: error.message || 'حدث خطأ غير متوقع',
+        variant: 'destructive',
+        duration: 7000
+      });
+    } finally {
+      setEndingRide(false);
+    }
+  };
+
   const sendLocationToEmergency = async () => {
     if (!currentLocation) {
       toast({ 
@@ -129,15 +215,17 @@ export const EmergencyTriangleButton: React.FC<EmergencyTriangleButtonProps> = (
 
   return (
     <>
-      {/* Triangle Button */}
+      {/* Triangle Button - تصميم محسن */}
       <Button
         variant="ghost"
         size="sm"
-        className="relative p-2 h-8 w-8"
+        className="relative p-2 h-10 w-10 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all"
         onClick={() => setShowDialog(true)}
       >
-        <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />
-        <span className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
+        <div className="relative">
+          <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-500 animate-pulse drop-shadow-lg" />
+          <span className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
+        </div>
       </Button>
 
       {/* Main Emergency Dialog */}
@@ -151,6 +239,19 @@ export const EmergencyTriangleButton: React.FC<EmergencyTriangleButtonProps> = (
           </DialogHeader>
 
           <div className="space-y-3">
+            {/* End Ride Emergency Button */}
+            {rideId && (
+              <Button
+                variant="destructive"
+                className="w-full h-16 text-lg font-bold flex flex-col gap-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600"
+                onClick={handleEndRideEmergency}
+                disabled={endingRide}
+              >
+                <XCircle className="w-6 h-6" />
+                <span>{endingRide ? 'جاري الإنهاء...' : 'إنهاء الرحلة فوراً'}</span>
+              </Button>
+            )}
+
             {/* 911 Call Button */}
             <Button
               variant="destructive"
@@ -250,6 +351,17 @@ export const EmergencyTriangleButton: React.FC<EmergencyTriangleButtonProps> = (
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Complaint Dialog */}
+      {rideId && (
+        <ComplaintDialog
+          open={showComplaintDialog}
+          onOpenChange={setShowComplaintDialog}
+          rideId={rideId}
+          complainantType="rider"
+          otherPartyName={driverName || 'السائق'}
+        />
+      )}
     </>
   );
 };

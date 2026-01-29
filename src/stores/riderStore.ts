@@ -111,7 +111,7 @@ const initialState: RiderState = {
     activeRide: null,
     notificationsEnabled: true,
     soundsEnabled: true,
-    bottomNavEnabled: false,  // مخفي افتراضياً
+    bottomNavEnabled: true,  // مُفعَّل افتراضياً لسهولة التنقل
     isLoading: false,
     showWelcomeScreen: true,
 };

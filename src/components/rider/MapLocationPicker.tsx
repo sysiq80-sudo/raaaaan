@@ -362,14 +362,14 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   // Always use distinct colors for pickup (green) and dropoff (blue)
   const pinColor = isPickup
     ? "from-green-500 to-green-600"
-    : "from-blue-500 to-blue-600";
+    : "from-sky-400 to-sky-600";
   const glowColor = isPickup
     ? "0 0 40px rgba(34, 197, 94, 0.8), 0 0 80px rgba(34, 197, 94, 0.4)"
-    : "0 0 50px rgba(59, 130, 246, 0.8), 0 0 100px rgba(59, 130, 246, 0.4)";
+    : "0 0 50px rgba(14, 165, 233, 0.9), 0 0 100px rgba(14, 165, 233, 0.5), 0 0 0 3px rgba(255, 255, 255, 0.8)";
   const gradientColor = isPickup
     ? "linear-gradient(to bottom, #22c55e, transparent)"
-    : "linear-gradient(to bottom, #3b82f6, transparent)";
-  const bgOpacity = isPickup ? "bg-green-500/30" : "bg-blue-500/30";
+    : "linear-gradient(to bottom, #0ea5e9, transparent)";
+  const bgOpacity = isPickup ? "bg-green-500/30" : "bg-sky-400/40";
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Header */}
@@ -412,9 +412,12 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
             <div className="relative">
               {/* Pin head */}
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center shadow-xl border-2 border-white ${
-                  isPickup ? "bg-green-500" : "bg-blue-500"
+                className={`w-8 h-8 rounded-full flex items-center justify-center shadow-xl border-2 ${
+                  isPickup ? "bg-green-500 border-white" : "bg-sky-500 border-white"
                 }`}
+                style={!isPickup ? {
+                  boxShadow: "0 0 30px rgba(14, 165, 233, 0.8), 0 4px 20px rgba(14, 165, 233, 0.4), 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 4px rgba(14, 165, 233, 0.3)"
+                } : undefined}
               >
                 {isPickup ? (
                   <Target className="w-4 h-4 text-white" />
@@ -426,7 +429,7 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
               {/* Pin needle pointing down to exact location */}
               <div
                 className={`w-0.5 h-6 mx-auto ${
-                  isPickup ? "bg-green-500" : "bg-blue-500"
+                  isPickup ? "bg-green-500" : "bg-sky-500"
                 }`}
                 style={{
                   clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
@@ -514,18 +517,18 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
               className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center shrink-0 border ${
                 isPickup
                   ? "bg-green-500/20 border-green-400 shadow-lg shadow-green-500/20"
-                  : "bg-blue-500/20 border-blue-400 shadow-lg shadow-blue-500/20"
+                  : "bg-sky-500/20 border-sky-400 shadow-lg shadow-sky-500/30"
               }`}
               style={{
                 boxShadow: isPickup
                   ? "0 0 20px rgba(34, 197, 94, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.1)"
-                  : "0 0 20px rgba(59, 130, 246, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.1)",
+                  : "0 0 25px rgba(14, 165, 233, 0.5), 0 0 40px rgba(14, 165, 233, 0.2), inset 0 2px 4px rgba(255, 255, 255, 0.1)",
               }}
             >
               {isPickup ? (
                 <Target className="w-6 h-6 sm:w-7 sm:h-7 text-green-600 drop-shadow-sm" />
               ) : (
-                <MapPin className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600 drop-shadow-sm" />
+                <MapPin className="w-6 h-6 sm:w-7 sm:h-7 text-sky-600 drop-shadow-sm" />
               )}
             </div>
             <div className="flex-1 min-w-0">
@@ -607,12 +610,12 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
             className={`w-full h-12 sm:h-14 text-base sm:text-lg font-bold rounded-xl transition-all duration-300 transform hover:scale-[1.01] active:scale-[0.99] ${
               isPickup
                 ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-lg shadow-green-500/30"
-                : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/30"
+                : "bg-gradient-to-r from-sky-400 to-sky-600 hover:from-sky-500 hover:to-sky-700 shadow-lg shadow-sky-500/40"
             } disabled:opacity-50 disabled:cursor-not-allowed`}
             style={{
               boxShadow: isPickup
                 ? "0 4px 20px rgba(34, 197, 94, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)"
-                : "0 4px 20px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)",
+                : "0 4px 25px rgba(14, 165, 233, 0.5), 0 0 40px rgba(14, 165, 233, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)",
             }}
           >
             {isCheckingService ? (

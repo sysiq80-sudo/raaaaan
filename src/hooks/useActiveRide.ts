@@ -72,15 +72,25 @@ export const useActiveRide = (userId: string | null) => {
         // حفظ الرحلة المكتملة قبل مسحها لعرض شاشة التقييم
         if (newStatus === "completed") {
           const completedRideData = parseRideData(updatedRide);
-          setCompletedRide(completedRideData);
-          setShowCompletedScreen(true);
-          playSound("completed");
-          vibrate(VibrationPatterns.inProgress);
-          toast({
-            title: "🎉 تمت الرحلة بنجاح!",
-            description: "شكراً لاستخدامك ران - يرجى تقييم السائق",
-            duration: 5000,
-          });
+          
+          // ⚠️ إذا انتهت الرحلة بحالة طوارئ، لا تعرض شاشة التقييم
+          if (updatedRide.emergency_completed) {
+            console.log("🚨 Emergency completed - skipping rating screen");
+            // عدم عرض شاشة التقييم للرحلات المنتهية بالطوارئ
+            setCompletedRide(null);
+            setShowCompletedScreen(false);
+          } else {
+            // رحلة عادية - عرض شاشة التقييم
+            setCompletedRide(completedRideData);
+            setShowCompletedScreen(true);
+            playSound("completed");
+            vibrate(VibrationPatterns.inProgress);
+            toast({
+              title: "🎉 تمت الرحلة بنجاح!",
+              description: "شكراً لاستخدامك ران - يرجى تقييم السائق",
+              duration: 5000,
+            });
+          }
         }
 
         setActiveRide(null);
@@ -164,9 +174,11 @@ export const useActiveRide = (userId: string | null) => {
     [toast, parseRideData]
   );
 
-  // Check for active ride on mount
+  // Check for active ride on mount and continuously
   const checkActiveRide = useCallback(async () => {
     if (!userId) return;
+
+    console.log('[useActiveRide] 🔍 Checking for active ride...');
 
     const { data: rides, error } = await supabase
       .from("rides")
@@ -193,6 +205,7 @@ export const useActiveRide = (userId: string | null) => {
         setShowLiveTracker(true);
       }
     } else {
+      console.log('[useActiveRide] ✅ No active ride found - clearing state');
       setActiveRide(null);
       setShowLiveTracker(false);
       setShowWaitingScreen(false);
@@ -248,26 +261,31 @@ export const useActiveRide = (userId: string | null) => {
         console.log("[useActiveRide] Subscription status:", status);
       });
 
-    // Fallback polling every 10 seconds for critical updates (reduced from 5s)
+    // Fallback polling every 3 seconds for critical updates
     const pollInterval = setInterval(async () => {
-      if (!activeRide) return;
+      if (!activeRide) {
+        // إذا لم تكن هناك رحلة نشطة، تحقق من وجود رحلة جديدة
+        checkActiveRide();
+        return;
+      }
 
       const { data } = await supabase
         .from("rides")
-        .select("status, driver_id")
+        .select("status, driver_id, emergency_completed")
         .eq("id", activeRide.id)
         .single();
 
       if (data && data.status !== previousStatusRef.current) {
         console.log(
-          "[useActiveRide] Poll detected status change:",
+          "[useActiveRide] 🔄 Poll detected status change:",
           previousStatusRef.current,
           "->",
-          data.status
+          data.status,
+          "emergency:", data.emergency_completed
         );
         checkActiveRide();
       }
-    }, 10000); // Increased from 5000ms to 10000ms - realtime should handle most updates
+    }, 3000); // تحديث كل 3 ثوانٍ للاستجابة السريعة
 
     return () => {
       supabase.removeChannel(channel);

@@ -284,6 +284,39 @@ serve(async (req) => {
       );
     }
 
+    // Country check for geofencing - get country from coordinates
+    if (action === 'country-check') {
+      const lng = url.searchParams.get('lng');
+      const lat = url.searchParams.get('lat');
+
+      if (!lng || !lat) {
+        throw new Error('Missing coordinates');
+      }
+
+      console.log('Country check for geofencing:', { lat, lng });
+
+      // Use Mapbox reverse geocoding with country type
+      const geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=country&access_token=${MAPBOX_TOKEN}`;
+      
+      const response = await fetch(geocodeUrl);
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('Mapbox country check error:', data);
+        throw new Error(data.message || 'Failed to check country');
+      }
+
+      // Log API usage
+      logApiUsage('mapbox_country_check', '/country-check', { lat, lng });
+
+      console.log('Country check result:', data.features?.[0]?.properties?.short_code || 'unknown');
+
+      return new Response(
+        JSON.stringify(data),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     throw new Error('Invalid action');
 
   } catch (error) {

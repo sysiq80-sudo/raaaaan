@@ -894,20 +894,20 @@ const Map = forwardRef<MapRef, MapProps>(
       <div class="flex flex-col items-center dropoff-marker-animation" style="transform: translateY(-50%);">
         <!-- Pin Head -->
         <div class="relative">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-xl" style="background: linear-gradient(135deg, #3b82f6, #2563eb); box-shadow: 0 4px 15px rgba(59, 130, 246, 0.5);">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-xl" style="background: linear-gradient(135deg, #0ea5e9, #0284c7); box-shadow: 0 0 40px rgba(14, 165, 233, 0.9), 0 4px 25px rgba(14, 165, 233, 0.5), 0 0 0 3px rgba(255, 255, 255, 0.8), 0 0 0 5px rgba(14, 165, 233, 0.4); border: 3px solid rgba(255, 255, 255, 0.95);">
             <div class="w-4 h-4 rounded-full bg-white"></div>
           </div>
         </div>
         <!-- Pin Stem -->
-        <div class="w-1 h-6" style="background: linear-gradient(to bottom, #3b82f6, #2563eb);"></div>
+        <div class="w-1 h-6" style="background: linear-gradient(to bottom, #0ea5e9, #0284c7);"></div>
         <!-- Pin Point - This is the exact location -->
         <div class="relative">
-          <div class="absolute -inset-2 rounded-full animate-ping opacity-40" style="background: #3b82f6;"></div>
-          <div class="w-3 h-3 rounded-full border-2 border-white shadow-lg" style="background: #3b82f6;"></div>
+          <div class="absolute -inset-2 rounded-full animate-ping opacity-40" style="background: #0ea5e9;"></div>
+          <div class="w-3 h-3 rounded-full border-2 border-white shadow-lg" style="background: #0ea5e9; box-shadow: 0 0 15px rgba(14, 165, 233, 0.8);"></div>
         </div>
         ${
           draggableMarkers
-            ? '<p class="text-xs text-center mt-2 bg-card/90 backdrop-blur-sm px-2 py-1 rounded-lg text-blue-500 font-medium whitespace-nowrap shadow-md">اسحب للتعديل</p>'
+            ? '<p class="text-xs text-center mt-2 bg-card/90 backdrop-blur-sm px-2 py-1 rounded-lg text-sky-500 font-medium whitespace-nowrap shadow-md">اسحب للتعديل</p>'
             : ""
         }
       </div>
@@ -1261,7 +1261,7 @@ const Map = forwardRef<MapRef, MapProps>(
                   <Loader2 className="w-5 h-5 animate-spin mx-auto" />
                 ) : (
                   `تأكيد ${
-                    selectingLocation === "pickup" ? "موقع الانطلاق" : "الوجهة"
+                    selectingLocation === "pickup" ? "موقع الانطلاق" : "المكان المفضل"
                   }`
                 )}
               </button>

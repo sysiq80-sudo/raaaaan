@@ -534,3 +534,58 @@
 .dark .driver-info-popup .driver-popup div[style*="background: #f3f4f6"] {
   background: hsl(160 15% 8%) !important;
 }
+
+/* إصلاح أزرار التحكم في الخريطة */
+.mapboxgl-ctrl-group {
+  background: hsl(var(--card)) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  border-radius: 8px !important;
+  border: 1px solid hsl(var(--border)) !important;
+  z-index: 100 !important;
+  position: relative !important;
+}
+
+.mapboxgl-ctrl-group button {
+  background: transparent !important;
+  color: hsl(var(--foreground)) !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  position: relative !important;
+  z-index: 101 !important;
+}
+
+.mapboxgl-ctrl-group button:hover {
+  background: hsl(var(--accent)) !important;
+}
+
+.mapboxgl-ctrl-group button:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
+
+/* أيقونات الأزرار */
+.mapboxgl-ctrl-icon {
+  filter: invert(0.9) !important;
+}
+
+.dark .mapboxgl-ctrl-icon {
+  filter: invert(0.9) !important;
+}
+
+/* زر تحديد الموقع */
+.mapboxgl-ctrl-geolocate {
+  z-index: 100 !important;
+  position: relative !important;
+}
+
+.mapboxgl-ctrl-geolocate-active,
+.mapboxgl-ctrl-geolocate-waiting {
+  background-color: hsl(var(--primary)) !important;
+}
+
+.mapboxgl-ctrl-geolocate-active .mapboxgl-ctrl-icon,
+.mapboxgl-ctrl-geolocate-waiting .mapboxgl-ctrl-icon {
+  filter: brightness(2) !important;
+}
+

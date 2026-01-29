@@ -18,6 +18,16 @@ import NetworkStatusBar from "@/components/common/NetworkStatusBar";
 import StaticMapPlaceholder from "@/components/common/StaticMapPlaceholder";
 import RiderNotificationsBell from "@/components/rider/RiderNotificationsBell";
 import { motion, AnimatePresence } from "framer-motion";
+import { roundFare } from "@/lib/constants";
+import { useRiderStore } from "@/stores/riderStore";
+import { checkDestinationGeofence, type GeofenceResult } from "@/lib/geofencing";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // New custom hooks
 import { useRiderData } from "@/hooks/useRiderData";
@@ -97,6 +107,9 @@ const GoPage: React.FC = () => {
     setMenuOpen
   } = useRiderData();
 
+  // Get bottom nav state from store
+  const bottomNavEnabled = useRiderStore((state) => state.bottomNavEnabled);
+
   // Location picker
   const {
     mapContainer,
@@ -163,6 +176,8 @@ const GoPage: React.FC = () => {
   const [dropoffLocation, setDropoffLocation] = useState<LocationType | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [localServiceAreaStatus, setLocalServiceAreaStatus] = useState<any>(null);
+  const [geofenceResult, setGeofenceResult] = useState<GeofenceResult | null>(null);
+  const [showGeofenceAlert, setShowGeofenceAlert] = useState(false);
 
   // Fare calculation
   const {
@@ -184,6 +199,57 @@ const GoPage: React.FC = () => {
       setCenterAddress("");
     }
   }, [currentMode]);
+
+  // 🔄 تحديث تلقائي مستمر للخريطة
+  useEffect(() => {
+    if (!userId) return;
+
+    // تحديث فوري عند mount
+    const checkRide = async () => {
+      const { data } = await supabase
+        .from('rides')
+        .select('*')
+        .eq('rider_id', userId)
+        .in('status', ['pending', 'accepted', 'arrived', 'in_progress'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!data) {
+        // لا توجد رحلة نشطة - تأكد من إخفاء الشاشات
+        setShowWaitingScreen(false);
+        setShowLiveTracker(false);
+      }
+    };
+
+    checkRide();
+
+    // تحديث دوري كل 3 ثوانٍ
+    const interval = setInterval(checkRide, 3000);
+
+    // تحديث عند العودة للـ tab
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('📍 Page visible - checking ride status');
+        checkRide();
+      }
+    };
+
+    // تحديث عند focus على الصفحة
+    const handleFocus = () => {
+      console.log('📍 Page focused - checking ride status');
+      checkRide();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [userId, setShowWaitingScreen, setShowLiveTracker]);
 
   // Auto-focus search input when coming from saved places page
   useEffect(() => {
@@ -331,6 +397,16 @@ const GoPage: React.FC = () => {
         address: address
       };
       if (currentMode === "pickup") {
+        // فحص Geofencing لموقع الانطلاق
+        const geofenceCheck = await checkDestinationGeofence(center.lat, center.lng, mapToken);
+        
+        if (!geofenceCheck.allowed) {
+          // موقع الانطلاق خارج العراق - عرض رسالة
+          setGeofenceResult(geofenceCheck);
+          setShowGeofenceAlert(true);
+          return; // إيقاف العملية
+        }
+        
         setPickupLocation(location);
         setCurrentMode("dropoff");
         setCenterAddress("");
@@ -340,6 +416,17 @@ const GoPage: React.FC = () => {
           description: address
         });
       } else if (currentMode === "dropoff") {
+        // فحص Geofencing قبل تحديد الوجهة
+        const geofenceCheck = await checkDestinationGeofence(center.lat, center.lng, mapToken);
+        
+        if (!geofenceCheck.allowed) {
+          // الوجهة خارج العراق - عرض رسالة
+          setGeofenceResult(geofenceCheck);
+          setShowGeofenceAlert(true);
+          return; // إيقاف العملية
+        }
+        
+        // الوجهة داخل العراق - متابعة الحجز
         setDropoffLocation(location);
         setCurrentMode("booking");
         toast({
@@ -511,7 +598,7 @@ const GoPage: React.FC = () => {
         dropoff_address: dropoffLocation.address,
         vehicle_type: selectedVehicle,
         payment_method: paymentMethod,
-        estimated_fare: fareBreakdown?.total_fare || 0,
+        estimated_fare: roundFare(fareBreakdown?.total_fare || 0),
         distance_km: routeDistance ? Number(routeDistance.toFixed(2)) : null,
         duration_minutes: routeDuration ? Math.round(routeDuration) : null,
         status: "pending"
@@ -669,7 +756,7 @@ const GoPage: React.FC = () => {
                 </div>
                 <div className="w-px h-4 bg-border/30" />
                 <div className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-accent-foreground" />
+                  <Clock className="w-3.5 h-3.5" style={{color: '#2A6CD5'}} />
                   <span className="text-sm font-bold">
                     {routeDuration ? `${Math.round(routeDuration)} د` : "---"}
                   </span>
@@ -705,7 +792,7 @@ const GoPage: React.FC = () => {
           </div>
 
           {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-3">
+          <div className={`flex-1 overflow-y-auto px-4 space-y-3 ${bottomNavEnabled ? 'pb-40' : 'pb-6'}`}>
             {/* Route summary - Modern vertical timeline */}
             <motion.div initial={{
             y: 20,
@@ -718,8 +805,8 @@ const GoPage: React.FC = () => {
                 {/* Vertical connecting line */}
                 <div className="flex flex-col items-center gap-0">
                   <div className="w-3 h-3 rounded-full bg-primary ring-4 ring-primary/20" />
-                  <div className="w-0.5 flex-1 min-h-[32px] bg-gradient-to-b from-primary via-muted to-accent" />
-                  <div className="w-3 h-3 rounded-full bg-accent ring-4 ring-accent/20" />
+                  <div className="w-0.5 flex-1 min-h-[32px]" style={{background: 'linear-gradient(to bottom, hsl(var(--primary)), hsl(var(--muted)), #2A6CD5)'}} />
+                  <div className="w-3 h-3 rounded-full ring-4" style={{backgroundColor: '#2A6CD5', '--tw-ring-color': 'rgba(42, 108, 213, 0.2)'} as any} />
                 </div>
                 
                 {/* Locations */}
@@ -736,7 +823,7 @@ const GoPage: React.FC = () => {
                   
                   {/* Dropoff */}
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-accent-foreground font-bold mb-0.5">
+                    <p className="text-[10px] uppercase tracking-wider font-bold mb-0.5" style={{color: '#2A6CD5'}}>
                       الوجهة
                     </p>
                     <p className="text-sm font-semibold text-foreground line-clamp-1">
@@ -747,6 +834,46 @@ const GoPage: React.FC = () => {
               </div>
             </motion.div>
 
+            {/* Trip Info - Distance & Time */}
+            {fareBreakdown && (
+              <motion.div 
+                initial={{ y: 20, opacity: 0 }} 
+                animate={{ y: 0, opacity: 1 }} 
+                transition={{ delay: 0.1 }}
+                className="grid grid-cols-2 gap-2"
+              >
+                {/* Distance */}
+                <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 rounded-xl p-3 border border-blue-500/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">المسافة</span>
+                  </div>
+                  <p className="text-lg font-bold text-blue-600">
+                    {fareBreakdown.distance_km.toFixed(1)} <span className="text-xs font-medium">كم</span>
+                  </p>
+                </div>
+
+                {/* Estimated Time */}
+                <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 rounded-xl p-3 border border-purple-500/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">الوقت</span>
+                  </div>
+                  <p className="text-lg font-bold text-purple-600">
+                    {Math.ceil(fareBreakdown.distance_km * 2.5)} <span className="text-xs font-medium">دقيقة</span>
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
             {/* Vehicle selector */}
             <motion.div initial={{
             y: 20,
@@ -755,53 +882,68 @@ const GoPage: React.FC = () => {
             y: 0,
             opacity: 1
           }} transition={{
-            delay: 0.1
+            delay: 0.15
           }}>
               <CompactVehicleSelector selectedVehicle={selectedVehicle} onSelect={setSelectedVehicle} availableDrivers={availableDriversByType} baseFare={fareBreakdown?.total_fare} />
             </motion.div>
 
-            {/* Fare & Payment Row - Enhanced */}
-            <motion.div initial={{
-            y: 20,
-            opacity: 0
-          }} animate={{
-            y: 0,
-            opacity: 1
-          }} transition={{
-            delay: 0.2
-          }} className="flex gap-2">
-              {/* Fare summary */}
-              {fareBreakdown && <div className="flex-1 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl px-3 py-2.5 border border-primary/20 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Zap className="w-4 h-4 text-primary" />
-                    <span className="text-[11px] text-muted-foreground font-medium">
-                      الأجرة
-                    </span>
+            {/* Fare & Payment - Combined Card */}
+            <motion.div 
+              initial={{ y: 20, opacity: 0 }} 
+              animate={{ y: 0, opacity: 1 }} 
+              transition={{ delay: 0.2 }}
+              className="bg-gradient-to-br from-primary/5 via-primary/8 to-primary/10 rounded-2xl p-4 border border-primary/20 shadow-lg"
+            >
+              {/* Fare Display */}
+              {fareBreakdown && (
+                <div className="mb-3 pb-3 border-b border-primary/10">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center">
+                        <Zap className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">الأجرة المتوقعة</p>
+                        <p className="text-xs text-muted-foreground/70">{fareBreakdown.region_name}</p>
+                      </div>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-2xl font-bold text-primary">
+                        {roundFare(fareBreakdown.total_fare).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-muted-foreground">دينار عراقي</p>
+                    </div>
                   </div>
-                  <p className="font-bold text-base text-primary">
-                    {(fareBreakdown.total_fare || 0).toLocaleString()} <span className="text-xs font-medium">د.ع</span>
-                  </p>
-                </div>}
+                </div>
+              )}
 
-              {/* Payment method */}
-              <button onClick={() => setPaymentSheetOpen(true)} className="flex-1 bg-card rounded-xl px-3 py-2.5 border border-border/40 hover:border-primary/40 hover:bg-card/80 transition-all duration-200 active:scale-[0.98] flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <span className="text-sm">{paymentMethod === 'cash' ? '💵' : paymentMethod === 'wallet' ? '👛' : paymentMethod === 'card' ? '💳' : '📱'}</span>
+              {/* Payment Method Selector */}
+              <button 
+                onClick={() => setPaymentSheetOpen(true)} 
+                className="w-full bg-card/50 rounded-xl px-4 py-3 border border-border/40 hover:border-primary/40 hover:bg-card/80 transition-all duration-200 active:scale-[0.98] flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-lg">
+                    {paymentMethod === 'cash' ? '💵' : 
+                     paymentMethod === 'wallet' ? '👛' : 
+                     paymentMethod === 'card' ? '💳' : 
+                     paymentMethod === 'zain_cash' ? '📱' : 
+                     paymentMethod === 'super_key' ? '🔑' : 
+                     paymentMethod === 'nas_wallet' ? '💼' : '💵'}
                   </div>
-                  <span className="text-[11px] text-muted-foreground font-medium">الدفع</span>
+                  <div className="text-right">
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">طريقة الدفع</p>
+                    <p className="font-bold text-sm">
+                      {paymentMethod === 'cash' ? 'نقداً' : 
+                       paymentMethod === 'wallet' ? 'المحفظة' : 
+                       paymentMethod === 'card' ? 'البطاقة' : 
+                       paymentMethod === 'zain_cash' ? 'زين كاش' : 
+                       paymentMethod === 'super_key' ? 'سوبر كي' : 
+                       paymentMethod === 'nas_wallet' ? 'ناس ولت' : 'نقداً'}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <p className="font-bold text-sm">
-                    {paymentMethod === 'cash' ? 'نقداً' : 
-                     paymentMethod === 'wallet' ? 'المحفظة' : 
-                     paymentMethod === 'card' ? 'البطاقة' : 
-                     paymentMethod === 'zain_cash' ? 'زين كاش' : 
-                     paymentMethod === 'super_key' ? 'سوبر كي' : 
-                     paymentMethod === 'nas_wallet' ? 'ناس ولت' : 'نقداً'}
-                  </p>
-                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                </div>
+                <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </button>
             </motion.div>
 
@@ -825,8 +967,29 @@ const GoPage: React.FC = () => {
             </motion.div>
           </div>
 
-          {/* Book button - Fixed at bottom */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-background/98 backdrop-blur-md border-t border-border/20 safe-area-bottom">
+          {/* Book button - Conditional positioning */}
+          {!bottomNavEnabled && (
+            <div className="px-4 pb-6">
+              <div className="max-w-lg mx-auto">
+                <Button onClick={handleBookRide} disabled={isBooking || fareLoading} className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground">
+                  {isBooking ? <span className="flex items-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      جاري الحجز...
+                    </span> : <span className="flex items-center gap-3 justify-center">
+                      <Navigation className="w-5 h-5" />
+                      <span>احجز الآن</span>
+                      <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
+                        {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
+                      </span>
+                    </span>}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Book button - Fixed at bottom when nav is visible */}
+          {bottomNavEnabled && (
+            <div className="fixed bottom-20 left-0 right-0 p-4 bg-background/98 backdrop-blur-md border-t border-border/20 z-40">
             <div className="max-w-lg mx-auto">
               <Button onClick={handleBookRide} disabled={isBooking || fareLoading} className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground">
                 {isBooking ? <span className="flex items-center gap-2">
@@ -836,12 +999,13 @@ const GoPage: React.FC = () => {
                     <Navigation className="w-5 h-5" />
                     <span>احجز الآن</span>
                     <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
-                      {fareBreakdown?.total_fare?.toLocaleString() || "---"} د.ع
+                      {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
                     </span>
                   </span>}
               </Button>
             </div>
           </div>
+          )}
         </div>
 
         {/* Payment Method Sheet */}
@@ -951,7 +1115,7 @@ const GoPage: React.FC = () => {
             stiffness: 300
           }} className="relative">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-xl border-3 border-white ${isPickup ? "bg-gradient-to-br from-primary/90 to-primary" : "bg-gradient-to-br from-accent to-accent"}`}>
-                {isPickup ? <Target className="w-5 h-5 text-primary-foreground" /> : <MapPin className="w-5 h-5 text-accent-foreground" />}
+                {isPickup ? <Target className="w-5 h-5 text-primary-foreground" /> : <MapPin className="w-5 h-5" style={{color: '#2A6CD5'}} />}
               </div>
               <div className={`w-1 h-8 mx-auto rounded-b-full ${isPickup ? "bg-gradient-to-b from-primary to-primary/80" : "bg-gradient-to-b from-accent to-accent/80"}`} />
               {/* Shadow */}
@@ -996,7 +1160,7 @@ const GoPage: React.FC = () => {
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-12 h-1.5 rounded-full bg-muted-foreground/25" />
         </div>
-        <div className="px-4 pb-4 pt-1 max-w-lg mx-auto">
+        <div className="px-4 pb-[120px] pt-1 max-w-lg mx-auto">
           {/* Service area warning */}
           {localServiceAreaStatus && !localServiceAreaStatus.in_service && <div className="flex items-center gap-3 p-3 mb-3 rounded-md bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/30">
               <div className="w-8 h-8 rounded-md bg-destructive/20 flex items-center justify-center shrink-0">
@@ -1016,23 +1180,31 @@ const GoPage: React.FC = () => {
           {/* Address display - Modern design */}
           <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-gradient-to-r from-card to-card/80 border border-border/40 shadow-sm">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPickup ? "bg-gradient-to-br from-primary/20 to-primary/10 ring-2 ring-primary/30" : "bg-gradient-to-br from-accent/20 to-accent/10 ring-2 ring-accent/30"}`}>
-              {isPickup ? <Target className="w-5 h-5 text-primary" /> : <MapPin className="w-5 h-5 text-accent-foreground" />}
+              {isPickup ? <Target className="w-5 h-5 text-primary" /> : <MapPin className="w-5 h-5" style={{color: '#2A6CD5'}} />}
             </div>
             <div className="flex-1 min-w-0">
-              <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${isPickup ? "text-primary" : "text-accent-foreground"}`}>
+              <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${isPickup ? "text-primary" : ""}`} style={!isPickup ? {color: '#2A6CD5'} : {}}>
                 {isPickup ? "موقع الانطلاق" : "الوجهة"}
               </p>
               <p className="font-semibold text-foreground text-sm line-clamp-1">
                 {centerAddress || "جاري تحديد العنوان..."}
               </p>
             </div>
-            {centerAddress && <div className={`w-2 h-2 rounded-full animate-pulse ${isPickup ? "bg-primary" : "bg-accent"}`} />}
+            {centerAddress && <div className={`w-2 h-2 rounded-full animate-pulse`} style={{backgroundColor: isPickup ? '' : '#2A6CD5'}} />}
           </div>
 
           {/* Search input - Enhanced */}
           <div className="mb-3">
             <div className="relative">
-              <LocationSearchInput ref={searchInputRef} placeholder={isPickup ? "ابحث عن موقع الانطلاق..." : "ابحث عن الوجهة..."} value={searchQuery} onChange={setSearchQuery} onLocationSelect={location => {
+              <LocationSearchInput ref={searchInputRef} placeholder={isPickup ? "ابحث عن موقع الانطلاق..." : "ابحث عن الوجهة..."} value={searchQuery} onChange={setSearchQuery} onLocationSelect={async (location) => {
+              // فحص Geofencing لكل من pickup و dropoff
+              const geofenceCheck = await checkDestinationGeofence(location.lat, location.lng, mapToken);
+              if (!geofenceCheck.allowed) {
+                setGeofenceResult(geofenceCheck);
+                setShowGeofenceAlert(true);
+                return; // إيقاف العملية
+              }
+              
               handleSearchSelect(location);
               if (map.current) {
                 map.current.flyTo({
@@ -1056,8 +1228,17 @@ const GoPage: React.FC = () => {
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
                 {loadingSavedPlaces ? <div className="flex gap-2">
                     {[1, 2, 3].map(i => <div key={i} className="w-20 h-20 rounded-xl bg-muted/50 animate-pulse" />)}
-                  </div> : savedPlaces.map(place => <button key={place.id} onClick={() => {
+                  </div> : savedPlaces.map(place => <button key={place.id} onClick={async () => {
               const location = handleSavedPlaceSelect(place);
+              
+              // فحص Geofencing لكل من pickup و dropoff
+              const geofenceCheck = await checkDestinationGeofence(location.lat, location.lng, mapToken);
+              if (!geofenceCheck.allowed) {
+                setGeofenceResult(geofenceCheck);
+                setShowGeofenceAlert(true);
+                return; // إيقاف العملية
+              }
+              
               if (map.current) {
                 map.current.flyTo({
                   center: [location.lng, location.lat],
@@ -1107,6 +1288,42 @@ const GoPage: React.FC = () => {
       await supabase.auth.signOut();
       navigate("/auth");
     }} />
+
+      {/* Geofencing Alert Dialog */}
+      <AnimatePresence>
+        {showGeofenceAlert && geofenceResult && (
+          <Dialog open={showGeofenceAlert} onOpenChange={setShowGeofenceAlert}>
+            <DialogContent className="sm:max-w-md">
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              >
+                <DialogHeader>
+                  <DialogTitle className="text-center text-xl">
+                    {geofenceResult.isIran ? "🙏" : geofenceResult.isIsland ? "✈️🚢" : geofenceResult.isFar ? "✈️" : "🚗✨"}
+                  </DialogTitle>
+                  <DialogDescription className="text-center text-base leading-relaxed pt-2">
+                    {geofenceResult.message}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="mt-6">
+                  <Button
+                    onClick={() => {
+                      setShowGeofenceAlert(false);
+                      setGeofenceResult(null);
+                    }}
+                    className="w-full h-12 text-base font-bold rounded-xl"
+                  >
+                    فهمت 👌
+                  </Button>
+                </div>
+              </motion.div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </AnimatePresence>
     </div>;
 };
 export default GoPage;

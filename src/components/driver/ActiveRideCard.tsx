@@ -7,13 +7,20 @@ import { NavigationButton } from "./NavigationButton";
 import { ActiveRideMap } from "./ActiveRideMap";
 import { DriverRideCompleted } from "./DriverRideCompleted";
 import { ChatButton } from "@/components/ride/RideChat";
+import { DriverEmergencyButton } from "./DriverEmergencyButton";
 import { logger } from "@/lib/logger";
+import { roundFare } from "@/lib/constants";
 import {
   playSound,
   vibrate,
   VibrationPatterns,
   showNotification,
 } from "@/utils/rideNotificationSounds";
+import {
+  validateDriverAtPickup,
+  validateDriverAtDropoff,
+  getCurrentLocationHighAccuracy,
+} from "@/lib/gpsValidation";
 import {
   MapPin,
   Clock,
@@ -653,6 +660,41 @@ export const ActiveRideCard = ({
     setLoading(true);
 
     try {
+      // التحقق من الموقع الحالي بدقة عالية
+      let currentLocation: { lat: number; lng: number };
+      
+      if (driverLocation) {
+        currentLocation = driverLocation;
+      } else {
+        toast({
+          title: "جاري تحديد موقعك...",
+          description: "يرجى الانتظار",
+        });
+        
+        const position = await getCurrentLocationHighAccuracy();
+        currentLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+      }
+
+      // التحقق من المسافة (يجب أن يكون ضمن 100م)
+      const validation = validateDriverAtPickup(
+        currentLocation,
+        activeRide.pickup_location,
+        100
+      );
+
+      if (!validation.isValid) {
+        toast({
+          title: "⚠️ لم تصل بعد",
+          description: validation.message,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       // ⚡ INSTANT: Send broadcast FIRST for immediate rider notification
       console.log("[Driver] ⚡ Sending instant arrived broadcast");
       await notifyRider("driver_arrived", "السائق وصل لموقعك!", {
@@ -673,7 +715,7 @@ export const ActiveRideCard = ({
 
       toast({
         title: "تم تأكيد الوصول ✅",
-        description: "تم إبلاغ العميل - في انتظار ركوبه",
+        description: `تم إبلاغ العميل - المسافة: ${Math.round(validation.distance)}م`,
       });
     } catch (error: any) {
       toast({
@@ -738,6 +780,41 @@ export const ActiveRideCard = ({
     setLoading(true);
 
     try {
+      // التحقق من الموقع الحالي بدقة عالية
+      let currentLocation: { lat: number; lng: number };
+      
+      if (driverLocation) {
+        currentLocation = driverLocation;
+      } else {
+        toast({
+          title: "جاري تحديد موقعك...",
+          description: "يرجى الانتظار",
+        });
+        
+        const position = await getCurrentLocationHighAccuracy();
+        currentLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+      }
+
+      // التحقق من المسافة (يجب أن يكون ضمن 150م من الوجهة)
+      const validation = validateDriverAtDropoff(
+        currentLocation,
+        activeRide.dropoff_location,
+        150
+      );
+
+      if (!validation.isValid) {
+        toast({
+          title: "⚠️ لم تصل للوجهة بعد",
+          description: validation.message,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       const waitingMinutes =
         activeRide.status === "arrived"
           ? Math.floor(
@@ -953,6 +1030,11 @@ export const ActiveRideCard = ({
               </div>
             </div>
             <div className="flex gap-2">
+              {/* Emergency Button */}
+              <DriverEmergencyButton
+                rideId={activeRide.id}
+                currentLocation={driverLocation}
+              />
               {/* Chat Button */}
               <ChatButton rideId={activeRide.id} userType="driver" />
               <Button
@@ -1075,7 +1157,7 @@ export const ActiveRideCard = ({
             <div className="text-center">
               <Wallet className="w-4 h-4 text-primary mx-auto mb-1" />
               <p className="font-bold text-primary">
-                {(activeRide.estimated_fare || 0).toLocaleString()} د.ع
+                {roundFare(activeRide.estimated_fare || 0).toLocaleString()} د.ع
               </p>
             </div>
           </div>

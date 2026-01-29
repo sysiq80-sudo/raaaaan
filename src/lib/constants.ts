@@ -177,8 +177,8 @@ export const MAP_CONFIG = {
     clusterMaxZoom: 14,
     driverRefreshInterval: 5000, // 5 ثوان
     routeColor: '#00d9a5',
-    pickupMarkerColor: '#00d9a5',
-    dropoffMarkerColor: '#3b82f6',
+    pickupMarkerColor: '#22c55e', // أخضر للانطلاق 🟢
+    dropoffMarkerColor: '#2A6CD5', // أزرق مضيء للوجهة 🔵
     driverMarkerColor: '#3b82f6',
 } as const;
 
@@ -213,11 +213,14 @@ export const MESSAGES = {
 
 // أرقام الطوارئ
 export const EMERGENCY_CONTACTS = {
-    police: '104',
-    ambulance: '115',
-    civilDefense: '115',
+    emergency: '911', // رقم الطوارئ الموحد
     appSupport: '+964 7734446636',
 } as const;
+
+// دالة تقريب الأسعار لأقرب 250 دينار
+export const roundFare = (fare: number): number => {
+    return Math.round(fare / 250) * 250;
+};
 
 // Types
 export type VehicleType = keyof typeof VEHICLE_TYPES;

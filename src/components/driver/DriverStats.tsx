@@ -64,8 +64,6 @@ export const DriverStats = ({ driverId }: DriverStatsProps) => {
     lastWeekEarnings: 0,
     lastMonthEarnings: 0
   });
-  const [activeTab, setActiveTab] = useState<'today' | 'week' | 'month'>('today');
-  const [chartData, setChartData] = useState<DailyData[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchStats = useCallback(async () => {
@@ -204,224 +202,86 @@ export const DriverStats = ({ driverId }: DriverStatsProps) => {
     return () => clearInterval(interval);
   }, [fetchStats]);
 
-  const getDisplayData = () => {
-    switch (activeTab) {
-      case 'today':
-        return { 
-          earnings: stats.todayEarnings, 
-          rides: stats.todayRides, 
-          label: 'اليوم',
-          comparison: stats.yesterdayEarnings,
-          comparisonLabel: 'أمس'
-        };
-      case 'week':
-        return { 
-          earnings: stats.weekEarnings, 
-          rides: stats.weekRides, 
-          label: 'الأسبوع',
-          comparison: stats.lastWeekEarnings,
-          comparisonLabel: 'الأسبوع الماضي'
-        };
-      case 'month':
-        return { 
-          earnings: stats.monthEarnings, 
-          rides: stats.monthRides, 
-          label: 'الشهر',
-          comparison: stats.lastMonthEarnings,
-          comparisonLabel: 'الشهر الماضي'
-        };
-    }
-  };
-
-  const displayData = getDisplayData();
   const dailyProgress = Math.min((stats.todayEarnings / DAILY_GOAL) * 100, 100);
   
-  // Calculate trend
-  const trend = displayData.comparison > 0 
-    ? ((displayData.earnings - displayData.comparison) / displayData.comparison) * 100 
-    : displayData.earnings > 0 ? 100 : 0;
+  // Calculate trend vs yesterday
+  const trend = stats.yesterdayEarnings > 0 
+    ? ((stats.todayEarnings - stats.yesterdayEarnings) / stats.yesterdayEarnings) * 100 
+    : stats.todayEarnings > 0 ? 100 : 0;
   const isTrendUp = trend >= 0;
 
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-12 bg-secondary rounded-xl" />
-        <div className="grid grid-cols-2 gap-4">
-          <div className="h-32 bg-secondary rounded-xl" />
-          <div className="h-32 bg-secondary rounded-xl" />
-        </div>
+        <div className="h-32 bg-secondary rounded-xl" />
+        <div className="h-24 bg-secondary rounded-xl" />
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {/* Tab Selector */}
-      <div className="flex gap-2 p-1 bg-secondary rounded-xl">
-        {(['today', 'week', 'month'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab 
-                ? 'bg-primary text-primary-foreground shadow-md' 
-                : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'
-            }`}
-          >
-            {tab === 'today' ? 'اليوم' : tab === 'week' ? 'الأسبوع' : 'الشهر'}
-          </button>
-        ))}
-      </div>
-
-      {/* Main Earnings Card with Chart */}
-      <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-primary/20 overflow-hidden">
-        <CardContent className="p-4">
+      {/* Today's Earnings Card - Simplified */}
+      <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-primary/20">
+        <CardContent className="p-5">
           <div className="flex items-start justify-between mb-3">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                  <DollarSign className="w-4 h-4 text-primary" />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                  <DollarSign className="w-5 h-5 text-primary" />
                 </div>
-                <span className="text-sm text-muted-foreground">أرباح {displayData.label}</span>
+                <span className="text-sm font-medium text-muted-foreground">أرباح اليوم</span>
               </div>
-              <p className="text-3xl font-bold text-foreground">
-                {displayData.earnings.toLocaleString()}
+              <p className="text-4xl font-bold text-foreground">
+                {stats.todayEarnings.toLocaleString()}
               </p>
-              <p className="text-xs text-muted-foreground">دينار عراقي</p>
+              <p className="text-sm text-muted-foreground mt-1">دينار عراقي</p>
             </div>
             
             {/* Trend Indicator */}
-            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+            <div className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium ${
               isTrendUp ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'
             }`}>
-              {isTrendUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              {isTrendUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
               <span>{Math.abs(trend).toFixed(0)}%</span>
             </div>
           </div>
 
-          {/* Mini Chart */}
-          {chartData.length > 0 && activeTab !== 'today' && (
-            <div className="h-16 mt-2 -mx-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="colorEarnings" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <Area 
-                    type="monotone" 
-                    dataKey="earnings" 
-                    stroke="hsl(var(--primary))" 
-                    fillOpacity={1}
-                    fill="url(#colorEarnings)"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
-            <span className="flex items-center gap-1">
-              <Car className="w-3 h-3" />
-              {displayData.rides} رحلة
+          <div className="flex items-center justify-between pt-3 border-t border-border">
+            <span className="text-sm text-muted-foreground flex items-center gap-1">
+              <Car className="w-4 h-4" />
+              {stats.todayRides} رحلة اليوم
             </span>
-            <span>
-              مقارنة بـ {displayData.comparisonLabel}: {displayData.comparison.toLocaleString()}
+            <span className="text-sm text-muted-foreground">
+              أمس: {stats.yesterdayEarnings.toLocaleString()} د.ع
             </span>
           </div>
         </CardContent>
       </Card>
 
-      {/* Daily Goal Progress - Only show for today */}
-      {activeTab === 'today' && (
-        <Card className="border-border/50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">هدف اليوم</span>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {stats.todayEarnings.toLocaleString()} / {DAILY_GOAL.toLocaleString()}
-              </span>
+      {/* Daily Goal Progress */}
+      <Card className="border-border/50">
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Target className="w-5 h-5 text-primary" />
+              <span className="text-sm font-medium">هدف اليوم</span>
             </div>
-            <Progress value={dailyProgress} className="h-2" />
-            <div className="flex items-center justify-between mt-2 text-xs">
-              <span className="text-muted-foreground">
-                متبقي {Math.max(0, DAILY_GOAL - stats.todayEarnings).toLocaleString()} د.ع
-              </span>
-              <span className={dailyProgress >= 100 ? "text-emerald-500 font-medium" : "text-muted-foreground"}>
-                {dailyProgress >= 100 ? "🎉 تم تحقيق الهدف!" : `${dailyProgress.toFixed(0)}%`}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
-              </div>
-              <span className="text-sm text-muted-foreground">مكتملة</span>
-            </div>
-            <p className="text-2xl font-bold text-foreground">
-              {displayData.rides}
-            </p>
-            <p className="text-xs text-muted-foreground">رحلة {displayData.label}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-amber-500/10 to-amber-500/5 border-amber-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
-                <TrendingUp className="w-4 h-4 text-amber-500" />
-              </div>
-              <span className="text-sm text-muted-foreground">متوسط الأجرة</span>
-            </div>
-            <p className="text-2xl font-bold text-foreground">
-              {stats.avgFare.toLocaleString()}
-            </p>
-            <p className="text-xs text-muted-foreground">د.ع / رحلة</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Secondary Stats - Only for today */}
-      {activeTab === 'today' && (
-        <div className="grid grid-cols-3 gap-3">
-          <Card>
-            <CardContent className="p-3 text-center">
-              <XCircle className="w-5 h-5 text-destructive mx-auto mb-1" />
-              <p className="text-lg font-bold text-foreground">{stats.cancelledToday}</p>
-              <p className="text-xs text-muted-foreground">ملغاة</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3 text-center">
-              <Calendar className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-              <p className="text-lg font-bold text-foreground">{stats.weekRides}</p>
-              <p className="text-xs text-muted-foreground">الأسبوع</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3 text-center">
-              <Clock className="w-5 h-5 text-purple-500 mx-auto mb-1" />
-              <p className="text-lg font-bold text-foreground">{stats.monthRides}</p>
-              <p className="text-xs text-muted-foreground">الشهر</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            <span className="text-xs text-muted-foreground">
+              {stats.todayEarnings.toLocaleString()} / {DAILY_GOAL.toLocaleString()} د.ع
+            </span>
+          </div>
+          <Progress value={dailyProgress} className="h-3" />
+          <div className="flex items-center justify-between mt-3 text-sm">
+            <span className="text-muted-foreground">
+              متبقي {Math.max(0, DAILY_GOAL - stats.todayEarnings).toLocaleString()} د.ع
+            </span>
+            <span className={dailyProgress >= 100 ? "text-emerald-500 font-medium" : "text-muted-foreground"}>
+              {dailyProgress >= 100 ? "🎉 تم تحقيق الهدف!" : `${dailyProgress.toFixed(0)}%`}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

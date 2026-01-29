@@ -80,6 +80,37 @@ const DriverHome = () => {
   const { notificationPermission, requestNotificationPermission } =
     useDriverNotifications(isOnline ? driverId : null, vehicleType);
 
+  // Auto-request notification permission on first load for approved drivers
+  useEffect(() => {
+    const autoRequestNotifications = async () => {
+      // Only for approved drivers who haven't been asked yet
+      if (!driverId || driverStatus !== "approved") return;
+      if (typeof window === "undefined" || !("Notification" in window)) return;
+      
+      // Check if already asked (not default)
+      if (Notification.permission !== "default") return;
+
+      // Check if already shown before (using localStorage)
+      const hasAskedBefore = localStorage.getItem(`notification_asked_${driverId}`);
+      if (hasAskedBefore) return;
+
+      // Wait a bit for better UX (2 seconds after load)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Mark as asked
+      localStorage.setItem(`notification_asked_${driverId}`, "true");
+
+      // Request permission
+      try {
+        await requestNotificationPermission();
+      } catch (error) {
+        console.error("Auto notification request error:", error);
+      }
+    };
+
+    autoRequestNotifications();
+  }, [driverId, driverStatus, requestNotificationPermission]);
+
   // Location ref for stable reference in interval
   const latestLocationRef = useRef<{ lat: number; lng: number } | null>(null);
 
@@ -532,18 +563,15 @@ const DriverHome = () => {
 
           {/* Driver Status Warning - Hidden, functionality moved to DriverAlerts button */}
 
-          {/* Push Notifications Setup - High Priority */}
+          {/* Online/Offline Status Card - TOP PRIORITY (Full Width) */}
           {driverId && driverStatus === "approved" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <NotificationSetup driverId={driverId} isOnline={isOnline} />
-
-              <Card
-                className={`border-2 transition-all duration-300 shadow-xl ${
-                  isOnline
-                    ? "border-green-500 bg-gradient-to-br from-gray-800 to-gray-900"
-                    : "border-blue-500/50 bg-gradient-to-br from-gray-800 to-gray-900"
-                }`}
-              >
+            <Card
+              className={`border-2 transition-all duration-300 shadow-xl ${
+                isOnline
+                  ? "border-green-500 bg-gradient-to-br from-gray-800 to-gray-900"
+                  : "border-blue-500/50 bg-gradient-to-br from-gray-800 to-gray-900"
+              }`}
+            >
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 flex-1">
@@ -644,8 +672,7 @@ const DriverHome = () => {
                   )}
                 </CardContent>
               </Card>
-            </div>
-          )}
+            )}
 
           {/* Only show ride features when approved and activated */}
           {driverId && adminActivated && driverStatus === "approved" && (
@@ -675,8 +702,13 @@ const DriverHome = () => {
             </>
           )}
 
-          {/* Stats - always show */}
-          {driverId && <DriverStats driverId={driverId} />}
+          {/* Today's Earnings & Goals - Simplified */}
+          {driverId && (
+            <>
+              {/* This will be replaced with simplified today stats */}
+              <DriverStats driverId={driverId} />
+            </>
+          )}
 
           {/* Recent Rides - always show */}
           {driverId && <RecentRides driverId={driverId} />}

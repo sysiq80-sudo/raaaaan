@@ -24,7 +24,9 @@ import {
   Ban,
   Calendar,
   Star,
-  Wallet
+  Wallet,
+  AlertTriangle,
+  FileText
 } from "lucide-react";
 import { formatDistanceToNow, subDays, startOfDay, endOfDay } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -471,6 +473,66 @@ const AdminDashboard = () => {
             </Button>
             <Button variant="outline" className="w-full justify-start" size="sm" onClick={() => navigate("/admin/settings")}>
               <UserCog className="w-4 h-4 ml-2" /> الإعدادات
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Emergency System Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Card className="border-yellow-500/30 bg-yellow-500/5 cursor-pointer hover:shadow-lg transition-all" onClick={() => navigate("/admin/stopped-rides")}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                رحلات متوقفة
+              </CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground text-sm mb-2">
+              الرحلات المتوقفة لأكثر من 5 دقائق
+            </p>
+            <Button variant="outline" size="sm" className="w-full">
+              عرض الرحلات المتوقفة
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-red-500/30 bg-red-500/5 cursor-pointer hover:shadow-lg transition-all" onClick={() => navigate("/admin/complaints")}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="w-5 h-5 text-red-600" />
+                الشكاوى
+              </CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground text-sm mb-2">
+              شكاوى المستخدمين والقرارات المالية
+            </p>
+            <Button variant="outline" size="sm" className="w-full">
+              إدارة الشكاوى
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-blue-500/30 bg-blue-500/5 cursor-pointer hover:shadow-lg transition-all" onClick={() => navigate("/admin/emergency-settings")}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <UserCog className="w-5 h-5 text-blue-600" />
+                إعدادات الطوارئ
+              </CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground text-sm mb-2">
+              تخصيص معايير الكشف والحدود
+            </p>
+            <Button variant="outline" size="sm" className="w-full">
+              تعديل الإعدادات
             </Button>
           </CardContent>
         </Card>

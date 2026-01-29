@@ -60,25 +60,21 @@ export const playSound = (type: keyof typeof SoundTypes) => {
 type PlayToneFn = (freq: number, startTime: number, duration: number, type?: OscillatorType, volume?: number) => void;
 
 const SoundTypes = {
-  // Happy ascending melody - Driver accepted
+  // نغمة احترافية ناعمة - تم قبول الطلب من السائق
   accepted: (playTone: PlayToneFn, now: number) => {
-    playTone(523, now, 0.12);           // C5
-    playTone(587, now + 0.1, 0.12);     // D5
-    playTone(659, now + 0.2, 0.12);     // E5
-    playTone(784, now + 0.32, 0.15);    // G5
-    playTone(1047, now + 0.5, 0.25);    // C6 (high happy finish)
+    playTone(440, now, 0.15, 'sine', 0.4);      // A4
+    playTone(554, now + 0.12, 0.15, 'sine', 0.45); // C#5
+    playTone(659, now + 0.25, 0.2, 'sine', 0.5);   // E5
+    playTone(880, now + 0.4, 0.3, 'sine', 0.5);    // A5 (نهاية ناعمة)
   },
 
-  // Urgent double chime - Driver arrived
+  // نغمة تنبيه واضحة - وصل السائق
   arrived: (playTone: PlayToneFn, now: number, gainNode: GainNode) => {
-    gainNode.gain.value = 0.8;
-    playTone(880, now, 0.12);            // A5
-    playTone(1046, now + 0.1, 0.12);     // C6
-    playTone(880, now + 0.25, 0.12);     // A5
-    playTone(1046, now + 0.35, 0.12);    // C6
-    playTone(1318, now + 0.5, 0.2);      // E6 (high alert)
-    playTone(1568, now + 0.7, 0.25);     // G6 (very high)
-    playTone(1046, now + 0.9, 0.15);     // C6
+    gainNode.gain.value = 0.6;
+    playTone(698, now, 0.15, 'sine', 0.6);       // F5
+    playTone(880, now + 0.12, 0.15, 'sine', 0.65); // A5
+    playTone(1047, now + 0.28, 0.2, 'sine', 0.7);  // C6
+    playTone(880, now + 0.5, 0.25, 'sine', 0.6);   // A5 (تكرار ناعم)
   },
 
   // Smooth starting melody - Ride started
@@ -247,8 +243,8 @@ export const showNotification = async (title: string, body: string, options?: {
   if ('Notification' in window && Notification.permission === 'granted') {
     const notification = new Notification(title, {
       body,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
+      icon: '/logo.png',
+      badge: '/logo.png',
       tag: options?.tag || 'ride-notification',
       requireInteraction: options?.requireInteraction || false
     });

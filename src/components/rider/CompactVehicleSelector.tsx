@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Car, Armchair, Crown, Users } from "lucide-react";
+import { roundFare } from "@/lib/constants";
 
 type VehicleType = "economy" | "comfort" | "premium" | "women_only";
 
@@ -128,36 +129,36 @@ const CompactVehicleSelector = ({
               <motion.span
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className={`text-xs relative z-10 ${
+                className={`text-xs font-semibold relative z-10 ${
                   isSelected
-                    ? "text-primary font-bold"
+                    ? "text-primary"
                     : "text-muted-foreground"
                 }`}
               >
-                {(fare / 1000).toFixed(1)}K
+                {roundFare(fare).toLocaleString()} د.ع
               </motion.span>
             )}
 
-            {/* Unavailable badge */}
-            {isUnavailable && (
-              <span className="text-[10px] text-muted-foreground relative z-10">
-                غير متوفر
-              </span>
-            )}
-
-            {/* Driver count indicator */}
+            {/* Driver count badge - enhanced */}
             {!isUnavailable && driverCount > 0 && (
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="absolute top-1 left-1"
+                className={`mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium relative z-10 ${
+                  isSelected
+                    ? "bg-primary/20 text-primary"
+                    : "bg-muted text-muted-foreground"
+                }`}
               >
-                <div className="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center">
-                  <span className="text-[9px] font-bold text-success">
-                    {driverCount > 9 ? "9+" : driverCount}
-                  </span>
-                </div>
+                {driverCount} متاح
               </motion.div>
+            )}
+
+            {/* Unavailable badge */}
+            {isUnavailable && (
+              <span className="text-[10px] text-muted-foreground relative z-10 mt-1">
+                غير متوفر
+              </span>
             )}
           </motion.button>
         );

@@ -181,14 +181,14 @@ export const RideChat = ({ rideId, userType, rideStatus }: RideChatProps) => {
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent side="bottom" className="h-[80vh]">
-        <SheetHeader>
+      <SheetContent side="bottom" className="h-[85vh] max-h-[85vh] flex flex-col p-0">
+        <SheetHeader className="px-6 py-4 border-b flex-shrink-0">
           <SheetTitle>المحادثة</SheetTitle>
         </SheetHeader>
 
-        <div className="flex flex-col h-full pt-4">
+        <div className="flex flex-col flex-1 overflow-hidden px-6">
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto space-y-3 pb-4">
+          <div className="flex-1 overflow-y-auto space-y-3 py-4">
             {messages.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
                 لا توجد رسائل بعد
@@ -227,33 +227,43 @@ export const RideChat = ({ rideId, userType, rideStatus }: RideChatProps) => {
           </div>
 
           {/* Quick messages */}
-          <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-hide">
-            {QUICK_MESSAGES[userType].map((msg) => (
-              <Button
-                key={msg}
-                variant="outline"
-                size="sm"
-                className="flex-shrink-0 text-xs"
-                onClick={() => sendMessage(msg)}
-                disabled={sending}
-              >
-                {msg}
-              </Button>
-            ))}
-          </div>
+          {!chatEnded && (
+            <div className="flex gap-2 overflow-x-auto py-3 scrollbar-hide border-t flex-shrink-0">
+              {QUICK_MESSAGES[userType].map((msg) => (
+                <Button
+                  key={msg}
+                  variant="outline"
+                  size="sm"
+                  className="flex-shrink-0 text-xs whitespace-nowrap"
+                  onClick={() => sendMessage(msg)}
+                  disabled={sending}
+                >
+                  {msg}
+                </Button>
+              ))}
+            </div>
+          )}
 
           {/* Input */}
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="اكتب رسالة..."
-              disabled={sending}
-            />
-            <Button type="submit" disabled={sending || !newMessage.trim()}>
-              <Send className="h-4 w-4" />
-            </Button>
-          </form>
+          {!chatEnded && (
+            <form onSubmit={handleSubmit} className="flex gap-2 py-4 border-t flex-shrink-0">
+              <Input
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="اكتب رسالة..."
+                disabled={sending}
+                className="flex-1"
+              />
+              <Button 
+                type="submit" 
+                size="icon"
+                disabled={sending || !newMessage.trim()}
+                className="flex-shrink-0"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
+          )}
         </div>
       </SheetContent>
     </Sheet>

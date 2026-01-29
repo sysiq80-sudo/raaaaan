@@ -27,6 +27,7 @@ import RiderPaymentsPage from "./pages/rider/RiderPaymentsPage";
 import WalletTopupPage from "./pages/rider/WalletTopupPage";
 import RiderSavedPlacesPage from "./pages/rider/RiderSavedPlacesPage";
 import RiderSettingsPage from "./pages/rider/RiderSettingsPage";
+import RiderLayout from "./components/rider/RiderLayout";
 
 // Driver Pages
 import DriverHome from "./pages/driver/DriverHome";
@@ -73,6 +74,9 @@ import AdminSMSLogs from "./pages/admin/AdminSMSLogs";
 import AdminDriverVisibility from "./pages/admin/AdminDriverVisibility";
 import DriverRegistrationSettings from "./pages/admin/DriverRegistrationSettings";
 import AdminRiderWaitSettings from "./pages/admin/AdminRiderWaitSettings";
+import AdminComplaints from "./pages/admin/AdminComplaints";
+import AdminStoppedRides from "./pages/admin/AdminStoppedRides";
+import AdminEmergencySettings from "./pages/admin/AdminEmergencySettings";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -132,7 +136,9 @@ const App = () => (
               path="/rider"
               element={
                 <ErrorBoundary>
-                  <GoPage />
+                  <RiderLayout>
+                    <GoPage />
+                  </RiderLayout>
                 </ErrorBoundary>
               }
             />
@@ -140,7 +146,9 @@ const App = () => (
               path="/rider/rides"
               element={
                 <ErrorBoundary>
-                  <RiderRidesPage />
+                  <RiderLayout>
+                    <RiderRidesPage />
+                  </RiderLayout>
                 </ErrorBoundary>
               }
             />
@@ -148,7 +156,9 @@ const App = () => (
               path="/rider/payments"
               element={
                 <ErrorBoundary>
-                  <RiderPaymentsPage />
+                  <RiderLayout>
+                    <RiderPaymentsPage />
+                  </RiderLayout>
                 </ErrorBoundary>
               }
             />
@@ -156,7 +166,9 @@ const App = () => (
               path="/rider/wallet-topup"
               element={
                 <ErrorBoundary>
-                  <WalletTopupPage />
+                  <RiderLayout>
+                    <WalletTopupPage />
+                  </RiderLayout>
                 </ErrorBoundary>
               }
             />
@@ -164,7 +176,9 @@ const App = () => (
               path="/rider/saved-places"
               element={
                 <ErrorBoundary>
-                  <RiderSavedPlacesPage />
+                  <RiderLayout>
+                    <RiderSavedPlacesPage />
+                  </RiderLayout>
                 </ErrorBoundary>
               }
             />
@@ -172,7 +186,9 @@ const App = () => (
               path="/rider/settings"
               element={
                 <ErrorBoundary>
-                  <RiderSettingsPage />
+                  <RiderLayout>
+                    <RiderSettingsPage />
+                  </RiderLayout>
                 </ErrorBoundary>
               }
             />
@@ -537,6 +553,30 @@ const App = () => (
               element={
                 <ErrorBoundary>
                   <AdminRiderWaitSettings />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/complaints"
+              element={
+                <ErrorBoundary>
+                  <AdminComplaints />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/stopped-rides"
+              element={
+                <ErrorBoundary>
+                  <AdminStoppedRides />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/emergency-settings"
+              element={
+                <ErrorBoundary>
+                  <AdminEmergencySettings />
                 </ErrorBoundary>
               }
             />

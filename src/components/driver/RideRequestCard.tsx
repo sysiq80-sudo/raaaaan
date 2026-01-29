@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { logger } from "@/lib/logger";
+import { roundFare } from "@/lib/constants";
 import {
   MapPin,
   Clock,
@@ -106,6 +107,10 @@ export const RideRequestCard = ({
   const [timeLeft, setTimeLeft] = useState(30);
   const previousRideIdRef = useRef<string | null>(null);
 
+  // Track active ride to search from dropoff location
+  const [activeRideDropoff, setActiveRideDropoff] = useState<{ lat: number; lng: number } | null>(null);
+  const [searchFromDropoff, setSearchFromDropoff] = useState(false);
+
   const canDriverServeRide = useCallback(
     (driverType: string | null, rideType: string): boolean => {
       if (!driverType) return true;
@@ -123,6 +128,39 @@ export const RideRequestCard = ({
     []
   );
 
+  // Monitor active ride to get dropoff location for smart search
+  useEffect(() => {
+    if (!driverId) return;
+
+    const checkActiveRide = async () => {
+      try {
+        const { data: activeRide } = await supabase
+          .from('rides')
+          .select('status, dropoff_location')
+          .eq('driver_id', driverId)
+          .in('status', ['accepted', 'arrived', 'in_progress'])
+          .single();
+
+        if (activeRide && activeRide.dropoff_location) {
+          const dropoff = activeRide.dropoff_location as { lat: number; lng: number };
+          setActiveRideDropoff(dropoff);
+          setSearchFromDropoff(true);
+          logger.info('RideRequestCard', '🎯 البحث الذكي مُفعَّل - البحث من موقع الوجهة', dropoff);
+        } else {
+          setActiveRideDropoff(null);
+          setSearchFromDropoff(false);
+        }
+      } catch (error) {
+        logger.error('RideRequestCard', 'Error checking active ride', error);
+      }
+    };
+
+    checkActiveRide();
+    const interval = setInterval(checkActiveRide, 10000); // Check every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [driverId]);
+
   const fetchPendingRides = useCallback(async () => {
     if (!isOnline) {
       setPendingRide(null);
@@ -130,18 +168,23 @@ export const RideRequestCard = ({
     }
 
     try {
-      // First try with location-based RPC if we have driver location
-      if (driverLocation) {
-        logger.debug("RideRequestCard", "Searching with location", {
-          driver_lat: driverLocation.lat,
-          driver_lng: driverLocation.lng,
+      // Determine search location: dropoff if in active ride, otherwise current location
+      const searchLocation = searchFromDropoff && activeRideDropoff ? activeRideDropoff : driverLocation;
+      const searchLabel = searchFromDropoff && activeRideDropoff ? 'موقع الوجهة' : 'الموقع الحالي';
+
+      // First try with location-based RPC if we have search location
+      if (searchLocation) {
+        logger.debug("RideRequestCard", `🔍 البحث من: ${searchLabel}`, {
+          search_lat: searchLocation.lat,
+          search_lng: searchLocation.lng,
           max_radius_km: maxPickupRadius,
           driver_vehicle_type: vehicleType || "economy",
+          searching_from_dropoff: searchFromDropoff,
         });
 
         const { data, error } = await supabase.rpc("get_nearby_pending_rides", {
-          driver_lat: driverLocation.lat,
-          driver_lng: driverLocation.lng,
+          driver_lat: searchLocation.lat,
+          driver_lng: searchLocation.lng,
           max_radius_km: maxPickupRadius,
           driver_vehicle_type: (vehicleType || "economy") as "economy" | "comfort" | "premium" | "women_only",
         });
@@ -226,7 +269,7 @@ export const RideRequestCard = ({
       logger.error("RideRequestCard", "Error fetching rides", error);
       setPendingRide(null);
     }
-  }, [isOnline, vehicleType, driverLocation, maxPickupRadius, canDriverServeRide]);
+  }, [isOnline, vehicleType, driverLocation, maxPickupRadius, canDriverServeRide, searchFromDropoff, activeRideDropoff]);
 
   // Subscribe to realtime ride insertions
   useEffect(() => {
@@ -357,11 +400,23 @@ export const RideRequestCard = ({
                 <Navigation className="w-8 h-8 text-primary" />
               </motion.div>
               
-              <h3 className="text-lg font-bold text-foreground mb-2">
-                جاري البحث عن الطلبات...
+              <h3 className="text-lg font-bold text-foreground mb-2 flex items-center gap-2 justify-center">
+                {searchFromDropoff ? (
+                  <>
+                    <Sparkles className="w-5 h-5 text-primary" />
+                    البحث الذكي من وجهة العميل...
+                  </>
+                ) : (
+                  <>
+                    <Navigation className="w-5 h-5 text-primary" />
+                    جاري البحث عن الطلبات...
+                  </>
+                )}
               </h3>
               <p className="text-sm text-muted-foreground max-w-xs">
-                {driverLocation
+                {searchFromDropoff && activeRideDropoff
+                  ? `🎯 البحث الذكي: ${maxPickupRadius} كم من وجهة رحلتك الحالية`
+                  : driverLocation
                   ? `نطاق البحث: ${maxPickupRadius} كم من موقعك الحالي`
                   : "جاري تحديد موقعك..."}
               </p>
@@ -463,7 +518,7 @@ export const RideRequestCard = ({
                   <span className="text-xs text-muted-foreground">الأجرة</span>
                 </div>
                 <div className="text-2xl font-bold text-primary">
-                  {pendingRide.estimated_fare?.toLocaleString() ?? "-"}
+                  {roundFare(pendingRide.estimated_fare || 0).toLocaleString()}
                   <span className="text-sm font-normal mr-1">د.ع</span>
                 </div>
               </motion.div>

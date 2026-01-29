@@ -173,7 +173,7 @@ const ContactUs = () => {
                                 <p className="text-sm text-muted-foreground">{method.subtitle}</p>
                             </div>
                             <div className="text-left">
-                                <p className={`font-medium ${method.iconColor}`} dir="ltr">{method.value}</p>
+                                <p className={`font-medium ${method.title === 'واتساب' ? 'text-white dark:text-foreground' : method.iconColor}`} dir="ltr">{method.value}</p>
                             </div>
                         </motion.a>
                     ))}

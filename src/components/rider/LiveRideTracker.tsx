@@ -4,6 +4,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useRiderLocation } from "@/hooks/useRiderLocation";
 import FareBreakdownCard from "@/components/driver/FareBreakdownCard";
 import RideCompletedScreen from "@/components/rider/RideCompletedScreen";
 import { EmergencyTriangleButton } from "@/components/rider/EmergencyTriangleButton";
@@ -89,6 +90,13 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   const driverMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const pickupMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const dropoffMarkerRef = useRef<mapboxgl.Marker | null>(null);
+
+  // 🔥 تفعيل تتبع موقع الراكب المستمر
+  const isRideActive = ['accepted', 'arrived', 'in_progress'].includes(ride.status);
+  useRiderLocation({ 
+    enabled: isRideActive, 
+    updateInterval: 30000 // تحديث كل 30 ثانية
+  });
 
   const [mapToken, setMapToken] = useState<string | null>(null);
   const [driver, setDriver] = useState<Driver | null>(null);
@@ -328,7 +336,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
       const dropoffEl = document.createElement("div");
       dropoffEl.innerHTML = `
         <div class="flex flex-col items-center">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-lg" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-lg" style="background: linear-gradient(135deg, #0ea5e9, #0284c7); box-shadow: 0 0 30px rgba(14, 165, 233, 0.8), 0 4px 20px rgba(14, 165, 233, 0.4); border: 3px solid rgba(255, 255, 255, 0.95);">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
               <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
               <circle cx="12" cy="10" r="3"></circle>
