@@ -453,48 +453,65 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
           </div>
         )}
 
-        {/* Clean and simple location pin - always visible and centered */}
+        {/* RADICAL FIX: Location pin using fixed positioning relative to viewport center */}
+        {/* This ensures the pin is ALWAYS visible regardless of screen size or container issues */}
         <div 
-          className="absolute pointer-events-none z-40"
+          className="pointer-events-none"
           style={{
-            left: '50%',
-            top: '50%',
+            position: 'fixed',
+            left: '50vw',
+            top: '50vh',
             transform: 'translate(-50%, -100%)',
+            zIndex: 9999,
           }}
         >
           <div className="flex flex-col items-center">
-            {/* Pin head */}
+            {/* Pin head - larger and more visible */}
             <div
-              className={`w-12 h-12 rounded-full flex items-center justify-center shadow-2xl ${
-                isPickup ? "bg-green-500" : "bg-sky-500"
-              }`}
               style={{
-                border: '3px solid white',
+                width: '56px',
+                height: '56px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: isPickup ? '#22c55e' : '#0ea5e9',
+                border: '4px solid white',
                 boxShadow: isPickup 
-                  ? "0 4px 25px rgba(34, 197, 94, 0.7), 0 0 0 4px rgba(255, 255, 255, 0.9)"
-                  : "0 0 35px rgba(14, 165, 233, 0.8), 0 4px 25px rgba(14, 165, 233, 0.5), 0 0 0 4px rgba(255, 255, 255, 0.9)"
+                  ? '0 6px 30px rgba(34, 197, 94, 0.8), 0 0 0 6px rgba(255, 255, 255, 0.95), 0 0 60px rgba(34, 197, 94, 0.4)'
+                  : '0 6px 30px rgba(14, 165, 233, 0.8), 0 0 0 6px rgba(255, 255, 255, 0.95), 0 0 60px rgba(14, 165, 233, 0.4)',
               }}
             >
               {isPickup ? (
-                <Target className="w-6 h-6 text-white" />
+                <Target className="w-7 h-7 text-white" strokeWidth={2.5} />
               ) : (
-                <MapPin className="w-6 h-6 text-white" />
+                <MapPin className="w-7 h-7 text-white" strokeWidth={2.5} />
               )}
             </div>
 
-            {/* Pin needle - triangle pointing down */}
-            <div
-              className={`w-5 h-8 ${isPickup ? "bg-green-500" : "bg-sky-500"}`}
-              style={{
-                clipPath: "polygon(50% 100%, 0% 0%, 100% 0%)",
-                marginTop: "-4px",
-              }}
-            />
+            {/* Pin needle - SVG for perfect rendering */}
+            <svg 
+              width="24" 
+              height="32" 
+              viewBox="0 0 24 32" 
+              style={{ marginTop: '-6px' }}
+            >
+              <polygon 
+                points="12,32 0,0 24,0" 
+                fill={isPickup ? '#22c55e' : '#0ea5e9'}
+              />
+            </svg>
             
             {/* Shadow dot at the tip */}
             <div 
-              className="w-3 h-3 rounded-full bg-black/40 blur-sm"
-              style={{ marginTop: "-6px" }}
+              style={{
+                width: '16px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(0,0,0,0.3)',
+                filter: 'blur(4px)',
+                marginTop: '-8px',
+              }}
             />
           </div>
         </div>
