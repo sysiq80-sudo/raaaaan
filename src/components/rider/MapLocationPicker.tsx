@@ -453,64 +453,88 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
           </div>
         )}
 
-        {/* RADICAL FIX: Location pin using fixed positioning relative to viewport center */}
-        {/* This ensures the pin is ALWAYS visible regardless of screen size or container issues */}
+        {/* RADICAL FIX v2: Pin rendered OUTSIDE the map container flow */}
+        {/* Using a portal-like approach with highest z-index */}
+        {(() => {
+          console.log('🔴 PIN RENDER - isPickup:', isPickup, 'isLoading:', isLoading);
+          return null;
+        })()}
         <div 
-          className="pointer-events-none"
+          id="location-pin-marker"
           style={{
             position: 'fixed',
-            left: '50vw',
-            top: '50vh',
-            transform: 'translate(-50%, -100%)',
-            zIndex: 9999,
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, calc(-100% + 8px))',
+            zIndex: 99999,
+            pointerEvents: 'none',
           }}
         >
-          <div className="flex flex-col items-center">
-            {/* Pin head - larger and more visible */}
+          {/* Outer glow ring for visibility */}
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
+              background: isPickup 
+                ? 'radial-gradient(circle, rgba(34, 197, 94, 0.3) 0%, transparent 70%)'
+                : 'radial-gradient(circle, rgba(14, 165, 233, 0.3) 0%, transparent 70%)',
+              animation: 'pulse 2s ease-in-out infinite',
+            }}
+          />
+          
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {/* Pin head - SOLID COLORS */}
             <div
               style={{
-                width: '56px',
-                height: '56px',
+                width: '60px',
+                height: '60px',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: isPickup ? '#22c55e' : '#0ea5e9',
-                border: '4px solid white',
-                boxShadow: isPickup 
-                  ? '0 6px 30px rgba(34, 197, 94, 0.8), 0 0 0 6px rgba(255, 255, 255, 0.95), 0 0 60px rgba(34, 197, 94, 0.4)'
-                  : '0 6px 30px rgba(14, 165, 233, 0.8), 0 0 0 6px rgba(255, 255, 255, 0.95), 0 0 60px rgba(14, 165, 233, 0.4)',
+                backgroundColor: isPickup ? '#16a34a' : '#0284c7',
+                border: '5px solid white',
+                boxShadow: `
+                  0 8px 32px ${isPickup ? 'rgba(22, 163, 74, 0.6)' : 'rgba(2, 132, 199, 0.6)'},
+                  0 0 0 8px rgba(255, 255, 255, 0.8),
+                  0 0 80px ${isPickup ? 'rgba(22, 163, 74, 0.5)' : 'rgba(2, 132, 199, 0.5)'}
+                `,
               }}
             >
               {isPickup ? (
-                <Target className="w-7 h-7 text-white" strokeWidth={2.5} />
+                <Target style={{ width: '28px', height: '28px', color: 'white', strokeWidth: 3 }} />
               ) : (
-                <MapPin className="w-7 h-7 text-white" strokeWidth={2.5} />
+                <MapPin style={{ width: '28px', height: '28px', color: 'white', strokeWidth: 3 }} />
               )}
             </div>
 
-            {/* Pin needle - SVG for perfect rendering */}
-            <svg 
-              width="24" 
-              height="32" 
-              viewBox="0 0 24 32" 
-              style={{ marginTop: '-6px' }}
-            >
-              <polygon 
-                points="12,32 0,0 24,0" 
-                fill={isPickup ? '#22c55e' : '#0ea5e9'}
-              />
-            </svg>
+            {/* Pin needle - using CSS triangle */}
+            <div
+              style={{
+                width: 0,
+                height: 0,
+                borderLeft: '14px solid transparent',
+                borderRight: '14px solid transparent',
+                borderTop: `40px solid ${isPickup ? '#16a34a' : '#0284c7'}`,
+                marginTop: '-8px',
+                filter: `drop-shadow(0 4px 8px ${isPickup ? 'rgba(22, 163, 74, 0.4)' : 'rgba(2, 132, 199, 0.4)'})`,
+              }}
+            />
             
-            {/* Shadow dot at the tip */}
+            {/* Ground shadow */}
             <div 
               style={{
-                width: '16px',
-                height: '8px',
+                width: '24px',
+                height: '10px',
                 borderRadius: '50%',
-                backgroundColor: 'rgba(0,0,0,0.3)',
+                backgroundColor: 'rgba(0,0,0,0.25)',
                 filter: 'blur(4px)',
-                marginTop: '-8px',
+                marginTop: '-4px',
               }}
             />
           </div>
