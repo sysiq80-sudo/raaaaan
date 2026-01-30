@@ -64,6 +64,7 @@ export const DriverStats = ({ driverId }: DriverStatsProps) => {
     lastWeekEarnings: 0,
     lastMonthEarnings: 0
   });
+  const [chartData, setChartData] = useState<DailyData[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchStats = useCallback(async () => {
