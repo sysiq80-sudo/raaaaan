@@ -27,7 +27,8 @@ const toastVariants = cva(
   {
     variants: {
       variant: {
-        default: "border bg-background text-foreground",
+        // Glassy backdrop by default, semi-transparent so map is visible underneath
+        default: "border bg-background/60 backdrop-blur-md text-foreground",
         destructive: "destructive group border-destructive bg-destructive text-destructive-foreground",
         locationError: "border-orange-500/30 bg-orange-500/10 backdrop-blur-xl text-orange-600 dark:text-orange-400 p-3 shadow-sm max-w-[90vw] mx-auto",
       },

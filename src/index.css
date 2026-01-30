@@ -589,3 +589,22 @@
   filter: brightness(2) !important;
 }
 
+/* Debug & force show manual geolocate buttons */
+.manual-geolocate-button {
+  display: flex !important;
+  z-index: 99999 !important;
+  outline: 2px solid rgba(255,165,0,0.9) !important;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.6) !important;
+}
+
+
+/* Hide Mapbox control logo (keeps UI clean for our custom top bar) */
+.mapboxgl-ctrl-logo {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+

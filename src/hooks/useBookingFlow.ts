@@ -103,28 +103,30 @@ export const useBookingFlow = (mapToken: string | null) => {
       });
 
       bookingMap.current.on("load", () => {
-        // Add pickup marker
+        // Add pickup marker with new image (green)
         const pickupEl = document.createElement("div");
-        pickupEl.innerHTML = `
-          <div class="w-8 h-8 rounded-full bg-green-500 border-2 border-white shadow-lg flex items-center justify-center">
-            <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="12" cy="12" r="4"/>
-            </svg>
-          </div>
-        `;
+        pickupEl.style.width = '48px';
+        pickupEl.style.height = '48px';
+        pickupEl.style.backgroundImage = 'url(https://l.top4top.io/p_3681kudr72.png)';
+        pickupEl.style.backgroundSize = 'contain';
+        pickupEl.style.backgroundRepeat = 'no-repeat';
+        pickupEl.style.backgroundPosition = 'center bottom';
+        pickupEl.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))';
+        
         new mapboxgl.Marker(pickupEl)
           .setLngLat([pickupLocation.lng, pickupLocation.lat])
           .addTo(bookingMap.current!);
 
-        // Add dropoff marker
+        // Add dropoff marker with new image (blue)
         const dropoffEl = document.createElement("div");
-        dropoffEl.innerHTML = `
-          <div class="w-8 h-8 rounded-full bg-blue-500 border-2 border-white shadow-lg flex items-center justify-center">
-            <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-            </svg>
-          </div>
-        `;
+        dropoffEl.style.width = '48px';
+        dropoffEl.style.height = '48px';
+        dropoffEl.style.backgroundImage = 'url(https://k.top4top.io/p_3681kvyes1.png)';
+        dropoffEl.style.backgroundSize = 'contain';
+        dropoffEl.style.backgroundRepeat = 'no-repeat';
+        dropoffEl.style.backgroundPosition = 'center bottom';
+        dropoffEl.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))';
+        
         new mapboxgl.Marker(dropoffEl)
           .setLngLat([dropoffLocation.lng, dropoffLocation.lat])
           .addTo(bookingMap.current!);

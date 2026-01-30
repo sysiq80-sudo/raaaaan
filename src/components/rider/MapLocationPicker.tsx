@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import LocationSearchInput from "@/components/LocationSearchInput";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast"; // added for toast notifications
+
 import { supabase } from "@/integrations/supabase/client";
 import { SavedPlace } from "./SavedPlaces";
 interface ServiceAreaCheck {
@@ -230,7 +232,8 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       zoom: 16,
       pitch: 0,
     });
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-left");
+    // Hide zoom/compass controls for touch-first UX
+    map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false, showZoom: false }), "top-left");
     map.current.on("load", () => {
       setIsLoading(false);
       const center = map.current?.getCenter();
@@ -267,6 +270,8 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       map.current = null;
     };
   }, [isOpen, mapToken, initialLocation, userLocation, reverseGeocode]);
+  const { toast } = useToast();
+
   const centerOnUser = () => {
     if (userLocation && map.current) {
       map.current.flyTo({
@@ -276,6 +281,37 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       });
     }
   };
+
+  const manualGeolocateLocal = () => {
+    if (!navigator.geolocation) {
+      toast({ title: '⚠️ المتصفح لا يدعم تحديد الموقع', variant: 'destructive' });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        if (map.current) {
+          map.current.flyTo({ center: [lng, lat], zoom: 16, duration: 800 });
+        }
+        reverseGeocode(lat, lng);
+        toast({ title: '✅ تم تحديث موقع الخريطة' });
+      },
+      (err) => {
+        console.warn('[MapLocationPicker] Geolocation error', err);
+        toast({ title: 'فشل تحديد الموقع', variant: 'destructive' });
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 7000 }
+    );
+  };
+
+  useEffect(() => {
+    console.log('[MapLocationPicker] manual button check');
+    setTimeout(() => {
+      const el = document.querySelector('.manual-geolocate-button');
+      console.log('[MapLocationPicker] manual element:', el);
+    }, 250);
+  }, []);
   const handleConfirm = async () => {
     console.log("🔘 Confirm button clicked");
     console.log("📍 Current state:", {
@@ -393,12 +429,24 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       <div className="flex-1 relative">
         <div ref={mapContainer} className="absolute inset-0" />
 
-        {/* Drag instruction hint */}
+        {/* Floating manual geolocate button - top-left (brought forward for mobile overlays) */}
+        <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top">
+          <button
+            onClick={manualGeolocateLocal}
+            className="manual-geolocate-button w-10 h-10 flex items-center justify-center rounded-md bg-primary text-primary-foreground shadow-glow shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/30"
+            title="تحديث الموقع"
+            aria-label="تحديث الموقع"
+          >
+            <Navigation className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Drag instruction hint - moved to bottom-left */}
         {!isDragging && centerAddress && (
-          <div className="absolute top-24 left-1/2 transform -translate-x-1/2 z-10 pointer-events-none">
-            <div className="bg-card/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-border/50 animate-bounce">
+          <div className="absolute bottom-4 left-4 z-30 pointer-events-none safe-area-bottom">
+            <div className="bg-card/90 backdrop-blur-md px-3 py-2 rounded-full shadow-lg border border-border/50 animate-bounce">
               <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <span className="text-lg">👆</span>
+                <span className="text-lg">👉</span>
                 اسحب الخريطة لتغيير الموقع
               </p>
             </div>
@@ -437,12 +485,7 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
               />
             </div>
 
-            {/* Address below pin */}
-            <div className="mt-2 px-3 py-2 bg-card/95 backdrop-blur-md rounded-lg shadow-lg border border-border/50 max-w-[250px]">
-              <p className="text-sm font-medium text-foreground text-center line-clamp-2">
-                {centerAddress || "جاري تحديد العنوان..."}
-              </p>
-            </div>
+
           </div>
         </div>
 
@@ -466,16 +509,7 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
           </div>
         )}
 
-        {/* Center on user button */}
-        {userLocation && (
-          <button
-            onClick={centerOnUser}
-            className="absolute bottom-5 left-4 w-14 h-14 bg-card/95 backdrop-blur-md rounded-2xl border border-border/50 shadow-xl flex items-center justify-center hover:bg-accent transition-all duration-200 active:scale-95 z-40 group"
-            aria-label="تحديد موقعي الحالي"
-          >
-            <Navigation className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />
-          </button>
-        )}
+
       </div>
 
       {/* Bottom panel - Fixed at bottom */}

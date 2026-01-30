@@ -20,6 +20,7 @@ export const useRideTracking = (userId: string | null) => {
     completedRide,
     showCompletedScreen,
     clearCompletedRide,
+    setIgnorePolling,
   } = useActiveRide(userId);
 
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -67,5 +68,6 @@ export const useRideTracking = (userId: string | null) => {
     hasActiveRide,
     checkActiveRideConflict,
     clearCompletedRide,
+    setIgnorePolling,
   };
 };

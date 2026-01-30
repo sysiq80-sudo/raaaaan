@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { ArrowRight, Navigation, Loader2, MapPin, Target, AlertTriangle, Check, Star, Clock, ChevronDown, Zap, Menu } from "lucide-react";
+import { ArrowRight, Navigation, Loader2, MapPin, Target, AlertTriangle, Check, Star, Clock, ChevronDown, Zap, Menu, ArrowUpDown } from "lucide-react";
 import logo from "@/assets/logo.png";
 import LocationSearchInput from "@/components/LocationSearchInput";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import useRiderStore from "@/stores/riderStore";
 import { useFareCalculation } from "@/hooks/useFareCalculation";
 import { useOptimizedNearbyDrivers } from "@/hooks/useOptimizedNearbyDrivers";
 import CompactVehicleSelector from "@/components/rider/CompactVehicleSelector";
@@ -19,7 +20,7 @@ import StaticMapPlaceholder from "@/components/common/StaticMapPlaceholder";
 import RiderNotificationsBell from "@/components/rider/RiderNotificationsBell";
 import { motion, AnimatePresence } from "framer-motion";
 import { roundFare } from "@/lib/constants";
-import { useRiderStore } from "@/stores/riderStore";
+
 import { checkDestinationGeofence, type GeofenceResult } from "@/lib/geofencing";
 import {
   Dialog,
@@ -120,7 +121,9 @@ const GoPage: React.FC = () => {
     serviceAreaStatus,
     isCheckingService,
     setCenterAddress,
-    checkServiceArea
+    checkServiceArea,
+    reverseGeocode,
+    setIsLoading,
   } = useLocationPicker(mapToken, userLocation);
 
   // Booking flow
@@ -171,6 +174,44 @@ const GoPage: React.FC = () => {
   } = useRideTracking(userId);
 
   // Local state
+  const setStoreUserLocation = useRiderStore((s) => s.setUserLocation);
+  const manualGeolocate = useCallback(() => {
+    console.log('[GoPage] Manual geolocate requested (from StatusIcons)');
+    if (!navigator.geolocation) {
+      toast({ title: '⚠️ المتصفح لا يدعم تحديد الموقع', variant: 'destructive' });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        try {
+          setStoreUserLocation(loc as any);
+        } catch (e) {
+          console.warn('[GoPage] Failed to set store user location', e);
+        }
+        const map = (window as any).appMap;
+        if (map && typeof map.flyTo === 'function') {
+          map.flyTo({ center: [loc.lng, loc.lat], zoom: 15, duration: 800 });
+        }
+        toast({ title: '✅ تم تحديد موقعك' });
+      },
+      (err) => {
+        console.warn('[GoPage] geolocation failed', err);
+        toast({ title: '❌ فشل تحديد الموقع', description: err.message || 'خطأ في الحصول على الموقع', variant: 'destructive' });
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }, [setStoreUserLocation, toast]);
+
+  // debug: check main manual geolocate button presence
+  useEffect(() => {
+    console.log('[GoPage] checking manual geolocate main');
+    setTimeout(() => {
+      const el = document.querySelector('.manual-geolocate-main');
+      console.log('[GoPage] manual main element:', el);
+      if (!el) console.warn('[GoPage] manual geolocate main not found');
+    }, 250);
+  }, []);
   const [currentMode, setCurrentMode] = useState<"pickup" | "dropoff" | "booking">("pickup");
   const [pickupLocation, setPickupLocation] = useState<LocationType | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<LocationType | null>(null);
@@ -448,18 +489,114 @@ const GoPage: React.FC = () => {
 
   // Reset booking state
   const resetBooking = useCallback(() => {
+    console.log("🔄 [resetBooking] Starting reset process...");
+    
+    // Clear all booking-related state
     setPickupLocation(null);
     setDropoffLocation(null);
     setRouteDistance(null);
     setRouteDuration(null);
-    setCurrentMode("pickup");
     setShowWaitingScreen(false);
     setShowLiveTracker(false);
     setActiveRide(null);
-    setCenterAddress("");
     setSearchQuery("");
     setLocalServiceAreaStatus(null);
-  }, []);
+    
+    // Reset to pickup mode to allow user to start fresh
+    setCurrentMode("pickup");
+    
+    // ✅ إعادة كتابة منطق إعادة تعيين الخريطة بطريقة async
+    const resetMap = async () => {
+      if (!map.current) return;
+      
+      try {
+        console.log("🗺️ [resetBooking] Starting async map reset...");
+        
+        // ✅ Step 1: الانتظار حتى يتم تحميل style الخريطة
+        const waitForStyleLoad = () => new Promise<void>((resolve) => {
+          if (map.current?.isStyleLoaded()) {
+            resolve();
+          } else {
+            map.current?.once('styledata', () => resolve());
+          }
+        });
+        
+        await waitForStyleLoad();
+        console.log("✅ [resetBooking] Map style loaded");
+        
+        // ✅ Step 2: إظهار container الخريطة أولاً
+        if (mapContainer.current) {
+          mapContainer.current.style.display = 'block';
+          mapContainer.current.style.visibility = 'visible';
+          mapContainer.current.style.opacity = '1';
+        }
+        
+        // ✅ Step 3: إخفاء overlay التحميل
+        setIsLoading(false);
+        
+        // ✅ Step 4: الانتظار حتى repaint التالي
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        
+        // ✅ Step 5: إعادة تحجيم الخريطة (يعيد إنشاء WebGL context إذا لزم الأمر)
+        map.current?.resize();
+        console.log("✅ [resetBooking] Map resized");
+        
+        // ✅ Step 6: التحقق من أن canvas يعمل
+        const canvas = map.current?.getCanvas();
+        if (canvas) {
+          const ctx = canvas.getContext('webgl2') || 
+                      canvas.getContext('webgl') || 
+                      canvas.getContext('2d');
+          
+          if (!ctx) {
+            console.error("❌ [resetBooking] Canvas context lost - reloading page");
+            toast({
+              title: "مشكلة في عرض الخريطة",
+              description: "سيتم تحديث الصفحة...",
+            });
+            setTimeout(() => window.location.reload(), 2000);
+            return;
+          }
+        }
+        
+        // ✅ Step 7: إعادة توسيط الخريطة
+        if (userLocation) {
+          map.current?.flyTo({
+            center: [userLocation.lng, userLocation.lat],
+            zoom: 15,
+            duration: 800,
+          });
+          
+          // تحديث العنوان بعد animation
+          setTimeout(() => {
+            if (map.current) {
+              const center = map.current.getCenter();
+              reverseGeocode(center.lat, center.lng);
+            }
+          }, 1000);
+        }
+        
+        console.log("✅ [resetBooking] Map reset complete");
+        
+        toast({
+          title: "جاهز لرحلة جديدة",
+          description: "يمكنك الآن طلب رحلة جديدة",
+        });
+        
+      } catch (error) {
+        console.error("❌ [resetBooking] Map reset failed:", error);
+        toast({
+          title: "خطأ في إعادة تعيين الخريطة",
+          description: "حاول تحديث الصفحة",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    // ✅ بدء reset بعد تأخير قصير
+    setTimeout(() => resetMap(), 200);
+    
+  }, [userLocation, map, reverseGeocode, toast, setIsLoading]);
 
   // Handle booking submission
   const handleBookRide = async () => {
@@ -678,7 +815,11 @@ const GoPage: React.FC = () => {
         distance_km: completedRide.distance_km,
         duration_minutes: completedRide.duration_minutes,
         driver_id: completedRide.driver_id
-      }} driverName={"السائق"} onClose={handleRideCompletion} />
+      }} driverName={"السائق"} onClose={() => {
+        console.log('🎉 [RideCompleted] onClose -> clearing completed ride and resetting booking/map');
+        handleRideCompletion();
+        resetBooking();
+      }} />
       </Suspense>;
   }
 
@@ -734,10 +875,7 @@ const GoPage: React.FC = () => {
 
             {/* Logo and Route info - Combined */}
             <div className="flex-1 flex items-center justify-center gap-2">
-              <div className="flex items-center gap-2 bg-card/90 backdrop-blur-md rounded-md px-4 py-2.5 shadow-lg">
-                <img src={logo} alt="RAAN" className="w-7 h-7 rounded-md" />
-                <span className="font-bold text-lg">ران</span>
-              </div>
+              {/* Logo removed */}
 
               <motion.div initial={{
               y: -20,
@@ -764,24 +902,26 @@ const GoPage: React.FC = () => {
               </motion.div>
             </div>
 
-            {/* Notifications & Status Icons - Right side */}
-            <div className="flex items-center gap-1">
-              {userId && <RiderNotificationsBell userId={userId} />}
-              <StatusIcons userLocation={pickupLocation ? {
-                lat: pickupLocation.lat,
-                lng: pickupLocation.lng
-              } : null} />
-            </div>
-
-            <button onClick={() => setCurrentMode("dropoff")} className="w-11 h-11 flex items-center justify-center rounded-md bg-gradient-to-br from-primary/90 to-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0" aria-label="رجوع">
-              <ArrowRight className="w-5 h-5 text-white" />
-            </button>
+            {/* Right-side header spacer (icons moved into side menu) */}
+            <div className="w-11" />
           </div>
         </div>
 
         {/* Map - Top Half */}
         <div className="h-[45%] relative">
           <div ref={bookingMapContainer} className="absolute inset-0" />
+
+          {/* Floating manual geolocate button for booking map (raised) */}
+          <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top">
+            <button
+              onClick={manualGeolocate}
+              className="w-10 h-10 flex items-center justify-center rounded-md bg-primary text-primary-foreground shadow-glow shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/30"
+              title="تحديد موقعي"
+              aria-label="تحديد موقعي"
+            >
+              <Navigation className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Details - Bottom Half with rounded top */}
@@ -831,6 +971,24 @@ const GoPage: React.FC = () => {
                     </p>
                   </div>
                 </div>
+                
+                {/* Swap button */}
+                <button
+                  onClick={() => {
+                    const temp = pickupLocation;
+                    setPickupLocation(dropoffLocation);
+                    setDropoffLocation(temp);
+                    toast({
+                      title: "تم عكس الاتجاه ✅",
+                      description: "تم تبديل موقع الانطلاق مع الوجهة",
+                      duration: 2000,
+                    });
+                  }}
+                  className="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-all duration-200 active:scale-95 shrink-0"
+                  aria-label="عكس الاتجاه"
+                >
+                  <ArrowUpDown className="w-5 h-5 text-primary" />
+                </button>
               </div>
             </motion.div>
 
@@ -1044,63 +1202,78 @@ const GoPage: React.FC = () => {
           </button>
 
           {/* الشعار في المنتصف */}
-          <div className="flex items-center gap-2 bg-card/95 backdrop-blur-xl rounded-xl px-4 py-2.5 shadow-lg border border-border/30">
-            <img src={logo} alt="RAAN" className="w-7 h-7 rounded-lg" />
-            <span className="font-bold text-lg">ران</span>
-          </div>
+          {/* Logo removed */}
 
-          {/* Notifications & Status Icons - Right side */}
-          <div className="flex items-center gap-1">
-            {userId && <RiderNotificationsBell userId={userId} />}
-            <StatusIcons userLocation={userLocation} />
-          </div>
+          {/* Notifications & Status Icons moved to side menu */}
+          <div className="w-10" />
 
-          {/* زر الرجوع - فقط في dropoff */}
-          {isDropoff ? <button onClick={() => {
-          setCurrentMode("pickup");
-          setPickupLocation(null);
-        }} className="w-11 h-11 flex items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 backdrop-blur-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95" aria-label="رجوع">
-              <ArrowRight className="w-5 h-5 text-primary-foreground" />
-            </button> : <div className="w-11" />}
+          {/* زر الرجوع - مُخفي (عدم عرض الزر عند اختيار الوجهة) */}
+          <div className="w-11" />
         </div>
       </motion.div>
 
       {/* Map Container */}
       <div className="flex-1 relative">
-        {/* Map loading placeholder */}
+        {/* Enhanced map loading placeholder */}
         {(!mapToken || isLoading) && <div className="absolute inset-0 bg-background flex items-center justify-center z-50">
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-foreground text-lg">جاري تحميل الخريطة...</p>
-              <p className="text-muted-foreground text-sm">الرجاء الانتظار</p>
+            <div className="text-center space-y-4 px-6">
+              <div className="relative">
+                <div className="w-20 h-20 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <MapPin className="w-8 h-8 text-primary/40" />
+                </div>
+              </div>
+              <div>
+                <p className="text-foreground text-lg font-semibold">جاري تحميل الخريطة...</p>
+                <p className="text-muted-foreground text-sm mt-2">
+                  {!mapToken ? "جاري الاتصال بخادم الخرائط..." : "جاري تحديد موقعك..."}
+                </p>
+              </div>
+              {(isLoading && mapToken) && (
+                <div className="text-xs text-muted-foreground/70 mt-4">
+                  💡 تلميح: تأكد من تفعيل الموقع في متصفحك
+                </div>
+              )}
             </div>
           </div>}
 
-        <div ref={mapContainer} className="absolute inset-0" />
+        <div ref={mapContainer} className="absolute inset-0 z-0" />
+
+        {/* Floating manual geolocate button for main map */}
+        <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top">
+          <button
+            onClick={manualGeolocate}
+            className="manual-geolocate-main w-10 h-10 flex items-center justify-center rounded-md bg-primary text-primary-foreground shadow-glow shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/30"
+            title="تحديد موقعي"
+            aria-label="تحديد موقعي"
+          >
+            <Navigation className="w-4 h-4" />
+          </button>
+        </div>
 
         {/* Drag instruction */}
         <AnimatePresence>
           {!isDragging && centerAddress && <motion.div initial={{
-          y: -20,
+          y: -8,
           opacity: 0
         }} animate={{
           y: 0,
           opacity: 1
         }} exit={{
-          y: -20,
+          y: 8,
           opacity: 0
-        }} className="absolute top-24 left-1/2 transform -translate-x-1/2 z-10 pointer-events-none">
-              <div className="bg-card/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-border/50">
+        }} className="absolute bottom-4 left-4 z-30 pointer-events-none safe-area-bottom">
+              <div className="bg-card/90 backdrop-blur-md px-3 py-2 rounded-full shadow-lg border border-border/50">
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <span className="text-lg">👆</span>
+                  <span className="text-lg">👉</span>
                   اسحب الخريطة لتغيير الموقع
                 </p>
               </div>
             </motion.div>}
         </AnimatePresence>
 
-        {/* Location pin */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+        {/* Location pin - استخدام صورة الدبوس الجديدة */}
+        <div className="absolute inset-0 flex items-end justify-center pointer-events-none z-20" style={{ paddingBottom: 'calc(50% - 24px)' }}>
           <motion.div initial={{
           scale: 0.8,
           opacity: 0
@@ -1114,27 +1287,25 @@ const GoPage: React.FC = () => {
             type: "spring",
             stiffness: 300
           }} className="relative">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-xl border-3 border-white ${isPickup ? "bg-gradient-to-br from-primary/90 to-primary" : "bg-gradient-to-br from-accent to-accent"}`}>
-                {isPickup ? <Target className="w-5 h-5 text-primary-foreground" /> : <MapPin className="w-5 h-5" style={{color: '#2A6CD5'}} />}
-              </div>
-              <div className={`w-1 h-8 mx-auto rounded-b-full ${isPickup ? "bg-gradient-to-b from-primary to-primary/80" : "bg-gradient-to-b from-accent to-accent/80"}`} />
-              {/* Shadow */}
+              {/* الدبوس الجديد - الصورة بدلاً من SVG */}
+              <div 
+                className="w-12 h-12"
+                style={{
+                  backgroundImage: `url(${isPickup ? 'https://l.top4top.io/p_3681kudr72.png' : 'https://k.top4top.io/p_3681kvyes1.png'})`,
+                  backgroundSize: 'contain',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'center bottom',
+                  filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))',
+                }}
+              />
+              {/* Shadow - أسفل الدبوس */}
               <motion.div animate={{
               scale: isDragging ? 0.6 : 1,
               opacity: isDragging ? 0.3 : 0.5
-            }} className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-6 h-2 bg-black rounded-full blur-sm" />
+            }} className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 bg-black rounded-full blur-sm" />
             </motion.div>
-            <motion.div initial={{
-            y: 10,
-            opacity: 0
-          }} animate={{
-            y: 0,
-            opacity: 1
-          }} className="mt-3 px-4 py-2 bg-card/95 backdrop-blur-md rounded-md shadow-lg border border-border/50 max-w-[280px]">
-              <p className="text-sm font-semibold text-foreground text-center line-clamp-2">
-                {centerAddress || "جاري تحديد العنوان..."}
-              </p>
-            </motion.div>
+            
+
           </motion.div>
         </div>
 
@@ -1144,10 +1315,7 @@ const GoPage: React.FC = () => {
         {/* Network status bar */}
         <NetworkStatusBar />
 
-        {/* Center on user button */}
-        {userLocation && <button onClick={centerOnUser} className="absolute bottom-5 left-4 w-12 h-12 bg-card/98 backdrop-blur-xl rounded-xl border border-border/40 shadow-lg flex items-center justify-center hover:bg-accent hover:shadow-xl transition-all duration-200 active:scale-95 z-40 group my-[80px]" aria-label="تحديد موقعي">
-            <Navigation className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
-          </button>}
+
       </div>
 
       {/* Bottom panel - Modern redesign */}
@@ -1160,7 +1328,7 @@ const GoPage: React.FC = () => {
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-12 h-1.5 rounded-full bg-muted-foreground/25" />
         </div>
-        <div className="px-4 pb-[120px] pt-1 max-w-lg mx-auto">
+        <div className="px-4 pb-[140px] pt-1 max-w-lg mx-auto">
           {/* Service area warning */}
           {localServiceAreaStatus && !localServiceAreaStatus.in_service && <div className="flex items-center gap-3 p-3 mb-3 rounded-md bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/30">
               <div className="w-8 h-8 rounded-md bg-destructive/20 flex items-center justify-center shrink-0">

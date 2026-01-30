@@ -67,14 +67,23 @@ export const useLocationPicker = (
     }
   }, []);
 
-  // Reverse geocode
+  // Reverse geocode with timeout
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
         const response = await fetch(
           `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=reverse-geocode&lat=${lat}&lng=${lng}`,
-          { headers: { "Content-Type": "application/json" } }
+          { 
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal
+          }
         );
+        
+        clearTimeout(timeoutId);
+        
         const data = await response.json();
         if (data.features?.[0]?.place_name) {
           setCenterAddress(data.features[0].place_name);
@@ -120,35 +129,40 @@ export const useLocationPicker = (
       : ramadiCenter;
 
     try {
-      // Set loading to false immediately to show map faster
-      setIsLoading(false);
+      console.log("🗺️ Creating map instance...");
       
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
+        // Use dark style to keep app identity consistent (no light flashes)
         style: "mapbox://styles/mapbox/dark-v11",
         center: initialCenter,
         zoom: 16,
         pitch: 0,
+        attributionControl: false, // Hide attribution for faster load
       });
 
       // Add navigation control
-      map.current.addControl(new mapboxgl.NavigationControl(), "top-left");
+      // Hide zoom/compass controls; users interact via touch
+    map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false, showZoom: false }), "top-left");
 
-      // Add geolocate control (center on user button)
-      const geolocateControl = new mapboxgl.GeolocateControl({
-        positionOptions: {
-          enableHighAccuracy: true,
-        },
-        trackUserLocation: true,
-        showUserHeading: true,
-        showUserLocation: true,
-      });
-      map.current.addControl(geolocateControl, "bottom-left");
+      // NOTE: We intentionally do NOT add a GeolocateControl here to avoid duplicate
+      // controls. Geolocation is handled via the top-bar geolocate button which
+      // uses the global `window.appMap` reference for consistency.
 
       map.current.on("load", () => {
-        console.log("Map loaded successfully");
+        console.log("✅ Map loaded successfully");
+        setIsLoading(false); // Only hide loading after map is ready
+        
+        // لا نضيف دبوس هنا - الدبوس يتم عرضه في GoPage كـ DOM overlay
+        
         const center = map.current?.getCenter();
         if (center) reverseGeocode(center.lat, center.lng);
+      });
+
+      // Handle load errors
+      map.current.on("error", (e) => {
+        console.error("❌ Map error:", e);
+        setIsLoading(false);
       });
 
       map.current.on("dragstart", () => setIsDragging(true));
@@ -158,8 +172,13 @@ export const useLocationPicker = (
         if (center) reverseGeocode(center.lat, center.lng);
       });
     } catch (error) {
-      console.error("Map initialization error:", error);
+      console.error("❌ Map initialization error:", error);
       setIsLoading(false);
+      toast({
+        title: "⚠️ خطأ في تحميل الخريطة",
+        description: "يرجى إعادة تحميل الصفحة",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -203,5 +222,6 @@ export const useLocationPicker = (
     checkServiceArea,
     reverseGeocode,
     setIsDragging,
+    setIsLoading,
   };
 };

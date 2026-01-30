@@ -16,6 +16,7 @@ interface Location {
 type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
 type PaymentMethod = 'cash' | 'zain_cash' | 'asia_hawala' | 'qi_card';
 type RideStatus = 'pending' | 'accepted' | 'arrived' | 'in_progress' | 'completed' | 'cancelled';
+type MapProvider = 'google' | 'mapbox';
 
 interface ActiveRide {
     id: string;
@@ -52,6 +53,7 @@ interface RiderState {
     notificationsEnabled: boolean;
     soundsEnabled: boolean;
     bottomNavEnabled: boolean;  // إظهار شريط التنقل السفلي
+    mapProvider: MapProvider;  // مزود الخريطة
 
     // UI
     isLoading: boolean;
@@ -86,6 +88,7 @@ interface RiderActions {
     toggleNotifications: () => void;
     toggleSounds: () => void;
     toggleBottomNav: () => void;
+    setMapProvider: (provider: MapProvider) => void;
 
     // UI
     setLoading: (loading: boolean) => void;
@@ -112,6 +115,7 @@ const initialState: RiderState = {
     notificationsEnabled: true,
     soundsEnabled: true,
     bottomNavEnabled: true,  // مُفعَّل افتراضياً لسهولة التنقل
+    mapProvider: 'mapbox',  // Mapbox افتراضياً
     isLoading: false,
     showWelcomeScreen: true,
 };
@@ -196,6 +200,8 @@ export const useRiderStore = create<RiderState & RiderActions>()(
                 bottomNavEnabled: !state.bottomNavEnabled
             })),
 
+            setMapProvider: (provider) => set({ mapProvider: provider }),
+
             // UI
             setLoading: (loading) => set({ isLoading: loading }),
 
@@ -213,6 +219,7 @@ export const useRiderStore = create<RiderState & RiderActions>()(
                 notificationsEnabled: state.notificationsEnabled,
                 soundsEnabled: state.soundsEnabled,
                 bottomNavEnabled: state.bottomNavEnabled,
+                mapProvider: state.mapProvider,
                 showWelcomeScreen: state.showWelcomeScreen,
             }),
         }

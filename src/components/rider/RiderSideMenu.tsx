@@ -22,6 +22,9 @@ import {
 import { useDriverStatus } from "@/hooks/useDriverStatus";
 import { useRiderStore } from "@/stores/riderStore";
 import { formatEmailToPhone } from "@/lib/validations";
+import RiderNotificationsBell from "./RiderNotificationsBell";
+import StatusIcons from "@/components/common/StatusIcons";
+
 interface RiderSideMenuProps {
   user: User | null;
   isOpen?: boolean;
@@ -62,6 +65,7 @@ const RiderSideMenu = ({
   const driverStatus = useDriverStatus(user?.id || null);
   const bottomNavEnabled = useRiderStore((state) => state.bottomNavEnabled);
   const toggleBottomNav = useRiderStore((state) => state.toggleBottomNav);
+  const userLocation = useRiderStore((s) => s.userLocation);
 
   const isMenuOpen = isOpen !== undefined ? isOpen : open || false;
   const handleClose = () => {
@@ -156,6 +160,18 @@ const RiderSideMenu = ({
           </div>
         </div>
 
+        {/* Status icons & notifications - moved into side menu */}
+        {user && (
+          <div className="mb-4 flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              {user && <RiderNotificationsBell userId={user.id} />}
+            </div>
+            <div className="flex items-center">
+              <StatusIcons userLocation={userLocation} />
+            </div>
+          </div>
+        )}
+
         {/* Driver Mode Switch */}
         {user && (
           <div className="mb-4">
@@ -224,9 +240,10 @@ const RiderSideMenu = ({
             </button>
           </div>
 
+          {/* Map provider setting removed per design */}
+
           {/* قسم المعلومات */}
-          <div className="pt-3 border-t border-border space-y-2">
-            <MenuLink
+          <div className="pt-3 border-t border-border space-y-2">\n            <MenuLink
               icon={<MessageSquare className="w-5 h-5" />}
               label="تواصل معنا"
               href="/contact"

@@ -19,8 +19,12 @@ export const VibrationPatterns = {
 
 // Vibrate device with pattern
 export const vibrate = (pattern: number[]) => {
-  if ('vibrate' in navigator) {
-    navigator.vibrate(pattern);
+  try {
+    if ('vibrate' in navigator) {
+      navigator.vibrate(pattern);
+    }
+  } catch (error) {
+    // Silently fail if vibration blocked by browser
   }
 };
 
@@ -31,19 +35,29 @@ export const playSound = (type: keyof typeof SoundTypes) => {
     if (!AudioContextClass) return;
     
     const ctx = new AudioContextClass();
+    
+    // Resume context if suspended (required by browser autoplay policy)
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    
     const gainNode = ctx.createGain();
     gainNode.connect(ctx.destination);
 
     const playTone = (freq: number, startTime: number, duration: number, oscType: OscillatorType = 'sine', volume = 0.5) => {
-      const osc = ctx.createOscillator();
-      const toneGain = ctx.createGain();
-      toneGain.connect(gainNode);
-      osc.connect(toneGain);
-      toneGain.gain.value = volume;
-      osc.frequency.value = freq;
-      osc.type = oscType;
-      osc.start(startTime);
-      osc.stop(startTime + duration);
+      try {
+        const osc = ctx.createOscillator();
+        const toneGain = ctx.createGain();
+        toneGain.connect(gainNode);
+        osc.connect(toneGain);
+        toneGain.gain.value = volume;
+        osc.frequency.value = freq;
+        osc.type = oscType;
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      } catch (e) {
+        // Ignore if audio blocked
+      }
     };
 
     const now = ctx.currentTime;
@@ -53,7 +67,7 @@ export const playSound = (type: keyof typeof SoundTypes) => {
 
     setTimeout(() => ctx.close(), 2000);
   } catch (e) {
-    console.log('[RideSound] Audio not available:', e);
+    // Silently fail - audio not available or blocked
   }
 };
 

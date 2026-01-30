@@ -16,6 +16,7 @@ import {
   X,
   CheckCircle2,
   AlertTriangle,
+  Heart,
 } from "lucide-react";
 
 interface SearchResult {
@@ -336,63 +337,80 @@ const LocationSearchInput = forwardRef<
 
             {!isLoading &&
               results.map((result) => (
-                <button
+                <div
                   key={result.id}
-                  onClick={() => handleSelectResult(result)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors text-right border-b border-border/50 last:border-0 ${
+                  className={`w-full flex items-center gap-2 px-4 py-3 hover:bg-accent transition-colors border-b border-border/50 last:border-0 ${
                     result.in_service === false ? "opacity-70" : ""
                   }`}
                 >
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      result.type === "landmark"
-                        ? "bg-primary/10"
-                        : result.type === "region"
-                        ? "bg-secondary"
-                        : "bg-muted"
-                    }`}
+                  <button
+                    onClick={() => handleSelectResult(result)}
+                    className="flex-1 flex items-center gap-3 text-right"
                   >
-                    <span className="text-lg">{result.icon}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-foreground truncate">
-                        {result.name}
-                      </p>
-                      {result.in_service !== undefined &&
-                        (result.in_service ? (
-                          <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                        ) : (
-                          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-                        ))}
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        result.type === "landmark"
+                          ? "bg-primary/10"
+                          : result.type === "region"
+                          ? "bg-secondary"
+                          : "bg-muted"
+                      }`}
+                    >
+                      <span className="text-lg">{result.icon}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span
-                        className={`px-1.5 py-0.5 rounded ${
-                          result.type === "landmark"
-                            ? "bg-primary/10 text-primary"
-                            : result.type === "region"
-                            ? "bg-secondary text-secondary-foreground"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {result.category}
-                      </span>
-                      {result.distance_km !== undefined && (
-                        <span>{result.distance_km} كم</span>
-                      )}
-                      {result.in_service === false && (
-                        <span className="text-amber-500">خارج الخدمة</span>
-                      )}
-                      {result.in_service && result.region_name && (
-                        <span className="text-primary">
-                          {result.region_name}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-foreground truncate">
+                          {result.name}
+                        </p>
+                        {result.in_service !== undefined &&
+                          (result.in_service ? (
+                            <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                          ))}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span
+                          className={`px-1.5 py-0.5 rounded ${
+                            result.type === "landmark"
+                              ? "bg-primary/10 text-primary"
+                              : result.type === "region"
+                              ? "bg-secondary text-secondary-foreground"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {result.category}
                         </span>
-                      )}
+                        {result.distance_km !== undefined && (
+                          <span>{result.distance_km} كم</span>
+                        )}
+                        {result.in_service === false && (
+                          <span className="text-amber-500">خارج الخدمة</span>
+                        )}
+                        {result.in_service && result.region_name && (
+                          <span className="text-primary">
+                            {result.region_name}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  {getTypeIcon(result.type)}
-                </button>
+                    {getTypeIcon(result.type)}
+                  </button>
+                  
+                  {/* Heart button to save place */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // TODO: Implement save to favorites functionality
+                      console.log('Save to favorites:', result);
+                    }}
+                    className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors group"
+                    title="حفظ في المفضلة"
+                  >
+                    <Heart className="w-5 h-5 text-muted-foreground group-hover:text-red-500 group-hover:fill-red-500 transition-all" />
+                  </button>
+                </div>
               ))}
 
             {/* Warning for out-of-service results */}

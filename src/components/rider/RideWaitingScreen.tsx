@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import RideProgressStepper from "@/components/rider/RideProgressStepper";
 import CancellationReasonDialog from "@/components/rider/CancellationReasonDialog";
 import { useRiderWaitSettings } from "@/hooks/useRiderWaitSettings";
+import { useRiderStore } from "@/stores/riderStore";
 import {
   Loader2,
   Car,
@@ -62,6 +63,7 @@ export const RideWaitingScreen = ({
   onDriverFound,
 }: RideWaitingScreenProps) => {
   const { data: waitSettings } = useRiderWaitSettings();
+  const bottomNavEnabled = useRiderStore((state) => state.bottomNavEnabled);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [nearbyDrivers, setNearbyDrivers] = useState(0);
   const [searchPhase, setSearchPhase] = useState(0);
@@ -72,6 +74,7 @@ export const RideWaitingScreen = ({
   const [rideStatus, setRideStatus] = useState<string>("pending");
   const [encouragingMessageIndex, setEncouragingMessageIndex] = useState(0);
   const [maxWaitTimeout, setMaxWaitTimeout] = useState(10); // Default 10 minutes
+  const [reassignmentCount, setReassignmentCount] = useState(0); // ✅ عداد إعادة التوجيه
   const [dhikrCounts, setDhikrCounts] = useState({
     istighfar: 0,
     tasbih: 0,
@@ -272,6 +275,7 @@ export const RideWaitingScreen = ({
 
   // Fetch driver info when accepted
   const fetchDriverInfo = async (driverId: string) => {
+    console.log('[RideWaiting] 👨‍✈️ Fetching driver info:', driverId);
     const { data, error } = await supabase
       .from("drivers")
       .select(
@@ -280,8 +284,11 @@ export const RideWaitingScreen = ({
       .eq("id", driverId)
       .single();
     if (!error && data) {
+      console.log('[RideWaiting] ✅ Driver info received');
       setAcceptedDriver(data as Driver);
       setShowDriverCard(true);
+    } else {
+      console.error('[RideWaiting] ❌ Driver fetch error:', error);
     }
   };
 
@@ -393,9 +400,15 @@ export const RideWaitingScreen = ({
       try {
         const { data } = await supabase
           .from("rides")
-          .select("status, driver_id")
+          .select("status, driver_id, reassignment_count")
           .eq("id", rideId)
           .single();
+        
+        // ✅ تحديث عداد إعادة التوجيه
+        if (data?.reassignment_count !== undefined) {
+          setReassignmentCount(data.reassignment_count);
+        }
+        
         if (data?.status === "accepted" && data?.driver_id && !showDriverCard) {
           console.log("[RideWaiting] ✅ Poll detected driver acceptance");
           handleDriverFound(data.driver_id);
@@ -416,11 +429,13 @@ export const RideWaitingScreen = ({
 
   // Handle cancel button click - show dialog
   const handleCancelClick = () => {
+    console.log('[RideWaiting] ❌ Cancel button clicked - opening dialog');
     setShowCancelDialog(true);
   };
 
   // Handle actual cancellation with reason
   const handleConfirmCancel = async (reason: string, category: string) => {
+    console.log('[RideWaiting] 🗑️ Confirming cancellation:', { reason, category });
     setCancelling(true);
 
     // Check if driver already accepted - apply cancellation fee
@@ -640,7 +655,7 @@ export const RideWaitingScreen = ({
         </div>
 
         {/* Fixed Bottom Button */}
-        <div className="p-4 bg-background/98 backdrop-blur-md border-t border-border/30 safe-area-bottom">
+        <div className={`p-4 bg-background/98 backdrop-blur-md border-t border-border/30 safe-area-bottom ${bottomNavEnabled ? 'pb-24' : ''}`}>
           <Button
             size="lg"
             className="w-full h-14 bg-gradient-to-r from-primary via-primary/90 to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground rounded-xl shadow-xl shadow-primary/30 text-base font-bold transition-all duration-300 hover:shadow-2xl active:scale-[0.98]"
@@ -682,6 +697,17 @@ export const RideWaitingScreen = ({
                 {encouragingMessages[encouragingMessageIndex]?.icon}{" "}
                 {encouragingMessages[encouragingMessageIndex]?.text || "نبحث في منطقتك عن سائق متاح..."}
               </p>
+              {/* ✅ رسالة إعادة التوجيه */}
+              {reassignmentCount > 0 && (
+                <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+                    {reassignmentCount === 1 && "السائق ألغى الطلب، جاري البحث عن سائق بديل..."}
+                    {reassignmentCount === 2 && "لا تزال نبحث عن سائق آخر، يرجى الانتظار قليلاً..."}
+                    {reassignmentCount >= 3 && "آخر محاولة للعثور على سائق متاح..."}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -781,22 +807,23 @@ export const RideWaitingScreen = ({
         </div>
       </div>
 
-      {/* Fixed Bottom - Cancel Button */}
-      <div className="p-4 bg-background/98 backdrop-blur-md border-t border-border/30 safe-area-bottom">
+      {/* Fixed Bottom - Cancel Button - ALWAYS VISIBLE */}
+      <div className={`p-4 bg-background/98 backdrop-blur-md border-t border-border/30 safe-area-bottom ${bottomNavEnabled ? 'pb-24' : ''}`}>
         <Button
           variant="outline"
-          className="w-full h-12 rounded-xl border-destructive/40 text-destructive hover:bg-destructive hover:text-white hover:border-destructive transition-all duration-200 font-semibold"
+          size="lg"
+          className="w-full h-14 rounded-xl border-2 border-destructive/60 text-destructive hover:bg-destructive hover:text-white hover:border-destructive transition-all duration-200 font-bold text-base shadow-lg"
           onClick={handleCancelClick}
           disabled={cancelling}
         >
           {cancelling ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin ml-2" />
+              <Loader2 className="w-5 h-5 animate-spin ml-2" />
               جاري الإلغاء...
             </>
           ) : (
             <>
-              <X className="w-4 h-4 ml-2" />
+              <X className="w-5 h-5 ml-2" />
               إلغاء الطلب
             </>
           )}

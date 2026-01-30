@@ -217,12 +217,8 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     setPreviousStatus(ride.status);
   }, [ride.status, previousStatus, driver?.full_name, toast]);
 
-  // Show completed screen when ride is completed
-  useEffect(() => {
-    if (ride.status === "completed" && !ride.driver_rating) {
-      setShowCompletedScreen(true);
-    }
-  }, [ride.status, ride.driver_rating]);
+  // ✅ REMOVED: Duplicate logic - شاشة التقييم يتم التحكم بها من useActiveRide في GoPage
+  // هذا المنطق كان يسبب race condition مع parent component
 
   // Fetch Mapbox token
   useEffect(() => {
@@ -404,6 +400,52 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     }
   };
 
+  // Update route to destination after arrival
+  const updateRouteToDestination = async (driverLocation: { lat: number; lng: number }) => {
+    if (!map.current) return;
+
+    const start = `${driverLocation.lng},${driverLocation.lat}`;
+    const end = `${ride.dropoff_location.lng},${ride.dropoff_location.lat}`;
+
+    console.log('[updateRouteToDestination] From:', start, 'To:', end);
+
+    try {
+      const response = await fetch(
+        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=directions&start=${start}&end=${end}`
+      );
+      const data = await response.json();
+
+      if (data.routes?.[0]) {
+        const route = data.routes[0];
+        const source = map.current?.getSource("route") as mapboxgl.GeoJSONSource;
+        
+        if (source) {
+          console.log('[updateRouteToDestination] ✅ Updating route on map');
+          source.setData({
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "LineString",
+              coordinates: route.geometry.coordinates,
+            },
+          });
+
+          // Update remaining distance
+          setRemainingDistance(route.distance / 1000);
+
+          // Fit bounds to new route
+          const bounds = new mapboxgl.LngLatBounds();
+          route.geometry.coordinates.forEach((coord: [number, number]) =>
+            bounds.extend(coord)
+          );
+          map.current?.fitBounds(bounds, { padding: 80, duration: 1000 });
+        }
+      }
+    } catch (error) {
+      console.error("Error updating route to destination:", error);
+    }
+  };
+
   // Subscribe to real-time updates
   useEffect(() => {
     const rideChannel = supabase
@@ -419,6 +461,12 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         (payload) => {
           const updatedRide = payload.new as any;
           onRideUpdate({ ...ride, ...updatedRide });
+
+          // 🔄 تحديث المسار عند تغيير الحالة إلى arrived أو in_progress
+          if ((updatedRide.status === "arrived" || updatedRide.status === "in_progress") && driver?.current_location) {
+            console.log('[LiveRideTracker] 🗺️ Updating route to destination after arrival');
+            updateRouteToDestination(driver.current_location);
+          }
 
           if (updatedRide.status === "completed") {
             toast({
@@ -650,6 +698,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   // Check if driver is approaching
   const checkDriverApproaching = useCallback(
     (driverLocation: { lat: number; lng: number }) => {
+      // فقط في حالة "accepted" وقبل إرسال إشعار سابق
       if (ride.status !== "accepted" || driverApproachingNotified) return;
 
       const distanceToPickup = calculateDistanceMeters(
@@ -657,7 +706,8 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         ride.pickup_location
       );
 
-      if (distanceToPickup <= 100) {
+      // إشعار واحد فقط عند الاقتراب لـ 100 متر
+      if (distanceToPickup <= 100 && !driverApproachingNotified) {
         setDriverApproachingNotified(true);
 
         playSound("driverApproaching");
@@ -1100,12 +1150,15 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
             <p className="text-sm text-foreground flex-1">
               {ride.dropoff_address || "الوجهة"}
             </p>
-            {ride.status === "in_progress" && (
+            {(ride.status === "in_progress" || ride.status === "accepted") && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="text-primary text-xs h-6 px-2"
-                onClick={() => setShowDestinationChange(true)}
+                onClick={() => {
+                  console.log('[LiveRideTracker] Change destination button clicked');
+                  setShowDestinationChange(true);
+                }}
               >
                 <Edit2 className="w-3 h-3 ml-1" />
                 تغيير

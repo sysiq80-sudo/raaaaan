@@ -4,17 +4,19 @@
  */
 
 import React from "react";
-import { Wifi, WifiOff, MapPin, MapPinOff } from "lucide-react";
+import { Wifi, WifiOff, MapPin, MapPinOff, Navigation } from "lucide-react";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 interface StatusIconsProps {
   userLocation: { lat: number; lng: number } | null;
   className?: string;
+  onGeolocate?: () => void;
 }
 
 export const StatusIcons: React.FC<StatusIconsProps> = ({
   userLocation,
   className = "",
+  onGeolocate,
 }) => {
   const { isOnline, connectionType } = useNetworkStatus({
     serverCheckEnabled: false,
@@ -57,6 +59,18 @@ export const StatusIcons: React.FC<StatusIconsProps> = ({
           <MapPinOff className="w-3.5 h-3.5 text-red-600" />
         )}
       </div>
+
+      {/* زر تحديد الموقع اليدوي إذا لم يتم التحديد تلقائياً */}
+      {!userLocation && onGeolocate && (
+        <button
+          onClick={onGeolocate}
+          className="w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 bg-card/90 border border-border/30 text-primary"
+          title="تحديد موقعي"
+          aria-label="تحديد موقعي"
+        >
+          <Navigation className="w-3.5 h-3.5" />
+        </button>
+      )}
     </div>
   );
 };

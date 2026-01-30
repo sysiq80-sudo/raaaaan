@@ -63,6 +63,8 @@ import {
   Target,
   AlertTriangle,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast"; // added: toast for feedback
+
 
 interface ServiceAreaCheck {
   in_service: boolean;
@@ -151,6 +153,41 @@ const Map = forwardRef<MapRef, MapProps>(
     const [serviceAreaStatus, setServiceAreaStatus] =
       useState<ServiceAreaCheck | null>(null);
     const [isCheckingService, setIsCheckingService] = useState(false);
+    const { toast } = useToast();
+
+    const manualGeolocateMap = () => {
+      if (!navigator.geolocation) {
+        toast({ title: '⚠️ المتصفح لا يدعم تحديد الموقع', variant: 'destructive' });
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setCurrentUserLocation({ lat, lng });
+          if (map.current) {
+            map.current.flyTo({ center: [lng, lat], zoom: 15, duration: 800 });
+          }
+          reverseGeocodeCenter(lat, lng);
+          toast({ title: '✅ تم تحديث موقعك على الخريطة' });
+        },
+        (err) => {
+          console.warn('[Map] Geolocation error', err);
+          toast({ title: 'فشل تحديد الموقع', variant: 'destructive' });
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 7000 }
+      );
+    };
+
+    // Debug: verify manual geolocate button presence
+    useEffect(() => {
+      console.log('[Map] manual geolocate initialised');
+      setTimeout(() => {
+        const el = document.querySelector('.manual-geolocate-button');
+        console.log('[Map] manual geolocate element:', el);
+        if (!el) console.warn('[Map] manual geolocate button not found in DOM');
+      }, 250);
+    }, []);
 
     // Ramadi center as fallback (Anbar province)
     const ramadiCenter: [number, number] = [43.2954, 33.4262];
@@ -259,22 +296,12 @@ const Map = forwardRef<MapRef, MapProps>(
       });
 
       // Add navigation controls
-      map.current.addControl(
-        new mapboxgl.NavigationControl({
-          visualizePitch: true,
-        }),
-        "top-left"
-      );
+      // Navigation controls hidden (touch-first) — no zoom/compass buttons
+      map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false, showZoom: false, visualizePitch: true }), "top-left");
 
-      // Add geolocate control
-      const geolocate = new mapboxgl.GeolocateControl({
-        positionOptions: {
-          enableHighAccuracy: true,
-        },
-        trackUserLocation: true,
-        showUserHeading: true,
-      });
-      map.current.addControl(geolocate, "top-left");
+      // Keep a global reference to the map for top-bar geolocation button
+      // (Avoid adding a GeolocateControl here to prevent duplicate controls)
+      (window as any).appMap = map.current;
 
       map.current.on("load", () => {
         setIsLoading(false);
@@ -839,19 +866,7 @@ const Map = forwardRef<MapRef, MapProps>(
         : "";
       el.innerHTML = `
       <div class="flex flex-col items-center pickup-marker-animation" style="transform: translateY(-50%);">
-        <!-- Pin Head -->
-        <div class="relative">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-xl" style="background: linear-gradient(135deg, #00d9a5, #00b389); box-shadow: 0 4px 15px rgba(0, 217, 165, 0.5);">
-            <div class="w-4 h-4 rounded-full bg-white"></div>
-          </div>
-        </div>
-        <!-- Pin Stem -->
-        <div class="w-1 h-6" style="background: linear-gradient(to bottom, #00d9a5, #00b389);"></div>
-        <!-- Pin Point - This is the exact location -->
-        <div class="relative">
-          <div class="absolute -inset-2 rounded-full animate-ping opacity-40" style="background: #00d9a5;"></div>
-          <div class="w-3 h-3 rounded-full border-2 border-white shadow-lg" style="background: #00d9a5;"></div>
-        </div>
+        <img src="https://l.top4top.io/p_3681kudr72.png" alt="موقع الانطلاق" style="width: 48px; height: 48px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));" />
         ${
           draggableMarkers
             ? '<p class="text-xs text-center mt-2 bg-card/90 backdrop-blur-sm px-2 py-1 rounded-lg text-primary font-medium whitespace-nowrap shadow-md">اسحب للتعديل</p>'
@@ -892,19 +907,7 @@ const Map = forwardRef<MapRef, MapProps>(
         : "";
       el.innerHTML = `
       <div class="flex flex-col items-center dropoff-marker-animation" style="transform: translateY(-50%);">
-        <!-- Pin Head -->
-        <div class="relative">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-xl" style="background: linear-gradient(135deg, #0ea5e9, #0284c7); box-shadow: 0 0 40px rgba(14, 165, 233, 0.9), 0 4px 25px rgba(14, 165, 233, 0.5), 0 0 0 3px rgba(255, 255, 255, 0.8), 0 0 0 5px rgba(14, 165, 233, 0.4); border: 3px solid rgba(255, 255, 255, 0.95);">
-            <div class="w-4 h-4 rounded-full bg-white"></div>
-          </div>
-        </div>
-        <!-- Pin Stem -->
-        <div class="w-1 h-6" style="background: linear-gradient(to bottom, #0ea5e9, #0284c7);"></div>
-        <!-- Pin Point - This is the exact location -->
-        <div class="relative">
-          <div class="absolute -inset-2 rounded-full animate-ping opacity-40" style="background: #0ea5e9;"></div>
-          <div class="w-3 h-3 rounded-full border-2 border-white shadow-lg" style="background: #0ea5e9; box-shadow: 0 0 15px rgba(14, 165, 233, 0.8);"></div>
-        </div>
+        <img src="https://k.top4top.io/p_3681kvyes1.png" alt="الوجهة" style="width: 48px; height: 48px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));" />
         ${
           draggableMarkers
             ? '<p class="text-xs text-center mt-2 bg-card/90 backdrop-blur-sm px-2 py-1 rounded-lg text-sky-500 font-medium whitespace-nowrap shadow-md">اسحب للتعديل</p>'
@@ -958,17 +961,11 @@ const Map = forwardRef<MapRef, MapProps>(
         el.style.cssText = "transition: transform 1s ease-out;";
         el.innerHTML = `
         <div class="flex flex-col items-center driver-marker-animation">
-          <div class="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl" style="background: linear-gradient(135deg, #3b82f6, #2563eb); box-shadow: 0 0 30px rgba(59, 130, 246, 0.6); transition: transform 0.3s ease;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"></path>
-              <circle cx="7" cy="17" r="2"></circle>
-              <path d="M9 17h6"></path>
-              <circle cx="17" cy="17" r="2"></circle>
-            </svg>
+          <div class="w-12 h-12 rounded-full flex items-center justify-center" style="background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <img src="https://g.top4top.io/p_3681j3lz21.png" alt="سيارة" style="width: 40px; height: 40px; object-fit: contain;" />
           </div>
-          <div class="w-1 h-6" style="background: linear-gradient(to bottom, #3b82f6, transparent);"></div>
-          <div class="w-3 h-3 rounded-full animate-pulse" style="background: rgba(59, 130, 246, 0.4);"></div>
-          <p class="text-xs text-center mt-1 bg-blue-500/90 px-2 py-0.5 rounded text-white font-medium whitespace-nowrap">السائق</p>
+          <div class="w-1 h-4" style="background: linear-gradient(to bottom, rgba(59, 130, 246, 0.6), transparent);"></div>
+          <div class="w-2 h-2 rounded-full animate-pulse" style="background: rgba(59, 130, 246, 0.5);"></div>
         </div>
       `;
 
@@ -1117,6 +1114,18 @@ const Map = forwardRef<MapRef, MapProps>(
     return (
       <div className={`relative rounded-2xl overflow-hidden ${className}`}>
         <div ref={mapContainer} className="absolute inset-0" />
+
+        {/* Floating manual geolocate button - top-left (brought forward for mobile overlays) */}
+        <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top">
+          <button
+            onClick={manualGeolocateMap}
+            className="manual-geolocate-button w-10 h-10 flex items-center justify-center rounded-md bg-primary text-primary-foreground shadow-glow shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/30"
+            title="تحديد موقعي"
+            aria-label="تحديد موقعي"
+          >
+            <Navigation className="w-4 h-4" />
+          </button>
+        </div>
 
         {/* Simple Circle Marker with Label */}
         {selectingLocation && (

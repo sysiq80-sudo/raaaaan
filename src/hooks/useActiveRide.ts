@@ -35,6 +35,11 @@ export const useActiveRide = (userId: string | null) => {
   const [completedRide, setCompletedRide] = useState<ActiveRide | null>(null);
   const [showCompletedScreen, setShowCompletedScreen] = useState(false);
   const previousStatusRef = useRef<string | null>(null);
+  // When true, skip polling/checking to avoid race with booking flow
+  const ignorePollingRef = useRef(false);
+  const setIgnorePolling = useCallback((v: boolean) => {
+    ignorePollingRef.current = v;
+  }, []);
 
   // Helper to parse ride data
   const parseRideData = useCallback(
@@ -73,39 +78,59 @@ export const useActiveRide = (userId: string | null) => {
         if (newStatus === "completed") {
           const completedRideData = parseRideData(updatedRide);
           
-          // ⚠️ إذا انتهت الرحلة بحالة طوارئ، لا تعرض شاشة التقييم
-          if (updatedRide.emergency_completed) {
+          // ✅ تحسين: التحقق الدقيق من حالة الطوارئ
+          const isEmergency = updatedRide.emergency_completed === true;
+          
+          if (isEmergency) {
             console.log("🚨 Emergency completed - skipping rating screen");
             // عدم عرض شاشة التقييم للرحلات المنتهية بالطوارئ
             setCompletedRide(null);
             setShowCompletedScreen(false);
           } else {
-            // رحلة عادية - عرض شاشة التقييم
+            // ✅ FIX: تعيين الرحلة المكتملة أولاً قبل مسح الحالة
+            console.log("✅ Setting completed ride data for rating screen");
             setCompletedRide(completedRideData);
-            setShowCompletedScreen(true);
-            playSound("completed");
-            vibrate(VibrationPatterns.inProgress);
-            toast({
-              title: "🎉 تمت الرحلة بنجاح!",
-              description: "شكراً لاستخدامك ران - يرجى تقييم السائق",
-              duration: 5000,
-            });
+            
+            // ✅ FIX: تأخير بسيط لضمان عرض شاشة التقييم
+            setTimeout(() => {
+              setShowCompletedScreen(true);
+              playSound("completed");
+              vibrate(VibrationPatterns.inProgress);
+              toast({
+                title: "🎉 تمت الرحلة بنجاح!",
+                description: "شكراً لاستخدامك ران - يرجى تقييم السائق",
+                duration: 5000,
+              });
+            }, 100);
           }
         }
 
-        setActiveRide(null);
-        setShowLiveTracker(false);
-        setShowWaitingScreen(false);
-        setPendingRideId(null);
+        // ✅ FIX: مسح الحالة بعد تأخير لمنع race condition
+        setTimeout(() => {
+          setActiveRide(null);
+          setShowLiveTracker(false);
+          setShowWaitingScreen(false);
+          setPendingRideId(null);
+        }, newStatus === "completed" && updatedRide.emergency_completed !== true ? 150 : 0);
 
         if (newStatus === "cancelled") {
-          playSound("cancelled");
-          vibrate(VibrationPatterns.cancelled);
-          toast({
-            title: "تم إلغاء الرحلة ❌",
-            description: updatedRide.cancellation_reason || "تم إلغاء الرحلة",
-            variant: "destructive",
-          });
+          // تجاهل الإلغاءات الصامتة من النظام (للرحلات القديمة)
+          const isSilentCancel = updatedRide.silent_cancel === true || 
+                                  updatedRide.cancellation_reason === "إلغاء تلقائي - رحلة جديدة" ||
+                                  updatedRide.cancelled_by === "system";
+          
+          if (!isSilentCancel) {
+            // إلغاء من قبل المستخدم - إظهار الإشعار
+            playSound("cancelled");
+            vibrate(VibrationPatterns.cancelled);
+            toast({
+              title: "تم إلغاء الرحلة ❌",
+              description: updatedRide.cancellation_reason || "تم إلغاء الرحلة",
+              variant: "destructive",
+            });
+          } else {
+            console.log("🔇 Silent system cancellation - no notification");
+          }
         }
         return;
       }
@@ -178,6 +203,12 @@ export const useActiveRide = (userId: string | null) => {
   const checkActiveRide = useCallback(async () => {
     if (!userId) return;
 
+    // Skip if external booking flow wants to disable polling (prevents race)
+    if (ignorePollingRef.current) {
+      console.log('[useActiveRide] 🚧 Skipping checkActiveRide - ignorePolling is set');
+      return;
+    }
+
     console.log('[useActiveRide] 🔍 Checking for active ride...');
 
     const { data: rides, error } = await supabase
@@ -205,6 +236,12 @@ export const useActiveRide = (userId: string | null) => {
         setShowLiveTracker(true);
       }
     } else {
+      // If an external flow (booking) asked us to ignore polling, don't clear UI
+      if (ignorePollingRef.current) {
+        console.log('[useActiveRide] 🚧 Found no ride but skipping clear - ignorePolling is set');
+        return;
+      }
+
       console.log('[useActiveRide] ✅ No active ride found - clearing state');
       setActiveRide(null);
       setShowLiveTracker(false);
@@ -248,6 +285,12 @@ export const useActiveRide = (userId: string | null) => {
             const updatedRide = payload.new as any;
             const newStatus = updatedRide.status;
             const prevStatus = previousStatusRef.current;
+
+            // تجاهل تحديثات الإلغاء للرحلات القديمة (ليست الرحلة النشطة الحالية)
+            if (newStatus === "cancelled" && activeRide && updatedRide.id !== activeRide.id) {
+              console.log("🔇 Ignoring cancellation update for non-active ride:", updatedRide.id);
+              return;
+            }
 
             // Update previous status ref
             previousStatusRef.current = newStatus;
@@ -327,5 +370,7 @@ export const useActiveRide = (userId: string | null) => {
     clearCompletedRide,
     clearActiveRide,
     refreshRide: checkActiveRide,
+    // Allow external flows to temporarily disable polling/clearing
+    setIgnorePolling,
   };
 };
