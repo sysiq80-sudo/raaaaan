@@ -453,39 +453,41 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
           </div>
         )}
 
-        {/* Clean and simple location pin */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+        {/* Clean and simple location pin - always visible */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none z-40">
           <div className="flex flex-col items-center">
-            {/* Clean map pin - needle tip indicates exact location */}
-            <div className="relative">
-              {/* Pin head */}
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center shadow-xl border-2 ${
-                  isPickup ? "bg-green-500 border-white" : "bg-sky-500 border-white"
-                }`}
-                style={!isPickup ? {
-                  boxShadow: "0 0 30px rgba(14, 165, 233, 0.8), 0 4px 20px rgba(14, 165, 233, 0.4), 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 4px rgba(14, 165, 233, 0.3)"
-                } : undefined}
-              >
-                {isPickup ? (
-                  <Target className="w-4 h-4 text-white" />
-                ) : (
-                  <MapPin className="w-4 h-4 text-white" />
-                )}
-              </div>
-
-              {/* Pin needle pointing down to exact location */}
-              <div
-                className={`w-0.5 h-6 mx-auto ${
-                  isPickup ? "bg-green-500" : "bg-sky-500"
-                }`}
-                style={{
-                  clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
-                }}
-              />
+            {/* Pin head */}
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center shadow-2xl border-3 ${
+                isPickup ? "bg-green-500 border-white" : "bg-sky-500 border-white"
+              }`}
+              style={{
+                boxShadow: isPickup 
+                  ? "0 4px 20px rgba(34, 197, 94, 0.6), 0 0 0 3px rgba(255, 255, 255, 0.9)"
+                  : "0 0 30px rgba(14, 165, 233, 0.8), 0 4px 20px rgba(14, 165, 233, 0.4), 0 0 0 3px rgba(255, 255, 255, 0.9)"
+              }}
+            >
+              {isPickup ? (
+                <Target className="w-5 h-5 text-white" />
+              ) : (
+                <MapPin className="w-5 h-5 text-white" />
+              )}
             </div>
 
-
+            {/* Pin needle - triangle pointing down */}
+            <div
+              className={`w-4 h-6 ${isPickup ? "bg-green-500" : "bg-sky-500"}`}
+              style={{
+                clipPath: "polygon(50% 100%, 0% 0%, 100% 0%)",
+                marginTop: "-2px",
+              }}
+            />
+            
+            {/* Shadow dot at the tip */}
+            <div 
+              className="w-2 h-2 rounded-full bg-black/30 blur-sm"
+              style={{ marginTop: "-4px" }}
+            />
           </div>
         </div>
 
