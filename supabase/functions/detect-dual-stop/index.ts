@@ -111,8 +111,11 @@ serve(async (req) => {
 
     // 3️⃣ فحص كل رحلة
     for (const ride of activeRides) {
-      const driver = ride.drivers
-      const driverUpdatedAt = new Date(driver.updated_at)
+      // Handle driver data - can be array or single object from inner join
+      const driverData = Array.isArray(ride.drivers) ? ride.drivers[0] : ride.drivers
+      if (!driverData) continue
+      
+      const driverUpdatedAt = new Date(driverData.updated_at)
       const riderUpdatedAt = new Date(ride.rider_location_updated_at)
 
       // حساب مدة التوقف لكل طرف
@@ -124,8 +127,8 @@ serve(async (req) => {
       // التحقق من شرط التوقف المزدوج
       if (driverStopMinutes >= warningThreshold && riderStopMinutes >= warningThreshold) {
         // حساب المسافة بين الموقعين
-        const driverLoc = driver.current_location
-        const riderLoc = ride.rider_last_location
+        const driverLoc = driverData.current_location as { lat: number; lng: number }
+        const riderLoc = ride.rider_last_location as { lat: number; lng: number }
         
         const distance = calculateDistance(
           driverLoc.lat,
@@ -240,7 +243,8 @@ serve(async (req) => {
     })
   } catch (error) {
     console.error('❌ خطأ عام:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف'
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

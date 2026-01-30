@@ -159,9 +159,10 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("❌ خطأ في حذف الحساب:", error);
+    const errorMessage = error instanceof Error ? error.message : "حدث خطأ أثناء حذف الحساب";
     return new Response(
       JSON.stringify({ 
-        error: error.message || "حدث خطأ أثناء حذف الحساب" 
+        error: errorMessage 
       }),
       { 
         status: 500, 
