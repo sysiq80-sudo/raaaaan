@@ -153,6 +153,16 @@ const App = () => (
               }
             />
             <Route
+              path="/rider/schedule"
+              element={
+                <ErrorBoundary>
+                  <RiderLayout>
+                    <GoPage scheduleMode={true} />
+                  </RiderLayout>
+                </ErrorBoundary>
+              }
+            />
+            <Route
               path="/rider/rides"
               element={
                 <ErrorBoundary>

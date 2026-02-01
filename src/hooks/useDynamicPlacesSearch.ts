@@ -103,6 +103,9 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
   );
 
   // Initialize services - wait for Google Maps to fully load
+  // ⚠️ NOTE: Google Maps deprecation warning - AutocompleteService
+  // Recommendation: migrate to google.maps.places.AutocompleteSuggestion
+  // Timeline: 12+ months until deprecation - see https://developers.google.com/maps/legacy
   useEffect(() => {
     const checkAndInitialize = setInterval(() => {
       if (typeof window !== 'undefined' && window.google?.maps?.places && googleMapsApiKey) {
@@ -123,6 +126,9 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
   }, [googleMapsApiKey]);
 
   // Initialize Places Service with a dummy map - wait for Google Maps to fully load
+  // ⚠️ NOTE: Google Maps deprecation warning - PlacesService
+  // Recommendation: migrate to google.maps.places.Place
+  // Timeline: 12+ months until deprecation - see https://developers.google.com/maps/legacy
   useEffect(() => {
     const checkAndInitializePlaces = setInterval(() => {
       if (typeof window !== 'undefined' && window.google?.maps?.places && !placesServiceRef.current) {

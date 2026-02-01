@@ -21,7 +21,7 @@ interface SaveLocationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   address: string;
-  onSave: (name: string, icon: string) => void;
+  onSave: (name: string, icon: string) => Promise<void>;
 }
 
 const LOCATION_ICONS = [

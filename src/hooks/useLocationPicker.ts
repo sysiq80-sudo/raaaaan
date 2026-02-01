@@ -43,6 +43,8 @@ export const useLocationPicker = (
   const [isLoading, setIsLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [centerAddress, setCenterAddress] = useState<string>("");
+  const [centerLat, setCenterLat] = useState<number | null>(null);
+  const [centerLng, setCenterLng] = useState<number | null>(null);
   const [serviceAreaStatus, setServiceAreaStatus] =
     useState<ServiceAreaCheck | null>(null);
   const [isCheckingService, setIsCheckingService] = useState(false);
@@ -128,6 +130,8 @@ export const useLocationPicker = (
         // Step 2: Try to get POI name (المعالم لها الأولوية القصوى!)
         let poiName: string | null = null;
         
+        // ⚠️ NOTE: Using PlacesService - Google recommends migrating to google.maps.places.Place
+        // Timeline: 12+ months until deprecation - see https://developers.google.com/maps/legacy
         if (map.current) {
           try {
             const placesService = new window.google.maps.places.PlacesService(map.current);
@@ -326,6 +330,8 @@ export const useLocationPicker = (
         }
         
         setCenterAddress(priorityAddress);
+        setCenterLat(lat);
+        setCenterLng(lng);
         checkServiceArea(lat, lng);
       } catch (error: any) {
         console.error("Reverse geocode error:", error);
@@ -340,6 +346,8 @@ export const useLocationPicker = (
         }
         
         setCenterAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        setCenterLat(lat);
+        setCenterLng(lng);
       }
     },
     [checkServiceArea, toast]
@@ -684,9 +692,13 @@ export const useLocationPicker = (
     isLoading,
     isDragging,
     centerAddress,
+    centerLat,
+    centerLng,
     serviceAreaStatus,
     isCheckingService,
     setCenterAddress,
+    setCenterLat,
+    setCenterLng,
     setManualAddress, // ✨ NEW
     checkServiceArea,
     reverseGeocode,

@@ -2,7 +2,7 @@
  * SimplifiedBookingPanel - لوحة حجز مبسطة مشابهة لـ Uber/Careem
  */
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Navigation, 
@@ -12,7 +12,8 @@ import {
   Loader2,
   Clock,
   MapPin,
-  Car
+  Car,
+  Calendar
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CompactVehicleSelector from "./CompactVehicleSelector";
@@ -86,6 +87,7 @@ const SimplifiedBookingPanel = ({
 }: SimplifiedBookingPanelProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showPaymentSelector, setShowPaymentSelector] = useState(false);
+  const scheduleDialogRef = useRef<{ openDialog: () => void }>(null);
 
   const getPaymentLabel = (method: PaymentMethod) => {
     const labels: Record<PaymentMethod, string> = {
@@ -227,7 +229,7 @@ const SimplifiedBookingPanel = ({
           )}
         </AnimatePresence>
 
-        {/* Book Button */}
+        {/* Book Button + Schedule Button */}
         <div className="flex gap-2">
           <Button
             className="flex-1 h-14 text-lg font-bold rounded-2xl shadow-lg relative overflow-hidden group"
@@ -258,16 +260,28 @@ const SimplifiedBookingPanel = ({
             </span>
           </Button>
 
+          {/* Advanced Schedule Button */}
           {isLoggedIn && pickupCoords && dropoffCoords && (
-            <ScheduleRideDialog
-              pickup={{ lat: pickupCoords.lat, lng: pickupCoords.lng, address: pickup }}
-              dropoff={{ lat: dropoffCoords.lat, lng: dropoffCoords.lng, address: dropoff }}
-              vehicleType={selectedVehicle}
-              paymentMethod={selectedPayment}
-              estimatedFare={fareBreakdown?.total_fare || null}
-            />
+            <Button
+              className="h-14 px-4 bg-primary/10 hover:bg-primary/20 text-primary font-bold rounded-2xl shadow-lg border border-primary/30 transition-all"
+              onClick={() => scheduleDialogRef.current?.openDialog()}
+              title="احجز رحلة متقدمة مع تحديد التاريخ والوقت"
+            >
+              <Calendar className="w-5 h-5" />
+            </Button>
           )}
         </div>
+
+        {isLoggedIn && pickupCoords && dropoffCoords && (
+          <ScheduleRideDialog
+            ref={scheduleDialogRef}
+            pickup={{ lat: pickupCoords.lat, lng: pickupCoords.lng, address: pickup }}
+            dropoff={{ lat: dropoffCoords.lat, lng: dropoffCoords.lng, address: dropoff }}
+            vehicleType={selectedVehicle}
+            paymentMethod={selectedPayment}
+            estimatedFare={fareBreakdown?.total_fare || null}
+          />
+        )}
       </div>
     </motion.div>
   );

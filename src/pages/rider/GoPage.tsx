@@ -70,7 +70,7 @@ type VehicleType = "economy" | "comfort" | "premium" | "women_only";
 type PaymentMethodType = "cash" | "wallet" | "card" | "zain_cash" | "super_key" | "nas_wallet";
 
 // Wrapper component to ensure GoPage is rendered safely within Router context
-const GoPageContent: React.FC = () => {
+const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = false }) => {
   const navigate = useNavigate();
   const {
     toast
@@ -160,6 +160,8 @@ const GoPageContent: React.FC = () => {
     isLoading,
     isDragging,
     centerAddress,
+    centerLat,
+    centerLng,
     serviceAreaStatus,
     isCheckingService,
     setCenterAddress,
@@ -406,7 +408,9 @@ const GoPageContent: React.FC = () => {
   
   // Layout management - Bottom panel height tracking
   const bottomPanelRef = useRef<HTMLDivElement>(null);
+  const scheduleDialogRef = useRef<{ openDialog: () => void }>(null);
   const [bottomPanelHeight, setBottomPanelHeight] = useState(0);
+  const [hasStartedDragging, setHasStartedDragging] = useState(false);
   
   const [currentMode, setCurrentMode] = useState<"pickup" | "dropoff" | "booking">("pickup");
   const [pickupLocation, setPickupLocation] = useState<LocationType | null>(null);
@@ -478,6 +482,17 @@ const GoPageContent: React.FC = () => {
       }
     }
   }, [bottomPanelHeight, userLocation]);
+
+  // فتح dialog الحجز المتقدم تلقائياً عند الدخول عبر /rider/schedule
+  useEffect(() => {
+    if (scheduleMode && scheduleDialogRef.current && pickupLocation && dropoffLocation) {
+      // تأخير صغير للسماح بتحميل Dialog تماماً
+      const timer = setTimeout(() => {
+        scheduleDialogRef.current?.openDialog();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [scheduleMode, pickupLocation, dropoffLocation]);
 
   // 🔄 تحديث تلقائي مستمر للخريطة
   useEffect(() => {
@@ -858,6 +873,13 @@ const GoPageContent: React.FC = () => {
       setIsConfirming(false);
     }
   }, [currentMode, centerAddress, isConfirming, map, checkServiceArea, toast]);
+
+  // Track first drag to hide tooltip permanently
+  useEffect(() => {
+    if (isDragging && !hasStartedDragging) {
+      setHasStartedDragging(true);
+    }
+  }, [isDragging, hasStartedDragging]);
 
   // Reset booking state
   const resetBooking = useCallback(() => {
@@ -1497,6 +1519,7 @@ const GoPageContent: React.FC = () => {
               className="px-1"
             >
               <ScheduleRideDialog 
+                ref={scheduleDialogRef}
                 pickup={pickupLocation} 
                 dropoff={dropoffLocation} 
                 vehicleType={selectedVehicle} 
@@ -1675,25 +1698,22 @@ const GoPageContent: React.FC = () => {
           </button>
         </div>
 
-        {/* Drag instruction */}
+        {/* Drag instruction - Top-left corner - Disappears after first drag */}
         <AnimatePresence>
-          {!isDragging && centerAddress && <motion.div initial={{
-          y: -8,
-          opacity: 0
-        }} animate={{
-          y: 0,
-          opacity: 1
-        }} exit={{
-          y: 8,
-          opacity: 0
-        }} className="absolute bottom-4 left-4 z-30 pointer-events-none safe-area-bottom">
-              <div className="bg-card/90 backdrop-blur-md px-3 py-2 rounded-full shadow-lg border border-border/50">
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <span className="text-lg">👉</span>
-                  اسحب الخريطة لتغيير الموقع
-                </p>
-              </div>
-            </motion.div>}
+          {!isDragging && centerAddress && !hasStartedDragging && <motion.div 
+            initial={{ y: -8, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -8, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            className="absolute left-4 top-4 z-30 pointer-events-none"
+          >
+            <div className="bg-card/95 backdrop-blur-lg px-3 py-2 rounded-full shadow-lg border border-border/50 whitespace-nowrap">
+              <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2">
+                <span className="text-base">👉</span>
+                <span>اسحب الخريطة لتغيير الموقع</span>
+              </p>
+            </div>
+          </motion.div>}
         </AnimatePresence>
 
         {/* Location pin - دبوس CSS بدون صور خارجية - pointer-events-none للسماح بتحريك الخريطة */}
@@ -1806,12 +1826,14 @@ const GoPageContent: React.FC = () => {
             label={isPickup ? "موقع الانطلاق" : "الوجهة"}
             value={buildDescriptiveAddress(centerAddress || "") || ""}
             address={buildDescriptiveAddress(centerAddress || "") || ""}
-            lat={userLocation?.lat}
-            lng={userLocation?.lng}
+            lat={centerLat}
+            lng={centerLng}
             placeholder={isPickup ? "اختر موقع الانطلاق" : "اختر الوجهة"}
             onClick={() => {}} // الخريطة تتحكم بهذا
             onClear={() => {
               setCenterAddress(null);
+              setCenterLat(null);
+              setCenterLng(null);
               setManualAddress(null);
             }}
             isPickup={isPickup}
@@ -1983,7 +2005,7 @@ const GoPageContent: React.FC = () => {
   );
 };
 
-const GoPage: React.FC = () => {
+const GoPage: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = false }) => {
   return (
     <Suspense fallback={
       <div className="h-screen w-full bg-background flex items-center justify-center">
@@ -1993,7 +2015,7 @@ const GoPage: React.FC = () => {
         </div>
       </div>
     }>
-      <GoPageContent />
+      <GoPageContent scheduleMode={scheduleMode} />
     </Suspense>
   );
 };
