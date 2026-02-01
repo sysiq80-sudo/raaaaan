@@ -1106,6 +1106,7 @@ export type Database = {
           phone: string
           profile_image_url: string | null
           rating: number | null
+          scheduled_blocked_until: string | null
           status: Database["public"]["Enums"]["driver_status"] | null
           total_earnings: number | null
           total_rides: number | null
@@ -1141,6 +1142,7 @@ export type Database = {
           phone: string
           profile_image_url?: string | null
           rating?: number | null
+          scheduled_blocked_until?: string | null
           status?: Database["public"]["Enums"]["driver_status"] | null
           total_earnings?: number | null
           total_rides?: number | null
@@ -1176,6 +1178,7 @@ export type Database = {
           phone?: string
           profile_image_url?: string | null
           rating?: number | null
+          scheduled_blocked_until?: string | null
           status?: Database["public"]["Enums"]["driver_status"] | null
           total_earnings?: number | null
           total_rides?: number | null
@@ -3129,6 +3132,7 @@ export type Database = {
           ended_by: string | null
           estimated_fare: number | null
           final_fare: number | null
+          high_priority: boolean | null
           id: string
           matched_at: string | null
           matching_attempts: number | null
@@ -3136,16 +3140,21 @@ export type Database = {
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           pickup_address: string | null
           pickup_location: Json
+          prefer_women_driver: boolean | null
           reassignment_count: number | null
           region_id: string | null
+          return_trip_id: string | null
           rider_id: string | null
           rider_last_location: Json | null
           rider_last_update: string | null
           rider_location: Json | null
           rider_location_updated_at: string | null
           rider_rating: number | null
+          scheduled_at: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["ride_status"] | null
+          stops: Json | null
+          trip_type: string | null
           updated_at: string
           vehicle_type: Database["public"]["Enums"]["vehicle_type"] | null
           waiting_minutes: number | null
@@ -3168,6 +3177,7 @@ export type Database = {
           ended_by?: string | null
           estimated_fare?: number | null
           final_fare?: number | null
+          high_priority?: boolean | null
           id?: string
           matched_at?: string | null
           matching_attempts?: number | null
@@ -3175,16 +3185,21 @@ export type Database = {
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           pickup_address?: string | null
           pickup_location: Json
+          prefer_women_driver?: boolean | null
           reassignment_count?: number | null
           region_id?: string | null
+          return_trip_id?: string | null
           rider_id?: string | null
           rider_last_location?: Json | null
           rider_last_update?: string | null
           rider_location?: Json | null
           rider_location_updated_at?: string | null
           rider_rating?: number | null
+          scheduled_at?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["ride_status"] | null
+          stops?: Json | null
+          trip_type?: string | null
           updated_at?: string
           vehicle_type?: Database["public"]["Enums"]["vehicle_type"] | null
           waiting_minutes?: number | null
@@ -3207,6 +3222,7 @@ export type Database = {
           ended_by?: string | null
           estimated_fare?: number | null
           final_fare?: number | null
+          high_priority?: boolean | null
           id?: string
           matched_at?: string | null
           matching_attempts?: number | null
@@ -3214,16 +3230,21 @@ export type Database = {
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           pickup_address?: string | null
           pickup_location?: Json
+          prefer_women_driver?: boolean | null
           reassignment_count?: number | null
           region_id?: string | null
+          return_trip_id?: string | null
           rider_id?: string | null
           rider_last_location?: Json | null
           rider_last_update?: string | null
           rider_location?: Json | null
           rider_location_updated_at?: string | null
           rider_rating?: number | null
+          scheduled_at?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["ride_status"] | null
+          stops?: Json | null
+          trip_type?: string | null
           updated_at?: string
           vehicle_type?: Database["public"]["Enums"]["vehicle_type"] | null
           waiting_minutes?: number | null
@@ -3384,6 +3405,27 @@ export type Database = {
           vehicle_type?: Database["public"]["Enums"]["vehicle_type"] | null
         }
         Relationships: [
+          {
+            foreignKeyName: "scheduled_rides_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "available_drivers_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_rides_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_rides_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers_with_email"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "scheduled_rides_ride_id_fkey"
             columns: ["ride_id"]
@@ -4170,6 +4212,10 @@ export type Database = {
         Args: { p_driver_id: string; p_ride_id: string }
         Returns: Json
       }
+      accept_scheduled_ride: {
+        Args: { p_scheduled_ride_id: string }
+        Returns: Json
+      }
       admin_toggle_driver_activation: {
         Args: {
           p_admin_user_id: string
@@ -4198,6 +4244,10 @@ export type Database = {
         Args: { lat1: number; lat2: number; lng1: number; lng2: number }
         Returns: number
       }
+      cancel_scheduled_ride_by_driver: {
+        Args: { p_scheduled_ride_id: string }
+        Returns: Json
+      }
       check_and_grant_incentives: {
         Args: { p_driver_id: string }
         Returns: undefined
@@ -4213,6 +4263,10 @@ export type Database = {
         Returns: boolean
       }
       cleanup_old_push_tokens: { Args: never; Returns: number }
+      confirm_scheduled_ride: {
+        Args: { p_scheduled_ride_id: string }
+        Returns: Json
+      }
       create_delay_alerts_table: { Args: never; Returns: boolean }
       create_rider_notification: {
         Args: {
@@ -4351,6 +4405,7 @@ export type Database = {
           ended_by: string | null
           estimated_fare: number | null
           final_fare: number | null
+          high_priority: boolean | null
           id: string
           matched_at: string | null
           matching_attempts: number | null
@@ -4358,16 +4413,21 @@ export type Database = {
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           pickup_address: string | null
           pickup_location: Json
+          prefer_women_driver: boolean | null
           reassignment_count: number | null
           region_id: string | null
+          return_trip_id: string | null
           rider_id: string | null
           rider_last_location: Json | null
           rider_last_update: string | null
           rider_location: Json | null
           rider_location_updated_at: string | null
           rider_rating: number | null
+          scheduled_at: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["ride_status"] | null
+          stops: Json | null
+          trip_type: string | null
           updated_at: string
           vehicle_type: Database["public"]["Enums"]["vehicle_type"] | null
           waiting_minutes: number | null
@@ -4494,13 +4554,13 @@ export type Database = {
         | "nas_wallet"
         | "nass"
       ride_status:
-        | "scheduled"
         | "pending"
         | "accepted"
         | "arrived"
         | "in_progress"
         | "completed"
         | "cancelled"
+        | "scheduled"
       vehicle_type: "economy" | "comfort" | "premium" | "women_only"
     }
     CompositeTypes: {
@@ -4646,6 +4706,7 @@ export const Constants = {
         "in_progress",
         "completed",
         "cancelled",
+        "scheduled",
       ],
       vehicle_type: ["economy", "comfort", "premium", "women_only"],
     },

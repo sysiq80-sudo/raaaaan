@@ -1603,10 +1603,14 @@ const GoPageContent: React.FC = () => {
         </div>
       </motion.div>
 
-      {/* Map Container */}
-      <div className="flex-1 relative pointer-events-auto w-full h-full overflow-hidden">
-        {/* Enhanced map loading placeholder */}
-        {(!mapToken || isLoading) && <div className="absolute inset-0 bg-background flex items-center justify-center z-50 pointer-events-auto">
+      {/* Map Container - touch-action: pan-x pan-y to enable map dragging */}
+      <div 
+        className="flex-1 relative w-full h-full overflow-hidden"
+        style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
+      >
+        {/* Enhanced map loading placeholder - pointer-events-none when map is ready */}
+        {(!mapToken || isLoading) && (
+          <div className="absolute inset-0 bg-background flex items-center justify-center z-50 pointer-events-none">
             <div className="text-center space-y-4 px-6">
               <div className="relative">
                 <div className="w-20 h-20 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
@@ -1626,9 +1630,18 @@ const GoPageContent: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>}
+          </div>
+        )}
 
-        <div ref={mapContainer} className="absolute inset-0 z-0 pointer-events-auto" />
+        {/* Map container - MUST have pointer-events-auto and proper touch-action */}
+        <div 
+          ref={mapContainer} 
+          className="absolute inset-0 z-0"
+          style={{ 
+            touchAction: 'none', // Let Google Maps handle all touch events
+            pointerEvents: 'auto'
+          }}
+        />
 
         {/* Favorite Markers Layer */}
         {map && !isPickup && (
@@ -1678,7 +1691,7 @@ const GoPageContent: React.FC = () => {
             </motion.div>}
         </AnimatePresence>
 
-        {/* Location pin - دبوس CSS بدون صور خارجية */}
+        {/* Location pin - دبوس CSS بدون صور خارجية - pointer-events-none للسماح بتحريك الخريطة */}
         <div 
           className="pointer-events-none"
           style={{
@@ -1686,7 +1699,7 @@ const GoPageContent: React.FC = () => {
             left: '50%',
             top: '50%',
             transform: 'translate(-50%, -100%)',
-            zIndex: 1,
+            zIndex: 9999, // عالي ليظهر فوق كل شيء
           }}
         >
           <motion.div 
