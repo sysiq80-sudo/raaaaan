@@ -193,9 +193,16 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     const rideId = ride.id as string;
     const rideStatus = ride.status as string;
     const rideVehicleType = ride.vehicle_type as string;
+    const preferWomenDriver = Boolean(ride.prefer_women_driver);
 
     // Only notify for pending rides
     if (rideStatus !== 'pending') return;
+
+    // احترام تفضيل السائقة
+    if (preferWomenDriver && vehicleType !== 'women_only') {
+      console.log(`Skipping ride ${rideId}: prefers women driver`);
+      return;
+    }
     
     // Check vehicle type match using improved logic
     if (!canDriverServeRide(vehicleType, rideVehicleType)) {

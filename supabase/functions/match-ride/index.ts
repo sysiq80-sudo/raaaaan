@@ -40,8 +40,12 @@ function calculateETA(distanceKm: number): number {
 // Vehicle type compatibility - which drivers can serve which rides
 function isVehicleTypeCompatible(
   driverType: string,
-  rideType: string
+  rideType: string,
+  preferWomenDriver: boolean
 ): boolean {
+  // إذا كان العميل يفضّل سائقة، لا نقبل إلا women_only
+  if (preferWomenDriver) return driverType === "women_only";
+
   // Women only is exclusive
   if (rideType === "women_only") return driverType === "women_only";
   if (driverType === "women_only") return false;
@@ -139,8 +143,8 @@ serve(async (req) => {
 
     const driversWithDistance = drivers
       .filter((driver) => {
-        // Filter by vehicle type compatibility
-        if (!isVehicleTypeCompatible(driver.vehicle_type, ride.vehicle_type))
+        // Filter by vehicle type compatibility + تفضيل السائقة
+        if (!isVehicleTypeCompatible(driver.vehicle_type, ride.vehicle_type, !!ride.prefer_women_driver))
           return false;
         // Skip already notified drivers
         if (alreadyNotified.has(driver.id)) return false;
@@ -158,7 +162,7 @@ serve(async (req) => {
           driverLoc.lng
         );
         const eta = calculateETA(distance);
-        const maxRadius = driver.max_pickup_radius || 10;
+        const maxRadius = (driver.max_pickup_radius || 10) + (ride.high_priority ? 5 : 0);
 
         // Enhanced priority scoring
         const distanceScore = Math.max(0, 100 - distance * 10);
@@ -167,6 +171,8 @@ serve(async (req) => {
         // Bonus for exact vehicle type match
         const vehicleMatchBonus =
           driver.vehicle_type === ride.vehicle_type ? 20 : 0;
+        // Bonus for high priority rides
+        const priorityBonus = ride.high_priority ? 15 : 0;
         // Penalty if distance exceeds driver's preferred radius
         const radiusPenalty = distance > maxRadius ? -30 : 0;
 
@@ -175,6 +181,7 @@ serve(async (req) => {
           ratingScore +
           experienceScore +
           vehicleMatchBonus +
+          priorityBonus +
           radiusPenalty;
 
         return {
@@ -202,8 +209,9 @@ serve(async (req) => {
       );
     }
 
-    // 4. اختيار أفضل 5 سائقين لإرسال الإشعارات
-    const topDrivers = driversWithDistance.slice(0, 5);
+    // 4. اختيار أفضل السائقين لإرسال الإشعارات
+    const maxDrivers = ride.high_priority ? 10 : 5;
+    const topDrivers = driversWithDistance.slice(0, maxDrivers);
 
     console.log(
       "🏆 أفضل السائقين:",
@@ -246,8 +254,9 @@ serve(async (req) => {
     // 7. إرسال الإشعارات للسائقين بالتوازي مع تأخير تدريجي
     const notificationPromises = topDrivers.map(async (driver, index) => {
       try {
-        // تأخير تدريجي: السائق الأول فوراً، الثاني بعد 8 ثوان، إلخ
-        const delay = index * 8000;
+        // تأخير تدريجي: السائق الأول فوراً، ثم بفواصل أسرع للطلبات العاجلة
+        const baseDelay = ride.high_priority ? 4000 : 8000;
+        const delay = index * baseDelay;
 
         if (delay > 0) {
           await new Promise((resolve) => setTimeout(resolve, delay));

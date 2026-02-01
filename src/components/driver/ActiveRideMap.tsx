@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
-import { getMarkerIcon, getDirections } from "@/lib/googleMapService";
+import { getMarkerIcon, getDirections, getDarkMapStyle } from "@/lib/googleMapService";
 import { Loader2, AlertCircle, Navigation, Clock } from "lucide-react";
 
 interface ActiveRideMapProps {
@@ -33,29 +33,6 @@ export const ActiveRideMap = ({
   // Get target location based on ride status
   const targetLocation =
     rideStatus === "in_progress" ? dropoffLocation : pickupLocation;
-
-  // Dark mode styles
-  const getDarkMapStyle = (): google.maps.MapTypeStyle[] => {
-    return [
-      { elementType: "geometry", stylers: [{ color: "#212121" }] },
-      { elementType: "labels.text.fill", stylers: [{ color: "#10b981" }] },
-      {
-        featureType: "road",
-        elementType: "geometry",
-        stylers: [{ color: "#2c2c2c" }],
-      },
-      {
-        featureType: "poi",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#10b981" }],
-      },
-      {
-        featureType: "water",
-        elementType: "geometry",
-        stylers: [{ color: "#1a1a2e" }],
-      },
-    ];
-  };
 
   // Initialize map
   useEffect(() => {
@@ -212,9 +189,9 @@ export const ActiveRideMap = ({
           (p) => new google.maps.LatLng(p.lat, p.lng)
         ),
         geodesic: true,
-        strokeColor: rideStatus === "in_progress" ? "#ef4444" : "#10b981",
-        strokeOpacity: 0.8,
-        strokeWeight: 4,
+        strokeColor: rideStatus === "in_progress" ? "#38bdf8" : "#00e5ff",
+        strokeOpacity: 0.95,
+        strokeWeight: 5,
         map: map.current,
       });
 

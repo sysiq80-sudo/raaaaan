@@ -541,6 +541,8 @@ export const useLocationPicker = (
             rotateControl: false,
             fullscreenControl: false,
             clickableIcons: true, // ✨ Enable clicking on POI markers
+            gestureHandling: 'greedy', // ✨ اللمس الفوري (greedy = no modifier key needed)
+            draggable: true, // ✨ تفعيل السحب
           });
 
           console.log("✅ Map loaded successfully with dark mode");

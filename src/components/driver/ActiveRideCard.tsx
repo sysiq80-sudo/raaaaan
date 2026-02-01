@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { NavigationButton } from "./NavigationButton";
-import { ActiveRideMap } from "./ActiveRideMap";
 import { DriverRideCompleted } from "./DriverRideCompleted";
 import { ChatButton } from "@/components/ride/RideChat";
 import { DriverEmergencyButton } from "./DriverEmergencyButton";
@@ -35,6 +34,7 @@ import {
   Timer,
   AlertTriangle,
   MessageCircle,
+  Star,
 } from "lucide-react";
 
 interface ActiveRide {
@@ -50,6 +50,7 @@ interface ActiveRide {
   status: string;
   created_at: string;
   started_at: string | null;
+  scheduled_at?: string | null;
   rider_id: string;
   payment_method: string | null;
 }
@@ -57,11 +58,14 @@ interface ActiveRide {
 interface RiderInfo {
   full_name: string | null;
   phone: string | null;
+  rating?: number | null;
 }
 
 interface ActiveRideCardProps {
   driverId: string;
   driverLocation?: { lat: number; lng: number } | null;
+  onMinimize?: () => void;
+  onNavigationClick?: (lat: number, lng: number, label: string) => void;
 }
 
 const getLocationString = (location: unknown): string => {
@@ -120,6 +124,8 @@ interface CancellationInfo {
 export const ActiveRideCard = ({
   driverId,
   driverLocation,
+  onMinimize,
+  onNavigationClick,
 }: ActiveRideCardProps) => {
   const { toast } = useToast();
   const [activeRide, setActiveRide] = useState<ActiveRide | null>(null);
@@ -147,7 +153,7 @@ export const ActiveRideCard = ({
   const fetchRiderInfo = useCallback(async (riderId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("full_name, phone")
+      .select("full_name, phone, rating")
       .eq("user_id", riderId)
       .single();
 
@@ -986,61 +992,82 @@ export const ActiveRideCard = ({
             {config.icon}
             <span className="font-bold">{config.label}</span>
           </div>
-          {activeRide.status === "in_progress" && (
-            <div className="flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full">
-              <Clock className="w-4 h-4" />
-              <span className="font-mono">{formatTime(elapsedTime)}</span>
-            </div>
-          )}
-          {activeRide.status === "arrived" && (
-            <div
-              className={`flex items-center gap-2 px-3 py-1 rounded-full ${getWaitingTimeColor()}`}
-            >
-              {waitingTime >= WAITING_WARNING_THRESHOLD ? (
-                <AlertTriangle className="w-4 h-4 animate-pulse" />
-              ) : (
-                <Timer className="w-4 h-4" />
-              )}
-              <span className="font-mono font-bold">
-                {formatWaitingTime(waitingTime)}
-              </span>
-              <span className="text-xs opacity-75">/ 5:00</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {activeRide.status === "in_progress" && (
+              <div className="flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full">
+                <Clock className="w-4 h-4" />
+                <span className="font-mono">{formatTime(elapsedTime)}</span>
+              </div>
+            )}
+            {activeRide.status === "arrived" && (
+              <div
+                className={`flex items-center gap-2 px-3 py-1 rounded-full ${getWaitingTimeColor()}`}
+              >
+                {waitingTime >= WAITING_WARNING_THRESHOLD ? (
+                  <AlertTriangle className="w-4 h-4 animate-pulse" />
+                ) : (
+                  <Timer className="w-4 h-4" />
+                )}
+                <span className="font-mono font-bold">
+                  {formatWaitingTime(waitingTime)}
+                </span>
+                <span className="text-xs opacity-75">/ 5:00</span>
+              </div>
+            )}
+            {onMinimize && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onMinimize}
+                className="h-8 w-8 p-0 hover:bg-white/20 text-white"
+                title="تصغير البطاقة"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                </svg>
+              </Button>
+            )}
+          </div>
         </div>
 
-        <div className="p-4">
-          {/* Customer Info */}
-          <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center">
-                <User className="w-6 h-6 text-muted-foreground" />
+        <div className="p-3">
+          {/* Customer Info - Compact Row */}
+          <div className="flex items-center justify-between mb-3 pb-3 border-b border-border">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0">
+                <User className="w-4 h-4 text-muted-foreground" />
               </div>
-              <div>
-                <p className="font-bold text-foreground">
+              <div className="min-w-0">
+                <p className="font-semibold text-sm text-foreground truncate">
                   {riderInfo?.full_name || "العميل"}
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  {activeRide.payment_method === "cash"
-                    ? "الدفع نقداً"
-                    : activeRide.payment_method === "wallet"
-                    ? "المحفظة"
-                    : "الدفع نقداً"}
-                </p>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>
+                    {activeRide.payment_method === "cash"
+                      ? "الدفع نقداً"
+                      : activeRide.payment_method === "wallet"
+                      ? "المحفظة"
+                      : "الدفع نقداً"}
+                  </span>
+                  <span className="flex items-center gap-1 text-amber-400">
+                    <Star className="w-3 h-3" />
+                    {typeof riderInfo?.rating === "number"
+                      ? riderInfo.rating.toFixed(1)
+                      : "—"}
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="flex gap-2">
-              {/* Emergency Button */}
+            <div className="flex items-center gap-1">
               <DriverEmergencyButton
                 rideId={activeRide.id}
                 currentLocation={driverLocation}
               />
-              {/* Chat Button */}
               <ChatButton rideId={activeRide.id} userType="driver" />
               <Button
                 variant="outline"
                 size="icon"
-                className="rounded-full"
+                className="rounded-full h-9 w-9"
                 onClick={() => {
                   if (riderInfo?.phone) {
                     window.location.href = `tel:${riderInfo.phone}`;
@@ -1053,17 +1080,15 @@ export const ActiveRideCard = ({
                 }}
                 title="اتصال هاتفي"
               >
-                <Phone className="w-5 h-5" />
+                <Phone className="w-4 h-4" />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                className="rounded-full bg-green-500/10 border-green-500/30 hover:bg-green-500/20"
+                className="rounded-full h-9 w-9 bg-green-500/10 border-green-500/30 hover:bg-green-500/20"
                 onClick={() => {
                   if (riderInfo?.phone) {
-                    // تنظيف رقم الهاتف للواتساب
                     const cleanPhone = riderInfo.phone.replace(/[^0-9]/g, "");
-                    // إذا كان الرقم يبدأ بـ 0، استبدله بـ 964
                     const whatsappNumber = cleanPhone.startsWith("0")
                       ? "964" + cleanPhone.slice(1)
                       : cleanPhone.startsWith("964")
@@ -1080,7 +1105,7 @@ export const ActiveRideCard = ({
                 title="واتساب"
               >
                 <svg
-                  className="w-5 h-5 text-green-600"
+                  className="w-4 h-4 text-green-600"
                   viewBox="0 0 24 24"
                   fill="currentColor"
                 >
@@ -1091,7 +1116,7 @@ export const ActiveRideCard = ({
           </div>
 
           {/* Locations */}
-          <div className="space-y-3 mb-4">
+          <div className="space-y-2 mb-3">
             <div className="flex items-start gap-3">
               <div
                 className={`w-3 h-3 mt-1.5 rounded-full shrink-0 ${
@@ -1126,37 +1151,25 @@ export const ActiveRideCard = ({
             </div>
           </div>
 
-          {/* Active Ride Map with Route */}
-          <div className="mb-4">
-            <ActiveRideMap
-              driverLocation={driverLocation}
-              pickupLocation={activeRide.pickup_location}
-              dropoffLocation={activeRide.dropoff_location}
-              rideStatus={
-                activeRide.status as "accepted" | "arrived" | "in_progress"
-              }
-            />
-          </div>
-
-          {/* Stats */}
-          <div className="flex items-center justify-between py-3 px-4 bg-secondary/50 rounded-xl mb-4">
+          {/* Stats - Compact */}
+          <div className="flex items-center justify-between py-2 px-3 bg-secondary/50 rounded-lg mb-3">
             <div className="text-center">
-              <p className="text-xs text-muted-foreground">المسافة</p>
-              <p className="font-bold text-foreground">
+              <p className="text-[11px] text-muted-foreground">المسافة</p>
+              <p className="text-sm font-bold text-foreground">
                 {activeRide.distance_km || "?"} كم
               </p>
             </div>
             <div className="w-px h-8 bg-border" />
             <div className="text-center">
-              <p className="text-xs text-muted-foreground">المدة</p>
-              <p className="font-bold text-foreground">
+              <p className="text-[11px] text-muted-foreground">المدة</p>
+              <p className="text-sm font-bold text-foreground">
                 {activeRide.duration_minutes || "?"} د
               </p>
             </div>
             <div className="w-px h-8 bg-border" />
             <div className="text-center">
-              <Wallet className="w-4 h-4 text-primary mx-auto mb-1" />
-              <p className="font-bold text-primary">
+              <Wallet className="w-3.5 h-3.5 text-primary mx-auto mb-0.5" />
+              <p className="text-sm font-bold text-primary">
                 {roundFare(activeRide.estimated_fare || 0).toLocaleString()} د.ع
               </p>
             </div>
@@ -1179,20 +1192,25 @@ export const ActiveRideCard = ({
                 ? "ملاحة للوجهة"
                 : "ملاحة للعميل"
             }
-            className="mb-4"
+            size="compact"
+            className="mb-3"
+            onOpenModal={onNavigationClick ? (lat, lng) => {
+              const label = activeRide.status === "in_progress" ? "الوجهة" : "موقع العميل";
+              onNavigationClick(lat, lng, label);
+            } : undefined}
           />
 
           {/* Quick Messages to Rider */}
           {activeRide.status === "accepted" && (
-            <div className="mb-4">
+            <div className="mb-3">
               <p className="text-xs text-muted-foreground mb-2 text-center">
                 رسائل سريعة للراكب:
               </p>
-              <div className="flex flex-wrap gap-2 justify-center">
+              <div className="flex gap-2 overflow-x-auto pb-1">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="bg-blue-500/10 border-blue-500/30 text-blue-600 hover:bg-blue-500/20"
+                  className="h-8 text-xs px-3 whitespace-nowrap bg-blue-500/10 border-blue-500/30 text-blue-600 hover:bg-blue-500/20"
                   onClick={() =>
                     sendQuickMessageToRider(
                       "driver_approaching_soon",
@@ -1206,7 +1224,7 @@ export const ActiveRideCard = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/20"
+                  className="h-8 text-xs px-3 whitespace-nowrap bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/20"
                   onClick={() =>
                     sendQuickMessageToRider(
                       "driver_car_info",
@@ -1228,15 +1246,15 @@ export const ActiveRideCard = ({
           )}
 
           {activeRide.status === "arrived" && (
-            <div className="mb-4">
+            <div className="mb-3">
               <p className="text-xs text-muted-foreground mb-2 text-center">
                 أبلغ الراكب:
               </p>
-              <div className="flex flex-wrap gap-2 justify-center">
+              <div className="flex gap-2 overflow-x-auto pb-1">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="bg-green-500/10 border-green-500/30 text-green-600 hover:bg-green-500/20"
+                  className="h-8 text-xs px-3 whitespace-nowrap bg-green-500/10 border-green-500/30 text-green-600 hover:bg-green-500/20"
                   onClick={() =>
                     sendQuickMessageToRider(
                       "driver_at_location",
@@ -1250,7 +1268,7 @@ export const ActiveRideCard = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="bg-blue-500/10 border-blue-500/30 text-blue-600 hover:bg-blue-500/20"
+                  className="h-8 text-xs px-3 whitespace-nowrap bg-blue-500/10 border-blue-500/30 text-blue-600 hover:bg-blue-500/20"
                   onClick={() =>
                     sendQuickMessageToRider(
                       "driver_waiting_outside",
@@ -1264,7 +1282,7 @@ export const ActiveRideCard = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/20"
+                  className="h-8 text-xs px-3 whitespace-nowrap bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/20"
                   onClick={() =>
                     sendQuickMessageToRider(
                       "driver_car_color",
@@ -1280,10 +1298,10 @@ export const ActiveRideCard = ({
           )}
 
           {/* Action Buttons */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             {activeRide.status === "accepted" && (
               <Button
-                className="w-full h-14 text-lg shadow-glow"
+                className="w-full h-12 text-base shadow-glow"
                 onClick={handleArrived}
                 disabled={loading}
               >
@@ -1291,7 +1309,7 @@ export const ActiveRideCard = ({
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    <MapPin className="w-5 h-5 ml-2" />
+                    <MapPin className="w-4 h-4 ml-2" />
                     وصلت لموقع العميل
                   </>
                 )}
@@ -1300,7 +1318,7 @@ export const ActiveRideCard = ({
 
             {activeRide.status === "arrived" && (
               <Button
-                className="w-full h-14 text-lg shadow-glow bg-blue-600 hover:bg-blue-700"
+                className="w-full h-12 text-base shadow-glow bg-blue-600 hover:bg-blue-700"
                 onClick={handleStartRide}
                 disabled={loading}
               >
@@ -1308,8 +1326,7 @@ export const ActiveRideCard = ({
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    <CheckCircle className="w-5 h-5 ml-2" />✓ العميل ركب في
-                    السيارة
+                    <CheckCircle className="w-4 h-4 ml-2" />✓ العميل ركب في السيارة
                   </>
                 )}
               </Button>
@@ -1317,7 +1334,7 @@ export const ActiveRideCard = ({
 
             {activeRide.status === "in_progress" && (
               <Button
-                className="w-full h-14 text-lg bg-green-600 hover:bg-green-700 shadow-glow"
+                className="w-full h-12 text-base bg-green-600 hover:bg-green-700 shadow-glow"
                 onClick={handleCompleteRide}
                 disabled={loading}
               >
@@ -1325,7 +1342,7 @@ export const ActiveRideCard = ({
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    <Flag className="w-5 h-5 ml-2" />
+                    <Flag className="w-4 h-4 ml-2" />
                     🏁 تم الوصول
                   </>
                 )}

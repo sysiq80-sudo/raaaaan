@@ -1,5 +1,5 @@
 import { Toaster } from "@/components/ui/toaster";
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
@@ -25,6 +25,7 @@ import GoPage from "./pages/rider/GoPage";
 import RiderRidesPage from "./pages/rider/RiderRidesPage";
 import RiderPaymentsPage from "./pages/rider/RiderPaymentsPage";
 import WalletTopupPage from "./pages/rider/WalletTopupPage";
+import RiderSavedPlacesPage from "./pages/rider/RiderSavedPlacesPage";
 import RiderSettingsPage from "./pages/rider/RiderSettingsPage";
 import RiderLayout from "./components/rider/RiderLayout";
 
@@ -78,6 +79,15 @@ import AdminStoppedRides from "./pages/admin/AdminStoppedRides";
 import AdminEmergencySettings from "./pages/admin/AdminEmergencySettings";
 const queryClient = new QueryClient();
 
+const LoadingFallback = () => (
+  <div className="h-screen w-full bg-background flex items-center justify-center">
+    <div className="text-center space-y-4">
+      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+      <p className="text-muted-foreground">جاري التحميل...</p>
+    </div>
+  </div>
+);
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
@@ -88,7 +98,8 @@ const App = () => (
         <BrowserRouter
           future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
         >
-          <Routes>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
             {/* Public Routes */}
             <Route
               path="/"
@@ -171,7 +182,16 @@ const App = () => (
                 </ErrorBoundary>
               }
             />
-            {/* Removed RiderSavedPlacesPage Route */}
+            <Route
+              path="/rider/saved-places"
+              element={
+                <ErrorBoundary>
+                  <RiderLayout>
+                    <RiderSavedPlacesPage />
+                  </RiderLayout>
+                </ErrorBoundary>
+              }
+            />
             <Route
               path="/rider/settings"
               element={
@@ -584,6 +604,7 @@ const App = () => (
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

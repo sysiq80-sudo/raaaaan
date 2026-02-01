@@ -155,6 +155,7 @@ export const useBroadcastChannel = ({
       .on("broadcast", { event: "driver_location_update" }, (payload: any) => {
         const newLocation = payload.payload?.location;
         if (newLocation?.lat && newLocation?.lng) {
+          console.log("[Broadcast] 📍 Driver location updated (Real-time):", newLocation);
           onDriverLocationUpdate(newLocation);
         }
       })

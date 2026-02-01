@@ -12,7 +12,7 @@ interface LocationCoords {
 }
 
 export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
-  const { enabled = true, updateInterval = 30000 } = options; // Default: update every 30 seconds
+  const { enabled = true, updateInterval = 5000 } = options; // Default: update every 5 seconds (reduced from 30s)
   const lastUpdateRef = useRef<number>(0);
   const watchIdRef = useRef<number | null>(null);
   const [location, setLocation] = useState<LocationCoords | null>(null);
@@ -68,18 +68,18 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
     // Get initial position
     navigator.geolocation.getCurrentPosition(updateLocation, handleError, {
       enableHighAccuracy: true,
-      timeout: 30000,
+      timeout: 5000,
       maximumAge: 0,
     });
 
-    // Watch position changes
+    // Watch position changes - fires every 1-2 seconds when moving
     watchIdRef.current = navigator.geolocation.watchPosition(
       updateLocation,
       handleError,
       {
         enableHighAccuracy: true,
-        timeout: 30000,
-        maximumAge: 5000,
+        timeout: 3000,
+        maximumAge: 1000, // Max 1 second old (reduced from 5s)
       }
     );
 

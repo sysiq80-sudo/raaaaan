@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import mapboxgl from "mapbox-gl";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -90,11 +91,12 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   const pickupMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const dropoffMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
-  // 🔥 تفعيل تتبع موقع الراكب المستمر
+  // 🔥 Real-time driver location tracking for rider
+  // Enables continuous tracking with 5-second updates (reduced from 30s)
   const isRideActive = ['accepted', 'arrived', 'in_progress'].includes(ride.status);
   useRiderLocation({ 
     enabled: isRideActive, 
-    updateInterval: 30000 // تحديث كل 30 ثانية
+    updateInterval: 5000 // تحديث كل 5 ثواني للرؤية المباشرة
   });
 
   const [mapToken, setMapToken] = useState<string | null>(null);

@@ -382,61 +382,44 @@ export const RideRequestCard = ({
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
+          className="w-full"
         >
-          <div className="relative overflow-hidden rounded-2xl border-2 border-dashed border-primary/30 bg-gradient-to-br from-primary/5 via-background to-primary/10 p-6">
-            {/* Animated background pattern */}
-            <div className="absolute inset-0 opacity-10">
-              <div className="absolute top-0 left-0 w-20 h-20 bg-primary rounded-full blur-3xl animate-pulse" />
-              <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary rounded-full blur-3xl animate-pulse delay-1000" />
-            </div>
-            
-            <div className="relative z-10 flex flex-col items-center text-center">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4"
-              >
-                <Navigation className="w-8 h-8 text-primary" />
-              </motion.div>
-              
-              <h3 className="text-lg font-bold text-foreground mb-2 flex items-center gap-2 justify-center">
-                {searchFromDropoff ? (
-                  <>
-                    <Sparkles className="w-5 h-5 text-primary" />
-                    البحث الذكي من وجهة العميل...
-                  </>
-                ) : (
-                  <>
-                    <Navigation className="w-5 h-5 text-primary" />
-                    جاري البحث عن الطلبات...
-                  </>
-                )}
-              </h3>
-              <p className="text-sm text-muted-foreground max-w-xs">
-                {searchFromDropoff && activeRideDropoff
-                  ? `🎯 البحث الذكي: ${maxPickupRadius} كم من وجهة رحلتك الحالية`
-                  : driverLocation
-                  ? `نطاق البحث: ${maxPickupRadius} كم من موقعك الحالي`
-                  : "جاري تحديد موقعك..."}
-              </p>
-              
-              {/* Pulse animation */}
-              <div className="mt-4 flex items-center gap-2">
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary/20 via-primary/10 to-primary/5 p-4 border border-primary/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 flex-1">
                 <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                >
+                  <Navigation className="w-5 h-5 text-primary" />
+                </motion.div>
+                
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    {searchFromDropoff ? 'بحث ذكي من الوجهة' : 'جاري البحث عن الطلبات'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {driverLocation ? `نطاق: ${maxPickupRadius} كم` : 'جاري تحديد الموقع'}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Pulse dots */}
+              <div className="flex items-center gap-1.5 ml-2">
+                <motion.div
+                  animate={{ scale: [1, 1.3, 1] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
-                  className="w-2 h-2 rounded-full bg-primary"
+                  className="w-1.5 h-1.5 rounded-full bg-primary"
                 />
                 <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
-                  className="w-2 h-2 rounded-full bg-primary"
+                  animate={{ scale: [1, 1.3, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
+                  className="w-1.5 h-1.5 rounded-full bg-primary"
                 />
                 <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity, delay: 0.6 }}
-                  className="w-2 h-2 rounded-full bg-primary"
+                  animate={{ scale: [1, 1.3, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}
+                  className="w-1.5 h-1.5 rounded-full bg-primary"
                 />
               </div>
             </div>
@@ -447,191 +430,124 @@ export const RideRequestCard = ({
     return null;
   }
 
-  // Active ride request card
+  // Active ride request card - Compact
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: -20 }}
-        transition={{ type: "spring", stiffness: 300, damping: 25 }}
-        className="mb-6"
+        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+        className="w-full"
       >
-        <div className="relative overflow-hidden rounded-3xl shadow-2xl shadow-primary/20 border-2 border-primary">
-          {/* Glowing header */}
-          <div className="relative bg-gradient-to-r from-primary via-primary to-green-500 px-5 py-4">
-            {/* Animated glow effect */}
+        <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary via-primary/90 to-green-500 shadow-lg border border-primary">
+          {/* Timer bar */}
+          <div className="h-0.5 bg-white/30 absolute top-0 inset-x-0">
             <motion.div
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+              initial={{ width: "100%" }}
+              animate={{ width: `${(timeLeft / 30) * 100}%` }}
+              className={`h-full ${timeLeft <= 10 ? "bg-red-400" : "bg-white"}`}
             />
-            
-            <div className="relative z-10">
-              {/* Timer bar */}
-              <div className="h-1.5 bg-white/30 rounded-full overflow-hidden mb-3">
-                <motion.div
-                  initial={{ width: "100%" }}
-                  animate={{ width: `${(timeLeft / 30) * 100}%` }}
-                  className={`h-full rounded-full ${
-                    timeLeft <= 10 ? "bg-red-400" : "bg-white"
-                  }`}
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <motion.div
-                    animate={{ scale: [1, 1.1, 1] }}
-                    transition={{ duration: 0.5, repeat: Infinity }}
-                    className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5"
-                  >
-                    <Timer className="w-4 h-4 text-white" />
-                    <span className="text-white font-bold text-lg">{timeLeft}</span>
-                  </motion.div>
-                </div>
-                
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="flex items-center gap-2 bg-white rounded-full px-4 py-1.5"
-                >
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <span className="text-primary font-bold text-sm">طلب جديد!</span>
-                </motion.div>
-              </div>
-            </div>
           </div>
 
-          {/* Main content */}
-          <div className="bg-card p-5">
-            {/* Fare and vehicle type */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
+          {/* Content */}
+          <div className="p-3 space-y-2">
+            {/* Header with timer */}
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-white" />
+                <span className="text-white font-bold text-sm">طلب جديد!</span>
+              </div>
               <motion.div
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.1 }}
-                className="bg-gradient-to-br from-primary/10 to-green-500/10 rounded-2xl p-4 border border-primary/20"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 0.5, repeat: Infinity }}
+                className="flex items-center gap-1 bg-white/20 rounded-full px-2.5 py-1"
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <Wallet className="w-5 h-5 text-primary" />
-                  <span className="text-xs text-muted-foreground">الأجرة</span>
-                </div>
-                <div className="text-2xl font-bold text-primary">
-                  {roundFare(pendingRide.estimated_fare || 0).toLocaleString()}
-                  <span className="text-sm font-normal mr-1">د.ع</span>
-                </div>
-              </motion.div>
-              
-              <motion.div
-                initial={{ x: 20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-2xl p-4 border border-blue-500/20"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <Car className="w-5 h-5 text-blue-500" />
-                  <span className="text-xs text-muted-foreground">النوع</span>
-                </div>
-                <div className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <span>{getVehicleIcon(pendingRide.vehicle_type)}</span>
-                  <span>{getVehicleTypeName(pendingRide.vehicle_type)}</span>
-                </div>
+                <Timer className="w-3.5 h-3.5 text-white" />
+                <span className="text-white font-bold text-xs">{timeLeft}ث</span>
               </motion.div>
             </div>
 
-            {/* Distance and duration */}
+            {/* Fare + Vehicle Type */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                <span className="text-white/80 text-xs block">الأجرة</span>
+                <span className="text-white font-bold text-sm">
+                  {roundFare(pendingRide.estimated_fare || 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                <span className="text-white/80 text-xs block">النوع</span>
+                <span className="text-white font-bold text-sm flex items-center gap-1">
+                  {getVehicleIcon(pendingRide.vehicle_type)}
+                  {getVehicleTypeName(pendingRide.vehicle_type)}
+                </span>
+              </div>
+            </div>
+
+            {/* Distance + Duration */}
             {(pendingRide.distance_km || pendingRide.duration_minutes) && (
-              <motion.div
-                initial={{ y: 10, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="flex items-center justify-center gap-6 mb-4 py-3 bg-muted/50 rounded-xl"
-              >
+              <div className="flex gap-2 text-xs text-white/90 justify-center">
                 {pendingRide.distance_km && (
-                  <div className="flex items-center gap-2">
-                    <Route className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{pendingRide.distance_km.toFixed(1)} كم</span>
-                  </div>
+                  <span className="flex items-center gap-1">
+                    <Route className="w-3 h-3" />
+                    {pendingRide.distance_km.toFixed(1)} كم
+                  </span>
                 )}
                 {pendingRide.duration_minutes && (
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{Math.round(pendingRide.duration_minutes)} دقيقة</span>
-                  </div>
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {pendingRide.duration_minutes} د
+                  </span>
                 )}
-              </motion.div>
+              </div>
             )}
 
-            {/* Route info */}
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="bg-muted/30 rounded-2xl p-4 border border-border"
-            >
-              <div className="flex gap-3">
-                <div className="flex flex-col items-center py-1">
-                  <div className="w-3 h-3 rounded-full bg-green-500 ring-4 ring-green-500/20" />
-                  <div className="w-0.5 flex-1 bg-gradient-to-b from-green-500 to-red-500 my-2 min-h-[50px]" />
-                  <div className="w-3 h-3 rounded-full bg-red-500 ring-4 ring-red-500/20" />
-                </div>
-                
-                <div className="flex-1 min-w-0 space-y-4">
-                  <div>
-                    <p className="text-xs text-green-600 dark:text-green-400 font-semibold mb-1 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      نقطة الانطلاق
-                    </p>
-                    <p className="text-sm text-foreground font-medium leading-relaxed">
-                      {pendingRide.pickup_address || "موقع غير محدد"}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-xs text-red-600 dark:text-red-400 font-semibold mb-1 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      الوجهة
-                    </p>
-                    <p className="text-sm text-foreground font-medium leading-relaxed">
-                      {pendingRide.dropoff_address || "موقع غير محدد"}
-                    </p>
-                  </div>
-                </div>
+            {/* Pickup & Dropoff Compact */}
+            <div className="space-y-1.5 mt-2 pt-2 border-t border-white/20">
+              <div className="flex items-start gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-300 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-white/90 line-clamp-1">
+                  {pendingRide.pickup_address || "موقع الانطلاق"}
+                </p>
               </div>
-            </motion.div>
-          </div>
+              <div className="flex items-start gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-300 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-white/90 line-clamp-1">
+                  {pendingRide.dropoff_address || "الوجهة"}
+                </p>
+              </div>
+            </div>
 
-          {/* Action buttons */}
-          <div className="bg-background px-5 py-4 border-t border-border">
-            <div className="flex gap-3">
+            {/* Action buttons */}
+            <div className="flex gap-2 mt-3 pt-2 border-t border-white/20">
               <Button
-                variant="outline"
-                className="flex-1 h-14 text-base border-2 border-red-200 dark:border-red-800 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500 rounded-xl transition-all duration-200"
+                variant="ghost"
+                className="flex-1 h-8 text-xs bg-red-400 hover:bg-red-500 text-white rounded-lg"
                 onClick={handleReject}
                 disabled={loading}
               >
                 {loading && actionType === "reject" ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-3 h-3 animate-spin" />
                 ) : (
                   <>
-                    <X className="w-5 h-5 ml-2" />
-                    رفض
+                    <X className="w-3 h-3 mr-1" />
+                    تخطي
                   </>
                 )}
               </Button>
-              
+
               <Button
-                className="flex-[2] h-14 text-base bg-gradient-to-r from-primary to-green-500 hover:from-primary/90 hover:to-green-500/90 text-white font-bold rounded-xl shadow-lg shadow-primary/30 transition-all duration-200"
+                className="flex-1 h-8 text-xs bg-white text-primary hover:bg-white/90 rounded-lg font-bold"
                 onClick={handleAccept}
                 disabled={loading}
               >
                 {loading && actionType === "accept" ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-3 h-3 animate-spin" />
                 ) : (
                   <>
-                    <Zap className="w-5 h-5 ml-2" />
-                    قبول الطلب
+                    <Check className="w-3 h-3 mr-1" />
+                    قبول
                   </>
                 )}
               </Button>

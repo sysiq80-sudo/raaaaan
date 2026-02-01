@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
-import { getMarkerIcon } from "@/lib/googleMapService";
+import { getMarkerIcon, getDarkMapStyle } from "@/lib/googleMapService";
 import { MapPin, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -112,19 +112,10 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
     map.current.setZoom(15);
   };
 
-  const getDarkMapStyle = (): google.maps.MapTypeStyle[] => {
-    return [
-      { elementType: "geometry", stylers: [{ color: "#212121" }] },
-      { elementType: "labels.text.fill", stylers: [{ color: "#10b981" }] },
-      { featureType: "road", elementType: "geometry", stylers: [{ color: "#2c2c2c" }] },
-      { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#10b981" }] },
-      { featureType: "water", elementType: "geometry", stylers: [{ color: "#1a1a2e" }] }
-    ];
-  };
 
   if (error) {
     return (
-      <div className="relative h-48 bg-secondary/50 rounded-2xl flex items-center justify-center">
+      <div className="relative h-full min-h-[12rem] bg-secondary/50 flex items-center justify-center">
         <div className="text-center p-4">
           <AlertCircle className="w-8 h-8 text-destructive mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">{error}</p>
@@ -143,7 +134,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
   }
 
   return (
-    <div className="relative h-48 rounded-2xl overflow-hidden">
+    <div className="relative h-full w-full overflow-hidden">
       {loading && (
         <div className="absolute inset-0 z-10 bg-secondary/80 flex items-center justify-center">
           <Loader2 className="w-8 h-8 text-primary animate-spin" />

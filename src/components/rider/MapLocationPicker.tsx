@@ -338,7 +338,7 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
     : "linear-gradient(to bottom, #0ea5e9, transparent)";
   const bgOpacity = isPickup ? "bg-green-500/30" : "bg-sky-400/40";
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col">
+    <div className="fixed inset-0 z-40 bg-background flex flex-col">
       {/* Header */}
       <div className="bg-card/95 backdrop-blur-md border-b border-border/50 z-30">
         <div className="flex items-center justify-between p-4 safe-area-top">
@@ -393,11 +393,11 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
         <div 
           id="location-pin-marker"
           style={{
-            position: 'fixed',
+            position: 'absolute',
             left: '50%',
             top: '50%',
             transform: 'translate(-50%, calc(-100% + 8px))',
-            zIndex: 99999,
+            zIndex: 1,
             pointerEvents: 'none',
           }}
         >

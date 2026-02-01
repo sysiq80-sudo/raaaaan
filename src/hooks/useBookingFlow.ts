@@ -159,6 +159,7 @@ export const useBookingFlow = (apiKey: string | null) => {
         fullscreenControl: false,
         streetViewControl: false,
         gestureHandling: "cooperative",
+        draggable: true, // ✨ تفعيل السحب
         disableDefaultUI: false,
         zoomControl: true,
       });

@@ -38,6 +38,9 @@ import { useLastLocation } from "@/hooks/useLastLocation";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { DynamicSearchHeader, DynamicSearchResults } from "@/components/rider/DynamicSearchResults";
 import { LocationPermissionPrompt } from "@/components/rider/LocationPermissionPrompt";
+import LocationInputField from "@/components/rider/LocationInputField";
+import QuickAccessChips from "@/components/rider/QuickAccessChips";
+import FavoriteMarkersLayer from "@/components/rider/FavoriteMarkersLayer";
 
 // Performance & Enhancement hooks
 import { usePerformanceMonitoring, useOperationTiming } from "@/hooks/usePerformanceMonitoring";
@@ -48,6 +51,7 @@ import { useOfflineMode } from "@/hooks/useOfflineMode";
 const RideWaitingScreen = lazy(() => import("@/components/rider/RideWaitingScreen"));
 const LiveRideTracker = lazy(() => import("@/components/rider/LiveRideTracker"));
 const RideCompletedScreen = lazy(() => import("@/components/rider/RideCompletedScreen"));
+const RideRatingScreen = lazy(() => import("@/components/rider/RideRatingScreen"));
 const OnboardingFlow = lazy(() => import("@/components/rider/OnboardingFlow"));
 
 // Loading skeleton
@@ -64,7 +68,9 @@ interface LocationType {
 }
 type VehicleType = "economy" | "comfort" | "premium" | "women_only";
 type PaymentMethodType = "cash" | "wallet" | "card" | "zain_cash" | "super_key" | "nas_wallet";
-const GoPage: React.FC = () => {
+
+// Wrapper component to ensure GoPage is rendered safely within Router context
+const GoPageContent: React.FC = () => {
   const navigate = useNavigate();
   const {
     toast
@@ -396,6 +402,11 @@ const GoPage: React.FC = () => {
         toast({ title: errorMsg, variant: "destructive" });
       });
   }, [bookingMap, getBestPosition, shouldAcceptLocation, toast]);
+  
+  // Layout management - Bottom panel height tracking
+  const bottomPanelRef = useRef<HTMLDivElement>(null);
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(0);
+  
   const [currentMode, setCurrentMode] = useState<"pickup" | "dropoff" | "booking">("pickup");
   const [pickupLocation, setPickupLocation] = useState<LocationType | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<LocationType | null>(null);
@@ -403,6 +414,7 @@ const GoPage: React.FC = () => {
   const [localServiceAreaStatus, setLocalServiceAreaStatus] = useState<any>(null);
   const [geofenceResult, setGeofenceResult] = useState<GeofenceResult | null>(null);
   const [showGeofenceAlert, setShowGeofenceAlert] = useState(false);
+  const [showRatingScreen, setShowRatingScreen] = useState(false);
 
   // Fare calculation
   const {
@@ -424,6 +436,47 @@ const GoPage: React.FC = () => {
       setCenterAddress("");
     }
   }, [currentMode]);
+
+  // Track bottom panel height for map padding
+  useEffect(() => {
+    const updatePanelHeight = () => {
+      if (bottomPanelRef.current) {
+        const height = bottomPanelRef.current.offsetHeight;
+        setBottomPanelHeight(height);
+        
+        // تطبيق padding على الخريطة
+        if (mapContainer.current) {
+          mapContainer.current.style.paddingBottom = "0px";
+        }
+      }
+    };
+
+    // تحديث فوري
+    updatePanelHeight();
+    
+    // استدعاء عند resize
+    const observer = new ResizeObserver(() => {
+      updatePanelHeight();
+    });
+    
+    if (bottomPanelRef.current) {
+      observer.observe(bottomPanelRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Trigger map resize when bottom panel height changes
+  useEffect(() => {
+    if (map.current && window.google?.maps?.event) {
+      window.google.maps.event.trigger(map.current, 'resize');
+      
+      // recenter the map
+      if (userLocation) {
+        map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+      }
+    }
+  }, [bottomPanelHeight, userLocation]);
 
   // 🔄 تحديث تلقائي مستمر للخريطة
   useEffect(() => {
@@ -907,7 +960,9 @@ const GoPage: React.FC = () => {
         description: "الرجاء تسجيل الدخول للحجز",
         variant: "destructive"
       });
-      navigate("/auth?redirect=/go");
+      if (navigate) {
+        navigate("/auth?redirect=/go");
+      }
       return;
     }
 
@@ -1100,7 +1155,24 @@ const GoPage: React.FC = () => {
       </Suspense>;
   }
 
-  // Show completed screen for rating
+  // Show rating screen first when ride completes
+  if (showRatingScreen && completedRide) {
+    return <Suspense fallback={<ScreenSkeleton />}>
+      <RideRatingScreen
+        rideId={completedRide.id}
+        driverId={completedRide.driver_id}
+        driverName={completedRide.driver_name || "السائق"}
+        fare={completedRide.final_fare || completedRide.estimated_fare || 0}
+        onClose={() => {
+          setShowRatingScreen(false);
+          // Show completed screen after rating
+          setShowCompletedScreen(true);
+        }}
+      />
+    </Suspense>;
+  }
+
+  // Show completed screen for summary
   if (showCompletedScreen && completedRide) {
     return <Suspense fallback={<ScreenSkeleton />}>
         <RideCompletedScreen ride={{
@@ -1114,6 +1186,8 @@ const GoPage: React.FC = () => {
         driver_id: completedRide.driver_id
       }} driverName={"السائق"} onClose={() => {
         console.log('🎉 [RideCompleted] onClose -> clearing completed ride and resetting booking/map');
+        setShowRatingScreen(false);
+        setShowCompletedScreen(false);
         handleRideCompletion();
         resetBooking();
       }} />
@@ -1155,7 +1229,7 @@ const GoPage: React.FC = () => {
           </div>}
 
         {/* Progress indicator - Top */}
-        <div className={`absolute left-0 right-0 z-50 px-4 ${!isOnline ? "pt-14" : "pt-2"}`}>
+        <div className={`absolute left-0 right-0 z-50 px-4 pointer-events-none ${!isOnline ? "pt-14" : "pt-2"}`}>
           <div className="flex gap-2">
             <div className="flex-1 h-1 rounded-full bg-primary" />
             <div className="flex-1 h-1 rounded-full bg-accent" />
@@ -1164,7 +1238,7 @@ const GoPage: React.FC = () => {
         </div>
 
         {/* Header - Transparent over map */}
-        <div className={`absolute left-0 right-0 z-40 px-4 ${!isOnline ? "top-20" : "top-4"}`}>
+        <div className={`absolute left-0 right-0 z-40 px-4 pointer-events-auto ${!isOnline ? "top-20" : "top-4"}`}>
           <div className="flex items-center justify-between gap-2">
             <button onClick={() => setMenuOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-md bg-card/90 backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0" aria-label="القائمة">
               <Menu className="w-5 h-5" />
@@ -1209,7 +1283,7 @@ const GoPage: React.FC = () => {
           <div ref={bookingMapContainer} className="absolute inset-0 bg-gray-100" />
 
           {/* Floating manual geolocate button for booking map (raised) */}
-          <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top">
+          <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top pointer-events-auto">
             <button
               onClick={manualGeolocateBooking}
               className="w-10 h-10 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
@@ -1402,23 +1476,35 @@ const GoPage: React.FC = () => {
               </button>
             </motion.div>
 
-            {/* Schedule option */}
-            <motion.div initial={{
-            y: 20,
-            opacity: 0
-          }} animate={{
-            y: 0,
-            opacity: 1
-          }} transition={{
-            delay: 0.3
-          }}>
-              <ScheduleRideDialog pickup={pickupLocation} dropoff={dropoffLocation} vehicleType={selectedVehicle} paymentMethod={paymentMethod} estimatedFare={fareBreakdown?.total_fare || null} onScheduled={() => {
-              toast({
-                title: "تم جدولة الرحلة ✅",
-                description: "سيتم تذكيرك قبل الموعد"
-              });
-              resetBooking();
-            }} />
+            {/* Schedule option - Enhanced */}
+            <motion.div 
+              initial={{
+                y: 20,
+                opacity: 0
+              }} 
+              animate={{
+                y: 0,
+                opacity: 1
+              }} 
+              transition={{
+                delay: 0.3
+              }}
+              className="px-1"
+            >
+              <ScheduleRideDialog 
+                pickup={pickupLocation} 
+                dropoff={dropoffLocation} 
+                vehicleType={selectedVehicle} 
+                paymentMethod={paymentMethod} 
+                estimatedFare={fareBreakdown?.total_fare || null} 
+                onScheduled={() => {
+                  toast({
+                    title: "تم جدولة الرحلة ✅",
+                    description: "سيتم تذكيرك قبل الموعد"
+                  });
+                  resetBooking();
+                }} 
+              />
             </motion.div>
           </div>
 
@@ -1459,11 +1545,25 @@ const GoPage: React.FC = () => {
 
         {/* Payment Method Sheet */}
         <PaymentMethodSheet open={paymentSheetOpen} onOpenChange={setPaymentSheetOpen} selectedMethod={paymentMethod} onSelect={setPaymentMethod} />
+
+        {/* Side Menu */}
+        <RiderSideMenu
+          user={user}
+          isOpen={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          onLogout={async () => {
+            await supabase.auth.signOut();
+            if (navigate) {
+              navigate("/auth");
+            }
+          }}
+        />
       </motion.div>;
   }
 
   // Location picker screen
-  return <div className="fixed inset-0 z-50 bg-background flex flex-col">
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col">
       {/* Progress indicator - Top of screen */}
       <motion.div initial={{
       y: -10,
@@ -1471,7 +1571,7 @@ const GoPage: React.FC = () => {
     }} animate={{
       y: 0,
       opacity: 1
-    }} className="absolute top-0 left-0 right-0 z-40 px-4 pt-2">
+    }} className="absolute top-0 left-0 right-0 z-40 px-4 pt-2 pointer-events-none">
         <div className="flex gap-2">
           <div className={`flex-1 h-1 rounded-full transition-colors ${isPickup || pickupLocation ? "bg-primary" : "bg-muted/30"}`} />
           <div className={`flex-1 h-1 rounded-full transition-colors ${isDropoff || dropoffLocation ? "bg-accent" : "bg-muted/30"}`} />
@@ -1485,7 +1585,7 @@ const GoPage: React.FC = () => {
     }} animate={{
       y: 0,
       opacity: 1
-    }} className="absolute top-4 left-0 right-0 z-30">
+    }} className="absolute top-4 left-0 right-0 z-30 pointer-events-auto">
         <div className="flex items-center justify-between p-4">
           {/* زر القائمة */}
           <button onClick={() => setMenuOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-xl bg-card/95 backdrop-blur-xl shadow-lg hover:bg-card hover:scale-105 transition-all duration-200 active:scale-95 border border-border/30" aria-label="القائمة الرئيسية">
@@ -1504,9 +1604,9 @@ const GoPage: React.FC = () => {
       </motion.div>
 
       {/* Map Container */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative pointer-events-auto w-full h-full overflow-hidden">
         {/* Enhanced map loading placeholder */}
-        {(!mapToken || isLoading) && <div className="absolute inset-0 bg-background flex items-center justify-center z-50">
+        {(!mapToken || isLoading) && <div className="absolute inset-0 bg-background flex items-center justify-center z-50 pointer-events-auto">
             <div className="text-center space-y-4 px-6">
               <div className="relative">
                 <div className="w-20 h-20 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
@@ -1528,10 +1628,25 @@ const GoPage: React.FC = () => {
             </div>
           </div>}
 
-        <div ref={mapContainer} className="absolute inset-0 z-0" />
+        <div ref={mapContainer} className="absolute inset-0 z-0 pointer-events-auto" />
+
+        {/* Favorite Markers Layer */}
+        {map && !isPickup && (
+          <FavoriteMarkersLayer
+            map={map}
+            onMarkerClick={(id, lat, lng, address) => {
+              if (map) {
+                map.panTo({ lat, lng });
+                map.setZoom(16);
+              }
+              setManualAddress(address);
+              checkServiceArea(lat, lng);
+            }}
+          />
+        )}
 
         {/* Floating manual geolocate button for main map */}
-        <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top">
+        <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top pointer-events-auto">
           <button
             onClick={manualGeolocateMain}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
@@ -1571,7 +1686,7 @@ const GoPage: React.FC = () => {
             left: '50%',
             top: '50%',
             transform: 'translate(-50%, -100%)',
-            zIndex: 9999,
+            zIndex: 1,
           }}
         >
           <motion.div 
@@ -1631,17 +1746,27 @@ const GoPage: React.FC = () => {
 
       </div>
 
-      {/* Bottom panel - Modern redesign */}
-      <motion.div initial={{
-      y: 100
-    }} animate={{
-      y: 0
-    }} className="bg-card/98 backdrop-blur-xl border-t border-border/30 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] z-30 rounded-t-3xl">
+      {/* 🟢 Bottom panel - Glassmorphism متكاملة مع شريط التنقل + safe-area-inset */}
+      <motion.div 
+        ref={bottomPanelRef}
+        initial={{
+        y: 100
+      }} animate={{
+        y: 0
+      }} className={`bg-card/98 backdrop-blur-xl border-t border-border/30 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] z-20 rounded-t-3xl transition-all duration-300 pointer-events-auto ${bottomNavEnabled ? 'fixed left-0 right-0' : 'fixed bottom-0 left-0 right-0'}`}
+        style={{
+          bottom: bottomNavEnabled ? 'calc(env(safe-area-inset-bottom) + 65px)' : 'env(safe-area-inset-bottom, 0px)',
+          maxHeight: bottomNavEnabled ? 'calc(100vh - 200px - env(safe-area-inset-bottom))' : 'calc(100vh - 60px - env(safe-area-inset-bottom))',
+          overflowY: 'auto',
+          WebkitBackdropFilter: 'blur(12px)',
+          contain: 'layout style paint'
+        }}
+      >
         {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1">
+        <div className="flex justify-center pt-3 pb-1 pointer-events-auto">
           <div className="w-12 h-1.5 rounded-full bg-muted-foreground/25" />
         </div>
-        <div className="px-4 pb-[140px] pt-1 max-w-lg mx-auto">
+        <div className={`px-4 pt-1 max-w-lg mx-auto transition-all duration-300 ${bottomNavEnabled ? 'pb-12' : 'pb-6'}`}>
           {/* Service area warning */}
           {localServiceAreaStatus && !localServiceAreaStatus.in_service && <div className="flex items-center gap-3 p-3 mb-3 rounded-md bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/30">
               <div className="w-8 h-8 rounded-md bg-destructive/20 flex items-center justify-center shrink-0">
@@ -1658,24 +1783,25 @@ const GoPage: React.FC = () => {
               </div>
             </div>}
 
-          {/* Address display - Modern design */}
-          <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-gradient-to-r from-card to-card/80 border border-border/40 shadow-sm">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPickup ? "bg-gradient-to-br from-primary/20 to-primary/10 ring-2 ring-primary/30" : "bg-gradient-to-br from-accent/20 to-accent/10 ring-2 ring-accent/30"}`}>
-              {isPickup ? <Target className="w-5 h-5 text-primary" /> : <MapPin className="w-5 h-5" style={{color: '#2A6CD5'}} />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${isPickup ? "text-primary" : ""}`} style={!isPickup ? {color: '#2A6CD5'} : {}}>
-                {isPickup ? "موقع الانطلاق" : "الوجهة"}
-              </p>
-              <p className="font-semibold text-foreground text-sm line-clamp-1">
-                {buildDescriptiveAddress(centerAddress || "") || "جاري تحديد العنوان..."}
-              </p>
-            </div>
-            {centerAddress && <div className={`w-2 h-2 rounded-full animate-pulse`} style={{backgroundColor: isPickup ? '' : '#2A6CD5'}} />}
-          </div>
+          {/* Location Input Field with Heart */}
+          <LocationInputField
+            label={isPickup ? "موقع الانطلاق" : "الوجهة"}
+            value={buildDescriptiveAddress(centerAddress || "") || ""}
+            address={buildDescriptiveAddress(centerAddress || "") || ""}
+            lat={userLocation?.lat}
+            lng={userLocation?.lng}
+            placeholder={isPickup ? "اختر موقع الانطلاق" : "اختر الوجهة"}
+            onClick={() => {}} // الخريطة تتحكم بهذا
+            onClear={() => {
+              setCenterAddress(null);
+              setManualAddress(null);
+            }}
+            isPickup={isPickup}
+            className="mb-3 pointer-events-auto"
+          />
 
           {/* Dynamic search - Google Places */}
-          <div className="mb-3 relative">
+          <div className="mb-3 relative pointer-events-auto">
             <DynamicSearchHeader
               query={searchQuery}
               onQueryChange={setSearchQuery}
@@ -1753,11 +1879,24 @@ const GoPage: React.FC = () => {
             )}
           </div>
 
+          {/* 🟢 المفضلة في جميع المراحل - الانطلاق والوجهة */}
+          <QuickAccessChips
+            onSelectLocation={(lat, lng, address) => {
+              if (map.current) {
+                map.current.panTo({ lat, lng });
+                map.current.setZoom(16);
+              }
+              setManualAddress(address);
+              checkServiceArea(lat, lng);
+            }}
+            className="mb-4 pointer-events-auto"
+          />
+
           {/* Confirm button - Enhanced with semantic colors */}
           <Button 
             onClick={handleConfirm} 
             disabled={!centerAddress || isCheckingService || isConfirming} 
-            className={`w-full h-12 sm:h-14 text-sm sm:text-base font-bold rounded-xl shadow-lg transition-all duration-200 active:scale-[0.98] ${
+            className={`w-full h-12 sm:h-14 text-sm sm:text-base font-bold rounded-xl shadow-lg transition-all duration-200 active:scale-[0.98] sticky bottom-4 ${
               centerAddress 
                 ? "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary shadow-primary/25 text-primary-foreground" 
                 : "bg-muted/50 text-muted-foreground cursor-not-allowed"
@@ -1782,7 +1921,9 @@ const GoPage: React.FC = () => {
       {/* Side Menu */}
       <RiderSideMenu user={user} isOpen={menuOpen} onClose={() => setMenuOpen(false)} onLogout={async () => {
       await supabase.auth.signOut();
-      navigate("/auth");
+      if (navigate) {
+        navigate("/auth");
+      }
     }} />
 
       {/* Geofencing Alert Dialog */}
@@ -1820,6 +1961,23 @@ const GoPage: React.FC = () => {
           </Dialog>
         )}
       </AnimatePresence>
-    </div>;
+    </div>
+  );
 };
+
+const GoPage: React.FC = () => {
+  return (
+    <Suspense fallback={
+      <div className="h-screen w-full bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-muted-foreground">جاري التحميل...</p>
+        </div>
+      </div>
+    }>
+      <GoPageContent />
+    </Suspense>
+  );
+};
+
 export default GoPage;

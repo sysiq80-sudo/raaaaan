@@ -17,6 +17,9 @@ import { NotificationsBell } from "@/components/driver/NotificationsBell";
 import { DriverAlerts } from "@/components/driver/DriverAlerts";
 import { StatusSearchBar } from "@/components/driver/StatusSearchBar";
 import { NewRideAlert } from "@/components/driver/NewRideAlert";
+import { FloatingTripBubble } from "@/components/driver/FloatingTripBubble";
+import { ExternalNavigationModal } from "@/components/driver/ExternalNavigationModal";
+import DriverScheduledRidesBoard from "@/components/driver/DriverScheduledRidesBoard";
 import DriverSideMenu from "@/components/driver/DriverSideMenu";
 import logo from "@/assets/logo.png";
 import {
@@ -48,10 +51,18 @@ const DriverHome = () => {
     lat: number;
     lng: number;
   } | null>(null);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [showNavigationModal, setShowNavigationModal] = useState(false);
+  const [navigationDestination, setNavigationDestination] = useState<{ lat: number; lng: number } | null>(null);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [activeRideData, setActiveRideData] = useState<any>(null);
+  const [riderName, setRiderName] = useState<string>("الراكب");
+  const [riderRating, setRiderRating] = useState<number | undefined>(undefined);
   const [locationTracking, setLocationTracking] = useState(false);
   const [onlineToggleLoading, setOnlineToggleLoading] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasActiveRide, setHasActiveRide] = useState(false);
   const [showNewRideAlert, setShowNewRideAlert] = useState(false);
   const [newRideData, setNewRideData] = useState<any>(null);
   const watchIdRef = useRef<number | null>(null);
@@ -60,6 +71,7 @@ const DriverHome = () => {
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [adminActivated, setAdminActivated] = useState(true);
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'scheduled'>('dashboard');
 
   // Enable real-time notifications for new rides
   const { notificationPermission, requestNotificationPermission } =
@@ -102,7 +114,12 @@ const DriverHome = () => {
   // Update driver location in database with retry
   const updateDriverLocation = useCallback(
     async (lat: number, lng: number) => {
-      if (!driverId || !isOnline) return;
+      if (!driverId || (!isOnline && !hasActiveRide)) return;
+
+      // Round to 6 decimal places (precision: ~0.1 meters)
+      // Higher precision than usual for accurate location tracking
+      const preciseLat = Math.round(lat * 1000000) / 1000000;
+      const preciseLng = Math.round(lng * 1000000) / 1000000;
 
       let retries = 3;
       while (retries > 0) {
@@ -110,13 +127,28 @@ const DriverHome = () => {
           const { error } = await supabase
             .from("drivers")
             .update({
-              current_location: { lat, lng },
+              current_location: { lat: preciseLat, lng: preciseLng },
               is_available: true,
+              updated_at: new Date().toISOString(),
             })
             .eq("id", driverId);
 
           if (error) throw error;
-          console.log("Location updated:", { lat, lng });
+          console.log("📍 Location updated (Real-time):", { lat: preciseLat, lng: preciseLng });
+          
+          // Broadcast location update to rider immediately
+          if (hasActiveRide) {
+            const broadcastChannel = supabase.channel("driver-updates");
+            broadcastChannel.send({
+              type: "broadcast",
+              event: "driver_location_update",
+              payload: {
+                location: { lat: preciseLat, lng: preciseLng },
+                driverId,
+                timestamp: Date.now(),
+              },
+            });
+          }
           return;
         } catch (error) {
           console.error(
@@ -128,7 +160,7 @@ const DriverHome = () => {
         }
       }
     },
-    [driverId, isOnline]
+    [driverId, isOnline, hasActiveRide]
   );
 
   // Start location tracking with fixed closure
@@ -164,21 +196,26 @@ const DriverHome = () => {
     );
 
     // Watch position changes and update ref
+    // enableHighAccuracy: true - ensures GPS accuracy
+    // maximumAge: 5000 - max 5 seconds old location cache
+    // timeout: 3000 - force new location within 3 seconds
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
         const newLocation = { lat: latitude, lng: longitude };
         setCurrentLocation(newLocation);
         latestLocationRef.current = newLocation;
+        // Send location update immediately (not waiting for interval)
         updateDriverLocation(latitude, longitude);
       },
       (error) => console.error("Watch position error:", error),
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 3000 }
     );
 
     watchIdRef.current = watchId;
 
-    // Also update database every 30 seconds using ref
+    // Update database every 5 seconds for real-time tracking (reduced from 30s)
+    // This ensures driver location is synced to rider within ~5 seconds
     const intervalId = setInterval(() => {
       if (latestLocationRef.current) {
         updateDriverLocation(
@@ -186,7 +223,7 @@ const DriverHome = () => {
           latestLocationRef.current.lng
         );
       }
-    }, 30000);
+    }, 5000);
 
     locationUpdateIntervalRef.current = intervalId;
     setLocationTracking(true);
@@ -234,12 +271,56 @@ const DriverHome = () => {
 
   // Start/stop tracking based on online status
   useEffect(() => {
-    if (isOnline && driverId) {
+    if ((isOnline || hasActiveRide) && driverId) {
       startLocationTracking();
     } else {
       stopLocationTracking();
     }
-  }, [isOnline, driverId, startLocationTracking, stopLocationTracking]);
+  }, [isOnline, hasActiveRide, driverId, startLocationTracking, stopLocationTracking]);
+
+  // Track active ride status to keep location updates while on trip
+  useEffect(() => {
+    if (!driverId) return;
+
+    const fetchActiveRideStatus = async () => {
+      const { data } = await supabase
+        .from("rides")
+        .select("id, status")
+        .eq("driver_id", driverId)
+        .in("status", ["accepted", "arrived", "in_progress"])
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      setHasActiveRide(!!(data && data.length > 0));
+    };
+
+    fetchActiveRideStatus();
+
+    const channel = supabase
+      .channel(`driver_active_ride_${driverId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "rides",
+          filter: `driver_id=eq.${driverId}`,
+        },
+        (payload) => {
+          const status = (payload.new as any)?.status || (payload.old as any)?.status;
+          if (["accepted", "arrived", "in_progress"].includes(status)) {
+            setHasActiveRide(true);
+          } else {
+            fetchActiveRideStatus();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [driverId]);
 
   const fetchDriverData = async (userId: string) => {
     const { data, error } = await supabase
@@ -342,7 +423,7 @@ const DriverHome = () => {
         .update({
           is_online: online,
           is_available: online,
-          current_location: online ? currentLocation : null,
+          current_location: online ? currentLocation : hasActiveRide ? currentLocation : null,
         })
         .eq("id", driverId);
 
@@ -490,7 +571,7 @@ const DriverHome = () => {
   const statusBadge = getStatusBadge();
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 glass">
         <div className="container flex items-center justify-between h-16">
@@ -535,58 +616,154 @@ const DriverHome = () => {
         driverId={driverId}
       />
 
-      {/* Main Content - Mobile Optimized Layout */}
-      <main className="flex-1 pt-20 flex flex-col relative overflow-hidden">
+      {/* Main Content - Full Screen Map Layout */}
+      <main className="flex-1 relative overflow-hidden">
         {driverId && adminActivated && driverStatus === "approved" && (
           <>
-            {/* Status & Search Bar - Sticky */}
-            <div className="px-4 pb-3">
-              <StatusSearchBar
-                isOnline={isOnline}
-                isSearching={isSearching}
-                onToggleOnline={handleOnlineToggle}
-                isLoading={onlineToggleLoading}
-                locationTracking={locationTracking}
-                driverStatus={driverStatus}
-              />
-            </div>
-
-            {/* Map Container - Full Height */}
-            <div className="flex-1 min-h-0 relative">
-              <DriverMap 
-                driverLocation={currentLocation} 
-                isOnline={isOnline} 
-              />
-            </div>
-
-            {/* Floating Ride Cards - Bottom Center */}
-            <div className="fixed bottom-6 left-4 right-4 flex justify-center pointer-events-none z-30">
-              <div className="w-full max-w-sm space-y-2">
-                {/* Active Ride Card - Float */}
-                <div className="pointer-events-auto">
-                  <ActiveRideCard
-                    driverId={driverId}
-                    driverLocation={currentLocation}
-                  />
-                </div>
-
-                {/* Ride Request Card - Float */}
-                <div className="pointer-events-auto">
-                  <RideRequestCard
-                    driverId={driverId}
-                    vehicleType={vehicleType}
-                    isOnline={isOnline}
-                    driverLocation={currentLocation}
-                    maxPickupRadius={maxPickupRadius}
-                    onRideAccepted={() => {
-                      console.log(
-                        "[DriverHome] Ride accepted, ActiveRideCard will update via subscription"
-                      );
-                    }}
-                  />
-                </div>
+            {/* Tab Navigation */}
+            <div className="absolute top-16 left-0 right-0 z-40 bg-background/80 backdrop-blur-sm border-b border-border">
+              <div className="flex">
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                    activeTab === 'dashboard'
+                      ? 'text-primary border-b-2 border-primary'
+                      : 'text-muted-foreground'
+                  }`}
+                >
+                  📍 الخريطة
+                </button>
+                <button
+                  onClick={() => setActiveTab('scheduled')}
+                  className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                    activeTab === 'scheduled'
+                      ? 'text-primary border-b-2 border-primary'
+                      : 'text-muted-foreground'
+                  }`}
+                >
+                  📅 الرحلات المجدولة
+                </button>
               </div>
             </div>
+
+            {/* Dashboard Tab */}
+            {activeTab === 'dashboard' && (
+              <>
+            {/* Full Screen Map - Absolute background */}
+            <div className="absolute inset-0 top-20">
+              <DriverMap
+                driverLocation={currentLocation}
+                isOnline={isOnline}
+              />
+            </div>
+
+            {/* Status & Search Bar - Compact (overlay) */}
+            <div className="relative z-20 pt-16">
+              <div className="h-12 px-3 py-1">
+                <StatusSearchBar
+                  isOnline={isOnline}
+                  isSearching={isSearching}
+                  onToggleOnline={handleOnlineToggle}
+                  isLoading={onlineToggleLoading}
+                  locationTracking={locationTracking}
+                  driverStatus={driverStatus}
+                />
+              </div>
+            </div>
+
+            {/* Bottom Action Card - Sticky/Fixed (shown only when not minimized) */}
+            {!isMinimized && (
+              <div className="absolute bottom-0 left-0 right-0 h-40 pointer-events-none z-30">
+                {/* Gradient fade to make card appear on top of map */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                
+                {/* Cards Container */}
+                <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto">
+                  <div className="flex flex-col gap-2 max-w-sm mx-auto">
+                    {/* Active Ride Card */}
+                    <ActiveRideCard
+                      driverId={driverId}
+                      driverLocation={currentLocation}
+                      onMinimize={() => setIsMinimized(true)}
+                      onNavigationClick={(lat, lng, label) => {
+                        setNavigationDestination({ lat, lng });
+                        setShowNavigationModal(true);
+                      }}
+                    />
+
+                    {/* Ride Request Card - Shows search status or ride details */}
+                    <RideRequestCard
+                      driverId={driverId}
+                      vehicleType={vehicleType}
+                      isOnline={isOnline}
+                      driverLocation={currentLocation}
+                      maxPickupRadius={maxPickupRadius}
+                      onRideAccepted={() => {
+                        console.log(
+                          "[DriverHome] Ride accepted, ActiveRideCard will update via subscription"
+                        );
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Floating Trip Bubble - shown when minimized */}
+            {isMinimized && (
+              <FloatingTripBubble
+                isMinimized={isMinimized}
+                onToggleMinimize={() => setIsMinimized(false)}
+                notificationCount={notificationCount}
+                onCallClick={() => {
+                  toast({
+                    title: "اتصال",
+                    description: "يمكنك الاتصال بالراكب"
+                  });
+                }}
+                onChatClick={() => {
+                  toast({
+                    title: "محادثة",
+                    description: "فتح الدردشة"
+                  });
+                }}
+                onCancelClick={() => {
+                  toast({
+                    title: "إلغاء",
+                    description: "هل تريد إلغاء الرحلة؟"
+                  });
+                }}
+                passengerName={riderName}
+                passengerRating={riderRating}
+              >
+                <div className="text-sm text-slate-300 space-y-2">
+                  {/* Content will show here when expanded */}
+                  <p>الرحلة نشطة - اسحب الأيقونة لنقلها</p>
+                </div>
+              </FloatingTripBubble>
+            )}
+
+            {/* Navigation Modal */}
+            <ExternalNavigationModal
+              isOpen={showNavigationModal}
+              onClose={() => setShowNavigationModal(false)}
+              lat={navigationDestination?.lat || 0}
+              lng={navigationDestination?.lng || 0}
+              onInternalNavigation={() => {
+                setIsMinimized(true);
+                // Maximize map and focus on navigation
+              }}
+              destinationLabel="الوجهة"
+            />
+            </>
+            )}
+
+            {/* Scheduled Rides Tab */}
+            {activeTab === 'scheduled' && (
+              <div className="absolute inset-0 top-20 overflow-y-auto bg-background">
+                <DriverScheduledRidesBoard />
+              </div>
+            )}
           </>
         )}
 

@@ -3300,56 +3300,86 @@ export type Database = {
       }
       scheduled_rides: {
         Row: {
+          accepted_at: string | null
           created_at: string | null
+          driver_confirmed_at: string | null
+          driver_id: string | null
           dropoff_address: string | null
           dropoff_location: Json
           estimated_fare: number | null
+          group_id: string | null
+          high_priority: boolean | null
           id: string
           notes: string | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           pickup_address: string | null
           pickup_location: Json
+          prefer_women_driver: boolean | null
           reminder_sent: boolean | null
+          reminder_sent_at: string | null
+          return_at: string | null
           ride_id: string | null
           rider_id: string
           scheduled_at: string
           status: string | null
+          stops: Json | null
+          trip_type: string | null
           updated_at: string | null
           vehicle_type: Database["public"]["Enums"]["vehicle_type"] | null
         }
         Insert: {
+          accepted_at?: string | null
           created_at?: string | null
+          driver_confirmed_at?: string | null
+          driver_id?: string | null
           dropoff_address?: string | null
           dropoff_location: Json
           estimated_fare?: number | null
+          group_id?: string | null
+          high_priority?: boolean | null
           id?: string
           notes?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           pickup_address?: string | null
           pickup_location: Json
+          prefer_women_driver?: boolean | null
           reminder_sent?: boolean | null
+          reminder_sent_at?: string | null
+          return_at?: string | null
           ride_id?: string | null
           rider_id: string
           scheduled_at: string
           status?: string | null
+          stops?: Json | null
+          trip_type?: string | null
           updated_at?: string | null
           vehicle_type?: Database["public"]["Enums"]["vehicle_type"] | null
         }
         Update: {
+          accepted_at?: string | null
           created_at?: string | null
+          driver_confirmed_at?: string | null
+          driver_id?: string | null
           dropoff_address?: string | null
           dropoff_location?: Json
           estimated_fare?: number | null
+          group_id?: string | null
+          high_priority?: boolean | null
           id?: string
           notes?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           pickup_address?: string | null
           pickup_location?: Json
+          prefer_women_driver?: boolean | null
           reminder_sent?: boolean | null
+          reminder_sent_at?: string | null
+          return_at?: string | null
           ride_id?: string | null
           rider_id?: string
           scheduled_at?: string
           status?: string | null
+          stops?: Json | null
+          trip_type?: string | null
           updated_at?: string | null
           vehicle_type?: Database["public"]["Enums"]["vehicle_type"] | null
         }
@@ -4464,6 +4494,7 @@ export type Database = {
         | "nas_wallet"
         | "nass"
       ride_status:
+        | "scheduled"
         | "pending"
         | "accepted"
         | "arrived"

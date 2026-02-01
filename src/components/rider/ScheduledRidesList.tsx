@@ -50,6 +50,8 @@ const vehicleTypeLabels: Record<string, string> = {
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   scheduled: { label: 'مجدول', variant: 'default' },
+  reserved: { label: 'محجوز', variant: 'secondary' },
+  confirmed: { label: 'مؤكد', variant: 'outline' },
   processing: { label: 'قيد المعالجة', variant: 'secondary' },
   created: { label: 'تم إنشاء الرحلة', variant: 'outline' },
   cancelled: { label: 'ملغي', variant: 'destructive' },

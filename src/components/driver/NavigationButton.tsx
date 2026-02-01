@@ -13,6 +13,8 @@ interface NavigationButtonProps {
   lng: number;
   label?: string;
   className?: string;
+  size?: "default" | "compact";
+  onOpenModal?: (lat: number, lng: number) => void;
 }
 
 type NavApp = 'google' | 'waze' | 'apple';
@@ -42,7 +44,9 @@ export const NavigationButton = ({
   lat, 
   lng, 
   label = "افتح الملاحة",
-  className 
+  className,
+  size = "default",
+  onOpenModal,
 }: NavigationButtonProps) => {
   const [preferredApp, setPreferredApp] = useState<NavApp>(() => {
     const saved = localStorage.getItem('preferred_nav_app') as NavApp;
@@ -57,9 +61,14 @@ export const NavigationButton = ({
   };
 
   const handleQuickNav = () => {
-    // On iOS, prefer Apple Maps by default if no preference set
-    const app = isIOS && !localStorage.getItem('preferred_nav_app') ? 'apple' : preferredApp;
-    openNavigation(app);
+    // If modal callback provided, use it instead of direct navigation
+    if (onOpenModal) {
+      onOpenModal(lat, lng);
+    } else {
+      // On iOS, prefer Apple Maps by default if no preference set
+      const app = isIOS && !localStorage.getItem('preferred_nav_app') ? 'apple' : preferredApp;
+      openNavigation(app);
+    }
   };
 
   const handleSelectApp = (app: NavApp) => {
@@ -72,36 +81,46 @@ export const NavigationButton = ({
     <div className={`flex gap-2 ${className}`}>
       {/* Main navigation button - Prominent green */}
       <Button 
-        className="flex-1 h-14 text-lg gap-3 bg-green-600 hover:bg-green-700 text-white shadow-lg"
+        className={`flex-1 gap-3 bg-green-600 hover:bg-green-700 text-white shadow-lg ${
+          size === "compact" ? "h-11 text-sm" : "h-14 text-lg"
+        }`}
         onClick={handleQuickNav}
       >
-        <Navigation className="w-6 h-6" />
+        <Navigation className={size === "compact" ? "w-4 h-4" : "w-6 h-6"} />
         {label}
       </Button>
 
       {/* Dropdown for app selection */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon" className="h-14 w-14 border-2 border-green-600 text-green-600 hover:bg-green-50">
-            <ChevronDown className="w-5 h-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          {Object.entries(navApps).map(([key, app]) => (
-            <DropdownMenuItem
-              key={key}
-              onClick={() => handleSelectApp(key as NavApp)}
-              className="gap-3 cursor-pointer"
+      {!onOpenModal && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className={`border-2 border-green-600 text-green-600 hover:bg-green-50 ${
+                size === "compact" ? "h-11 w-11" : "h-14 w-14"
+              }`}
             >
-              <span className="text-lg">{app.icon}</span>
-              <span>{app.name}</span>
-              {preferredApp === key && (
-                <span className="mr-auto text-xs text-primary">✓</span>
-              )}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              <ChevronDown className={size === "compact" ? "w-4 h-4" : "w-5 h-5"} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {Object.entries(navApps).map(([key, app]) => (
+              <DropdownMenuItem
+                key={key}
+                onClick={() => handleSelectApp(key as NavApp)}
+                className="gap-3 cursor-pointer"
+              >
+                <span className="text-lg">{app.icon}</span>
+                <span>{app.name}</span>
+                {preferredApp === key && (
+                  <span className="mr-auto text-xs text-primary">✓</span>
+                )}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 };
