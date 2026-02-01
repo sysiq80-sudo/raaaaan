@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
-import { supabase } from "@/integrations/supabase/client";
+import { getMarkerIcon } from "@/lib/googleMapService";
 import { MapPin, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -12,61 +12,57 @@ interface DriverMapProps {
 
 export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: DriverMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const driverMarker = useRef<mapboxgl.Marker | null>(null);
+  const map = useRef<google.maps.Map | null>(null);
+  const driverMarker = useRef<google.maps.Marker | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { apiKey, isLoading: isApiKeyLoading } = useGoogleMapsApiKey();
 
   // Initialize map
   useEffect(() => {
-    if (!mapContainer.current) return;
+    if (!mapContainer.current || !apiKey || isApiKeyLoading) return;
 
     const initMap = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Fetch Mapbox token using query parameter
-        const response = await fetch(
-          "https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token"
-        );
-        
-        if (!response.ok) {
-          throw new Error("فشل في تحميل الخريطة");
-        }
-        
-        const data = await response.json();
-        
-        if (!data?.token) {
-          throw new Error("فشل في تحميل الخريطة");
-        }
+        // Load Google Maps script
+        const script = document.createElement("script");
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry`;
+        script.async = true;
+        script.defer = true;
 
-        mapboxgl.accessToken = data.token;
+        script.onload = () => {
+          if (!window.google) return;
 
-        // Default to Ramadi center if no location
-        const center = driverLocation || { lat: 33.4279, lng: 43.3070 };
+          // Default to Ramadi center if no location
+          const center = driverLocation || { lat: 33.4279, lng: 43.3070 };
 
-        map.current = new mapboxgl.Map({
-          container: mapContainer.current!,
-          style: "mapbox://styles/mapbox/streets-v12",
-          center: [center.lng, center.lat],
-          zoom: 14,
-          attributionControl: false
-        });
+          map.current = new google.maps.Map(mapContainer.current!, {
+            center: new google.maps.LatLng(center.lat, center.lng),
+            zoom: 14,
+            mapTypeControl: false,
+            fullscreenControl: false,
+            streetViewControl: false,
+            styles: getDarkMapStyle(),
+            gestureHandling: "greedy",
+          });
 
-        map.current.addControl(
-          new mapboxgl.NavigationControl({ showCompass: false }),
-          "top-left"
-        );
-
-        map.current.on("load", () => {
           setLoading(false);
-          
+
           // Add driver marker
           if (driverLocation) {
             addDriverMarker(driverLocation);
           }
-        });
+        };
+
+        script.onerror = () => {
+          setError("فشل في تحميل الخريطة");
+          setLoading(false);
+        };
+
+        document.head.appendChild(script);
 
       } catch (err: any) {
         console.error("Map init error:", err);
@@ -78,59 +74,52 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
     initMap();
 
     return () => {
-      map.current?.remove();
+      if (map.current) {
+        map.current = null;
+      }
     };
-  }, []);
+  }, [apiKey, isApiKeyLoading]);
 
   // Update driver marker when location changes
   useEffect(() => {
     if (!map.current || !driverLocation) return;
 
     if (driverMarker.current) {
-      driverMarker.current.setLngLat([driverLocation.lng, driverLocation.lat]);
+      driverMarker.current.setPosition(new google.maps.LatLng(driverLocation.lat, driverLocation.lng));
     } else {
       addDriverMarker(driverLocation);
     }
 
     // Center map on driver
-    map.current.flyTo({
-      center: [driverLocation.lng, driverLocation.lat],
-      duration: 1000
-    });
+    map.current.panTo(new google.maps.LatLng(driverLocation.lat, driverLocation.lng));
   }, [driverLocation]);
 
   const addDriverMarker = (location: { lat: number; lng: number }) => {
     if (!map.current) return;
 
-    // Create custom driver marker element
-    const el = document.createElement("div");
-    el.className = "driver-marker";
-    el.innerHTML = `
-      <div class="relative">
-        <div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center shadow-lg border-4 border-white">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8c-.1.2-.1.4-.1.6v4.7c0 .6.4 1 1 1h2"/>
-            <circle cx="7" cy="17" r="2"/>
-            <circle cx="17" cy="17" r="2"/>
-          </svg>
-        </div>
-        ${isOnline ? '<div class="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>' : ''}
-      </div>
-    `;
-
-    driverMarker.current = new mapboxgl.Marker({ element: el })
-      .setLngLat([location.lng, location.lat])
-      .addTo(map.current);
+    driverMarker.current = new google.maps.Marker({
+      position: new google.maps.LatLng(location.lat, location.lng),
+      map: map.current,
+      title: "السائق",
+      icon: getMarkerIcon("driver"),
+    });
   };
 
   const handleCenterOnDriver = () => {
     if (!map.current || !driverLocation) return;
     
-    map.current.flyTo({
-      center: [driverLocation.lng, driverLocation.lat],
-      zoom: 15,
-      duration: 1000
-    });
+    map.current.panTo(new google.maps.LatLng(driverLocation.lat, driverLocation.lng));
+    map.current.setZoom(15);
+  };
+
+  const getDarkMapStyle = (): google.maps.MapTypeStyle[] => {
+    return [
+      { elementType: "geometry", stylers: [{ color: "#212121" }] },
+      { elementType: "labels.text.fill", stylers: [{ color: "#10b981" }] },
+      { featureType: "road", elementType: "geometry", stylers: [{ color: "#2c2c2c" }] },
+      { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#10b981" }] },
+      { featureType: "water", elementType: "geometry", stylers: [{ color: "#1a1a2e" }] }
+    ];
   };
 
   if (error) {
