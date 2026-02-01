@@ -536,11 +536,11 @@ const DriverHome = () => {
       />
 
       {/* Main Content - Mobile Optimized Layout */}
-      <main className="flex-1 pt-16 px-4 flex flex-col relative">
+      <main className="flex-1 pt-20 flex flex-col relative overflow-hidden">
         {driverId && adminActivated && driverStatus === "approved" && (
           <>
             {/* Status & Search Bar - Sticky */}
-            <div className="mb-4">
+            <div className="px-4 pb-3">
               <StatusSearchBar
                 isOnline={isOnline}
                 isSearching={isSearching}
@@ -551,38 +551,40 @@ const DriverHome = () => {
               />
             </div>
 
-            {/* Map Container - Takes Full Remaining Space (100%) */}
-            <div className="flex-1 min-h-0 rounded-2xl overflow-hidden shadow-lg border border-border">
+            {/* Map Container - Full Height */}
+            <div className="flex-1 min-h-0 relative">
               <DriverMap 
                 driverLocation={currentLocation} 
                 isOnline={isOnline} 
               />
             </div>
 
-            {/* Floating Ride Cards - Bottom Right Corner */}
-            <div className="fixed bottom-6 right-4 left-4 max-w-sm mx-auto space-y-2 pointer-events-none z-30">
-              {/* Active Ride Card - Float */}
-              <div className="pointer-events-auto">
-                <ActiveRideCard
-                  driverId={driverId}
-                  driverLocation={currentLocation}
-                />
-              </div>
+            {/* Floating Ride Cards - Bottom Center */}
+            <div className="fixed bottom-6 left-4 right-4 flex justify-center pointer-events-none z-30">
+              <div className="w-full max-w-sm space-y-2">
+                {/* Active Ride Card - Float */}
+                <div className="pointer-events-auto">
+                  <ActiveRideCard
+                    driverId={driverId}
+                    driverLocation={currentLocation}
+                  />
+                </div>
 
-              {/* Ride Request Card - Float */}
-              <div className="pointer-events-auto">
-                <RideRequestCard
-                  driverId={driverId}
-                  vehicleType={vehicleType}
-                  isOnline={isOnline}
-                  driverLocation={currentLocation}
-                  maxPickupRadius={maxPickupRadius}
-                  onRideAccepted={() => {
-                    console.log(
-                      "[DriverHome] Ride accepted, ActiveRideCard will update via subscription"
-                    );
-                  }}
-                />
+                {/* Ride Request Card - Float */}
+                <div className="pointer-events-auto">
+                  <RideRequestCard
+                    driverId={driverId}
+                    vehicleType={vehicleType}
+                    isOnline={isOnline}
+                    driverLocation={currentLocation}
+                    maxPickupRadius={maxPickupRadius}
+                    onRideAccepted={() => {
+                      console.log(
+                        "[DriverHome] Ride accepted, ActiveRideCard will update via subscription"
+                      );
+                    }}
+                  />
+                </div>
               </div>
             </div>
           </>
