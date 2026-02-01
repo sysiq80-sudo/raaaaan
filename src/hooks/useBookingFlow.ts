@@ -153,7 +153,7 @@ export const useBookingFlow = (apiKey: string | null) => {
       bookingMap.current = new google.maps.Map(bookingMapContainer.current, {
         center: new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng),
         zoom: 13,
-        mapTypeId: google.maps.MapTypeId.ROADMAP,
+        mapTypeId: 'roadmap',
         styles: darkModeStyles, // 🌙 تطبيق النمط الداكن
         mapTypeControl: false,
         fullscreenControl: false,

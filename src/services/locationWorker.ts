@@ -12,6 +12,7 @@ let updateInterval = 5000;
 let rideId: string | null = null;
 
 // Handle messages from main thread
+// @ts-ignore - SharedWorker has onconnect
 self.onconnect = (event: any) => {
   const port = event.ports[0];
 

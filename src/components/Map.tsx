@@ -118,8 +118,8 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
   const driverMarkerRef = useRef<google.maps.Marker | null>(null);
   const userMarkerRef = useRef<google.maps.Marker | null>(null);
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);
-  const driverMarkersRef = useRef<Map<string, google.maps.Marker>>(new Map());
-  const prevDriverLocationRef = useRef<Coordinates | null>(null);
+  const driverMarkersRef = useRef(new globalThis.Map<string, google.maps.Marker>());
+  const prevDriverLocationRef = useRef<{ lat: number; lng: number } | null>(null);
   const driverAnimationRef = useRef<number | null>(null);
 
   // State
@@ -472,11 +472,10 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
             const elapsed = Date.now() - startTime;
             progress = Math.min(elapsed / duration, 1);
 
-            const interpolated = interpolateDriverPosition(
-              driverLocation,
-              prevDriverLocationRef.current!,
-              progress
-            );
+            const interpolated = {
+              lat: prevDriverLocationRef.current!.lat + (driverLocation.lat - prevDriverLocationRef.current!.lat) * progress,
+              lng: prevDriverLocationRef.current!.lng + (driverLocation.lng - prevDriverLocationRef.current!.lng) * progress
+            };
 
             driverMarkerRef.current?.setPosition(
               new google.maps.LatLng(interpolated.lat, interpolated.lng)

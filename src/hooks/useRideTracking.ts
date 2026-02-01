@@ -19,6 +19,7 @@ export const useRideTracking = (userId: string | null) => {
     setShowLiveTracker,
     completedRide,
     showCompletedScreen,
+    setShowCompletedScreen,
     clearCompletedRide,
     setIgnorePolling,
   } = useActiveRide(userId);
@@ -62,6 +63,7 @@ export const useRideTracking = (userId: string | null) => {
     setShowLiveTracker,
     completedRide,
     showCompletedScreen,
+    setShowCompletedScreen,
     showConfirmation,
     setShowConfirmation,
     handleRideCompletion,

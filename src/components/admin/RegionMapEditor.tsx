@@ -1,3 +1,4 @@
+import mapboxgl from 'mapbox-gl';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useGoogleMapsApiKey } from '@/hooks/useGoogleMapsApiKey';
 import { Button } from '@/components/ui/button';

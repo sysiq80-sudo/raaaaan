@@ -211,6 +211,7 @@ const GoPageContent: React.FC = () => {
     setShowLiveTracker,
     completedRide,
     showCompletedScreen,
+    setShowCompletedScreen,
     handleRideCompletion,
     checkActiveRideConflict,
     clearCompletedRide
@@ -649,10 +650,14 @@ const GoPageContent: React.FC = () => {
         return;
       }
       const center = map.current.getCenter();
+      if (!center) {
+        console.error("Cannot get map center");
+        return;
+      }
       
-      // Get the actual lat/lng values (handle both function and direct access)
-      const actualLat = typeof center.lat === 'function' ? center.lat() : center.lat;
-      const actualLng = typeof center.lng === 'function' ? center.lng() : center.lng;
+      // Get the actual lat/lng values - center.lat() and center.lng() are always functions
+      const actualLat: number = center.lat();
+      const actualLng: number = center.lng();
       
       let address = centerAddress;
 
@@ -1161,7 +1166,7 @@ const GoPageContent: React.FC = () => {
       <RideRatingScreen
         rideId={completedRide.id}
         driverId={completedRide.driver_id}
-        driverName={completedRide.driver_name || "السائق"}
+        driverName={"السائق"}
         fare={completedRide.final_fare || completedRide.estimated_fare || 0}
         onClose={() => {
           setShowRatingScreen(false);
@@ -1644,13 +1649,13 @@ const GoPageContent: React.FC = () => {
         />
 
         {/* Favorite Markers Layer */}
-        {map && !isPickup && (
+        {map.current && !isPickup && (
           <FavoriteMarkersLayer
-            map={map}
+            map={map.current}
             onMarkerClick={(id, lat, lng, address) => {
-              if (map) {
-                map.panTo({ lat, lng });
-                map.setZoom(16);
+              if (map.current) {
+                map.current.panTo({ lat, lng });
+                map.current.setZoom(16);
               }
               setManualAddress(address);
               checkServiceArea(lat, lng);

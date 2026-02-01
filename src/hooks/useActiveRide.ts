@@ -367,6 +367,7 @@ export const useActiveRide = (userId: string | null) => {
     setShowLiveTracker,
     completedRide,
     showCompletedScreen,
+    setShowCompletedScreen,
     clearCompletedRide,
     clearActiveRide,
     refreshRide: checkActiveRide,

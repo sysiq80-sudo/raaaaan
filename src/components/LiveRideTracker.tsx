@@ -323,8 +323,14 @@ export const LiveRideTracker = ({
 
       if (result.routes?.[0]) {
         const route = result.routes[0];
-        setDistance(parseFloat((route.distance / 1000).toFixed(1)));
-        setEta(Math.round(route.duration / 60));
+        // Access distance and duration from legs array
+        const leg = route.legs?.[0];
+        if (leg) {
+          const distanceValue = leg.distance?.value || 0;
+          const durationValue = leg.duration?.value || 0;
+          setDistance(parseFloat((distanceValue / 1000).toFixed(1)));
+          setEta(Math.round(durationValue / 60));
+        }
       }
     } catch (error) {
       console.error("Error calculating ETA:", error);

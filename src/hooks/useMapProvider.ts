@@ -36,7 +36,7 @@ export const useMapProvider = () => {
         } else if (data?.value) {
           const value = data.value as Record<string, unknown>;
           setSettings({
-            provider: (value.provider as MapProvider) || 'mapbox',
+            provider: 'google', // Always use Google Maps
             google_maps_configured: Boolean(value.google_maps_configured),
           });
         }
@@ -64,7 +64,7 @@ export const useMapProvider = () => {
           if (payload.new && 'value' in payload.new) {
             const value = payload.new.value as Record<string, unknown>;
             setSettings({
-              provider: (value.provider as MapProvider) || 'mapbox',
+              provider: 'google', // Always use Google Maps
               google_maps_configured: Boolean(value.google_maps_configured),
             });
           }

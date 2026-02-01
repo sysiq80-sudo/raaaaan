@@ -153,12 +153,12 @@ export const ActiveRideCard = ({
   const fetchRiderInfo = useCallback(async (riderId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("full_name, phone, rating")
+      .select("full_name, phone")
       .eq("user_id", riderId)
       .single();
 
     if (data) {
-      setRiderInfo(data);
+      setRiderInfo({ ...data, rating: null });
     }
   }, []);
 
