@@ -15,32 +15,14 @@ import { RecentRides } from "@/components/driver/RecentRides";
 import { NotificationSetup } from "@/components/driver/NotificationSetup";
 import { NotificationsBell } from "@/components/driver/NotificationsBell";
 import { DriverAlerts } from "@/components/driver/DriverAlerts";
+import { StatusSearchBar } from "@/components/driver/StatusSearchBar";
+import { NewRideAlert } from "@/components/driver/NewRideAlert";
 import DriverSideMenu from "@/components/driver/DriverSideMenu";
 import logo from "@/assets/logo.png";
 import {
-  MapPin,
-  DollarSign,
-  Star,
   Menu,
   X,
   LogOut,
-  History,
-  Settings,
-  Bell,
-  Navigation,
-  Clock,
-  Locate,
-  Wifi,
-  WifiOff,
-  AlertCircle,
-  Phone,
-  Shield,
-  BarChart3,
-  FileSearch,
-  UserCircle,
-  Wallet,
-  Gift,
-  Loader2,
 } from "lucide-react";
 
 const DriverHome = () => {
@@ -69,6 +51,9 @@ const DriverHome = () => {
   const [locationTracking, setLocationTracking] = useState(false);
   const [onlineToggleLoading, setOnlineToggleLoading] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showNewRideAlert, setShowNewRideAlert] = useState(false);
+  const [newRideData, setNewRideData] = useState<any>(null);
   const watchIdRef = useRef<number | null>(null);
   const locationUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [rating, setRating] = useState(5.0);
@@ -505,7 +490,7 @@ const DriverHome = () => {
   const statusBadge = getStatusBadge();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 glass">
         <div className="container flex items-center justify-between h-16">
@@ -518,13 +503,8 @@ const DriverHome = () => {
           </button>
 
           <div className="flex items-center gap-2">
-            <div
-              className={`w-2 h-2 rounded-full ${
-                isOnline ? "bg-green-500 animate-pulse" : "bg-muted"
-              }`}
-            />
             <img src={logo} alt="RAAN" className="w-8 h-8 rounded-lg" />
-            <span className="font-bold">ران كابتن</span>
+            <span className="font-bold">ران</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -552,131 +532,35 @@ const DriverHome = () => {
         driverStatus={driverStatus}
         vehicleType={vehicleType}
         rating={rating}
+        driverId={driverId}
       />
 
-      {/* Main Content */}
-      <main className="pt-20 pb-8 px-4">
-        <div className="container max-w-lg space-y-6">
-          {/* Profile Incomplete Warning - Hidden, functionality moved to DriverAlerts button */}
+      {/* Main Content - Mobile Optimized Layout */}
+      <main className="flex-1 pt-16 pb-4 px-4 flex flex-col">
+        {driverId && adminActivated && driverStatus === "approved" && (
+          <>
+            {/* Status & Search Bar - Sticky */}
+            <div className="mb-4">
+              <StatusSearchBar
+                isOnline={isOnline}
+                isSearching={isSearching}
+                onToggleOnline={handleOnlineToggle}
+                isLoading={onlineToggleLoading}
+                locationTracking={locationTracking}
+                driverStatus={driverStatus}
+              />
+            </div>
 
-          {/* Account Deactivated Warning - Hidden, functionality moved to DriverAlerts button */}
+            {/* Map Container - Takes 70% of remaining space */}
+            <div className="flex-1 min-h-0 mb-4 rounded-2xl overflow-hidden shadow-lg border border-border">
+              <DriverMap 
+                driverLocation={currentLocation} 
+                isOnline={isOnline} 
+              />
+            </div>
 
-          {/* Driver Status Warning - Hidden, functionality moved to DriverAlerts button */}
-
-          {/* Online/Offline Status Card - TOP PRIORITY (Full Width) */}
-          {driverId && driverStatus === "approved" && (
-            <Card
-              className={`border-2 transition-all duration-300 shadow-xl ${
-                isOnline
-                  ? "border-green-500 bg-gradient-to-br from-gray-800 to-gray-900"
-                  : "border-blue-500/50 bg-gradient-to-br from-gray-800 to-gray-900"
-              }`}
-            >
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div
-                        className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 shadow-lg ${
-                          isOnline
-                            ? "bg-green-500 shadow-green-500/50"
-                            : "bg-blue-500/30 shadow-blue-500/30"
-                        }`}
-                      >
-                        {isOnline ? (
-                          <Wifi className="w-6 h-6 text-white" />
-                        ) : (
-                          <WifiOff className="w-6 h-6 text-blue-400" />
-                        )}
-                      </div>
-                      <div>
-                        <p
-                          className={`font-bold text-[clamp(0.875rem,2.5vw,1.125rem)] leading-tight ${
-                            isOnline ? "text-green-400" : "text-blue-400"
-                          }`}
-                        >
-                          {isOnline ? "أنت متصل" : "أنت غير متصل"}
-                        </p>
-                        <p
-                          className={`text-[clamp(0.75rem,2vw,0.875rem)] leading-tight ${
-                            isOnline ? "text-green-300/80" : "text-blue-300/70"
-                          }`}
-                        >
-                          {isOnline
-                            ? locationTracking
-                              ? "جاري استقبال الطلبات"
-                              : "جاري تفعيل تتبع الموقع..."
-                            : "فعّل الاتصال لاستقبال الطلبات"}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() =>
-                        !onlineToggleLoading &&
-                        driverStatus === "approved" &&
-                        handleOnlineToggle(!isOnline)
-                      }
-                      disabled={
-                        onlineToggleLoading || driverStatus !== "approved"
-                      }
-                      className={`
-                        relative inline-flex h-10 w-20 items-center rounded-full
-                        transition-all duration-300 ease-in-out
-                        ${
-                          onlineToggleLoading || driverStatus !== "approved"
-                            ? "opacity-50 cursor-not-allowed"
-                            : "cursor-pointer"
-                        }
-                        ${
-                          isOnline
-                            ? "bg-green-500 shadow-lg shadow-green-500/50 hover:shadow-xl hover:shadow-green-500/60"
-                            : "bg-gray-400 shadow-md hover:shadow-lg hover:bg-gray-500"
-                        }
-                        active:scale-95
-                      `}
-                    >
-                      <span
-                        className={`
-                          inline-block h-8 w-8 transform rounded-full
-                          bg-white shadow-lg transition-transform duration-300
-                          ${isOnline ? "translate-x-12" : "translate-x-0.5"}
-                        `}
-                      >
-                        {onlineToggleLoading ? (
-                          <Loader2 className="w-4 h-4 m-2 animate-spin text-gray-400" />
-                        ) : (
-                          <div
-                            className={`w-4 h-4 m-2 ${
-                              isOnline ? "text-gray-400" : "text-gray-400"
-                            }`}
-                          >
-                            {isOnline ? (
-                              <Wifi className="w-4 h-4" />
-                            ) : (
-                              <WifiOff className="w-4 h-4" />
-                            )}
-                          </div>
-                        )}
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* Location info when online */}
-                  {isOnline && currentLocation && (
-                    <div className="mt-3 pt-3 border-t border-border flex items-center gap-2 text-[clamp(0.625rem,1.5vw,0.75rem)] text-muted-foreground">
-                      <Locate className="w-4 h-4 text-primary" />
-                      <span>
-                        {currentLocation.lat.toFixed(4)},{" "}
-                        {currentLocation.lng.toFixed(4)}
-                      </span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-          {/* Only show ride features when approved and activated */}
-          {driverId && adminActivated && driverStatus === "approved" && (
-            <>
+            {/* Ride Cards - Sticky Bottom Section */}
+            <div className="space-y-3 max-h-48 overflow-y-auto">
               {/* Active Ride Card */}
               <ActiveRideCard
                 driverId={driverId}
@@ -696,63 +580,36 @@ const DriverHome = () => {
                   );
                 }}
               />
+            </div>
+          </>
+        )}
 
-              {/* Map */}
-              <DriverMap driverLocation={currentLocation} isOnline={isOnline} />
-            </>
-          )}
+        {/* New Ride Alert Modal */}
+        <NewRideAlert
+          isVisible={showNewRideAlert}
+          onClose={() => setShowNewRideAlert(false)}
+          onAccept={() => {
+            // Logic for accepting ride will be handled by RideRequestCard
+          }}
+          rideData={newRideData}
+        />
 
-          {/* Today's Earnings & Goals - Simplified */}
-          {driverId && (
-            <>
-              {/* This will be replaced with simplified today stats */}
-              <DriverStats driverId={driverId} />
-            </>
-          )}
-
-          {/* Recent Rides - always show */}
-          {driverId && <RecentRides driverId={driverId} />}
-
-          {/* Quick Actions */}
-          <div className="grid grid-cols-2 gap-4">
-            <Link to="/driver/rides">
-              <Button variant="outline" className="w-full h-14 flex-col gap-1">
-                <Clock className="w-5 h-5" />
-                <span className="text-sm">سجل الرحلات</span>
-              </Button>
-            </Link>
-            <Link to="/driver/payments">
-              <Button variant="outline" className="w-full h-14 flex-col gap-1">
-                <DollarSign className="w-5 h-5" />
-                <span className="text-sm">الأرباح</span>
-              </Button>
-            </Link>
+        {/* Loading State - Show only if waiting for approval */}
+        {loading && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <img
+                src={logo}
+                alt="RAAN"
+                className="w-16 h-16 mx-auto rounded-2xl mb-4 animate-pulse"
+              />
+              <p className="text-muted-foreground">جاري التحميل...</p>
+            </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );
 };
-
-const MenuLink = ({
-  icon,
-  label,
-  href,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  href: string;
-  onClick?: () => void;
-}) => (
-  <Link
-    to={href}
-    onClick={onClick}
-    className="flex items-center gap-3 p-3 rounded-lg text-foreground hover:bg-accent transition-colors"
-  >
-    <span className="text-muted-foreground">{icon}</span>
-    <span>{label}</span>
-  </Link>
-);
 
 export default DriverHome;

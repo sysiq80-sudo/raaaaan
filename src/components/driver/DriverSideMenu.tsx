@@ -1,5 +1,8 @@
 import { Link, useNavigate } from "react-router-dom";
 import { User } from "@supabase/supabase-js";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Progress } from "@/components/ui/progress";
 import { 
   X, 
   LogOut, 
@@ -13,7 +16,10 @@ import {
   Phone,
   Star,
   Car,
-  Users
+  Users,
+  DollarSign,
+  TrendingUp,
+  Calendar
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 
@@ -28,6 +34,14 @@ interface DriverSideMenuProps {
   driverStatus: string | null;
   vehicleType: string | null;
   rating: number;
+  driverId?: string | null;
+}
+
+const DAILY_GOAL = 50000; // هدف يومي
+
+interface Stats {
+  todayEarnings: number;
+  todayRides: number;
 }
 
 const MenuLink = ({ 
@@ -61,9 +75,58 @@ const DriverSideMenu = ({
   driverProfileImage,
   driverStatus,
   vehicleType,
-  rating
+  rating,
+  driverId
 }: DriverSideMenuProps) => {
   const navigate = useNavigate();
+  const [stats, setStats] = useState<Stats>({
+    todayEarnings: 0,
+    todayRides: 0,
+  });
+  const [loading, setLoading] = useState(false);
+
+  // Fetch today's stats
+  useEffect(() => {
+    if (!driverId) return;
+
+    const fetchStats = async () => {
+      setLoading(true);
+      try {
+        const now = new Date();
+        const todayStart = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate()
+        );
+        const todayEnd = new Date(todayStart);
+        todayEnd.setDate(todayEnd.getDate() + 1);
+
+        const { data, error } = await supabase
+          .from("rides")
+          .select("final_fare")
+          .eq("driver_id", driverId)
+          .eq("status", "completed")
+          .gte("completed_at", todayStart.toISOString())
+          .lt("completed_at", todayEnd.toISOString());
+
+        if (error) throw error;
+
+        const earnings = data?.reduce((sum, ride) => sum + (ride.final_fare || 0), 0) || 0;
+        const rides = data?.length || 0;
+
+        setStats({
+          todayEarnings: earnings,
+          todayRides: rides,
+        });
+      } catch (error) {
+        console.error("Error fetching stats:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [driverId]);
 
   if (!isOpen) return null;
 
@@ -149,17 +212,57 @@ const DriverSideMenu = ({
           <span className="font-medium">التبديل لوضع الراكب</span>
         </button>
 
+        {/* Today's Earnings Section */}
+        {driverId && (
+          <div className="mb-6 p-4 bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-xl">
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar className="w-4 h-4 text-green-600 dark:text-green-400" />
+              <h3 className="text-sm font-bold text-foreground">أرباح اليوم</h3>
+            </div>
+            
+            {/* Earnings Amount */}
+            <div className="mb-3">
+              <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+                {stats.todayEarnings.toLocaleString()}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.todayRides} رحلات مكتملة
+              </p>
+            </div>
+
+            {/* Daily Goal Progress */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">الهدف اليومي</span>
+                <span className="font-semibold text-foreground">
+                  {Math.round((stats.todayEarnings / DAILY_GOAL) * 100)}%
+                </span>
+              </div>
+              <Progress 
+                value={Math.min((stats.todayEarnings / DAILY_GOAL) * 100, 100)} 
+                className="h-2"
+              />
+              <p className="text-xs text-muted-foreground">
+                {DAILY_GOAL - stats.todayEarnings > 0 
+                  ? `متبقي: ${(DAILY_GOAL - stats.todayEarnings).toLocaleString()} د.ع`
+                  : "✅ تم تحقيق الهدف!"
+                }
+              </p>
+            </div>
+          </div>
+        )}
+
         <nav className="space-y-2">
           <MenuLink icon={<UserCircle className="w-5 h-5" />} label="الملف الشخصي" href="/driver/profile" onClick={onClose} />
           {driverStatus !== 'approved' && (
             <MenuLink icon={<FileSearch className="w-5 h-5" />} label="حالة الطلب" href="/driver/application-status" onClick={onClose} />
           )}
-          <MenuLink icon={<History className="w-5 h-5" />} label="رحلاتي" href="/driver/rides" onClick={onClose} />
-          <MenuLink icon={<Wallet className="w-5 h-5" />} label="المالية" href="/driver/finance" onClick={onClose} />
+          <MenuLink icon={<History className="w-5 h-5" />} label="سجل الرحلات" href="/driver/rides" onClick={onClose} />
+          <MenuLink icon={<Wallet className="w-5 h-5" />} label="الأرباح" href="/driver/payments" onClick={onClose} />
           <MenuLink icon={<Gift className="w-5 h-5" />} label="المكافآت والحوافز" href="/driver/incentives" onClick={onClose} />
-          <MenuLink icon={<BarChart3 className="w-5 h-5" />} label="الإحصائيات المتقدمة" href="/driver/statistics" onClick={onClose} />
+          <MenuLink icon={<BarChart3 className="w-5 h-5" />} label="الإحصائيات" href="/driver/statistics" onClick={onClose} />
           <MenuLink icon={<Settings className="w-5 h-5" />} label="الإعدادات" href="/driver/settings" onClick={onClose} />
-          <MenuLink icon={<Phone className="w-5 h-5" />} label="الدعم الفني" href="/driver/settings" onClick={onClose} />
+          <MenuLink icon={<Phone className="w-5 h-5" />} label="الدعم الفني" href="/driver/support" onClick={onClose} />
           
           <div className="pt-4 border-t border-border">
             <button 
