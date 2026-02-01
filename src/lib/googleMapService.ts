@@ -187,10 +187,10 @@ export const createSvgIcon = (
 /**
  * Get marker icon for different types
  */
-export const getMarkerIcon = (type: "pickup" | "dropoff" | "driver" | "user" | "landmark"): google.maps.Icon => {
+export const getMarkerIcon = (type: "pickup" | "dropoff" | "driver" | "user" | "landmark"): google.maps.Symbol => {
   const style = MARKER_STYLES[type];
 
-  // Return Google's default pin
+  // Return Google Maps Symbol (not Icon)
   return {
     path: google.maps.SymbolPath.CIRCLE,
     fillColor: style.fillColor,

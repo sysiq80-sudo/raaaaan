@@ -1,3 +1,4 @@
+import mapboxgl from 'mapbox-gl';
 import { useEffect, useRef, useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";

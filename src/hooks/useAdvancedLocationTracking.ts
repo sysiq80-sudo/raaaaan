@@ -184,9 +184,9 @@ async function sendLocationToServer(
   location: LocationData
 ): Promise<void> {
   try {
-    const { data: user } = await supabase.auth.getUser();
+    const { data } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (!data?.user) {
       console.warn('[sendLocationToServer] No user authenticated');
       return;
     }
@@ -198,7 +198,7 @@ async function sendLocationToServer(
         current_location: { lat: location.lat, lng: location.lng },
         updated_at: new Date().toISOString(),
       })
-      .eq('user_id', user.id);
+      .eq('user_id', data.user.id);
 
     if (error) {
       console.error('[sendLocationToServer] Error:', error);

@@ -69,8 +69,9 @@ export default function ScheduledRideConfirmationDialog({
 
       if (error) throw error;
 
-      if (!data.success) {
-        toast.error(data.error || 'فشل قبول الرحلة');
+      const result = data as { success?: boolean; error?: string } | null;
+      if (!result?.success) {
+        toast.error(result?.error || 'فشل قبول الرحلة');
         return;
       }
 
@@ -102,8 +103,9 @@ export default function ScheduledRideConfirmationDialog({
 
       if (error) throw error;
 
-      if (!data.success) {
-        toast.error(data.error || 'فشل تأكيد الرحلة');
+      const result = data as { success?: boolean; error?: string } | null;
+      if (!result?.success) {
+        toast.error(result?.error || 'فشل تأكيد الرحلة');
         return;
       }
 
@@ -133,8 +135,9 @@ export default function ScheduledRideConfirmationDialog({
 
       if (error) throw error;
 
-      if (!data.success) {
-        toast.error(data.error || 'فشل إلغاء الرحلة');
+      const result = data as { success?: boolean; error?: string } | null;
+      if (!result?.success) {
+        toast.error(result?.error || 'فشل إلغاء الرحلة');
         return;
       }
 

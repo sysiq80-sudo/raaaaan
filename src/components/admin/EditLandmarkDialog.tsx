@@ -1,3 +1,4 @@
+import mapboxgl from 'mapbox-gl';
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";

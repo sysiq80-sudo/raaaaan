@@ -600,7 +600,7 @@ export const useLocationPicker = (
 
 
           // ✨ Handle clicking on POIs (Points of Interest)
-          map.current.addListener('click', (event: window.google.maps.MapMouseEvent) => {
+          map.current.addListener('click', (event: google.maps.MapMouseEvent) => {
             if (event.placeId) {
               // User clicked on a POI - get its name
               event.stop(); // Prevent default behavior
