@@ -227,7 +227,8 @@ const RegionMapEditor: React.FC<RegionMapEditorProps> = ({
     }
 
     return () => {
-      map.current?.remove();
+      // Google Maps doesn't have remove method
+      map.current = null;
     };
   }, [mapToken, onSelectRegion]);
 

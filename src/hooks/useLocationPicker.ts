@@ -669,7 +669,8 @@ export const useLocationPicker = (
   useEffect(() => {
     return () => {
       if (map.current) {
-        map.current.remove();
+        // Google Maps doesn't have a remove() method
+        // Just nullify the reference to allow garbage collection
         map.current = null;
       }
     };

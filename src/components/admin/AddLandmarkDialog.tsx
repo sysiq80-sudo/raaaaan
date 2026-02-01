@@ -119,7 +119,8 @@ export const AddLandmarkDialog = ({
     });
 
     return () => {
-      map.current?.remove();
+      // Google Maps doesn't have remove method
+      map.current = null;
     };
   }, [open, mapToken]);
 

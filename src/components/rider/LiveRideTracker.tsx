@@ -348,7 +348,8 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     });
 
     return () => {
-      map.current?.remove();
+      // Google Maps doesn't have remove method, just nullify reference
+      map.current = null;
     };
   }, [mapToken]);
 

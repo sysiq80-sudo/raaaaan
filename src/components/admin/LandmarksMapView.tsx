@@ -95,7 +95,8 @@ export const LandmarksMapView = ({
     });
 
     return () => {
-      map.current?.remove();
+      // Google Maps doesn't have remove method
+      map.current = null;
     };
   }, [mapToken]);
 
