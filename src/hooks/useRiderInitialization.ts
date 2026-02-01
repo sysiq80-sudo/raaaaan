@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { preloadMapboxToken } from './useMapboxToken';
+import { preloadGoogleMapsApiKey } from './useGoogleMapsApiKey';
 
 interface RiderProfile {
   full_name: string | null;
@@ -35,7 +35,7 @@ export const useRiderInitialization = () => {
 
     try {
       // Start preloading mapbox token in parallel (don't wait)
-      preloadMapboxToken();
+      preloadGoogleMapsApiKey();
 
       // Get session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();

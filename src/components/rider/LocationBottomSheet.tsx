@@ -1,15 +1,14 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { MapPin, Navigation, X, Search, Clock, Star, Building2, Map as MapIcon, Target, Sparkles, CircleDot, ArrowUpDown, Crosshair, MapPinned, Home, Briefcase, Heart, History } from 'lucide-react';
+import { MapPin, Navigation, X, Search, Clock, Building2, Map as MapIcon, Target, Sparkles, CircleDot, ArrowUpDown, Crosshair, MapPinned, History } from 'lucide-react';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import SavedPlaces from './SavedPlaces';
-import SavedPlacesQuickIcons from './SavedPlacesQuickIcons';
 import PopularPlaces from './PopularPlaces';
-import { supabase } from '@/integrations/supabase/client';
+import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 
 interface SearchResult {
   id: string;
+  place_id?: string;
   type: 'landmark' | 'region' | 'address';
   name: string;
   category: string;
@@ -35,7 +34,6 @@ interface LocationBottomSheetProps {
   userLocation?: { lat: number; lng: number } | null;
   pickupCoords?: { lat: number; lng: number } | null;
   dropoffCoords?: { lat: number; lng: number } | null;
-  userId?: string | null;
 }
 
 const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
@@ -51,8 +49,7 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
   onSwapLocations,
   userLocation,
   pickupCoords,
-  dropoffCoords,
-  userId
+  dropoffCoords
 }) => {
   const [activeSearchField, setActiveSearchField] = useState<'pickup' | 'dropoff'>('dropoff');
   const [pickupQuery, setPickupQuery] = useState('');
@@ -61,6 +58,10 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [recentLocations, setRecentLocations] = useState<SearchResult[]>([]);
   const [isSettingCurrentLocation, setIsSettingCurrentLocation] = useState(false);
+  const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
+  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
+  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
+  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const pickupInputRef = useRef<HTMLInputElement>(null);
   const dropoffInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout>();
@@ -83,6 +84,52 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
     }
   }, [isOpen, activeField]);
 
+  // Load Google Maps API script and initialize services
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!googleMapsApiKey) return;
+
+    if (!window.google) {
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places,geocoding&language=ar`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        if (!autocompleteServiceRef.current) {
+          autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
+        }
+        if (!sessionTokenRef.current) {
+          sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+        }
+        if (!placesServiceRef.current) {
+          const hiddenDiv = document.createElement('div');
+          hiddenDiv.style.display = 'none';
+          document.body.appendChild(hiddenDiv);
+          const dummyMap = new google.maps.Map(hiddenDiv);
+          placesServiceRef.current = new google.maps.places.PlacesService(dummyMap);
+        }
+      };
+      document.head.appendChild(script);
+      return;
+    }
+
+    if (window.google?.maps?.places) {
+      if (!autocompleteServiceRef.current) {
+        autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
+      }
+      if (!sessionTokenRef.current) {
+        sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+      }
+      if (!placesServiceRef.current) {
+        const hiddenDiv = document.createElement('div');
+        hiddenDiv.style.display = 'none';
+        document.body.appendChild(hiddenDiv);
+        const dummyMap = new google.maps.Map(hiddenDiv);
+        placesServiceRef.current = new google.maps.places.PlacesService(dummyMap);
+      }
+    }
+  }, [googleMapsApiKey]);
+
   useEffect(() => {
     // Load recent locations from localStorage
     const saved = localStorage.getItem('recent_locations');
@@ -99,20 +146,45 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
       return;
     }
 
+    if (!autocompleteServiceRef.current) {
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const params = new URLSearchParams({ q: query, limit: '10' });
-      if (userLocation) {
-        params.append('lng', userLocation.lng.toString());
-        params.append('lat', userLocation.lat.toString());
-      }
+      const request: google.maps.places.AutocompletionRequest = {
+        input: query,
+        language: "ar",
+        sessionToken: sessionTokenRef.current || undefined,
+        ...(userLocation && {
+          location: new google.maps.LatLng(userLocation.lat, userLocation.lng),
+          radius: 50000,
+        }),
+        componentRestrictions: { country: "iq" },
+      };
 
-      const response = await fetch(
-        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/search-places?${params}`,
-        { headers: { 'Content-Type': 'application/json' } }
+      const predictions = await new Promise<google.maps.places.AutocompletePrediction[]>((resolve) => {
+        autocompleteServiceRef.current!.getPlacePredictions(request, (preds, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && preds) {
+            resolve(preds);
+          } else {
+            resolve([]);
+          }
+        });
+      });
+
+      setResults(
+        predictions.map((p) => ({
+          id: p.place_id,
+          place_id: p.place_id,
+          type: 'address',
+          name: p.structured_formatting.main_text,
+          category: p.structured_formatting.secondary_text || 'مكان',
+          lat: 0,
+          lng: 0,
+          icon: '📍',
+        }))
       );
-      const data = await response.json();
-      setResults(data.results || []);
     } catch (error) {
       console.error('Search error:', error);
       setResults([]);
@@ -139,15 +211,48 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
     debounceRef.current = setTimeout(() => searchPlaces(value), 300);
   };
 
-  const handleSelectResult = (result: SearchResult, type: 'pickup' | 'dropoff') => {
-    const address = result.name;
+  const handleSelectResult = async (result: SearchResult, type: 'pickup' | 'dropoff') => {
+    let lat = result.lat;
+    let lng = result.lng;
+    let address = result.name;
+
+    if (result.place_id && placesServiceRef.current) {
+      try {
+        const details = await new Promise<google.maps.places.PlaceResult | null>((resolve) => {
+          placesServiceRef.current!.getDetails(
+            {
+              placeId: result.place_id,
+              fields: ["formatted_address", "geometry", "name", "place_id"],
+              sessionToken: sessionTokenRef.current || undefined,
+            },
+            (res, status) => {
+              if (status === google.maps.places.PlacesServiceStatus.OK && res) {
+                resolve(res);
+              } else {
+                resolve(null);
+              }
+            }
+          );
+        });
+
+        if (details?.geometry?.location) {
+          lat = details.geometry.location.lat();
+          lng = details.geometry.location.lng();
+          address = details.formatted_address || details.name || address;
+        }
+      } catch (error) {
+        console.error('Place details error:', error);
+      }
+    }
+
+    const updatedResult = { ...result, lat, lng, name: address };
 
     // Save to recent locations
-    const updated = [result, ...recentLocations.filter(r => r.id !== result.id)].slice(0, 5);
+    const updated = [updatedResult, ...recentLocations.filter(r => r.id !== updatedResult.id)].slice(0, 5);
     setRecentLocations(updated);
     localStorage.setItem('recent_locations', JSON.stringify(updated));
 
-    onLocationSelect({ lat: result.lat, lng: result.lng, address, inService: result.in_service }, type);
+    onLocationSelect({ lat, lng, address, inService: result.in_service }, type);
     setResults([]);
 
     if (type === 'pickup') {
@@ -172,12 +277,18 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
 
     setIsSettingCurrentLocation(true);
     try {
-      // Reverse geocode the current location
-      const { data, error } = await supabase.functions.invoke('mapbox-proxy', {
-        body: { action: 'reverse-geocode', lat: userLocation.lat, lng: userLocation.lng }
-      });
+      let address = 'موقعي الحالي';
+      if (window.google?.maps) {
+        const geocoder = new google.maps.Geocoder();
+        const result = await geocoder.geocode({
+          location: new google.maps.LatLng(userLocation.lat, userLocation.lng),
+          language: 'ar'
+        });
+        if (result.results && result.results[0]) {
+          address = result.results[0].formatted_address;
+        }
+      }
 
-      const address = data?.address || 'موقعي الحالي';
       onLocationSelect({ lat: userLocation.lat, lng: userLocation.lng, address, inService: true }, 'pickup');
 
       // In pickup_only mode, close the sheet after selection
@@ -263,20 +374,6 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
   const renderPickupOnlyContent = () => {
     return (
       <div className="space-y-4">
-        {/* Quick Saved Places Icons - Like Destination Panel */}
-        {userId && (
-          <SavedPlacesQuickIcons
-            userId={userId}
-            onSelect={(place) => {
-              onLocationSelect(
-                { lat: place.lat, lng: place.lng, address: place.address, inService: true },
-                'pickup'
-              );
-              onClose();
-            }}
-          />
-        )}
-
         {/* Premium pickup options grid */}
         <div className="grid grid-cols-2 gap-3">
           {/* Current Location - Primary Option */}
@@ -327,26 +424,6 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
           </button>
         </div>
 
-        {/* Saved Places for Pickup */}
-        {userId && (
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground px-1 flex items-center gap-2">
-              <Heart className="w-3 h-3" /> الأماكن المحفوظة
-            </p>
-            <SavedPlaces
-              userId={userId}
-              onSelect={(place) => {
-                onLocationSelect(
-                  { lat: place.lat, lng: place.lng, address: place.address, inService: true },
-                  'pickup'
-                );
-                onClose();
-              }}
-              showAddButton={false}
-            />
-          </div>
-        )}
-
         {/* Recent Pickup Locations */}
         {recentLocations.length > 0 && (
           <div className="space-y-2">
@@ -382,20 +459,6 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
   const renderDropoffContent = () => {
     return (
       <div className="space-y-4">
-        {/* Quick Saved Places Icons */}
-        {userId && (
-          <SavedPlacesQuickIcons
-            userId={userId}
-            onSelect={(place) => {
-              onLocationSelect(
-                { lat: place.lat, lng: place.lng, address: place.address, inService: true },
-                'dropoff'
-              );
-              onClose();
-            }}
-          />
-        )}
-
         {/* Three main options for destination selection */}
         <div className="grid grid-cols-1 gap-3">
           {/* 1. Search by place name - Primary Option */}
@@ -435,48 +498,9 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
             </div>
           </button>
 
-          {/* 3. Saved places */}
-          <button
-            onClick={() => {
-              // Scroll to saved places section
-              const savedSection = document.querySelector('[data-saved-places]');
-              savedSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}
-            className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-purple-500/15 to-purple-600/5 border border-purple-500/30 hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300 group"
-          >
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-105 transition-transform">
-              <Heart className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex-1 text-right">
-              <p className="font-bold text-foreground">الأماكن المحفوظة</p>
-              <p className="text-xs text-muted-foreground mt-0.5">اختر من أماكنك المحفوظة</p>
-            </div>
-            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-600 text-[10px] font-medium">
-              سريع
-            </div>
-          </button>
         </div>
 
         {/* Saved Places Section */}
-        {userId && (
-          <div data-saved-places className="space-y-2">
-            <p className="text-xs text-muted-foreground px-1 flex items-center gap-2">
-              <Heart className="w-3 h-3" /> الأماكن المحفوظة
-            </p>
-            <SavedPlaces
-              userId={userId}
-              onSelect={(place) => {
-                onLocationSelect(
-                  { lat: place.lat, lng: place.lng, address: place.address, inService: true },
-                  'dropoff'
-                );
-                onClose();
-              }}
-              showAddButton={false}
-            />
-          </div>
-        )}
-
         {/* Recent Locations */}
         {recentLocations.length > 0 && (
           <div className="space-y-2">

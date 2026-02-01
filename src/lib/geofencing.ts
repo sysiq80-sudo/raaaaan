@@ -77,42 +77,37 @@ export async function checkDestinationGeofence(
       };
     }
 
-    // إذا خارج الحدود، نستخدم API لتحديد الدولة بدقة
-    // إذا كان mapToken متوفر، استخدمه مباشرة
-    let response;
-    if (mapToken) {
-      response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=country&access_token=${mapToken}`
-      );
-    } else {
-      // استخدم Edge Function
-      response = await fetch(
-        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=country-check&lat=${lat}&lng=${lng}`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+    // إذا خارج الحدود، نستخدم Google Geocoding API لتحديد الدولة بدقة
+    if (!window.google?.maps) {
+      throw new Error("Google Maps API غير محملة");
     }
 
-    if (!response.ok) {
+    const geocoder = new google.maps.Geocoder();
+    const result = await geocoder.geocode({ 
+      location: { lat, lng },
+      language: 'ar' 
+    });
+
+    if (!result.results || result.results.length === 0) {
       throw new Error("فشل التحقق من الموقع");
     }
 
-    const data = await response.json();
+    const data = result.results[0];
 
-    // استخراج كود الدولة
-    const countryFeature = data.features?.[0];
-    if (!countryFeature) {
+    // استخراج كود الدولة من Google Geocoding
+    const countryComponent = data.address_components?.find((component: any) => 
+      component.types.includes('country')
+    );
+    
+    if (!countryComponent) {
       return {
         allowed: false,
         message: "لم نتمكن من تحديد الموقع، يرجى اختيار موقع واضح على الخريطة",
       };
     }
 
-    const countryCode = countryFeature.properties?.short_code?.toUpperCase() || "";
-    const countryName = countryFeature.place_name || countryFeature.text || "";
+    const countryCode = countryComponent.short_name?.toUpperCase() || "";
+    const countryName = countryComponent.long_name || "";
 
     // العراق
     if (countryCode === "IQ") {

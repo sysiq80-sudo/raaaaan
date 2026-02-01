@@ -16,7 +16,7 @@ interface Location {
 type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
 type PaymentMethod = 'cash' | 'zain_cash' | 'asia_hawala' | 'qi_card';
 type RideStatus = 'pending' | 'accepted' | 'arrived' | 'in_progress' | 'completed' | 'cancelled';
-type MapProvider = 'google' | 'mapbox';
+type MapProvider = 'google'; // Google Maps only
 
 interface ActiveRide {
     id: string;
@@ -115,7 +115,7 @@ const initialState: RiderState = {
     notificationsEnabled: true,
     soundsEnabled: true,
     bottomNavEnabled: true,  // مُفعَّل افتراضياً لسهولة التنقل
-    mapProvider: 'mapbox',  // Mapbox افتراضياً
+    mapProvider: 'google',  // Google Maps
     isLoading: false,
     showWelcomeScreen: true,
 };

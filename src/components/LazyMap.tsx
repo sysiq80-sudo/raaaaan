@@ -2,7 +2,8 @@ import React, { Suspense, lazy, ComponentProps, forwardRef, useState, useEffect 
 import { Loader2, MapPin } from 'lucide-react';
 import type { MapRef } from './Map';
 import { cn } from '@/lib/utils';
-import { getMapboxToken } from '@/hooks/useMapboxToken';
+import { getGoogleMapsApiKey } from '@/hooks/useGoogleMapsApiKey';
+import { generateStaticMapUrl } from '@/lib/googleMapsUtils';
 
 // Lazy load the Map component
 const MapComponent = lazy(() => import('./Map'));
@@ -36,8 +37,8 @@ const StaticMapPlaceholder = ({
   useEffect(() => {
     const loadStaticMap = async () => {
       try {
-        const token = getMapboxToken();
-        if (!token) {
+        const apiKey = getGoogleMapsApiKey();
+        if (!apiKey) {
           setIsLoading(false);
           return;
         }
@@ -45,10 +46,17 @@ const StaticMapPlaceholder = ({
         // Default to Ramadi center if no location provided
         const lat = centerLocation?.lat || 33.4262;
         const lng = centerLocation?.lng || 43.2954;
-        const zoom = centerLocation ? 14 : 11;
 
-        // Generate static map URL with dark style
-        const url = `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${lng},${lat},${zoom},0/800x600@2x?access_token=${token}`;
+        // Generate static map URL using Google Maps
+        const url = generateStaticMapUrl(
+          { lat, lng },
+          centerLocation ? 14 : 11,
+          800,
+          600,
+          centerLocation
+            ? [{ lat, lng, color: "#00d9a5" }]
+            : []
+        );
         setStaticUrl(url);
         setIsLoading(false);
       } catch (error) {

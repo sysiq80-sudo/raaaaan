@@ -25,7 +25,6 @@ import GoPage from "./pages/rider/GoPage";
 import RiderRidesPage from "./pages/rider/RiderRidesPage";
 import RiderPaymentsPage from "./pages/rider/RiderPaymentsPage";
 import WalletTopupPage from "./pages/rider/WalletTopupPage";
-import RiderSavedPlacesPage from "./pages/rider/RiderSavedPlacesPage";
 import RiderSettingsPage from "./pages/rider/RiderSettingsPage";
 import RiderLayout from "./components/rider/RiderLayout";
 
@@ -172,16 +171,7 @@ const App = () => (
                 </ErrorBoundary>
               }
             />
-            <Route
-              path="/rider/saved-places"
-              element={
-                <ErrorBoundary>
-                  <RiderLayout>
-                    <RiderSavedPlacesPage />
-                  </RiderLayout>
-                </ErrorBoundary>
-              }
-            />
+            {/* Removed RiderSavedPlacesPage Route */}
             <Route
               path="/rider/settings"
               element={

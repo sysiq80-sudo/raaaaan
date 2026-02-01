@@ -114,7 +114,7 @@ const WelcomeLocationScreen = ({
   } | null>(null);
   const debounceRef = useRef<NodeJS.Timeout>();
 
-  // Get user location and reverse geocode
+  // Get user location and reverse geocode using Google Maps
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(async position => {
@@ -124,17 +124,21 @@ const WelcomeLocationScreen = ({
         };
         setUserLocation(loc);
 
-        // Reverse geocode to get address
+        // Reverse geocode using Google Maps Geocoding API
         try {
-          const response = await fetch(`https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=reverse-geocode&lat=${loc.lat}&lng=${loc.lng}`, {
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
-          const data = await response.json();
-          const address = data.features?.[0]?.place_name || 'الرمادي، الأنبار';
-          setCurrentAddress(address);
-        } catch {
+          if (window.google?.maps) {
+            const geocoder = new google.maps.Geocoder();
+            const result = await geocoder.geocode({ 
+              location: loc,
+              language: 'ar'
+            });
+            const address = result.results?.[0]?.formatted_address || 'الرمادي، الأنبار';
+            setCurrentAddress(address);
+          } else {
+            setCurrentAddress('الرمادي، الأنبار');
+          }
+        } catch (error) {
+          console.error('Reverse geocode error:', error);
           setCurrentAddress('الرمادي، الأنبار');
         }
       }, () => setCurrentAddress('الرمادي، الأنبار'));
@@ -338,21 +342,9 @@ const WelcomeLocationScreen = ({
 
         {/* Show Destination Options FIRST (when destination NOT selected) */}
         {!destinationSelected && <>
-            <LocationOptionsSection type="dropoff" title="إلى أين تذهب؟" subtitle="حدد وجهتك أولاً" userId={userId} currentAddress={currentAddress} onUseCurrentLocation={() => {
+            <LocationOptionsSection type="dropoff" title="إلى أين تذهب؟" subtitle="حدد وجهتك أولاً" currentAddress={currentAddress} onUseCurrentLocation={() => {
           // لا نستخدم الموقع الحالي كوجهة
-        }} onSelectFromMap={onMapPickerClick} onSearchLocation={onSearchClick} onSelectSavedPlace={place => {
-          // عند اختيار الوجهة، انتقل لاختيار الانطلاق
-          setSelectedDestination(place);
-          setDestinationSelected(true);
-          // تعيين الموقع الحالي كنقطة انطلاق تلقائياً
-          if (userLocation) {
-            setPickupLocation({
-              lat: userLocation.lat,
-              lng: userLocation.lng,
-              address: currentAddress
-            });
-          }
-        }} />
+        }} onSelectFromMap={onMapPickerClick} onSearchLocation={onSearchClick} />
 
             {/* Quick Categories for Destination */}
             <motion.div variants={itemVariants}>

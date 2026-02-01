@@ -1,9 +1,7 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import "mapbox-gl/dist/mapbox-gl.css";
-import { ArrowRight, Navigation, Loader2, MapPin, Target, AlertTriangle, Check, Star, Clock, ChevronDown, Zap, Menu, ArrowUpDown } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ArrowRight, Navigation, Loader2, MapPin, Target, AlertTriangle, Check, Clock, ChevronDown, Zap, Menu, ArrowUpDown } from "lucide-react";
 import logo from "@/assets/logo.png";
-import LocationSearchInput from "@/components/LocationSearchInput";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +36,8 @@ import { useSearchAndPlaces } from "@/hooks/useSearchAndPlaces";
 import { useRideTracking } from "@/hooks/useRideTracking";
 import { useLastLocation } from "@/hooks/useLastLocation";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { DynamicSearchHeader, DynamicSearchResults } from "@/components/rider/DynamicSearchResults";
+import { LocationPermissionPrompt } from "@/components/rider/LocationPermissionPrompt";
 
 // Performance & Enhancement hooks
 import { usePerformanceMonitoring, useOperationTiming } from "@/hooks/usePerformanceMonitoring";
@@ -69,8 +69,6 @@ const GoPage: React.FC = () => {
   const {
     toast
   } = useToast();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const searchInputRef = useRef<any>(null);
 
   // Performance monitoring
   const metrics = usePerformanceMonitoring("GoPage");
@@ -92,11 +90,49 @@ const GoPage: React.FC = () => {
   } = useLastLocation();
   const [hasSeenOnboarding] = useLocalStorage("raan_onboarding_completed", false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [mapReloadKey, setMapReloadKey] = useState(0);
 
   // Offline support
   const {
     isOnline
   } = useOfflineMode();
+
+  // ✅ دالة متقدمة لبناء عنوان وصفي بمنطق أولويات
+  const buildDescriptiveAddress = useCallback((address: string): string => {
+    if (!address || !address.trim()) return "";
+    if (address.includes("جاري تحديد العنوان")) return "";
+    
+    const parts = address
+      .split(/[،,]/)
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
+    if (parts.length === 0) return "";
+    
+    // فحص Plus Code وحذفه إذا وُجد
+    const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
+    const cleanParts = parts.filter(p => !plusCodeRegex.test(p));
+    if (cleanParts.length === 0) return "";
+    
+    const isGovernorate = (value: string) => value.includes("محافظة");
+    const isCountry = (value: string) => value === "العراق";
+    
+    const filteredParts = cleanParts.filter(p => !isCountry(p) && !isGovernorate(p));
+    if (filteredParts.length === 0) return cleanParts[0] || "";
+    
+    // اجعل المدينة في نهاية العنوان قدر الإمكان
+    const cityCandidate = [...filteredParts].reverse().find(p => !isCountry(p) && !isGovernorate(p));
+    const headParts = filteredParts.filter(p => p !== cityCandidate);
+    
+    const ordered = cityCandidate
+      ? [...headParts, cityCandidate]
+      : filteredParts;
+    
+    // أولوية العرض: معلم > شارع + حي > مدينة (نهاية)
+    if (ordered.length >= 3) return ordered.slice(0, 3).join('، ');
+    if (ordered.length === 2) return ordered.join('، ');
+    return ordered[0];
+  }, []);
 
   // Core data hooks
   const {
@@ -121,14 +157,16 @@ const GoPage: React.FC = () => {
     serviceAreaStatus,
     isCheckingService,
     setCenterAddress,
+    setManualAddress, // ✨ NEW
     checkServiceArea,
     reverseGeocode,
     setIsLoading,
-  } = useLocationPicker(mapToken, userLocation);
+  } = useLocationPicker(mapToken, userLocation, mapReloadKey);
 
   // Booking flow
   const {
     bookingMapContainer,
+    bookingMap,
     selectedVehicle,
     setSelectedVehicle,
     paymentMethod,
@@ -150,13 +188,12 @@ const GoPage: React.FC = () => {
   const {
     searchQuery,
     setSearchQuery,
-    handleSearchQueryChange,
+    predictions,
     isSearching,
-    savedPlaces,
-    loadingSavedPlaces,
-    handleSearchSelect,
-    handleSavedPlaceSelect
-  } = useSearchAndPlaces(userId);
+    isLoadingDetails,
+    getPlaceDetails,
+    clearSearch
+  } = useSearchAndPlaces(userLocation);
 
   // Ride tracking
   const {
@@ -175,43 +212,190 @@ const GoPage: React.FC = () => {
 
   // Local state
   const setStoreUserLocation = useRiderStore((s) => s.setUserLocation);
-  const manualGeolocate = useCallback(() => {
-    console.log('[GoPage] Manual geolocate requested (from StatusIcons)');
-    if (!navigator.geolocation) {
-      toast({ title: '⚠️ المتصفح لا يدعم تحديد الموقع', variant: 'destructive' });
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        try {
-          setStoreUserLocation(loc as any);
-        } catch (e) {
-          console.warn('[GoPage] Failed to set store user location', e);
-        }
-        const map = (window as any).appMap;
-        if (map && typeof map.flyTo === 'function') {
-          map.flyTo({ center: [loc.lng, loc.lat], zoom: 15, duration: 800 });
-        }
-        toast({ title: '✅ تم تحديد موقعك' });
-      },
-      (err) => {
-        console.warn('[GoPage] geolocation failed', err);
-        toast({ title: '❌ فشل تحديد الموقع', description: err.message || 'خطأ في الحصول على الموقع', variant: 'destructive' });
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
-  }, [setStoreUserLocation, toast]);
+  const getBestPosition = useCallback((onRefine?: (pos: GeolocationPosition) => void) => {
+    return new Promise<GeolocationPosition>((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("NO_GEOLOCATION"));
+        return;
+      }
 
-  // debug: check main manual geolocate button presence
-  useEffect(() => {
-    console.log('[GoPage] checking manual geolocate main');
-    setTimeout(() => {
-      const el = document.querySelector('.manual-geolocate-main');
-      console.log('[GoPage] manual main element:', el);
-      if (!el) console.warn('[GoPage] manual geolocate main not found');
-    }, 250);
+      const quickOptions: PositionOptions = {
+        enableHighAccuracy: false,
+        timeout: 4000,
+        maximumAge: 60000,
+      };
+
+      const refineOptions: PositionOptions = {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 0,
+      };
+
+      let best: GeolocationPosition | null = null;
+      let resolved = false;
+
+      const stopRefineAfterMs = 7000;
+      const startedAt = Date.now();
+
+      const tryResolve = (pos: GeolocationPosition) => {
+        if (!resolved) {
+          resolved = true;
+          resolve(pos);
+        }
+      };
+
+      const watchId = navigator.geolocation.watchPosition(
+        (wp) => {
+          if (!best || wp.coords.accuracy < best.coords.accuracy) {
+            best = wp;
+            if (resolved && onRefine) {
+              onRefine(wp);
+            }
+          }
+          if (wp.coords.accuracy <= 30 || Date.now() - startedAt > stopRefineAfterMs) {
+            navigator.geolocation.clearWatch(watchId);
+          }
+        },
+        () => {
+          navigator.geolocation.clearWatch(watchId);
+        },
+        refineOptions
+      );
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          best = pos;
+          tryResolve(pos);
+        },
+        (err) => {
+          if (best) {
+            tryResolve(best);
+            return;
+          }
+
+          // fallback سريع منخفض الدقة لتجنب timeout
+          navigator.geolocation.getCurrentPosition(
+            (fallbackPos) => {
+              best = fallbackPos;
+              tryResolve(fallbackPos);
+            },
+            (fallbackErr) => {
+              reject(fallbackErr || err);
+            },
+            quickOptions
+          );
+        },
+        refineOptions
+      );
+    });
   }, []);
+
+  const getDistanceMeters = useCallback((a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const R = 6371000;
+    const dLat = (b.lat - a.lat) * (Math.PI / 180);
+    const dLng = (b.lng - a.lng) * (Math.PI / 180);
+    const lat1 = a.lat * (Math.PI / 180);
+    const lat2 = b.lat * (Math.PI / 180);
+
+    const sinDLat = Math.sin(dLat / 2);
+    const sinDLng = Math.sin(dLng / 2);
+    const aVal = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
+    const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
+    return R * c;
+  }, []);
+
+  const shouldAcceptLocation = useCallback(
+    (pos: GeolocationPosition) => {
+      const accuracy = pos.coords.accuracy ?? 9999;
+      if (!userLocation) return accuracy <= 150;
+
+      const candidate = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const distance = getDistanceMeters(userLocation, candidate);
+
+      // إذا الدقة ضعيفة والمسافة كبيرة، لا تعتمد القراءة
+      if (accuracy > 120 && distance > 80) {
+        return false;
+      }
+      return true;
+    },
+    [getDistanceMeters, userLocation]
+  );
+
+  const manualGeolocateMain = useCallback(() => {
+    setIsLoading(true);
+    getBestPosition((refined) => {
+      if (!shouldAcceptLocation(refined)) return;
+      const refinedLoc = { lat: refined.coords.latitude, lng: refined.coords.longitude };
+      setStoreUserLocation(refinedLoc as any);
+      if (map.current) {
+        map.current.panTo(refinedLoc);
+      }
+      reverseGeocode(refinedLoc.lat, refinedLoc.lng);
+    })
+      .then((pos) => {
+        if (!shouldAcceptLocation(pos)) {
+          if (userLocation && map.current) {
+            map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+            map.current.setZoom(16);
+          }
+          toast({ title: "دقة الموقع منخفضة", description: "حاول الاقتراب من نافذة أو تفعيل GPS", variant: "destructive" });
+          return;
+        }
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setStoreUserLocation(loc as any);
+
+        if (map.current) {
+          map.current.panTo(loc);
+          map.current.setZoom(17);
+        }
+
+        reverseGeocode(loc.lat, loc.lng);
+      })
+      .catch((err) => {
+        console.warn("[GoPage] geolocation failed", err);
+        if (userLocation) {
+          if (map.current) {
+            map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+            map.current.setZoom(16);
+          }
+          reverseGeocode(userLocation.lat, userLocation.lng);
+        } else {
+          const errorMsg = (err?.code === 1 || err?.message === "NO_GEOLOCATION")
+            ? "يرجى منح صلاحية الوصول للموقع"
+            : "فشل تحديد الموقع";
+          toast({ title: errorMsg, variant: "destructive" });
+        }
+      })
+      .finally(() => setIsLoading(false));
+  }, [getBestPosition, map, reverseGeocode, setIsLoading, setStoreUserLocation, shouldAcceptLocation, toast, userLocation]);
+
+  const manualGeolocateBooking = useCallback(() => {
+    getBestPosition((refined) => {
+      if (!shouldAcceptLocation(refined)) return;
+      const refinedLoc = { lat: refined.coords.latitude, lng: refined.coords.longitude };
+      if (bookingMap.current) {
+        bookingMap.current.panTo(refinedLoc);
+      }
+    })
+      .then((pos) => {
+        if (!shouldAcceptLocation(pos)) {
+          toast({ title: "دقة الموقع منخفضة", description: "حاول الاقتراب من نافذة أو تفعيل GPS", variant: "destructive" });
+          return;
+        }
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        if (bookingMap.current) {
+          bookingMap.current.panTo(loc);
+          bookingMap.current.setZoom(16);
+        }
+      })
+      .catch((err) => {
+        console.warn("[GoPage] booking geolocation failed", err);
+        const errorMsg = (err?.code === 1 || err?.message === "NO_GEOLOCATION")
+          ? "يرجى منح صلاحية الوصول للموقع"
+          : "فشل تحديد الموقع";
+        toast({ title: errorMsg, variant: "destructive" });
+      });
+  }, [bookingMap, getBestPosition, shouldAcceptLocation, toast]);
   const [currentMode, setCurrentMode] = useState<"pickup" | "dropoff" | "booking">("pickup");
   const [pickupLocation, setPickupLocation] = useState<LocationType | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<LocationType | null>(null);
@@ -292,25 +476,33 @@ const GoPage: React.FC = () => {
     };
   }, [userId, setShowWaitingScreen, setShowLiveTracker]);
 
-  // Auto-focus search input when coming from saved places page
-  useEffect(() => {
-    const addPlace = searchParams.get("addPlace");
-    if (addPlace && searchInputRef.current) {
-      // Give UI time to render
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-        // Remove the param after using it
-        setSearchParams({});
-      }, 300);
-    }
-  }, [searchParams, setSearchParams]);
-
   // Check if user should see onboarding (first time)
   useEffect(() => {
     if (!hasSeenOnboarding && userId) {
       setShowOnboarding(true);
     }
   }, [hasSeenOnboarding, userId]);
+
+  // عرض طلب صلاحية الموقع عند أول دخول (بعد Onboarding)
+  useEffect(() => {
+    const hasRequestedBefore = localStorage.getItem('location_permission_requested');
+    if (!hasRequestedBefore && userId && hasSeenOnboarding) {
+      // تأخير قليل لإعطاء فرصة للـ UI بالتحميل
+      setTimeout(() => {
+        setShowLocationPrompt(true);
+      }, 1000);
+    }
+  }, [userId, hasSeenOnboarding]);
+
+  const handleLocationPermissionGranted = (location: { lat: number; lng: number }) => {
+    console.log('✅ Location permission granted:', location);
+    setShowLocationPrompt(false);
+    // تحديث الموقع في الخريطة
+    if (map.current) {
+      map.current.panTo(location);
+      map.current.setZoom(17);
+    }
+  };
 
   // Save user location when available (only once when location is first detected)
   useEffect(() => {
@@ -361,11 +553,8 @@ const GoPage: React.FC = () => {
           lng: position.coords.longitude
         };
         if (map.current) {
-          map.current.flyTo({
-            center: [freshLocation.lng, freshLocation.lat],
-            zoom: 16,
-            duration: 800
-          });
+          map.current.panTo(freshLocation);
+          map.current.setZoom(16);
         }
         toast({
           title: "تم التحديث",
@@ -407,39 +596,164 @@ const GoPage: React.FC = () => {
         return;
       }
       const center = map.current.getCenter();
+      
+      // Get the actual lat/lng values (handle both function and direct access)
+      const actualLat = typeof center.lat === 'function' ? center.lat() : center.lat;
+      const actualLng = typeof center.lng === 'function' ? center.lng() : center.lng;
+      
       let address = centerAddress;
 
-      // إذا لم نحصل على عنوان، نحصل عليه من API
+      // إذا لم نحصل على عنوان، نحصل عليه من Google Geocoding
       if (!address) {
         try {
-          const response = await fetch(`https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=reverse-geocode&lat=${center.lat}&lng=${center.lng}`, {
-            headers: {
-              "Content-Type": "application/json"
+          if (window.google?.maps && map.current) {
+            // Step 1: Get full address from Geocoding API first
+            const geocoder = new google.maps.Geocoder();
+            const result = await geocoder.geocode({ 
+              location: { lat: actualLat, lng: actualLng },
+              language: 'ar'
+            });
+            
+            if (result.results && result.results.length > 0) {
+              let finalAddress = result.results[0].formatted_address;
+              let poiName: string | null = null;
+              
+              // Step 2: Try to get POI name
+              try {
+                const placesService = new google.maps.places.PlacesService(map.current);
+                const request = {
+                  location: new google.maps.LatLng(actualLat, actualLng),
+                  radius: 50,
+                  language: 'ar'
+                };
+                
+                await new Promise<void>((resolve) => {
+                  placesService.nearbySearch(request, (results, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+                      const nearestPlace = results[0];
+                      
+                      // ✅ فلترة: فقط الأماكن المميزة
+                      const validPoiTypes = [
+                        'hospital', 'clinic', 'doctor', 'pharmacy',
+                        'mosque', 'church', 'place_of_worship',
+                        'school', 'university', 'library',
+                        'government', 'city_hall', 'police', 'fire_station',
+                        'shopping_mall', 'supermarket', 'store',
+                        'restaurant', 'cafe', 'bakery',
+                        'bank', 'atm', 'post_office',
+                        'gas_station', 'car_repair',
+                        'park', 'stadium', 'gym',
+                        'museum', 'tourist_attraction', 'point_of_interest'
+                      ];
+                      
+                      const hasValidType = nearestPlace.types?.some(t => validPoiTypes.includes(t));
+                      const isRoute = nearestPlace.types?.includes('route');
+                      const isNeighborhood = nearestPlace.types?.includes('neighborhood');
+                      
+                      if (nearestPlace.name && hasValidType && !isRoute && !isNeighborhood) {
+                        poiName = nearestPlace.name;
+                        console.log("✅ Valid POI found in confirmation:", poiName);
+                      } else {
+                        console.log("⚠️ Filtered out non-POI:", nearestPlace.name, nearestPlace.types);
+                      }
+                    }
+                    resolve();
+                  });
+                });
+              } catch (placeError) {
+                console.warn("Places API error (non-critical):", placeError);
+              }
+
+              // Step 3: Look for POI in geocoding results if not found
+              if (!poiName) {
+                const poiResult = result.results.find(r => 
+                  r.types.includes('point_of_interest') && 
+                  r.name &&
+                  !r.types.includes('route') &&
+                  !r.types.includes('neighborhood')
+                );
+                
+                if (poiResult && poiResult.name) {
+                  poiName = poiResult.name;
+                  console.log("✅ POI name from geocoding:", poiName);
+                }
+              }
+
+              // Step 4: Build descriptive final address with priority logic
+              const components = result.results[0]?.address_components || [];
+              const getComponent = (type: string) =>
+                components.find(c => c.types.includes(type))?.long_name;
+
+              const streetNumber = getComponent('street_number');
+              const route = getComponent('route');
+              const neighborhood =
+                getComponent('neighborhood') ||
+                getComponent('sublocality') ||
+                getComponent('sublocality_level_1') ||
+                getComponent('sublocality_level_2');
+              const locality = getComponent('locality') || getComponent('administrative_area_level_2');
+              const admin1 = getComponent('administrative_area_level_1');
+
+              const street = [route, streetNumber].filter(Boolean).join(' ').trim();
+              const city = locality || admin1;
+
+              const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
+              let mainPart = poiName?.trim() || "";
+              if (!mainPart || plusCodeRegex.test(mainPart)) {
+                mainPart = street || neighborhood || city || "";
+              }
+
+              const detailParts = [mainPart, neighborhood || "", city || ""]
+                .filter(p => p && p.length > 0)
+                .filter((p, idx, arr) => arr.indexOf(p) === idx);
+
+              let priorityAddress = detailParts.join('، ');
+              if (priorityAddress) {
+                console.log("✅ Priority 1 - Address components:", priorityAddress);
+              }
+
+              // بديل: تنظيف formatted_address عند الحاجة
+              if (!priorityAddress) {
+                let addressParts = finalAddress
+                  .split(/[،,]/)
+                  .map(p => p.trim())
+                  .filter(p => p.length > 0 && !plusCodeRegex.test(p));
+                priorityAddress = addressParts.slice(0, 3).join('، ');
+                if (priorityAddress) {
+                  console.log("✅ Priority 2 - Multiple address parts:", priorityAddress);
+                }
+              }
+
+              // البديل الأخير
+              if (!priorityAddress) {
+                priorityAddress = finalAddress || `${actualLat.toFixed(4)}, ${actualLng.toFixed(4)}`;
+                console.log("✅ Fallback - Using original or coordinates:", priorityAddress);
+              }
+
+              address = priorityAddress;
+            } else {
+              address = `${actualLat.toFixed(5)}, ${actualLng.toFixed(5)}`;
             }
-          });
-          const data = await response.json();
-          if (data.features?.[0]?.place_name) {
-            address = data.features[0].place_name;
           } else {
-            address = `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}`;
+            address = `${actualLat.toFixed(5)}, ${actualLng.toFixed(5)}`;
           }
         } catch (error) {
           console.error("Reverse geocode error:", error);
-          address = `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}`;
+          address = `${actualLat.toFixed(5)}, ${actualLng.toFixed(5)}`;
         }
       }
 
       // فحص منطقة الخدمة
-      const serviceCheck = await checkServiceArea(center.lat, center.lng);
+      const serviceCheck = await checkServiceArea(actualLat, actualLng);
       setLocalServiceAreaStatus(serviceCheck);
       const location: LocationType = {
-        lat: center.lat,
-        lng: center.lng,
+        lat: actualLat,
+        lng: actualLng,
         address: address
       };
       if (currentMode === "pickup") {
         // فحص Geofencing لموقع الانطلاق
-        const geofenceCheck = await checkDestinationGeofence(center.lat, center.lng, mapToken);
+        const geofenceCheck = await checkDestinationGeofence(actualLat, actualLng, mapToken);
         
         if (!geofenceCheck.allowed) {
           // موقع الانطلاق خارج العراق - عرض رسالة
@@ -458,7 +772,7 @@ const GoPage: React.FC = () => {
         });
       } else if (currentMode === "dropoff") {
         // فحص Geofencing قبل تحديد الوجهة
-        const geofenceCheck = await checkDestinationGeofence(center.lat, center.lng, mapToken);
+        const geofenceCheck = await checkDestinationGeofence(actualLat, actualLng, mapToken);
         
         if (!geofenceCheck.allowed) {
           // الوجهة خارج العراق - عرض رسالة
@@ -504,85 +818,62 @@ const GoPage: React.FC = () => {
     
     // Reset to pickup mode to allow user to start fresh
     setCurrentMode("pickup");
+
+    // Force map reinitialization to avoid black screen
+    setIsLoading(true);
+    setMapReloadKey((prev) => prev + 1);
+    if (map.current) {
+      map.current = null;
+    }
     
     // ✅ إعادة كتابة منطق إعادة تعيين الخريطة بطريقة async
     const resetMap = async () => {
       if (!map.current) return;
-      
+
       try {
-        console.log("🗺️ [resetBooking] Starting async map reset...");
-        
-        // ✅ Step 1: الانتظار حتى يتم تحميل style الخريطة
-        const waitForStyleLoad = () => new Promise<void>((resolve) => {
-          if (map.current?.isStyleLoaded()) {
-            resolve();
-          } else {
-            map.current?.once('styledata', () => resolve());
-          }
-        });
-        
-        await waitForStyleLoad();
-        console.log("✅ [resetBooking] Map style loaded");
-        
-        // ✅ Step 2: إظهار container الخريطة أولاً
+        console.log("🗺️ [resetBooking] Starting map reset...");
+
+        // ✅ Step 1: إظهار container الخريطة أولاً
         if (mapContainer.current) {
-          mapContainer.current.style.display = 'block';
-          mapContainer.current.style.visibility = 'visible';
-          mapContainer.current.style.opacity = '1';
+          mapContainer.current.style.display = "block";
+          mapContainer.current.style.visibility = "visible";
+          mapContainer.current.style.opacity = "1";
         }
-        
-        // ✅ Step 3: إخفاء overlay التحميل
+
+        // ✅ Step 2: إخفاء overlay التحميل
         setIsLoading(false);
-        
-        // ✅ Step 4: الانتظار حتى repaint التالي
+
+        // ✅ Step 3: الانتظار حتى repaint التالي
         await new Promise(resolve => requestAnimationFrame(resolve));
-        
-        // ✅ Step 5: إعادة تحجيم الخريطة (يعيد إنشاء WebGL context إذا لزم الأمر)
-        map.current?.resize();
-        console.log("✅ [resetBooking] Map resized");
-        
-        // ✅ Step 6: التحقق من أن canvas يعمل
-        const canvas = map.current?.getCanvas();
-        if (canvas) {
-          const ctx = canvas.getContext('webgl2') || 
-                      canvas.getContext('webgl') || 
-                      canvas.getContext('2d');
-          
-          if (!ctx) {
-            console.error("❌ [resetBooking] Canvas context lost - reloading page");
-            toast({
-              title: "مشكلة في عرض الخريطة",
-              description: "سيتم تحديث الصفحة...",
-            });
-            setTimeout(() => window.location.reload(), 2000);
-            return;
-          }
+
+        // ✅ Step 4: إعادة تحجيم الخريطة (Google Maps)
+        if (window.google?.maps?.event) {
+          window.google.maps.event.trigger(map.current, "resize");
         }
-        
-        // ✅ Step 7: إعادة توسيط الخريطة
+        console.log("✅ [resetBooking] Map resized");
+
+        // ✅ Step 5: إعادة توسيط الخريطة
         if (userLocation) {
-          map.current?.flyTo({
-            center: [userLocation.lng, userLocation.lat],
-            zoom: 15,
-            duration: 800,
-          });
-          
-          // تحديث العنوان بعد animation
+          map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+          map.current.setZoom(15);
+
+          // تحديث العنوان بعد التحريك
           setTimeout(() => {
             if (map.current) {
               const center = map.current.getCenter();
-              reverseGeocode(center.lat, center.lng);
+              if (center) {
+                reverseGeocode(center.lat(), center.lng());
+              }
             }
-          }, 1000);
+          }, 400);
         }
-        
+
         console.log("✅ [resetBooking] Map reset complete");
-        
+
         toast({
           title: "جاهز لرحلة جديدة",
           description: "يمكنك الآن طلب رحلة جديدة",
         });
-        
       } catch (error) {
         console.error("❌ [resetBooking] Map reset failed:", error);
         toast({
@@ -596,7 +887,7 @@ const GoPage: React.FC = () => {
     // ✅ بدء reset بعد تأخير قصير
     setTimeout(() => resetMap(), 200);
     
-  }, [userLocation, map, reverseGeocode, toast, setIsLoading]);
+  }, [userLocation, map, reverseGeocode, toast, setIsLoading, setMapReloadKey]);
 
   // Handle booking submission
   const handleBookRide = async () => {
@@ -716,7 +1007,8 @@ const GoPage: React.FC = () => {
       vehicleType: selectedVehicle,
       timestamp: Date.now()
     });
-    setIsBooking(true);
+    
+    // ✅ إنشاء الحجز بدون حالة انتظار
     try {
       const {
         data: ride,
@@ -771,30 +1063,35 @@ const GoPage: React.FC = () => {
       // Show waiting screen
       setShowWaitingScreen(true);
 
-      // Trigger ride matching
+      // Trigger ride matching (في الخلفية)
       await supabase.functions.invoke("match-ride", {
         body: {
           rideId: ride.id
         }
       });
-      toast({
-        title: "تم إرسال طلبك ✅",
-        description: "جاري البحث عن سائق قريب"
-      });
+      // ✅ لا toasts - الشاشة نفسها تعرض حالة البحث
     } catch (error: any) {
-      console.error("Booking error:", error);
+      console.error("❌ Booking error:", error);
+      // فقط في حالة الخطأ نعرض toast
       toast({
         title: "فشل الحجز",
         description: error.message || "حدث خطأ غير متوقع",
         variant: "destructive"
       });
-    } finally {
-      setIsBooking(false);
     }
+    // ✅ لا حاجة لـ setIsBooking(false) - لم نستخدمه أصلاً
   };
   const isPickup = currentMode === "pickup";
   const isDropoff = currentMode === "dropoff";
   const isBookingMode = currentMode === "booking";
+
+  // Show location permission prompt
+  if (showLocationPrompt) {
+    return <LocationPermissionPrompt 
+      onPermissionGranted={handleLocationPermissionGranted}
+      onSkip={() => setShowLocationPrompt(false)}
+    />;
+  }
 
   // Show onboarding for new users
   if (showOnboarding) {
@@ -908,14 +1205,14 @@ const GoPage: React.FC = () => {
         </div>
 
         {/* Map - Top Half */}
-        <div className="h-[45%] relative">
-          <div ref={bookingMapContainer} className="absolute inset-0" />
+        <div className="h-[45%] relative bg-gray-200">
+          <div ref={bookingMapContainer} className="absolute inset-0 bg-gray-100" />
 
           {/* Floating manual geolocate button for booking map (raised) */}
           <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top">
             <button
-              onClick={manualGeolocate}
-              className="w-10 h-10 flex items-center justify-center rounded-md bg-primary text-primary-foreground shadow-glow shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/30"
+              onClick={manualGeolocateBooking}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
               title="تحديد موقعي"
               aria-label="تحديد موقعي"
             >
@@ -957,7 +1254,7 @@ const GoPage: React.FC = () => {
                       موقع الانطلاق
                     </p>
                     <p className="text-sm font-semibold text-foreground line-clamp-1">
-                      {pickupLocation.address}
+                      {buildDescriptiveAddress(pickupLocation.address || "")}
                     </p>
                   </div>
                   
@@ -967,7 +1264,7 @@ const GoPage: React.FC = () => {
                       الوجهة
                     </p>
                     <p className="text-sm font-semibold text-foreground line-clamp-1">
-                      {dropoffLocation.address}
+                      {buildDescriptiveAddress(dropoffLocation.address || "")}
                     </p>
                   </div>
                 </div>
@@ -1129,17 +1426,14 @@ const GoPage: React.FC = () => {
           {!bottomNavEnabled && (
             <div className="px-4 pb-6">
               <div className="max-w-lg mx-auto">
-                <Button onClick={handleBookRide} disabled={isBooking || fareLoading} className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground">
-                  {isBooking ? <span className="flex items-center gap-2">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      جاري الحجز...
-                    </span> : <span className="flex items-center gap-3 justify-center">
-                      <Navigation className="w-5 h-5" />
-                      <span>احجز الآن</span>
-                      <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
-                        {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
-                      </span>
-                    </span>}
+                <Button onClick={handleBookRide} disabled={fareLoading} className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground">
+                  <span className="flex items-center gap-3 justify-center">
+                    <Navigation className="w-5 h-5" />
+                    <span>احجز الآن</span>
+                    <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
+                      {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
+                    </span>
+                  </span>
                 </Button>
               </div>
             </div>
@@ -1149,17 +1443,14 @@ const GoPage: React.FC = () => {
           {bottomNavEnabled && (
             <div className="fixed bottom-20 left-0 right-0 p-4 bg-background/98 backdrop-blur-md border-t border-border/20 z-40">
             <div className="max-w-lg mx-auto">
-              <Button onClick={handleBookRide} disabled={isBooking || fareLoading} className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground">
-                {isBooking ? <span className="flex items-center gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    جاري الحجز...
-                  </span> : <span className="flex items-center gap-3 justify-center">
-                    <Navigation className="w-5 h-5" />
-                    <span>احجز الآن</span>
-                    <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
-                      {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
-                    </span>
-                  </span>}
+              <Button onClick={handleBookRide} disabled={fareLoading} className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground">
+                <span className="flex items-center gap-3 justify-center">
+                  <Navigation className="w-5 h-5" />
+                  <span>احجز الآن</span>
+                  <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
+                    {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
+                  </span>
+                </span>
               </Button>
             </div>
           </div>
@@ -1242,8 +1533,8 @@ const GoPage: React.FC = () => {
         {/* Floating manual geolocate button for main map */}
         <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top">
           <button
-            onClick={manualGeolocate}
-            className="manual-geolocate-main w-10 h-10 flex items-center justify-center rounded-md bg-primary text-primary-foreground shadow-glow shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/30"
+            onClick={manualGeolocateMain}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
             title="تحديد موقعي"
             aria-label="تحديد موقعي"
           >
@@ -1377,75 +1668,90 @@ const GoPage: React.FC = () => {
                 {isPickup ? "موقع الانطلاق" : "الوجهة"}
               </p>
               <p className="font-semibold text-foreground text-sm line-clamp-1">
-                {centerAddress || "جاري تحديد العنوان..."}
+                {buildDescriptiveAddress(centerAddress || "") || "جاري تحديد العنوان..."}
               </p>
             </div>
             {centerAddress && <div className={`w-2 h-2 rounded-full animate-pulse`} style={{backgroundColor: isPickup ? '' : '#2A6CD5'}} />}
           </div>
 
-          {/* Search input - Enhanced */}
-          <div className="mb-3">
-            <div className="relative">
-              <LocationSearchInput ref={searchInputRef} placeholder={isPickup ? "ابحث عن موقع الانطلاق..." : "ابحث عن الوجهة..."} value={searchQuery} onChange={setSearchQuery} onLocationSelect={async (location) => {
-              // فحص Geofencing لكل من pickup و dropoff
-              const geofenceCheck = await checkDestinationGeofence(location.lat, location.lng, mapToken);
-              if (!geofenceCheck.allowed) {
-                setGeofenceResult(geofenceCheck);
-                setShowGeofenceAlert(true);
-                return; // إيقاف العملية
-              }
-              
-              handleSearchSelect(location);
-              if (map.current) {
-                map.current.flyTo({
-                  center: [location.lng, location.lat],
-                  zoom: 16,
-                  duration: 800
-                });
-              }
-              setCenterAddress(location.address);
-              checkServiceArea(location.lat, location.lng);
-            }} type={isPickup ? "pickup" : "dropoff"} userLocation={userLocation} className="w-full" />
-            </div>
-          </div>
+          {/* Dynamic search - Google Places */}
+          <div className="mb-3 relative">
+            <DynamicSearchHeader
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              onClear={clearSearch}
+              isSearching={isSearching}
+              placeholder={isPickup ? "ابحث عن موقع الانطلاق..." : "ابحث عن الوجهة..."}
+            />
 
-          {/* Saved places - Show for both pickup and dropoff */}
-          {savedPlaces.length > 0 && <div className="mb-4">
-              <p className="text-xs font-bold text-muted-foreground mb-2.5 flex items-center gap-1.5">
-                <Star className="w-3.5 h-3.5 text-primary" />
-                أماكني المحفوظة
-              </p>
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
-                {loadingSavedPlaces ? <div className="flex gap-2">
-                    {[1, 2, 3].map(i => <div key={i} className="w-20 h-20 rounded-xl bg-muted/50 animate-pulse" />)}
-                  </div> : savedPlaces.map(place => <button key={place.id} onClick={async () => {
-              const location = handleSavedPlaceSelect(place);
-              
-              // فحص Geofencing لكل من pickup و dropoff
-              const geofenceCheck = await checkDestinationGeofence(location.lat, location.lng, mapToken);
-              if (!geofenceCheck.allowed) {
-                setGeofenceResult(geofenceCheck);
-                setShowGeofenceAlert(true);
-                return; // إيقاف العملية
-              }
-              
-              if (map.current) {
-                map.current.flyTo({
-                  center: [location.lng, location.lat],
-                  zoom: 16,
-                  duration: 800
-                });
-              }
-              setCenterAddress(location.address);
-              checkServiceArea(location.lat, location.lng);
-            }} className="flex flex-col items-center flex-shrink-0 w-20 p-2.5 rounded-xl border border-border/40 bg-card/50 hover:border-primary/50 hover:bg-primary/5 hover:shadow-md transition-all duration-200 active:scale-95">
-                      <div className="text-2xl mb-1.5">{place.icon || "📍"}</div>
-                      <p className="text-[10px] font-semibold text-center line-clamp-1 text-muted-foreground">
-                        {place.name}
-                      </p>
-                    </button>)}
-              </div>
-            </div>}
+            {searchQuery && (
+              <DynamicSearchResults
+                query={searchQuery}
+                results={predictions}
+                isSearching={isSearching}
+                isLoadingDetails={isLoadingDetails}
+                onSelect={async (placeId) => {
+                  const placeDetails = await getPlaceDetails(placeId);
+                  if (!placeDetails) return;
+
+                  const geofenceCheck = await checkDestinationGeofence(
+                    placeDetails.lat,
+                    placeDetails.lng,
+                    mapToken
+                  );
+                  if (!geofenceCheck.allowed) {
+                    setGeofenceResult(geofenceCheck);
+                    setShowGeofenceAlert(true);
+                    return;
+                  }
+
+                  if (map.current) {
+                    map.current.panTo({
+                      lat: placeDetails.lat,
+                      lng: placeDetails.lng,
+                    });
+                    map.current.setZoom(16);
+                  }
+                  
+                  // ✨ بناء عنوان ذكي = اسم المكان + المدينة (بدون Plus Code)
+                  let descriptiveAddress = placeDetails.name || placeDetails.address;
+                  
+                  // محاولة استخراج المدينة من formatted_address
+                  const addressParts = placeDetails.address
+                    .split(/[،,]/)
+                    .map(p => p.trim())
+                    .filter(p => p.length > 0);
+                  
+                  // حذف Plus Code إذا وجد
+                  const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
+                  const cleanParts = addressParts.filter(p => !plusCodeRegex.test(p));
+                  
+                  // استخراج المدينة (آخر جزء عادةً، بدون "محافظة" أو "العراق")
+                  const city = cleanParts
+                    .reverse()
+                    .find(p => !p.includes("محافظة") && p !== "العراق");
+                  
+                  // بناء العنوان النهائي
+                  if (placeDetails.name && city && placeDetails.name !== city) {
+                    descriptiveAddress = `${placeDetails.name}، ${city}`;
+                  } else if (placeDetails.name) {
+                    descriptiveAddress = placeDetails.name;
+                  } else {
+                    descriptiveAddress = cleanParts.slice(0, 2).join('، ') || placeDetails.address;
+                  }
+                  
+                  console.log("✅ Built descriptive address from search:", descriptiveAddress);
+                  
+                  // ✨ استخدم setManualAddress بدلاً من setCenterAddress
+                  setManualAddress(descriptiveAddress);
+                  
+                  checkServiceArea(placeDetails.lat, placeDetails.lng);
+                  setSearchQuery("");
+                }}
+                maxResults={6}
+              />
+            )}
+          </div>
 
           {/* Confirm button - Enhanced with semantic colors */}
           <Button 

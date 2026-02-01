@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import { useGoogleMapsApiKey } from '@/hooks/useGoogleMapsApiKey';
 import { Button } from '@/components/ui/button';
 import { Loader2, Trash2, Save, Plus, Pencil, MousePointer, AlertTriangle, Layers } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';

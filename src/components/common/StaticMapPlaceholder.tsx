@@ -25,10 +25,10 @@ export const StaticMapPlaceholder: React.FC<StaticMapPlaceholderProps> = ({
   showLoader = true,
   message = "جاري تحميل الخريطة...",
 }) => {
-  // Generate Mapbox Static Image URL
-  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
-  const staticMapUrl = mapboxToken
-    ? `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${lng},${lat},${zoom},0/400x300@2x?access_token=${mapboxToken}`
+  // Generate Google Static Maps URL
+  const googleApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+  const staticMapUrl = googleApiKey
+    ? `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=400x300&scale=2&key=${googleApiKey}`
     : null;
 
   return (

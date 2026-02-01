@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 import {
   ArrowRight,
   Navigation,
@@ -10,14 +9,11 @@ import {
   AlertTriangle,
   Check,
   Sparkles,
-  Star,
 } from "lucide-react";
-import LocationSearchInput from "@/components/LocationSearchInput";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast"; // added for toast notifications
-
-import { supabase } from "@/integrations/supabase/client";
-import { SavedPlace } from "./SavedPlaces";
+import { useDynamicPlacesSearch } from "@/hooks/useDynamicPlacesSearch";
+import { DynamicSearchHeader, DynamicSearchResults } from "./DynamicSearchResults";
 interface ServiceAreaCheck {
   in_service: boolean;
   region: {
@@ -66,15 +62,13 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   onPickupConfirmed,
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
+  const map = useRef<google.maps.Map | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [mapToken, setMapToken] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [centerAddress, setCenterAddress] = useState<string>("");
   const [serviceAreaStatus, setServiceAreaStatus] =
     useState<ServiceAreaCheck | null>(null);
   const [isCheckingService, setIsCheckingService] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [currentMode, setCurrentMode] = useState<"pickup" | "dropoff">(
     "pickup"
   );
@@ -84,21 +78,28 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
     address: string;
   } | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
-  const [loadingSavedPlaces, setLoadingSavedPlaces] = useState(false);
+  const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
+  const {
+    searchQuery,
+    setSearchQuery,
+    predictions,
+    isSearching,
+    isLoadingDetails,
+    getPlaceDetails,
+    clearSearch,
+  } = useDynamicPlacesSearch(userLocation);
 
   // Set initial mode based on prop when component opens
   useEffect(() => {
     if (isOpen && !hasInitialized) {
       setCurrentMode(type);
-      setPickupLocation(null); // Clear pickup location when modal opens
+      setPickupLocation(null);
       setSearchQuery("");
+      clearSearch();
       setCenterAddress("");
       setHasInitialized(true);
     }
-    // Don't reset currentMode if already initialized - let internal state manage transitions
-  }, [isOpen, type, hasInitialized]);
+  }, [isOpen, type, hasInitialized, clearSearch]);
 
   // Reset initialization flag and internal state when modal closes
   useEffect(() => {
@@ -108,69 +109,23 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       setPickupLocation(null);
     }
   }, [isOpen]);
-
-  // Fetch user ID and saved places
-  useEffect(() => {
-    const fetchUserAndPlaces = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (session?.user?.id) {
-          setUserId(session.user.id);
-          fetchSavedPlaces(session.user.id);
-        }
-      } catch (error) {
-        console.error("Error fetching user:", error);
-      }
-    };
-    if (isOpen) {
-      fetchUserAndPlaces();
-    }
-  }, [isOpen]);
-
-  // Fetch saved places
-  const fetchSavedPlaces = async (userId: string) => {
-    setLoadingSavedPlaces(true);
-    try {
-      const { data, error } = await supabase
-        .from("saved_places")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", {
-          ascending: true,
-        });
-      if (error) throw error;
-      setSavedPlaces(data || []);
-    } catch (error) {
-      console.error("Error fetching saved places:", error);
-    } finally {
-      setLoadingSavedPlaces(false);
-    }
-  };
   const ramadiCenter: [number, number] = [43.2954, 33.4262];
 
-  // Fetch Mapbox token
+  // Load Google Maps API script
   useEffect(() => {
     if (!isOpen) return;
-    const fetchToken = async () => {
-      try {
-        const response = await fetch(
-          "https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token",
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        const data = await response.json();
-        if (data.token) setMapToken(data.token);
-      } catch (error) {
-        console.error("Error fetching token:", error);
-      }
+    if (typeof window === "undefined" || window.google) return;
+    if (!googleMapsApiKey) return;
+
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places,geocoding&language=ar`;
+    script.async = true;
+    script.defer = true;
+    script.onerror = () => {
+      console.error("❌ Failed to load Google Maps API script");
     };
-    fetchToken();
-  }, [isOpen]);
+    document.head.appendChild(script);
+  }, [isOpen, googleMapsApiKey]);
 
   // Check service area
   const checkServiceArea = useCallback(async (lat: number, lng: number) => {
@@ -192,20 +147,16 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   // Reverse geocode
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
+      if (!window.google?.maps) return;
       try {
-        const response = await fetch(
-          `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=reverse-geocode&lat=${lat}&lng=${lng}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        const data = await response.json();
-        if (data.features?.[0]?.place_name) {
-          setCenterAddress(data.features[0].place_name);
+        const geocoder = new google.maps.Geocoder();
+        const result = await geocoder.geocode({
+          location: new google.maps.LatLng(lat, lng),
+          language: "ar",
+        });
+        if (result.results && result.results[0]) {
+          setCenterAddress(result.results[0].formatted_address);
         } else {
-          // Fallback when Mapbox has no address for these coordinates
           setCenterAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
         }
         checkServiceArea(lat, lng);
@@ -218,67 +169,70 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
 
   // Initialize map
   useEffect(() => {
-    if (!isOpen || !mapContainer.current || !mapToken) return;
-    mapboxgl.accessToken = mapToken;
-    const initialCenter = initialLocation
-      ? ([initialLocation.lng, initialLocation.lat] as [number, number])
-      : userLocation
-      ? ([userLocation.lng, userLocation.lat] as [number, number])
-      : ramadiCenter;
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: initialCenter,
-      zoom: 16,
-      pitch: 0,
-    });
-    // Hide zoom/compass controls for touch-first UX
-    map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false, showZoom: false }), "top-left");
-    map.current.on("load", () => {
-      setIsLoading(false);
-      const center = map.current?.getCenter();
-      if (center) reverseGeocode(center.lat, center.lng);
+    if (!isOpen || !mapContainer.current || !googleMapsApiKey) return;
 
-      // Add user location marker if available
-      if (userLocation) {
-        const el = document.createElement("div");
-        el.innerHTML = `
-          <div class="relative">
-            <div class="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-30"></div>
-            <div class="relative w-4 h-4 rounded-full bg-blue-500 border-2 border-white shadow-lg"></div>
-          </div>
-        `;
-        new mapboxgl.Marker(el)
-          .setLngLat([userLocation.lng, userLocation.lat])
-          .addTo(map.current!);
+    const checkGoogleMaps = setInterval(() => {
+      if (window.google?.maps) {
+        clearInterval(checkGoogleMaps);
+        if (!mapContainer.current || map.current) return;
+
+        const initialCenter = initialLocation
+          ? { lat: initialLocation.lat, lng: initialLocation.lng }
+          : userLocation
+          ? { lat: userLocation.lat, lng: userLocation.lng }
+          : { lat: ramadiCenter[1], lng: ramadiCenter[0] };
+
+        map.current = new google.maps.Map(mapContainer.current, {
+          center: initialCenter,
+          zoom: 16,
+          disableDefaultUI: true,
+          zoomControl: false,
+          mapTypeControl: false,
+          scaleControl: false,
+          streetViewControl: false,
+          rotateControl: false,
+          fullscreenControl: false,
+        });
+
+        setIsLoading(false);
+        const center = map.current.getCenter();
+        if (center) reverseGeocode(center.lat(), center.lng());
+
+        if (userLocation) {
+          new google.maps.Marker({
+            position: { lat: userLocation.lat, lng: userLocation.lng },
+            map: map.current,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 6,
+              fillColor: "#3b82f6",
+              fillOpacity: 1,
+              strokeColor: "#ffffff",
+              strokeWeight: 2,
+            },
+          });
+        }
+
+        map.current.addListener("dragstart", () => setIsDragging(true));
+        map.current.addListener("dragend", () => {
+          setIsDragging(false);
+          const currentCenter = map.current?.getCenter();
+          if (currentCenter) reverseGeocode(currentCenter.lat(), currentCenter.lng());
+        });
       }
-    });
-    map.current.on("dragstart", () => setIsDragging(true));
-    map.current.on("dragend", () => {
-      setIsDragging(false);
-      const center = map.current?.getCenter();
-      if (center) reverseGeocode(center.lat, center.lng);
-    });
-    map.current.on("moveend", () => {
-      if (!isDragging) {
-        const center = map.current?.getCenter();
-        if (center) reverseGeocode(center.lat, center.lng);
-      }
-    });
+    }, 100);
+
     return () => {
-      map.current?.remove();
+      clearInterval(checkGoogleMaps);
       map.current = null;
     };
-  }, [isOpen, mapToken, initialLocation, userLocation, reverseGeocode]);
+  }, [isOpen, googleMapsApiKey, initialLocation, userLocation, reverseGeocode]);
   const { toast } = useToast();
 
   const centerOnUser = () => {
     if (userLocation && map.current) {
-      map.current.flyTo({
-        center: [userLocation.lng, userLocation.lat],
-        zoom: 16,
-        duration: 1000,
-      });
+      map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+      map.current.setZoom(16);
     }
   };
 
@@ -287,21 +241,27 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       toast({ title: '⚠️ المتصفح لا يدعم تحديد الموقع', variant: 'destructive' });
       return;
     }
+    
+    // طلب صلاحية الموقع بشكل فوري
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         if (map.current) {
-          map.current.flyTo({ center: [lng, lat], zoom: 16, duration: 800 });
+          map.current.panTo({ lat, lng });
+          map.current.setZoom(17);
         }
         reverseGeocode(lat, lng);
-        toast({ title: '✅ تم تحديث موقع الخريطة' });
+        // إزالة Toast لتحسين تجربة المستخدم
       },
       (err) => {
         console.warn('[MapLocationPicker] Geolocation error', err);
-        toast({ title: 'فشل تحديد الموقع', variant: 'destructive' });
+        const errorMsg = err.code === 1 
+          ? 'يرجى منح صلاحية الوصول للموقع من إعدادات المتصفح'
+          : 'فشل تحديد الموقع، يرجى المحاولة مرة أخرى';
+        toast({ title: errorMsg, variant: 'destructive' });
       },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 7000 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     );
   };
 
@@ -327,13 +287,14 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
     }
     const center = map.current.getCenter();
     console.log("🗺️ Map center:", {
-      lat: center.lat,
-      lng: center.lng,
+      lat: center?.lat(),
+      lng: center?.lng(),
     });
-    const serviceCheck = await checkServiceArea(center.lat, center.lng);
+    if (!center) return;
+    const serviceCheck = await checkServiceArea(center.lat(), center.lng());
     const location = {
-      lat: center.lat,
-      lng: center.lng,
+      lat: center.lat(),
+      lng: center.lng(),
       address: centerAddress,
       inService: serviceCheck?.in_service,
     };
@@ -362,36 +323,6 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
     onConfirm(location);
   };
 
-  // Handle selecting a location from search suggestions
-  const handleSearchSelect = (location: {
-    lat: number;
-    lng: number;
-    address: string;
-    inService?: boolean;
-  }) => {
-    if (map.current) {
-      map.current.flyTo({
-        center: [location.lng, location.lat],
-        zoom: 16,
-        duration: 800,
-      });
-    }
-    setCenterAddress(location.address);
-    checkServiceArea(location.lat, location.lng);
-  };
-
-  // Handle saved place selection
-  const handleSavedPlaceSelect = (place: SavedPlace) => {
-    if (map.current) {
-      map.current.flyTo({
-        center: [place.lng, place.lat],
-        zoom: 16,
-        duration: 800,
-      });
-    }
-    setCenterAddress(place.address);
-    checkServiceArea(place.lat, place.lng);
-  };
   if (!isOpen) return null;
   const isPickup = currentMode === "pickup";
 
@@ -638,54 +569,45 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
               )}
             </div>
           </div>
-
-          {/* Search input to set location by typing with suggestions */}
-          <div className="mb-3">
-            <LocationSearchInput
+          {/* Dynamic search input */}
+          <div className="mb-3 relative">
+            <DynamicSearchHeader
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              onClear={clearSearch}
+              isSearching={isSearching}
               placeholder={
                 isPickup
-                  ? "اكتب لتحديد موقع الانطلاق..."
-                  : "اكتب لتحديد الوجهة..."
+                  ? "ابحث عن موقع الانطلاق..."
+                  : "ابحث عن الوجهة..."
               }
-              value={searchQuery}
-              onChange={setSearchQuery}
-              onLocationSelect={handleSearchSelect}
-              type={isPickup ? "pickup" : "dropoff"}
-              userLocation={userLocation}
-              className="w-full"
             />
           </div>
 
-          {/* Saved Places Section - Horizontal Scrolling (only show in dropoff mode) */}
-          {!isPickup && savedPlaces.length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs font-semibold text-muted-foreground mb-3 px-1 flex items-center gap-2">
-                <Star className="w-3 h-3 text-amber-600" />
-                أماكني المحفوظة
-              </p>
-              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                {loadingSavedPlaces ? (
-                  <div className="flex items-center justify-center w-full py-4">
-                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                  </div>
-                ) : (
-                  savedPlaces.map((place) => (
-                    <button
-                      key={place.id}
-                      onClick={() => handleSavedPlaceSelect(place)}
-                      className="flex flex-col items-center justify-center flex-shrink-0 w-24 h-28 p-2 rounded-xl border border-border/50 hover:border-amber-500 hover:bg-amber-500/10 hover:shadow-md transition-all duration-200 group overflow-hidden bg-card/50"
-                    >
-                      <div className="text-4xl leading-none mb-2">
-                        {place.icon || "📍"}
-                      </div>
-                      <p className="text-[11px] font-semibold text-foreground text-center line-clamp-2 leading-tight group-hover:text-amber-600 transition-colors">
-                        {place.name}
-                      </p>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
+          {/* Dynamic search results */}
+          {searchQuery && (
+            <DynamicSearchResults
+              query={searchQuery}
+              results={predictions}
+              isSearching={isSearching}
+              isLoadingDetails={isLoadingDetails}
+              onSelect={async (placeId, mainText) => {
+                const placeDetails = await getPlaceDetails(placeId);
+                if (placeDetails) {
+                  if (map.current) {
+                    map.current.panTo({
+                      lat: placeDetails.lat,
+                      lng: placeDetails.lng,
+                    });
+                    map.current.setZoom(16);
+                  }
+                  setCenterAddress(placeDetails.address);
+                  checkServiceArea(placeDetails.lat, placeDetails.lng);
+                  setSearchQuery("");
+                }
+              }}
+              maxResults={6}
+            />
           )}
 
           {/* Confirm button - compact styling */}

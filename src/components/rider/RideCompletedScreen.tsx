@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   CheckCircle,
@@ -6,10 +6,7 @@ import {
   Route,
   Wallet,
   Clock,
-  Bookmark,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import SaveDestinationPrompt from "./SaveDestinationPrompt";
 import SmartRatingFlow from "./SmartRatingFlow";
 import confetti from "canvas-confetti";
 
@@ -33,16 +30,6 @@ export const RideCompletedScreen = ({
   driverName,
   onClose,
 }: RideCompletedScreenProps) => {
-  const [showSavePrompt, setShowSavePrompt] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-
-  // Get user ID
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) setUserId(data.user.id);
-    });
-  }, []);
-
   // Trigger confetti on mount
   useEffect(() => {
     confetti({
@@ -128,18 +115,6 @@ export const RideCompletedScreen = ({
             </div>
           </div>
 
-          {/* Save destination button */}
-          {ride.dropoff_address && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSavePrompt(true)}
-              className="w-full gap-2 text-primary mt-2 h-8"
-            >
-              <Bookmark className="w-3.5 h-3.5" />
-              <span className="text-xs">حفظ الوجهة</span>
-            </Button>
-          )}
         </div>
 
         {/* Smart Rating Flow */}
@@ -154,19 +129,6 @@ export const RideCompletedScreen = ({
         </div>
       </div>
 
-      {/* Save Destination Prompt */}
-      {userId && ride.dropoff_address && (
-        <SaveDestinationPrompt
-          isOpen={showSavePrompt}
-          onClose={() => setShowSavePrompt(false)}
-          userId={userId}
-          destination={{
-            address: ride.dropoff_address,
-            lat: 0,
-            lng: 0,
-          }}
-        />
-      )}
     </div>
   );
 };

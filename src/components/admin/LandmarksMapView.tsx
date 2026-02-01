@@ -11,8 +11,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 import { landmarkCategories } from "@/pages/admin/AdminLandmarks";
 
 interface LandmarkData {

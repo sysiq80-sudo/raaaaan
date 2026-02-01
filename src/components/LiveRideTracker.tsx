@@ -313,16 +313,16 @@ export const LiveRideTracker = ({
     if (!destination) return;
 
     try {
-      const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/driving/${driverLoc.lng},${
-          driverLoc.lat
-        };${destination.lng},${destination.lat}?access_token=${
-          import.meta.env.VITE_MAPBOX_TOKEN
-        }&overview=full&geometries=geojson`
-      );
-      const data = await response.json();
-      if (data.routes?.[0]) {
-        const route = data.routes[0];
+      // Use Google Directions API
+      const directionsService = new google.maps.DirectionsService();
+      const result = await directionsService.route({
+        origin: new google.maps.LatLng(driverLoc.lat, driverLoc.lng),
+        destination: new google.maps.LatLng(destination.lat, destination.lng),
+        travelMode: google.maps.TravelMode.DRIVING,
+      });
+
+      if (result.routes?.[0]) {
+        const route = result.routes[0];
         setDistance(parseFloat((route.distance / 1000).toFixed(1)));
         setEta(Math.round(route.duration / 60));
       }

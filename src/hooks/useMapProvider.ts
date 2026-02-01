@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-export type MapProvider = 'mapbox' | 'google';
+export type MapProvider = 'google'; // Google Maps only
 
 interface MapSettings {
   provider: MapProvider;
@@ -9,8 +9,8 @@ interface MapSettings {
 }
 
 const defaultSettings: MapSettings = {
-  provider: 'mapbox',
-  google_maps_configured: false,
+  provider: 'google',
+  google_maps_configured: true,
 };
 
 export const useMapProvider = () => {

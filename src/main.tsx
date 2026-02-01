@@ -1,15 +1,17 @@
 import { createRoot } from "react-dom/client";
-import mapboxgl from 'mapbox-gl';
 import App from "./App.tsx";
 import "./index.css";
 import { registerServiceWorker } from "./utils/serviceWorker";
 
-// Enable RTL text support for Arabic on Mapbox maps
-mapboxgl.setRTLTextPlugin(
-  'https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-rtl-text/v0.2.3/mapbox-gl-rtl-text.js',
-  null,
-  true // Lazy load
-);
+// Load Google Maps JavaScript API at runtime
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
+
+// Google Maps API will be loaded by @react-google-maps/api wrapper
+// RTL support is natively handled by Google Maps for Arabic text
 
 // Register Service Worker for push notifications
 if ('serviceWorker' in navigator) {
@@ -23,3 +25,4 @@ if ('serviceWorker' in navigator) {
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
+

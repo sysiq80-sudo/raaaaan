@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 import { Loader2, AlertCircle, Navigation, Clock } from "lucide-react";
 
 interface ActiveRideMapProps {
