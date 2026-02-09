@@ -65,23 +65,31 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
       return;
     }
 
-    // Get initial position
-    navigator.geolocation.getCurrentPosition(updateLocation, handleError, {
-      enableHighAccuracy: true,
-      timeout: 5000,
-      maximumAge: 0,
-    });
+    // ✅ Guard: لا تبدأ تتبع الموقع بدون مستخدم مسجل
+    const startTracking = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    // Watch position changes - fires every 1-2 seconds when moving
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      updateLocation,
-      handleError,
-      {
+      // Get initial position
+      navigator.geolocation.getCurrentPosition(updateLocation, handleError, {
         enableHighAccuracy: true,
-        timeout: 3000,
-        maximumAge: 1000, // Max 1 second old (reduced from 5s)
-      }
-    );
+        timeout: 5000,
+        maximumAge: 0,
+      });
+
+      // Watch position changes - fires every 1-2 seconds when moving
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        updateLocation,
+        handleError,
+        {
+          enableHighAccuracy: true,
+          timeout: 3000,
+          maximumAge: 1000, // Max 1 second old (reduced from 5s)
+        }
+      );
+    };
+
+    startTracking();
 
     return () => {
       if (watchIdRef.current !== null) {

@@ -6,6 +6,8 @@ import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 // Pages
 import Index from "./pages/Index";
@@ -98,6 +100,7 @@ const App = () => (
         <BrowserRouter
           future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
         >
+          <AuthProvider>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
             {/* Public Routes */}
@@ -145,71 +148,85 @@ const App = () => (
             <Route
               path="/rider"
               element={
-                <ErrorBoundary>
-                  <RiderLayout>
-                    <GoPage />
-                  </RiderLayout>
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/rider/auth">
+                  <ErrorBoundary>
+                    <RiderLayout>
+                      <GoPage />
+                    </RiderLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/rider/schedule"
               element={
-                <ErrorBoundary>
-                  <RiderLayout>
-                    <GoPage scheduleMode={true} />
-                  </RiderLayout>
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/rider/auth">
+                  <ErrorBoundary>
+                    <RiderLayout>
+                      <GoPage scheduleMode={true} />
+                    </RiderLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/rider/rides"
               element={
-                <ErrorBoundary>
-                  <RiderLayout>
-                    <RiderRidesPage />
-                  </RiderLayout>
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/rider/auth">
+                  <ErrorBoundary>
+                    <RiderLayout>
+                      <RiderRidesPage />
+                    </RiderLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/rider/payments"
               element={
-                <ErrorBoundary>
-                  <RiderLayout>
-                    <RiderPaymentsPage />
-                  </RiderLayout>
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/rider/auth">
+                  <ErrorBoundary>
+                    <RiderLayout>
+                      <RiderPaymentsPage />
+                    </RiderLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/rider/wallet-topup"
               element={
-                <ErrorBoundary>
-                  <RiderLayout>
-                    <WalletTopupPage />
-                  </RiderLayout>
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/rider/auth">
+                  <ErrorBoundary>
+                    <RiderLayout>
+                      <WalletTopupPage />
+                    </RiderLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/rider/saved-places"
               element={
-                <ErrorBoundary>
-                  <RiderLayout>
-                    <RiderSavedPlacesPage />
-                  </RiderLayout>
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/rider/auth">
+                  <ErrorBoundary>
+                    <RiderLayout>
+                      <RiderSavedPlacesPage />
+                    </RiderLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/rider/settings"
               element={
-                <ErrorBoundary>
-                  <RiderLayout>
-                    <RiderSettingsPage />
-                  </RiderLayout>
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/rider/auth">
+                  <ErrorBoundary>
+                    <RiderLayout>
+                      <RiderSettingsPage />
+                    </RiderLayout>
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
 
@@ -217,9 +234,11 @@ const App = () => (
             <Route
               path="/driver"
               element={
-                <ErrorBoundary>
-                  <DriverHome />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/driver/auth">
+                  <ErrorBoundary>
+                    <DriverHome />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
@@ -233,89 +252,111 @@ const App = () => (
             <Route
               path="/driver/register"
               element={
-                <ErrorBoundary>
-                  <DriverRegister />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/driver/auth">
+                  <ErrorBoundary>
+                    <DriverRegister />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/driver/complete-registration"
               element={
-                <ErrorBoundary>
-                  <DriverCompleteRegistration />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/driver/auth">
+                  <ErrorBoundary>
+                    <DriverCompleteRegistration />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/driver/application-status"
               element={
-                <ErrorBoundary>
-                  <DriverApplicationStatus />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/driver/auth">
+                  <ErrorBoundary>
+                    <DriverApplicationStatus />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/driver/rides"
               element={
-                <ErrorBoundary>
-                  <DriverRides />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/driver/auth">
+                  <ErrorBoundary>
+                    <DriverRides />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/driver/finance"
               element={
-                <ErrorBoundary>
-                  <DriverFinance />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/driver/auth">
+                  <ErrorBoundary>
+                    <DriverFinance />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/driver/wallet"
               element={
-                <ErrorBoundary>
-                  <DriverFinance />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/driver/auth">
+                  <ErrorBoundary>
+                    <DriverFinance />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/driver/payments"
               element={
-                <ErrorBoundary>
-                  <DriverFinance />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/driver/auth">
+                  <ErrorBoundary>
+                    <DriverFinance />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/driver/statistics"
               element={
-                <ErrorBoundary>
-                  <DriverStatistics />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/driver/auth">
+                  <ErrorBoundary>
+                    <DriverStatistics />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/driver/profile"
               element={
-                <ErrorBoundary>
-                  <DriverProfile />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/driver/auth">
+                  <ErrorBoundary>
+                    <DriverProfile />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/driver/settings"
               element={
-                <ErrorBoundary>
-                  <DriverSettings />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/driver/auth">
+                  <ErrorBoundary>
+                    <DriverSettings />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/driver/incentives"
               element={
-                <ErrorBoundary>
-                  <DriverIncentives />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/driver/auth">
+                  <ErrorBoundary>
+                    <DriverIncentives />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
 
@@ -331,273 +372,341 @@ const App = () => (
             <Route
               path="/admin"
               element={
-                <ErrorBoundary>
-                  <AdminDashboard />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminDashboard />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/regions"
               element={
-                <ErrorBoundary>
-                  <AdminRegions />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminRegions />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/landmarks"
               element={
-                <ErrorBoundary>
-                  <AdminLandmarks />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminLandmarks />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/vehicle-types"
               element={
-                <ErrorBoundary>
-                  <AdminVehicleTypes />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminVehicleTypes />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/drivers"
               element={
-                <ErrorBoundary>
-                  <AdminDrivers />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminDrivers />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/rides"
               element={
-                <ErrorBoundary>
-                  <AdminRides />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminRides />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/users"
               element={
-                <ErrorBoundary>
-                  <AdminUsers />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminUsers />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/riders"
               element={
-                <ErrorBoundary>
-                  <AdminRiders />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminRiders />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/settings"
               element={
-                <ErrorBoundary>
-                  <AdminSettings />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminSettings />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/map"
               element={
-                <ErrorBoundary>
-                  <AdminMap />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminMap />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/reports"
               element={
-                <ErrorBoundary>
-                  <AdminReports />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminReports />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/cancellation"
               element={
-                <ErrorBoundary>
-                  <AdminCancellationSettings />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminCancellationSettings />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/cancellation-report"
               element={
-                <ErrorBoundary>
-                  <AdminCancellationReport />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminCancellationReport />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/incentives"
               element={
-                <ErrorBoundary>
-                  <AdminIncentives />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminIncentives />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/pending-rides"
               element={
-                <ErrorBoundary>
-                  <AdminPendingRides />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminPendingRides />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/drivers/:id"
               element={
-                <ErrorBoundary>
-                  <AdminDriverApplication />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminDriverApplication />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/api-stats"
               element={
-                <ErrorBoundary>
-                  <AdminApiStats />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminApiStats />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/commission-reports"
               element={
-                <ErrorBoundary>
-                  <AdminCommissionReports />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminCommissionReports />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/fare-settings"
               element={
-                <ErrorBoundary>
-                  <AdminFareSettings />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminFareSettings />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/surge-pricing"
               element={
-                <ErrorBoundary>
-                  <AdminSurgePricing />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminSurgePricing />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/subscription-plans"
               element={
-                <ErrorBoundary>
-                  <AdminSubscriptionPlans />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminSubscriptionPlans />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/commission-tiers"
               element={
-                <ErrorBoundary>
-                  <AdminCommissionTiers />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminCommissionTiers />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/banned-names"
               element={
-                <ErrorBoundary>
-                  <AdminBannedNames />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminBannedNames />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/promo-banners"
               element={
-                <ErrorBoundary>
-                  <AdminPromoBanners />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminPromoBanners />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/rider-pages"
               element={
-                <ErrorBoundary>
-                  <AdminRiderPages />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminRiderPages />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/page-editor/:pageId"
               element={
-                <ErrorBoundary>
-                  <AdminPageEditor />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminPageEditor />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/wallet-requests"
               element={
-                <ErrorBoundary>
-                  <AdminWalletRequests />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminWalletRequests />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/sms-logs"
               element={
-                <ErrorBoundary>
-                  <AdminSMSLogs />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminSMSLogs />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/driver-visibility"
               element={
-                <ErrorBoundary>
-                  <AdminDriverVisibility />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminDriverVisibility />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/driver-registration-settings"
               element={
-                <ErrorBoundary>
-                  <DriverRegistrationSettings />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <DriverRegistrationSettings />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/rider-wait-settings"
               element={
-                <ErrorBoundary>
-                  <AdminRiderWaitSettings />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminRiderWaitSettings />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/complaints"
               element={
-                <ErrorBoundary>
-                  <AdminComplaints />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminComplaints />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/stopped-rides"
               element={
-                <ErrorBoundary>
-                  <AdminStoppedRides />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminStoppedRides />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/admin/emergency-settings"
               element={
-                <ErrorBoundary>
-                  <AdminEmergencySettings />
-                </ErrorBoundary>
+                <ProtectedRoute redirectTo="/admin/login">
+                  <ErrorBoundary>
+                    <AdminEmergencySettings />
+                  </ErrorBoundary>
+                </ProtectedRoute>
               }
             />
 
@@ -615,6 +724,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
+          </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

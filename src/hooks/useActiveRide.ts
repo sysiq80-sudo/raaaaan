@@ -201,7 +201,10 @@ export const useActiveRide = (userId: string | null) => {
 
   // Check for active ride on mount and continuously
   const checkActiveRide = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      // لا يوجد مستخدم - تخطي الفحص بالكامل
+      return;
+    }
 
     // Skip if external booking flow wants to disable polling (prevents race)
     if (ignorePollingRef.current) {
@@ -252,7 +255,10 @@ export const useActiveRide = (userId: string | null) => {
   }, [userId, parseRideData]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      // لا يوجد مستخدم - لا تشترك في التحديثات ولا تنشئ polling
+      return;
+    }
 
     // Initial check
     checkActiveRide();
@@ -304,35 +310,44 @@ export const useActiveRide = (userId: string | null) => {
         console.log("[useActiveRide] Subscription status:", status);
       });
 
-    // Fallback polling every 3 seconds for critical updates
-    const pollInterval = setInterval(async () => {
-      if (!activeRide) {
-        // إذا لم تكن هناك رحلة نشطة، تحقق من وجود رحلة جديدة
-        checkActiveRide();
-        return;
-      }
+    // Fallback polling - smart interval:
+    // 15s when no active ride (just checking for new ones)
+    // 3s when tracking an active ride (need fast status updates)
+    const getPollingInterval = () => activeRide ? 3000 : 15000;
+    let pollTimer: ReturnType<typeof setTimeout>;
 
-      const { data } = await supabase
-        .from("rides")
-        .select("status, driver_id, emergency_completed")
-        .eq("id", activeRide.id)
-        .single();
+    const schedulePoll = () => {
+      pollTimer = setTimeout(async () => {
+        if (!activeRide) {
+          // لا توجد رحلة نشطة - فحص خفيف كل 15 ثانية
+          checkActiveRide();
+        } else {
+          const { data } = await supabase
+            .from("rides")
+            .select("status, driver_id, emergency_completed")
+            .eq("id", activeRide.id)
+            .single();
 
-      if (data && data.status !== previousStatusRef.current) {
-        console.log(
-          "[useActiveRide] 🔄 Poll detected status change:",
-          previousStatusRef.current,
-          "->",
-          data.status,
-          "emergency:", data.emergency_completed
-        );
-        checkActiveRide();
-      }
-    }, 3000); // تحديث كل 3 ثوانٍ للاستجابة السريعة
+          if (data && data.status !== previousStatusRef.current) {
+            console.log(
+              "[useActiveRide] 🔄 Poll detected status change:",
+              previousStatusRef.current,
+              "->",
+              data.status,
+              "emergency:", data.emergency_completed
+            );
+            checkActiveRide();
+          }
+        }
+        schedulePoll(); // Schedule next poll
+      }, getPollingInterval());
+    };
+
+    schedulePoll();
 
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(pollInterval);
+      clearTimeout(pollTimer);
     };
   }, [
     userId,

@@ -22,6 +22,15 @@ export const useGoogleMapsApiKey = () => {
       return cachedApiKey;
     }
 
+    // ✅ Guard: لا تجلب المفتاح من Supabase إن لم يكن هناك جلسة نشطة
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      // استخدم المفتاح الافتراضي فقط
+      setApiKey(DEFAULT_API_KEY);
+      setIsLoading(false);
+      return DEFAULT_API_KEY;
+    }
+
     try {
       // Try to get API key from Supabase Edge Function
       const response = await fetch(
@@ -104,9 +113,17 @@ export const getGoogleMapsApiKey = (): string => {
   return cachedApiKey || DEFAULT_API_KEY;
 };
 
-// Preload API key (call early in app initialization)
+// Preload API key (call early in app initialization - only when authenticated)
 export const preloadGoogleMapsApiKey = async (): Promise<string> => {
   if (cachedApiKey) return cachedApiKey;
+
+  // ✅ Guard: لا تجلب المفتاح مسبقاً بدون جلسة
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return DEFAULT_API_KEY;
+  } catch {
+    return DEFAULT_API_KEY;
+  }
 
   try {
     const { data } = await supabase

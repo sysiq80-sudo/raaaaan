@@ -37,9 +37,9 @@ const Index = () => {
         navigator.userAgent
       );
 
-    // Redirect to rider page (which now uses GoPage) if installed as PWA or on mobile
+    // Redirect to auth page if installed as PWA or on mobile
     if (isStandalone || isMobile) {
-      navigate("/rider", {
+      navigate("/auth", {
         replace: true,
       });
     }
@@ -101,7 +101,7 @@ const Index = () => {
                 تسجيل السائق
               </Button>
             </Link>
-            <Link to="/rider">
+            <Link to="/auth">
               <Button
                 size="sm"
                 className="bg-gradient-primary shadow-glow btn-glow font-semibold px-5"

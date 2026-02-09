@@ -41,6 +41,7 @@ import { LocationPermissionPrompt } from "@/components/rider/LocationPermissionP
 import LocationInputField from "@/components/rider/LocationInputField";
 import QuickAccessChips from "@/components/rider/QuickAccessChips";
 import FavoriteMarkersLayer from "@/components/rider/FavoriteMarkersLayer";
+import MapContainer from "@/components/rider/MapContainer";
 
 // Performance & Enhancement hooks
 import { usePerformanceMonitoring, useOperationTiming } from "@/hooks/usePerformanceMonitoring";
@@ -1636,39 +1637,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         className="flex-1 relative w-full h-full overflow-hidden"
         style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
       >
-        {/* Enhanced map loading placeholder - pointer-events-none when map is ready */}
-        {(!mapToken || isLoading) && (
-          <div className="absolute inset-0 bg-background flex items-center justify-center z-50 pointer-events-none">
-            <div className="text-center space-y-4 px-6">
-              <div className="relative">
-                <div className="w-20 h-20 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <MapPin className="w-8 h-8 text-primary/40" />
-                </div>
-              </div>
-              <div>
-                <p className="text-foreground text-lg font-semibold">جاري تحميل الخريطة...</p>
-                <p className="text-muted-foreground text-sm mt-2">
-                  {!mapToken ? "جاري الاتصال بخادم الخرائط..." : "جاري تحديد موقعك..."}
-                </p>
-              </div>
-              {(isLoading && mapToken) && (
-                <div className="text-xs text-muted-foreground/70 mt-4">
-                  💡 تلميح: تأكد من تفعيل الموقع في متصفحك
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Map container - MUST have pointer-events-auto and proper touch-action */}
-        <div 
-          ref={mapContainer} 
-          className="absolute inset-0 z-0"
-          style={{ 
-            touchAction: 'none', // Let Google Maps handle all touch events
-            pointerEvents: 'auto'
-          }}
+        {/* Memoized Map Container - isolated from ride state re-renders */}
+        <MapContainer
+          mapRef={mapContainer}
+          isLoading={!mapToken || isLoading}
+          mapToken={mapToken}
         />
 
         {/* Favorite Markers Layer */}

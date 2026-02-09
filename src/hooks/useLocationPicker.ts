@@ -380,6 +380,7 @@ export const useLocationPicker = (
   }, [googleMapsApiKey]);
 
   // Initialize map (only once with API key)
+  // ⚡ Instant load: always starts with ramadiCenter, then panTo userLocation when available
   useEffect(() => {
     if (!mapContainer.current || !googleMapsApiKey) {
       console.log("Map initialization waiting:", {
@@ -440,10 +441,8 @@ export const useLocationPicker = (
 
         console.log("Initializing Google Maps");
 
-        // Use userLocation if available, otherwise Ramadi center
-        const initialCenter = userLocation
-          ? { lat: userLocation.lat, lng: userLocation.lng }
-          : ramadiCenter;
+        // ⚡ Always use default center immediately — don't wait for GPS
+        const initialCenter = ramadiCenter;
 
         try {
           console.log("🗺️ Creating Google Maps instance...");
@@ -653,13 +652,15 @@ export const useLocationPicker = (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleMapsApiKey, reloadKey]); // Re-run when API key or reload key changes
 
-  // Update map center when user location is available (separate effect)
+  // Smooth pan to user location when GPS resolves (separate from map init)
   useEffect(() => {
     if (!map.current || !userLocation) return;
 
-    // Pan to user location
-    map.current.panTo(new window.google.maps.LatLng(userLocation.lat, userLocation.lng));
+    // ⚡ Smooth animated pan to user's real location
+    const target = new window.google.maps.LatLng(userLocation.lat, userLocation.lng);
+    map.current.panTo(target);
     map.current.setZoom(16);
+    console.log("🎯 Map panned to user location:", userLocation.lat, userLocation.lng);
   }, [userLocation]);
 
   // ✨ دالة لتعيين العنوان يدوياً (من البحث) مع منع reverseGeocode التلقائي

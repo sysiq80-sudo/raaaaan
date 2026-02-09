@@ -102,50 +102,87 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
     []
   );
 
-  // Initialize services - wait for Google Maps to fully load
-  // ⚠️ NOTE: Google Maps deprecation warning - AutocompleteService
-  // Recommendation: migrate to google.maps.places.AutocompleteSuggestion
-  // Timeline: 12+ months until deprecation - see https://developers.google.com/maps/legacy
+  // Initialize services - wait for Google Maps to be available (one-time check)
+  // Uses legacy AutocompleteService (still supported, new API requires additional libraries)
   useEffect(() => {
-    const checkAndInitialize = setInterval(() => {
-      if (typeof window !== 'undefined' && window.google?.maps?.places && googleMapsApiKey) {
-        clearInterval(checkAndInitialize);
-        
-        if (!autocompleteServiceRef.current) {
+    if (!googleMapsApiKey) return;
+
+    const initServices = () => {
+      if (typeof window === 'undefined' || !window.google?.maps?.places) return false;
+      
+      if (!autocompleteServiceRef.current) {
+        try {
           autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
           console.log("✅ AutocompleteService initialized");
-        }
-        if (!sessionTokenRef.current) {
-          sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
-          console.log("✅ AutocompleteSessionToken initialized");
+        } catch (e) {
+          console.warn("⚠️ AutocompleteService init failed:", e);
+          return false;
         }
       }
-    }, 100); // Check every 100ms
+      if (!sessionTokenRef.current) {
+        sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+      }
+      return true;
+    };
 
-    return () => clearInterval(checkAndInitialize);
+    // Try immediately first
+    if (initServices()) return;
+
+    // If not ready yet, poll with increasing delay (100ms → 200ms → 400ms...)
+    let delay = 100;
+    let attempts = 0;
+    const maxAttempts = 20; // ~6 seconds total
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tryInit = () => {
+      attempts++;
+      if (attempts > maxAttempts) return;
+      if (initServices()) return;
+      delay = Math.min(delay * 1.5, 1000);
+      timer = setTimeout(tryInit, delay);
+    };
+    timer = setTimeout(tryInit, delay);
+
+    return () => clearTimeout(timer);
   }, [googleMapsApiKey]);
 
-  // Initialize Places Service with a dummy map - wait for Google Maps to fully load
-  // ⚠️ NOTE: Google Maps deprecation warning - PlacesService
-  // Recommendation: migrate to google.maps.places.Place
-  // Timeline: 12+ months until deprecation - see https://developers.google.com/maps/legacy
+  // Initialize Places Service with a dummy map (one-time)
   useEffect(() => {
-    const checkAndInitializePlaces = setInterval(() => {
-      if (typeof window !== 'undefined' && window.google?.maps?.places && !placesServiceRef.current) {
-        clearInterval(checkAndInitializePlaces);
-        
-        // Create a hidden div for the places service
+    if (placesServiceRef.current) return;
+
+    const initPlaces = () => {
+      if (typeof window === 'undefined' || !window.google?.maps?.places) return false;
+      
+      try {
         const hiddenDiv = document.createElement('div');
         hiddenDiv.style.display = 'none';
         document.body.appendChild(hiddenDiv);
-        
         const dummyMap = new google.maps.Map(hiddenDiv);
         placesServiceRef.current = new google.maps.places.PlacesService(dummyMap);
         console.log("✅ PlacesService initialized");
+        return true;
+      } catch (e) {
+        console.warn("⚠️ PlacesService init failed:", e);
+        return false;
       }
-    }, 100); // Check every 100ms
+    };
 
-    return () => clearInterval(checkAndInitializePlaces);
+    if (initPlaces()) return;
+
+    let delay = 100;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tryInit = () => {
+      attempts++;
+      if (attempts > 20) return;
+      if (initPlaces()) return;
+      delay = Math.min(delay * 1.5, 1000);
+      timer = setTimeout(tryInit, delay);
+    };
+    timer = setTimeout(tryInit, delay);
+
+    return () => clearTimeout(timer);
   }, []);
 
   // Debounced search function

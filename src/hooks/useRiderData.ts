@@ -59,14 +59,22 @@ export const useRiderData = () => {
     };
   }, []);
 
-  // Get user location - IMMEDIATELY on mount with faster timeout
+  // Get user location - only after authentication
+  // ✅ Lazy Loading: set default immediately, then update when GPS resolves
   useEffect(() => {
+    // ✅ Guard: لا تطلب الموقع الجغرافي إن لم يكن المستخدم مسجلاً
+    if (!userId) return;
+
+    // ⚡ Set default location IMMEDIATELY so the map can render instantly
+    // This will be overwritten once GPS resolves
+    setUserLocation({ lat: 33.4262, lng: 43.2954 }); // Ramadi center
+
     let mounted = true;
 
     if (navigator.geolocation) {
-      console.log("📍 Requesting user location...");
+      console.log("📍 Requesting user location (non-blocking)...");
       
-      // Try high accuracy first (5 seconds)
+      // Try high accuracy first (15 seconds timeout)
       navigator.geolocation.getCurrentPosition(
         (position) => {
           if (mounted) {
@@ -82,15 +90,15 @@ export const useRiderData = () => {
           }
         },
         (error) => {
-          console.error("❌ Geolocation error:", error.code, error.message);
+          console.warn("⚠️ High-accuracy geolocation failed:", error.code, error.message);
           
-          // Fallback: Try with lower accuracy
+          // Fallback: Try with lower accuracy (coarse - WiFi/Cell)
           if (mounted) {
-            console.log("📍 Retrying with low accuracy...");
+            console.log("📍 Falling back to coarse location (WiFi/Cell)...");
             navigator.geolocation.getCurrentPosition(
               (position) => {
                 if (mounted) {
-                  console.log("✅ Location received (low accuracy)");
+                  console.log("✅ Coarse location received");
                   setUserLocation({
                     lat: position.coords.latitude,
                     lng: position.coords.longitude,
@@ -98,28 +106,24 @@ export const useRiderData = () => {
                 }
               },
               (fallbackError) => {
-                console.error("❌ Fallback geolocation failed:", fallbackError);
-                // Use default location (Baghdad center)
-                if (mounted) {
-                  console.log("📍 Using default location (Baghdad)");
-                  setUserLocation({ lat: 33.3152, lng: 44.3661 });
-                }
+                console.warn("⚠️ Coarse geolocation also failed:", fallbackError.message);
+                // Default location already set above - no crash
               },
-              { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+              { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
             );
           }
         },
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
       );
     } else {
       console.warn("⚠️ Geolocation not supported - using default location");
-      setUserLocation({ lat: 33.3152, lng: 44.3661 }); // Baghdad
+      // Default already set above
     }
 
     return () => {
       mounted = false;
     };
-  }, [toast]);
+  }, [userId, toast]);
 
   return {
     userId,

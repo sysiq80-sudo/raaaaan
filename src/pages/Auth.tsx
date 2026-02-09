@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,11 @@ type AuthStep = "phone" | "login" | "register" | "otp";
 
 const Auth = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+
+  // حدد وجهة إعادة التوجيه بعد تسجيل الدخول
+  const redirectTo = (location.state as { from?: string })?.from || "/rider";
 
   // Step management
   const [step, setStep] = useState<AuthStep>("phone");
@@ -51,18 +55,18 @@ const Auth = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
-        navigate("/rider");
+        navigate(redirectTo, { replace: true });
       }
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate("/rider");
+        navigate(redirectTo, { replace: true });
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, redirectTo]);
 
   // Format phone for database lookup
   const formatPhoneForLookup = (phone: string) => {
