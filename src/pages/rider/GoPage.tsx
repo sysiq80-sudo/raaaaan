@@ -1,29 +1,7 @@
-import React, {
-  useEffect,
-  useState,
-  useCallback,
-  lazy,
-  Suspense,
-  useRef,
-  useMemo,
-} from "react";
+import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowRight,
-  Navigation,
-  Loader2,
-  MapPin,
-  Target,
-  AlertTriangle,
-  Check,
-  Clock,
-  ChevronDown,
-  Zap,
-  Menu,
-  ArrowUpDown,
-  Sparkles,
-  Plus,
-} from "lucide-react";
+import SplashScreen from "@/components/common/SplashScreen";
+import { ArrowRight, Navigation, Loader2, MapPin, Target, AlertTriangle, Check, Clock, ChevronDown, Zap, Menu, ArrowUpDown } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,19 +13,14 @@ import CompactVehicleSelector from "@/components/rider/CompactVehicleSelector";
 import PaymentMethodSheet from "@/components/rider/PaymentMethodSheet";
 import { ScheduleRideDialog } from "@/components/rider/ScheduleRideDialog";
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
-import PromoCodeSheet from "@/components/rider/PromoCodeSheet";
 import StatusIcons from "@/components/common/StatusIcons";
 import NetworkStatusBar from "@/components/common/NetworkStatusBar";
 import StaticMapPlaceholder from "@/components/common/StaticMapPlaceholder";
 import RiderNotificationsBell from "@/components/rider/RiderNotificationsBell";
 import { motion, AnimatePresence } from "framer-motion";
 import { roundFare } from "@/lib/constants";
-import { playSound, hapticFeedback } from "@/utils/sounds";
 
-import {
-  checkDestinationGeofence,
-  type GeofenceResult,
-} from "@/lib/geofencing";
+import { checkDestinationGeofence, type GeofenceResult } from "@/lib/geofencing";
 import {
   Dialog,
   DialogContent,
@@ -64,134 +37,115 @@ import { useSearchAndPlaces } from "@/hooks/useSearchAndPlaces";
 import { useRideTracking } from "@/hooks/useRideTracking";
 import { useLastLocation } from "@/hooks/useLastLocation";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import {
-  DynamicSearchHeader,
-  DynamicSearchResults,
-} from "@/components/rider/DynamicSearchResults";
+import { DynamicSearchHeader, DynamicSearchResults } from "@/components/rider/DynamicSearchResults";
 import { LocationPermissionPrompt } from "@/components/rider/LocationPermissionPrompt";
 import LocationInputField from "@/components/rider/LocationInputField";
 import QuickAccessChips from "@/components/rider/QuickAccessChips";
 import FavoriteMarkersLayer from "@/components/rider/FavoriteMarkersLayer";
-import MapContainer from "@/components/rider/MapContainer";
-import { useFavoritesStore } from "@/stores/useFavoritesStore";
 
 // Performance & Enhancement hooks
-import {
-  usePerformanceMonitoring,
-  useOperationTiming,
-} from "@/hooks/usePerformanceMonitoring";
+import { usePerformanceMonitoring, useOperationTiming } from "@/hooks/usePerformanceMonitoring";
 import { useLastRide, useRiderPreferences } from "@/hooks/useLocalStorage";
 import { useOfflineMode } from "@/hooks/useOfflineMode";
 
 // Lazy load heavy components
-const RideWaitingScreen = lazy(
-  () => import("@/components/rider/RideWaitingScreen"),
-);
-const LiveRideTracker = lazy(
-  () => import("@/components/rider/LiveRideTracker"),
-);
-const RideCompletedScreen = lazy(
-  () => import("@/components/rider/RideCompletedScreen"),
-);
-const RideRatingScreen = lazy(
-  () => import("@/components/rider/RideRatingScreen"),
-);
-const OnboardingFlow = lazy(() => import("@/components/rider/OnboardingFlow"));
+const RideWaitingScreen = lazy(() => import("@/components/rider/RideWaitingScreen"));
+const LiveRideTracker = lazy(() => import("@/components/rider/LiveRideTracker"));
+const RideCompletedScreen = lazy(() => import("@/components/rider/RideCompletedScreen"));
+const RideRatingScreen = lazy(() => import("@/components/rider/RideRatingScreen"));
+// ✅ Removed: OnboardingFlow is now handled by AppRoutes routing
 
-// Loading skeleton
-const ScreenSkeleton = () => (
-  <div className="h-screen w-full bg-background flex items-center justify-center">
-    <div className="text-center space-y-4">
-      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-      <p className="text-muted-foreground">جاري التحميل...</p>
-    </div>
-  </div>
-);
+// Loading skeleton — uses premium SplashScreen
+const ScreenSkeleton = () => <SplashScreen />;
 interface LocationType {
   lat: number;
   lng: number;
   address: string;
 }
 type VehicleType = "economy" | "comfort" | "premium" | "women_only";
-type PaymentMethodType =
-  | "cash"
-  | "wallet"
-  | "card"
-  | "zain_cash"
-  | "super_key"
-  | "nas_wallet";
+// أنواع الدفع المبسطة - 3 خيارات فقط
+import type { PaymentMethod as PaymentMethodType } from "@/types/savedCards";
+import { mapPaymentToDb } from "@/types/savedCards";
 
 // Wrapper component to ensure GoPage is rendered safely within Router context
-const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
-  scheduleMode = false,
-}) => {
+const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = false }) => {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const {
+    toast
+  } = useToast();
 
   // Performance monitoring
   const metrics = usePerformanceMonitoring("GoPage");
-  const { measureOperation } = useOperationTiming();
+  const {
+    measureOperation
+  } = useOperationTiming();
 
   // Local storage hooks
-  const { lastRide, saveLastRide } = useLastRide();
-  const { preferences } = useRiderPreferences();
-  const { lastLocation, saveLocation } = useLastLocation();
-  const [hasSeenOnboarding] = useLocalStorage(
-    "raan_onboarding_completed",
-    false,
-  );
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const {
+    lastRide,
+    saveLastRide
+  } = useLastRide();
+  const {
+    preferences
+  } = useRiderPreferences();
+  const {
+    lastLocation,
+    saveLocation
+  } = useLastLocation();
+  // ✅ Removed: hasSeenOnboarding - handled by AppRoutes routing
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [mapReloadKey, setMapReloadKey] = useState(0);
-  const [routeStops, setRouteStops] = useState<LocationType[]>([]);
-  const favorites = useFavoritesStore((state) => state.favorites);
 
   // Offline support
-  const { isOnline } = useOfflineMode();
+  const {
+    isOnline
+  } = useOfflineMode();
 
   // ✅ دالة متقدمة لبناء عنوان وصفي بمنطق أولويات
   const buildDescriptiveAddress = useCallback((address: string): string => {
     if (!address || !address.trim()) return "";
     if (address.includes("جاري تحديد العنوان")) return "";
-
+    
     const parts = address
       .split(/[،,]/)
-      .map((p) => p.trim())
-      .filter((p) => p.length > 0);
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
     if (parts.length === 0) return "";
-
+    
     // فحص Plus Code وحذفه إذا وُجد
     const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
-    const cleanParts = parts.filter((p) => !plusCodeRegex.test(p));
+    const cleanParts = parts.filter(p => !plusCodeRegex.test(p));
     if (cleanParts.length === 0) return "";
-
+    
     const isGovernorate = (value: string) => value.includes("محافظة");
     const isCountry = (value: string) => value === "العراق";
-
-    const filteredParts = cleanParts.filter(
-      (p) => !isCountry(p) && !isGovernorate(p),
-    );
+    
+    const filteredParts = cleanParts.filter(p => !isCountry(p) && !isGovernorate(p));
     if (filteredParts.length === 0) return cleanParts[0] || "";
-
+    
     // اجعل المدينة في نهاية العنوان قدر الإمكان
-    const cityCandidate = [...filteredParts]
-      .reverse()
-      .find((p) => !isCountry(p) && !isGovernorate(p));
-    const headParts = filteredParts.filter((p) => p !== cityCandidate);
-
+    const cityCandidate = [...filteredParts].reverse().find(p => !isCountry(p) && !isGovernorate(p));
+    const headParts = filteredParts.filter(p => p !== cityCandidate);
+    
     const ordered = cityCandidate
       ? [...headParts, cityCandidate]
       : filteredParts;
-
+    
     // أولوية العرض: معلم > شارع + حي > مدينة (نهاية)
-    if (ordered.length >= 3) return ordered.slice(0, 3).join("، ");
-    if (ordered.length === 2) return ordered.join("، ");
+    if (ordered.length >= 3) return ordered.slice(0, 3).join('، ');
+    if (ordered.length === 2) return ordered.join('، ');
     return ordered[0];
   }, []);
 
   // Core data hooks
-  const { userId, user, mapToken, userLocation, menuOpen, setMenuOpen } =
-    useRiderData();
+  const {
+    userId,
+    user,
+    mapToken,
+    userLocation,
+    menuOpen,
+    setMenuOpen
+  } = useRiderData();
 
   // Get bottom nav state from store
   const bottomNavEnabled = useRiderStore((state) => state.bottomNavEnabled);
@@ -208,8 +162,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
     serviceAreaStatus,
     isCheckingService,
     setCenterAddress,
-    setCenterLat,
-    setCenterLng,
     setManualAddress, // ✨ NEW
     checkServiceArea,
     reverseGeocode,
@@ -234,7 +186,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
     setPaymentSheetOpen,
     initializeBookingMap,
     fetchRoute,
-    cleanup: cleanupBooking,
+    cleanup: cleanupBooking
   } = useBookingFlow(mapToken);
 
   // Search and places
@@ -245,7 +197,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
     isSearching,
     isLoadingDetails,
     getPlaceDetails,
-    clearSearch,
+    clearSearch
   } = useSearchAndPlaces(userLocation);
 
   // Ride tracking
@@ -261,274 +213,102 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
     setShowCompletedScreen,
     handleRideCompletion,
     checkActiveRideConflict,
-    clearCompletedRide,
+    clearCompletedRide
   } = useRideTracking(userId);
-
-  const smartSuggestions = useMemo(() => {
-    const suggestions: Array<{
-      id: string;
-      label: string;
-      address: string;
-      lat: number;
-      lng: number;
-      reason: string;
-    }> = [];
-    const seen = new Set<string>();
-
-    const addSuggestion = (
-      id: string,
-      label: string,
-      address: string,
-      lat: number,
-      lng: number,
-      reason: string,
-    ) => {
-      if (!lat || !lng) return;
-      const key = `${lat.toFixed(5)}:${lng.toFixed(5)}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      suggestions.push({ id, label, address, lat, lng, reason });
-    };
-
-    const hour = new Date().getHours();
-    const preferWork = hour >= 6 && hour <= 11;
-    const preferHome = hour >= 16 || hour <= 2;
-
-    if (preferWork) {
-      favorites
-        .filter((fav) => fav.icon === "work" || fav.name.includes("عمل"))
-        .slice(0, 1)
-        .forEach((fav) => {
-          addSuggestion(
-            `fav-${fav.id}`,
-            fav.name,
-            fav.address,
-            fav.lat,
-            fav.lng,
-            "اقتراح وقت الدوام",
-          );
-        });
-    }
-
-    if (preferHome) {
-      favorites
-        .filter((fav) => fav.icon === "home" || fav.name.includes("بيت"))
-        .slice(0, 1)
-        .forEach((fav) => {
-          addSuggestion(
-            `fav-${fav.id}`,
-            fav.name,
-            fav.address,
-            fav.lat,
-            fav.lng,
-            "اقتراح وقت الرجوع",
-          );
-        });
-    }
-
-    if (
-      lastRide.dropoffAddress &&
-      lastRide.dropoffLat &&
-      lastRide.dropoffLng &&
-      Date.now() - lastRide.timestamp < 7 * 24 * 60 * 60 * 1000
-    ) {
-      addSuggestion(
-        "recent-dropoff",
-        "آخر وجهة",
-        lastRide.dropoffAddress,
-        lastRide.dropoffLat,
-        lastRide.dropoffLng,
-        "مبني على آخر رحلة",
-      );
-    }
-
-    favorites
-      .slice()
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .forEach((fav) => {
-        addSuggestion(
-          `fav-${fav.id}`,
-          fav.name,
-          fav.address,
-          fav.lat,
-          fav.lng,
-          "من المفضلة",
-        );
-      });
-
-    return suggestions.slice(0, 3);
-  }, [favorites, lastRide]);
-
-  const handleSmartSuggestionSelect = useCallback(
-    (suggestion: { address: string; lat: number; lng: number }) => {
-      if (map.current) {
-        map.current.panTo({ lat: suggestion.lat, lng: suggestion.lng });
-        map.current.setZoom(16);
-      }
-      setCenterLat(suggestion.lat);
-      setCenterLng(suggestion.lng);
-      setManualAddress(suggestion.address);
-      checkServiceArea(suggestion.lat, suggestion.lng);
-    },
-    [map, setCenterLat, setCenterLng, setManualAddress, checkServiceArea],
-  );
-
-  const handleAddStop = useCallback(() => {
-    if (!centerLat || !centerLng || !centerAddress) {
-      toast({
-        title: "الرجاء تحديد موقع التوقف",
-        description: "اختر موقع التوقف من الخريطة أولاً",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (routeStops.length >= 3) {
-      toast({
-        title: "الحد الأقصى للتوقفات",
-        description: "يمكنك إضافة حتى 3 توقفات فقط",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const normalizedAddress =
-      buildDescriptiveAddress(centerAddress) || centerAddress;
-    const alreadyAdded = routeStops.some(
-      (stop) =>
-        Math.abs(stop.lat - centerLat) < 0.0005 &&
-        Math.abs(stop.lng - centerLng) < 0.0005,
-    );
-
-    if (alreadyAdded) {
-      toast({
-        title: "هذا التوقف مضاف بالفعل",
-        description: "اختر موقعاً مختلفاً للتوقف",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setRouteStops((prev) => [
-      ...prev,
-      { lat: centerLat, lng: centerLng, address: normalizedAddress },
-    ]);
-  }, [
-    centerLat,
-    centerLng,
-    centerAddress,
-    routeStops,
-    buildDescriptiveAddress,
-    toast,
-  ]);
-
-  const handleRemoveStop = useCallback((index: number) => {
-    setRouteStops((prev) => prev.filter((_, i) => i !== index));
-  }, []);
 
   // Local state
   const setStoreUserLocation = useRiderStore((s) => s.setUserLocation);
-  const getBestPosition = useCallback(
-    (onRefine?: (pos: GeolocationPosition) => void) => {
-      return new Promise<GeolocationPosition>((resolve, reject) => {
-        if (!navigator.geolocation) {
-          reject(new Error("NO_GEOLOCATION"));
-          return;
+  const getBestPosition = useCallback((onRefine?: (pos: GeolocationPosition) => void) => {
+    return new Promise<GeolocationPosition>((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("NO_GEOLOCATION"));
+        return;
+      }
+
+      const quickOptions: PositionOptions = {
+        enableHighAccuracy: false,
+        timeout: 4000,
+        maximumAge: 60000,
+      };
+
+      const refineOptions: PositionOptions = {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 0,
+      };
+
+      let best: GeolocationPosition | null = null;
+      let resolved = false;
+
+      const stopRefineAfterMs = 7000;
+      const startedAt = Date.now();
+
+      const tryResolve = (pos: GeolocationPosition) => {
+        if (!resolved) {
+          resolved = true;
+          resolve(pos);
         }
+      };
 
-        const quickOptions: PositionOptions = {
-          enableHighAccuracy: false,
-          timeout: 4000,
-          maximumAge: 60000,
-        };
-
-        const refineOptions: PositionOptions = {
-          enableHighAccuracy: true,
-          timeout: 8000,
-          maximumAge: 0,
-        };
-
-        let best: GeolocationPosition | null = null;
-        let resolved = false;
-
-        const stopRefineAfterMs = 7000;
-        const startedAt = Date.now();
-
-        const tryResolve = (pos: GeolocationPosition) => {
-          if (!resolved) {
-            resolved = true;
-            resolve(pos);
+      const watchId = navigator.geolocation.watchPosition(
+        (wp) => {
+          if (!best || wp.coords.accuracy < best.coords.accuracy) {
+            best = wp;
+            if (resolved && onRefine) {
+              onRefine(wp);
+            }
           }
-        };
-
-        const watchId = navigator.geolocation.watchPosition(
-          (wp) => {
-            if (!best || wp.coords.accuracy < best.coords.accuracy) {
-              best = wp;
-              if (resolved && onRefine) {
-                onRefine(wp);
-              }
-            }
-            if (
-              wp.coords.accuracy <= 30 ||
-              Date.now() - startedAt > stopRefineAfterMs
-            ) {
-              navigator.geolocation.clearWatch(watchId);
-            }
-          },
-          () => {
+          if (wp.coords.accuracy <= 30 || Date.now() - startedAt > stopRefineAfterMs) {
             navigator.geolocation.clearWatch(watchId);
-          },
-          refineOptions,
-        );
+          }
+        },
+        () => {
+          navigator.geolocation.clearWatch(watchId);
+        },
+        refineOptions
+      );
 
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            best = pos;
-            tryResolve(pos);
-          },
-          (err) => {
-            if (best) {
-              tryResolve(best);
-              return;
-            }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          best = pos;
+          tryResolve(pos);
+        },
+        (err) => {
+          if (best) {
+            tryResolve(best);
+            return;
+          }
 
-            // fallback سريع منخفض الدقة لتجنب timeout
-            navigator.geolocation.getCurrentPosition(
-              (fallbackPos) => {
-                best = fallbackPos;
-                tryResolve(fallbackPos);
-              },
-              (fallbackErr) => {
-                reject(fallbackErr || err);
-              },
-              quickOptions,
-            );
-          },
-          refineOptions,
-        );
-      });
-    },
-    [],
-  );
+          // fallback سريع منخفض الدقة لتجنب timeout
+          navigator.geolocation.getCurrentPosition(
+            (fallbackPos) => {
+              best = fallbackPos;
+              tryResolve(fallbackPos);
+            },
+            (fallbackErr) => {
+              reject(fallbackErr || err);
+            },
+            quickOptions
+          );
+        },
+        refineOptions
+      );
+    });
+  }, []);
 
-  const getDistanceMeters = useCallback(
-    (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
-      const R = 6371000;
-      const dLat = (b.lat - a.lat) * (Math.PI / 180);
-      const dLng = (b.lng - a.lng) * (Math.PI / 180);
-      const lat1 = a.lat * (Math.PI / 180);
-      const lat2 = b.lat * (Math.PI / 180);
+  const getDistanceMeters = useCallback((a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const R = 6371000;
+    const dLat = (b.lat - a.lat) * (Math.PI / 180);
+    const dLng = (b.lng - a.lng) * (Math.PI / 180);
+    const lat1 = a.lat * (Math.PI / 180);
+    const lat2 = b.lat * (Math.PI / 180);
 
-      const sinDLat = Math.sin(dLat / 2);
-      const sinDLng = Math.sin(dLng / 2);
-      const aVal =
-        sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
-      const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
-      return R * c;
-    },
-    [],
-  );
+    const sinDLat = Math.sin(dLat / 2);
+    const sinDLng = Math.sin(dLng / 2);
+    const aVal = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
+    const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
+    return R * c;
+  }, []);
 
   const shouldAcceptLocation = useCallback(
     (pos: GeolocationPosition) => {
@@ -544,151 +324,88 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
       }
       return true;
     },
-    [getDistanceMeters, userLocation],
+    [getDistanceMeters, userLocation]
   );
 
-  const manualGeolocateMain = useCallback(() => {
-    setIsLoading(true);
+  // دالة موحدة لتحديد الموقع - تعمل مع أي خريطة
+  const handleGeolocate = useCallback((targetMap: React.MutableRefObject<google.maps.Map | null>, updateStore = false) => {
+    if (updateStore) setIsLoading(true);
     getBestPosition((refined) => {
       if (!shouldAcceptLocation(refined)) return;
-      const refinedLoc = {
-        lat: refined.coords.latitude,
-        lng: refined.coords.longitude,
-      };
-      setStoreUserLocation(refinedLoc as any);
-      if (map.current) {
-        map.current.panTo(refinedLoc);
+      const refinedLoc = { lat: refined.coords.latitude, lng: refined.coords.longitude };
+      if (updateStore) setStoreUserLocation(refinedLoc as any);
+      if (targetMap.current) {
+        targetMap.current.panTo(refinedLoc);
       }
-      reverseGeocode(refinedLoc.lat, refinedLoc.lng);
+      if (updateStore) reverseGeocode(refinedLoc.lat, refinedLoc.lng);
     })
       .then((pos) => {
         if (!shouldAcceptLocation(pos)) {
-          if (userLocation && map.current) {
-            map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
-            map.current.setZoom(16);
+          if (updateStore && userLocation && targetMap.current) {
+            targetMap.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+            targetMap.current.setZoom(16);
           }
-          toast({
-            title: "دقة الموقع منخفضة",
-            description: "حاول الاقتراب من نافذة أو تفعيل GPS",
-            variant: "destructive",
-          });
+          toast({ title: "دقة الموقع منخفضة", description: "حاول الاقتراب من نافذة أو تفعيل GPS", variant: "destructive" });
           return;
         }
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setStoreUserLocation(loc as any);
+        if (updateStore) setStoreUserLocation(loc as any);
 
-        if (map.current) {
-          map.current.panTo(loc);
-          map.current.setZoom(17);
+        if (targetMap.current) {
+          targetMap.current.panTo(loc);
+          targetMap.current.setZoom(updateStore ? 17 : 16);
         }
 
-        reverseGeocode(loc.lat, loc.lng);
+        if (updateStore) reverseGeocode(loc.lat, loc.lng);
       })
       .catch((err) => {
-        console.warn("[GoPage] geolocation failed", err);
-        if (userLocation) {
-          if (map.current) {
-            map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
-            map.current.setZoom(16);
+        if (updateStore && userLocation) {
+          if (targetMap.current) {
+            targetMap.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+            targetMap.current.setZoom(16);
           }
           reverseGeocode(userLocation.lat, userLocation.lng);
         } else {
-          const errorMsg =
-            err?.code === 1 || err?.message === "NO_GEOLOCATION"
-              ? "يرجى منح صلاحية الوصول للموقع"
-              : "فشل تحديد الموقع";
+          const errorMsg = (err?.code === 1 || err?.message === "NO_GEOLOCATION")
+            ? "يرجى منح صلاحية الوصول للموقع"
+            : "فشل تحديد الموقع";
           toast({ title: errorMsg, variant: "destructive" });
         }
       })
-      .finally(() => setIsLoading(false));
-  }, [
-    getBestPosition,
-    map,
-    reverseGeocode,
-    setIsLoading,
-    setStoreUserLocation,
-    shouldAcceptLocation,
-    toast,
-    userLocation,
-  ]);
+      .finally(() => { if (updateStore) setIsLoading(false); });
+  }, [getBestPosition, reverseGeocode, setIsLoading, setStoreUserLocation, shouldAcceptLocation, toast, userLocation]);
 
-  const manualGeolocateBooking = useCallback(() => {
-    getBestPosition((refined) => {
-      if (!shouldAcceptLocation(refined)) return;
-      const refinedLoc = {
-        lat: refined.coords.latitude,
-        lng: refined.coords.longitude,
-      };
-      if (bookingMap.current) {
-        bookingMap.current.panTo(refinedLoc);
-      }
-    })
-      .then((pos) => {
-        if (!shouldAcceptLocation(pos)) {
-          toast({
-            title: "دقة الموقع منخفضة",
-            description: "حاول الاقتراب من نافذة أو تفعيل GPS",
-            variant: "destructive",
-          });
-          return;
-        }
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        if (bookingMap.current) {
-          bookingMap.current.panTo(loc);
-          bookingMap.current.setZoom(16);
-        }
-      })
-      .catch((err) => {
-        console.warn("[GoPage] booking geolocation failed", err);
-        const errorMsg =
-          err?.code === 1 || err?.message === "NO_GEOLOCATION"
-            ? "يرجى منح صلاحية الوصول للموقع"
-            : "فشل تحديد الموقع";
-        toast({ title: errorMsg, variant: "destructive" });
-      });
-  }, [bookingMap, getBestPosition, shouldAcceptLocation, toast]);
-
+  const manualGeolocateMain = useCallback(() => handleGeolocate(map, true), [handleGeolocate, map]);
+  const manualGeolocateBooking = useCallback(() => handleGeolocate(bookingMap, false), [handleGeolocate, bookingMap]);
+  
   // Layout management - Bottom panel height tracking
   const bottomPanelRef = useRef<HTMLDivElement>(null);
   const scheduleDialogRef = useRef<{ openDialog: () => void }>(null);
   const [bottomPanelHeight, setBottomPanelHeight] = useState(0);
   const [hasStartedDragging, setHasStartedDragging] = useState(false);
-
-  const [currentMode, setCurrentMode] = useState<
-    "pickup" | "dropoff" | "booking"
-  >("pickup");
-  const [pickupLocation, setPickupLocation] = useState<LocationType | null>(
-    null,
-  );
-  const [dropoffLocation, setDropoffLocation] = useState<LocationType | null>(
-    null,
-  );
+  
+  const [currentMode, setCurrentMode] = useState<"pickup" | "dropoff" | "booking">("pickup");
+  const [pickupLocation, setPickupLocation] = useState<LocationType | null>(null);
+  const [dropoffLocation, setDropoffLocation] = useState<LocationType | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
-  const [localServiceAreaStatus, setLocalServiceAreaStatus] =
-    useState<any>(null);
-  const [geofenceResult, setGeofenceResult] = useState<GeofenceResult | null>(
-    null,
-  );
+  const [localServiceAreaStatus, setLocalServiceAreaStatus] = useState<any>(null);
+  const [geofenceResult, setGeofenceResult] = useState<GeofenceResult | null>(null);
   const [showGeofenceAlert, setShowGeofenceAlert] = useState(false);
   const [showRatingScreen, setShowRatingScreen] = useState(false);
 
   // Fare calculation
-  const { fareBreakdown, fareLoading } = useFareCalculation(
-    pickupLocation,
-    dropoffLocation,
-    selectedVehicle,
-    routeDistance,
-  );
+  const {
+    fareBreakdown,
+    fareLoading
+  } = useFareCalculation(pickupLocation, dropoffLocation, selectedVehicle, routeDistance);
 
   // Nearby drivers
-  const { availableDriversByType } = useOptimizedNearbyDrivers(
-    pickupLocation,
-    selectedVehicle,
-    {
-      enableRealtime: !!pickupLocation,
-      debounceMs: 1000,
-    },
-  );
+  const {
+    availableDriversByType
+  } = useOptimizedNearbyDrivers(pickupLocation, selectedVehicle, {
+    enableRealtime: !!pickupLocation,
+    debounceMs: 1000
+  });
 
   // Reset center address when mode changes
   useEffect(() => {
@@ -703,7 +420,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
       if (bottomPanelRef.current) {
         const height = bottomPanelRef.current.offsetHeight;
         setBottomPanelHeight(height);
-
+        
         // تطبيق padding على الخريطة
         if (mapContainer.current) {
           mapContainer.current.style.paddingBottom = "0px";
@@ -713,12 +430,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
 
     // تحديث فوري
     updatePanelHeight();
-
+    
     // استدعاء عند resize
     const observer = new ResizeObserver(() => {
       updatePanelHeight();
     });
-
+    
     if (bottomPanelRef.current) {
       observer.observe(bottomPanelRef.current);
     }
@@ -729,8 +446,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
   // Trigger map resize when bottom panel height changes
   useEffect(() => {
     if (map.current && window.google?.maps?.event) {
-      window.google.maps.event.trigger(map.current, "resize");
-
+      window.google.maps.event.trigger(map.current, 'resize');
+      
       // recenter the map
       if (userLocation) {
         map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
@@ -740,12 +457,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
 
   // فتح dialog الحجز المتقدم تلقائياً عند الدخول عبر /rider/schedule
   useEffect(() => {
-    if (
-      scheduleMode &&
-      scheduleDialogRef.current &&
-      pickupLocation &&
-      dropoffLocation
-    ) {
+    if (scheduleMode && scheduleDialogRef.current && pickupLocation && dropoffLocation) {
       // تأخير صغير للسماح بتحميل Dialog تماماً
       const timer = setTimeout(() => {
         scheduleDialogRef.current?.openDialog();
@@ -754,23 +466,22 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
     }
   }, [scheduleMode, pickupLocation, dropoffLocation]);
 
-  // 🔄 تحديث تلقائي مستمر للخريطة
+  // 🔄 استبدال Polling بـ Supabase Realtime لمراقبة الرحلة النشطة
   useEffect(() => {
     if (!userId) return;
 
-    // تحديث فوري عند mount
+    // فحص أولي عند التحميل
     const checkRide = async () => {
       const { data } = await supabase
-        .from("rides")
-        .select("*")
-        .eq("rider_id", userId)
-        .in("status", ["pending", "accepted", "arrived", "in_progress"])
-        .order("created_at", { ascending: false })
+        .from('rides')
+        .select('*')
+        .eq('rider_id', userId)
+        .in('status', ['pending', 'accepted', 'arrived', 'in_progress'])
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (!data) {
-        // لا توجد رحلة نشطة - تأكد من إخفاء الشاشات
         setShowWaitingScreen(false);
         setShowLiveTracker(false);
       }
@@ -778,58 +489,64 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
 
     checkRide();
 
-    // تحديث دوري كل 3 ثوانٍ
-    const interval = setInterval(checkRide, 3000);
+    // اشتراك Realtime بدل Polling كل 3 ثوان
+    const rideChannel = supabase
+      .channel(`rider-rides-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rides',
+          filter: `rider_id=eq.${userId}`,
+        },
+        (payload) => {
+          const updatedRide = payload.new as any;
+          if (updatedRide && ['cancelled', 'completed'].includes(updatedRide.status)) {
+            // الرحلة انتهت - أخفِ الشاشات
+            setShowWaitingScreen(false);
+            setShowLiveTracker(false);
+          }
+        }
+      )
+      .subscribe();
 
-    // تحديث عند العودة للـ tab
+    // فحص عند العودة للـ tab فقط (بدون interval)
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        console.log("📍 Page visible - checking ride status");
-        checkRide();
-      }
+      if (!document.hidden) checkRide();
     };
 
-    // تحديث عند focus على الصفحة
-    const handleFocus = () => {
-      console.log("📍 Page focused - checking ride status");
-      checkRide();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleFocus);
+      supabase.removeChannel(rideChannel);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [userId, setShowWaitingScreen, setShowLiveTracker]);
 
   // Check if user should see onboarding (first time)
-  useEffect(() => {
-    if (!hasSeenOnboarding && userId) {
-      setShowOnboarding(true);
-    }
-  }, [hasSeenOnboarding, userId]);
+  // ✅ DISABLED: Onboarding is now handled by AppRoutes in App.tsx
+  // This prevents conflicts with the top-level routing
+  // useEffect(() => {
+  //   if (!hasSeenOnboarding && userId) {
+  //     setShowOnboarding(true);
+  //   }
+  // }, [hasSeenOnboarding, userId]);
 
   // عرض طلب صلاحية الموقع عند أول دخول (بعد Onboarding)
+  // ✅ If user reaches GoPage, they've completed onboarding via AppRoutes
   useEffect(() => {
-    const hasRequestedBefore = localStorage.getItem(
-      "location_permission_requested",
-    );
-    if (!hasRequestedBefore && userId && hasSeenOnboarding) {
+    const hasRequestedBefore = localStorage.getItem('location_permission_requested');
+    if (!hasRequestedBefore && userId) {
       // تأخير قليل لإعطاء فرصة للـ UI بالتحميل
       setTimeout(() => {
         setShowLocationPrompt(true);
       }, 1000);
     }
-  }, [userId, hasSeenOnboarding]);
+  }, [userId]);
 
-  const handleLocationPermissionGranted = (location: {
-    lat: number;
-    lng: number;
-  }) => {
-    console.log("✅ Location permission granted:", location);
+  const handleLocationPermissionGranted = (location: { lat: number; lng: number }) => {
+    console.log('✅ Location permission granted:', location);
     setShowLocationPrompt(false);
     // تحديث الموقع في الخريطة
     if (map.current) {
@@ -844,7 +561,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
       saveLocation({
         lat: userLocation.lat,
         lng: userLocation.lng,
-        address: "موقعك الحالي",
+        address: "موقعك الحالي"
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -852,40 +569,26 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
 
   // Fetch route when both locations are set (for initial location picker map)
   useEffect(() => {
-    if (!pickupLocation || !dropoffLocation || currentMode === "booking")
-      return;
-    fetchRoute(pickupLocation, dropoffLocation, routeStops, {
-      optimizeWaypoints: true,
-    });
-  }, [pickupLocation, dropoffLocation, routeStops, fetchRoute, currentMode]);
+    if (!pickupLocation || !dropoffLocation || currentMode === "booking") return;
+    fetchRoute(pickupLocation, dropoffLocation);
+  }, [pickupLocation, dropoffLocation, fetchRoute, currentMode]);
 
   // Initialize booking mode map
   useEffect(() => {
-    if (currentMode !== "booking" || !pickupLocation || !dropoffLocation)
-      return;
-    initializeBookingMap(pickupLocation, dropoffLocation, routeStops, {
-      optimizeWaypoints: true,
-    });
-  }, [
-    currentMode,
-    pickupLocation,
-    dropoffLocation,
-    routeStops,
-    initializeBookingMap,
-  ]);
+    if (currentMode !== "booking" || !pickupLocation || !dropoffLocation) return;
+    initializeBookingMap(pickupLocation, dropoffLocation);
+  }, [currentMode, pickupLocation, dropoffLocation, initializeBookingMap]);
 
   // تحذير المستخدم قبل مغادرة الصفحة أثناء الحجز
   useEffect(() => {
     if (currentMode === "booking" && dropoffLocation) {
       const handleBeforeUnload = (e: BeforeUnloadEvent) => {
         e.preventDefault();
-        e.returnValue =
-          "هل أنت متأكد من مغادرة الصفحة؟ سيتم إلغاء الحجز الحالي.";
+        e.returnValue = "هل أنت متأكد من مغادرة الصفحة؟ سيتم إلغاء الحجز الحالي.";
         return e.returnValue;
       };
       window.addEventListener("beforeunload", handleBeforeUnload);
-      return () =>
-        window.removeEventListener("beforeunload", handleBeforeUnload);
+      return () => window.removeEventListener("beforeunload", handleBeforeUnload);
     }
   }, [currentMode, dropoffLocation]);
 
@@ -895,40 +598,36 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
 
     // Get fresh location when button is clicked
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const freshLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          if (map.current) {
-            map.current.panTo(freshLocation);
-            map.current.setZoom(16);
-          }
-          toast({
-            title: "تم التحديث",
-            description: "تم تحديث موقعك الحالي",
-          });
-        },
-        (error) => {
-          console.error("Location error:", error);
-          toast({
-            title: "خطأ",
-            description: "تعذر الحصول على موقعك الحالي",
-            variant: "destructive",
-          });
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        },
-      );
+      navigator.geolocation.getCurrentPosition(position => {
+        const freshLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        if (map.current) {
+          map.current.panTo(freshLocation);
+          map.current.setZoom(16);
+        }
+        toast({
+          title: "تم التحديث",
+          description: "تم تحديث موقعك الحالي"
+        });
+      }, error => {
+        console.error("Location error:", error);
+        toast({
+          title: "خطأ",
+          description: "تعذر الحصول على موقعك الحالي",
+          variant: "destructive"
+        });
+      }, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      });
     } else {
       toast({
         title: "خطأ",
         description: "متصفحك لا يدعم تحديد الموقع",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   }, [toast]);
@@ -943,7 +642,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
         toast({
           title: "خطأ",
           description: "الخريطة غير مهيأة",
-          variant: "destructive",
+          variant: "destructive"
         });
         return;
       }
@@ -952,11 +651,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
         console.error("Cannot get map center");
         return;
       }
-
+      
       // Get the actual lat/lng values - center.lat() and center.lng() are always functions
       const actualLat: number = center.lat();
       const actualLng: number = center.lng();
-
+      
       let address = centerAddress;
 
       // إذا لم نحصل على عنوان، نحصل عليه من Google Geocoding
@@ -965,94 +664,52 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
           if (window.google?.maps && map.current) {
             // Step 1: Get full address from Geocoding API first
             const geocoder = new google.maps.Geocoder();
-            const result = await geocoder.geocode({
+            const result = await geocoder.geocode({ 
               location: { lat: actualLat, lng: actualLng },
-              language: "ar",
+              language: 'ar'
             });
-
+            
             if (result.results && result.results.length > 0) {
               let finalAddress = result.results[0].formatted_address;
               let poiName: string | null = null;
-
+              
               // Step 2: Try to get POI name
               try {
-                const placesService = new google.maps.places.PlacesService(
-                  map.current,
-                );
+                const placesService = new google.maps.places.PlacesService(map.current);
                 const request = {
                   location: new google.maps.LatLng(actualLat, actualLng),
                   radius: 50,
-                  language: "ar",
+                  language: 'ar'
                 };
-
+                
                 await new Promise<void>((resolve) => {
                   placesService.nearbySearch(request, (results, status) => {
-                    if (
-                      status === google.maps.places.PlacesServiceStatus.OK &&
-                      results &&
-                      results.length > 0
-                    ) {
+                    if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
                       const nearestPlace = results[0];
-
+                      
                       // ✅ فلترة: فقط الأماكن المميزة
                       const validPoiTypes = [
-                        "hospital",
-                        "clinic",
-                        "doctor",
-                        "pharmacy",
-                        "mosque",
-                        "church",
-                        "place_of_worship",
-                        "school",
-                        "university",
-                        "library",
-                        "government",
-                        "city_hall",
-                        "police",
-                        "fire_station",
-                        "shopping_mall",
-                        "supermarket",
-                        "store",
-                        "restaurant",
-                        "cafe",
-                        "bakery",
-                        "bank",
-                        "atm",
-                        "post_office",
-                        "gas_station",
-                        "car_repair",
-                        "park",
-                        "stadium",
-                        "gym",
-                        "museum",
-                        "tourist_attraction",
-                        "point_of_interest",
+                        'hospital', 'clinic', 'doctor', 'pharmacy',
+                        'mosque', 'church', 'place_of_worship',
+                        'school', 'university', 'library',
+                        'government', 'city_hall', 'police', 'fire_station',
+                        'shopping_mall', 'supermarket', 'store',
+                        'restaurant', 'cafe', 'bakery',
+                        'bank', 'atm', 'post_office',
+                        'gas_station', 'car_repair',
+                        'park', 'stadium', 'gym',
+                        'museum', 'tourist_attraction', 'point_of_interest'
                       ];
-
-                      const hasValidType = nearestPlace.types?.some((t) =>
-                        validPoiTypes.includes(t),
-                      );
-                      const isRoute = nearestPlace.types?.includes("route");
-                      const isNeighborhood =
-                        nearestPlace.types?.includes("neighborhood");
-
-                      if (
-                        nearestPlace.name &&
-                        hasValidType &&
-                        !isRoute &&
-                        !isNeighborhood
-                      ) {
+                      
+                      const hasValidType = nearestPlace.types?.some(t => validPoiTypes.includes(t));
+                      const isRoute = nearestPlace.types?.includes('route');
+                      const isNeighborhood = nearestPlace.types?.includes('neighborhood');
+                      
+                      if (nearestPlace.name && hasValidType && !isRoute && !isNeighborhood) {
                         poiName = nearestPlace.name;
-                        console.log(
-                          "✅ Valid POI found in confirmation:",
-                          poiName,
-                        );
+                        console.log("✅ Valid POI found in confirmation:", poiName);
                       } else {
-                        console.log(
-                          "⚠️ Filtered out non-POI:",
-                          nearestPlace.name,
-                          nearestPlace.types,
-                        );
+                        console.log("⚠️ Filtered out non-POI:", nearestPlace.name, nearestPlace.types);
                       }
                     }
                     resolve();
@@ -1064,14 +721,13 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
 
               // Step 3: Look for POI in geocoding results if not found
               if (!poiName) {
-                const poiResult = result.results.find(
-                  (r) =>
-                    r.types.includes("point_of_interest") &&
-                    r.name &&
-                    !r.types.includes("route") &&
-                    !r.types.includes("neighborhood"),
+                const poiResult = result.results.find(r => 
+                  r.types.includes('point_of_interest') && 
+                  r.name &&
+                  !r.types.includes('route') &&
+                  !r.types.includes('neighborhood')
                 );
-
+                
                 if (poiResult && poiResult.name) {
                   poiName = poiResult.name;
                   console.log("✅ POI name from geocoding:", poiName);
@@ -1081,24 +737,19 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
               // Step 4: Build descriptive final address with priority logic
               const components = result.results[0]?.address_components || [];
               const getComponent = (type: string) =>
-                components.find((c) => c.types.includes(type))?.long_name;
+                components.find(c => c.types.includes(type))?.long_name;
 
-              const streetNumber = getComponent("street_number");
-              const route = getComponent("route");
+              const streetNumber = getComponent('street_number');
+              const route = getComponent('route');
               const neighborhood =
-                getComponent("neighborhood") ||
-                getComponent("sublocality") ||
-                getComponent("sublocality_level_1") ||
-                getComponent("sublocality_level_2");
-              const locality =
-                getComponent("locality") ||
-                getComponent("administrative_area_level_2");
-              const admin1 = getComponent("administrative_area_level_1");
+                getComponent('neighborhood') ||
+                getComponent('sublocality') ||
+                getComponent('sublocality_level_1') ||
+                getComponent('sublocality_level_2');
+              const locality = getComponent('locality') || getComponent('administrative_area_level_2');
+              const admin1 = getComponent('administrative_area_level_1');
 
-              const street = [route, streetNumber]
-                .filter(Boolean)
-                .join(" ")
-                .trim();
+              const street = [route, streetNumber].filter(Boolean).join(' ').trim();
               const city = locality || admin1;
 
               const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
@@ -1108,41 +759,30 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
               }
 
               const detailParts = [mainPart, neighborhood || "", city || ""]
-                .filter((p) => p && p.length > 0)
+                .filter(p => p && p.length > 0)
                 .filter((p, idx, arr) => arr.indexOf(p) === idx);
 
-              let priorityAddress = detailParts.join("، ");
+              let priorityAddress = detailParts.join('، ');
               if (priorityAddress) {
-                console.log(
-                  "✅ Priority 1 - Address components:",
-                  priorityAddress,
-                );
+                console.log("✅ Priority 1 - Address components:", priorityAddress);
               }
 
               // بديل: تنظيف formatted_address عند الحاجة
               if (!priorityAddress) {
                 let addressParts = finalAddress
                   .split(/[،,]/)
-                  .map((p) => p.trim())
-                  .filter((p) => p.length > 0 && !plusCodeRegex.test(p));
-                priorityAddress = addressParts.slice(0, 3).join("، ");
+                  .map(p => p.trim())
+                  .filter(p => p.length > 0 && !plusCodeRegex.test(p));
+                priorityAddress = addressParts.slice(0, 3).join('، ');
                 if (priorityAddress) {
-                  console.log(
-                    "✅ Priority 2 - Multiple address parts:",
-                    priorityAddress,
-                  );
+                  console.log("✅ Priority 2 - Multiple address parts:", priorityAddress);
                 }
               }
 
               // البديل الأخير
               if (!priorityAddress) {
-                priorityAddress =
-                  finalAddress ||
-                  `${actualLat.toFixed(4)}, ${actualLng.toFixed(4)}`;
-                console.log(
-                  "✅ Fallback - Using original or coordinates:",
-                  priorityAddress,
-                );
+                priorityAddress = finalAddress || `${actualLat.toFixed(4)}, ${actualLng.toFixed(4)}`;
+                console.log("✅ Fallback - Using original or coordinates:", priorityAddress);
               }
 
               address = priorityAddress;
@@ -1164,54 +804,44 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
       const location: LocationType = {
         lat: actualLat,
         lng: actualLng,
-        address: address,
+        address: address
       };
       if (currentMode === "pickup") {
         // فحص Geofencing لموقع الانطلاق
-        const geofenceCheck = await checkDestinationGeofence(
-          actualLat,
-          actualLng,
-          mapToken,
-        );
-
+        const geofenceCheck = await checkDestinationGeofence(actualLat, actualLng, mapToken);
+        
         if (!geofenceCheck.allowed) {
           // موقع الانطلاق خارج العراق - عرض رسالة
           setGeofenceResult(geofenceCheck);
           setShowGeofenceAlert(true);
           return; // إيقاف العملية
         }
-
+        
         setPickupLocation(location);
         setCurrentMode("dropoff");
         setCenterAddress("");
         setSearchQuery("");
-        playSound("success");
         toast({
           title: "تم تحديد موقع الانطلاق ✅",
-          description: address,
+          description: address
         });
       } else if (currentMode === "dropoff") {
         // فحص Geofencing قبل تحديد الوجهة
-        const geofenceCheck = await checkDestinationGeofence(
-          actualLat,
-          actualLng,
-          mapToken,
-        );
-
+        const geofenceCheck = await checkDestinationGeofence(actualLat, actualLng, mapToken);
+        
         if (!geofenceCheck.allowed) {
           // الوجهة خارج العراق - عرض رسالة
           setGeofenceResult(geofenceCheck);
           setShowGeofenceAlert(true);
           return; // إيقاف العملية
         }
-
+        
         // الوجهة داخل العراق - متابعة الحجز
         setDropoffLocation(location);
         setCurrentMode("booking");
-        playSound("success");
         toast({
           title: "تم تحديد الوجهة ✅",
-          description: address,
+          description: address
         });
       }
     } catch (error) {
@@ -1219,7 +849,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
       toast({
         title: "خطأ",
         description: "فشل تأكيد الموقع",
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setIsConfirming(false);
@@ -1236,11 +866,10 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
   // Reset booking state
   const resetBooking = useCallback(() => {
     console.log("🔄 [resetBooking] Starting reset process...");
-
+    
     // Clear all booking-related state
     setPickupLocation(null);
     setDropoffLocation(null);
-    setRouteStops([]);
     setRouteDistance(null);
     setRouteDuration(null);
     setShowWaitingScreen(false);
@@ -1248,7 +877,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
     setActiveRide(null);
     setSearchQuery("");
     setLocalServiceAreaStatus(null);
-
+    
     // Reset to pickup mode to allow user to start fresh
     setCurrentMode("pickup");
 
@@ -1258,7 +887,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
     if (map.current) {
       map.current = null;
     }
-
+    
     // ✅ إعادة كتابة منطق إعادة تعيين الخريطة بطريقة async
     const resetMap = async () => {
       if (!map.current) return;
@@ -1277,7 +906,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
         setIsLoading(false);
 
         // ✅ Step 3: الانتظار حتى repaint التالي
-        await new Promise((resolve) => requestAnimationFrame(resolve));
+        await new Promise(resolve => requestAnimationFrame(resolve));
 
         // ✅ Step 4: إعادة تحجيم الخريطة (Google Maps)
         if (window.google?.maps?.event) {
@@ -1316,9 +945,10 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
         });
       }
     };
-
+    
     // ✅ بدء reset بعد تأخير قصير
     setTimeout(() => resetMap(), 200);
+    
   }, [userLocation, map, reverseGeocode, toast, setIsLoading, setMapReloadKey]);
 
   // Handle booking submission
@@ -1328,7 +958,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
       toast({
         title: "لا يوجد اتصال بالإنترنت",
         description: "تحقق من اتصالك بالإنترنت وحاول مرة أخرى",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
@@ -1337,7 +967,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
       toast({
         title: "يجب تسجيل الدخول",
         description: "الرجاء تسجيل الدخول للحجز",
-        variant: "destructive",
+        variant: "destructive"
       });
       if (navigate) {
         navigate("/auth?redirect=/go");
@@ -1346,15 +976,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
     }
 
     // Check if there's already an active ride
-    if (
-      activeRide &&
-      activeRide.status !== "completed" &&
-      activeRide.status !== "cancelled"
-    ) {
+    if (activeRide && activeRide.status !== "completed" && activeRide.status !== "cancelled") {
       toast({
         title: "لديك رحلة نشطة",
         description: "الرجاء إنهاء الرحلة الحالية قبل حجز رحلة جديدة",
-        variant: "destructive",
+        variant: "destructive"
       });
       setShowWaitingScreen(true);
       return;
@@ -1363,40 +989,34 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
       toast({
         title: "معلومات ناقصة",
         description: "الرجاء تحديد نقطة الانطلاق والوجهة",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
 
     // Check if pickup location is in service area
     try {
-      const pickupServiceCheck = await checkServiceArea(
-        pickupLocation.lat,
-        pickupLocation.lng,
-      );
+      const pickupServiceCheck = await checkServiceArea(pickupLocation.lat, pickupLocation.lng);
       if (pickupServiceCheck && !pickupServiceCheck.in_service) {
         toast({
           title: "⚠️ موقع الانطلاق خارج منطقة الخدمة",
-          description: pickupServiceCheck.nearest_region
+          description: pickupServiceCheck.nearest_region 
             ? `أقرب منطقة خدمة: ${pickupServiceCheck.nearest_region.name_ar} (${pickupServiceCheck.nearest_region.distance_km} كم)`
             : "الرجاء اختيار موقع داخل مناطق الخدمة المتاحة",
-          variant: "destructive",
+          variant: "destructive"
         });
         return;
       }
 
       // Check if dropoff location is in service area
-      const dropoffServiceCheck = await checkServiceArea(
-        dropoffLocation.lat,
-        dropoffLocation.lng,
-      );
+      const dropoffServiceCheck = await checkServiceArea(dropoffLocation.lat, dropoffLocation.lng);
       if (dropoffServiceCheck && !dropoffServiceCheck.in_service) {
         toast({
           title: "⚠️ الوجهة خارج منطقة الخدمة",
-          description: dropoffServiceCheck.nearest_region
+          description: dropoffServiceCheck.nearest_region 
             ? `أقرب منطقة خدمة: ${dropoffServiceCheck.nearest_region.name_ar} (${dropoffServiceCheck.nearest_region.distance_km} كم)`
             : "الرجاء اختيار وجهة داخل مناطق الخدمة المتاحة",
-          variant: "destructive",
+          variant: "destructive"
         });
         return;
       }
@@ -1411,7 +1031,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
       toast({
         title: "خطأ في حساب السعر",
         description: "الرجاء إعادة المحاولة",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
@@ -1424,13 +1044,13 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
           .select("wallet_balance")
           .eq("user_id", userId)
           .single();
-
+        
         const walletBalance = profile?.wallet_balance || 0;
         if (walletBalance < totalFare) {
           toast({
             title: "رصيد غير كافٍ",
             description: `رصيد المحفظة: ${walletBalance.toLocaleString()} د.ع - الأجرة المتوقعة: ${totalFare.toLocaleString()} د.ع`,
-            variant: "destructive",
+            variant: "destructive"
           });
           setPaymentSheetOpen(true);
           return;
@@ -1449,46 +1069,33 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
       dropoffLat: dropoffLocation.lat,
       dropoffLng: dropoffLocation.lng,
       vehicleType: selectedVehicle,
-      timestamp: Date.now(),
+      timestamp: Date.now()
     });
-
+    
     // ✅ إنشاء الحجز بدون حالة انتظار
     try {
-      const { data: ride, error } = await supabase
-        .from("rides")
-        .insert([
-          {
-            rider_id: userId,
-            pickup_location: {
-              lat: pickupLocation.lat,
-              lng: pickupLocation.lng,
-            },
-            dropoff_location: {
-              lat: dropoffLocation.lat,
-              lng: dropoffLocation.lng,
-            },
-            pickup_address: pickupLocation.address,
-            dropoff_address: dropoffLocation.address,
-            vehicle_type: selectedVehicle,
-            payment_method: paymentMethod,
-            estimated_fare: roundFare(fareBreakdown?.total_fare || 0),
-            distance_km: routeDistance
-              ? Number(routeDistance.toFixed(2))
-              : null,
-            duration_minutes: routeDuration ? Math.round(routeDuration) : null,
-            status: "pending",
-            stops:
-              routeStops.length > 0
-                ? routeStops.map((stop) => ({
-                    lat: stop.lat,
-                    lng: stop.lng,
-                    address: stop.address,
-                  }))
-                : null,
-          } as any,
-        ])
-        .select()
-        .single();
+      const {
+        data: ride,
+        error
+      } = await supabase.from("rides").insert([{
+        rider_id: userId,
+        pickup_location: {
+          lat: pickupLocation.lat,
+          lng: pickupLocation.lng
+        },
+        dropoff_location: {
+          lat: dropoffLocation.lat,
+          lng: dropoffLocation.lng
+        },
+        pickup_address: pickupLocation.address,
+        dropoff_address: dropoffLocation.address,
+        vehicle_type: selectedVehicle,
+        payment_method: mapPaymentToDb(paymentMethod),
+        estimated_fare: roundFare(fareBreakdown?.total_fare || 0),
+        distance_km: routeDistance ? Number(routeDistance.toFixed(2)) : null,
+        duration_minutes: routeDuration ? Math.round(routeDuration) : null,
+        status: "pending"
+      } as any]).select().single();
       if (error) throw error;
 
       // Set active ride for tracking
@@ -1514,18 +1121,17 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
         vehicle_type: ride.vehicle_type,
         driver_id: ride.driver_id,
         created_at: ride.created_at,
-        completed_at: ride.completed_at,
+        completed_at: ride.completed_at
       });
 
       // Show waiting screen
       setShowWaitingScreen(true);
-      hapticFeedback("booking_confirmed", [100, 50, 100]);
 
       // Trigger ride matching (في الخلفية)
       await supabase.functions.invoke("match-ride", {
         body: {
-          rideId: ride.id,
-        },
+          rideId: ride.id
+        }
       });
       // ✅ لا toasts - الشاشة نفسها تعرض حالة البحث
     } catch (error: any) {
@@ -1534,7 +1140,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
       toast({
         title: "فشل الحجز",
         description: error.message || "حدث خطأ غير متوقع",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
     // ✅ لا حاجة لـ setIsBooking(false) - لم نستخدمه أصلاً
@@ -1545,143 +1151,94 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
 
   // Show location permission prompt
   if (showLocationPrompt) {
-    return (
-      <LocationPermissionPrompt
-        onPermissionGranted={handleLocationPermissionGranted}
-        onSkip={() => setShowLocationPrompt(false)}
-      />
-    );
+    return <LocationPermissionPrompt 
+      onPermissionGranted={handleLocationPermissionGranted}
+      onSkip={() => setShowLocationPrompt(false)}
+    />;
   }
 
-  // Show onboarding for new users
-  if (showOnboarding) {
-    return (
-      <Suspense fallback={<ScreenSkeleton />}>
-        <OnboardingFlow onComplete={() => setShowOnboarding(false)} />
-      </Suspense>
-    );
-  }
+  // ✅ DISABLED: Show onboarding is handled by AppRoutes
+  // if (showOnboarding) {
+  //   return <Suspense fallback={<ScreenSkeleton />}>
+  //       <OnboardingFlow onComplete={() => setShowOnboarding(false)} />
+  //     </Suspense>;
+  // }
 
   // Show rating screen first when ride completes
   if (showRatingScreen && completedRide) {
-    return (
-      <Suspense fallback={<ScreenSkeleton />}>
-        <RideRatingScreen
-          rideId={completedRide.id}
-          driverId={completedRide.driver_id}
-          driverName={"السائق"}
-          fare={completedRide.final_fare || completedRide.estimated_fare || 0}
-          onClose={() => {
-            setShowRatingScreen(false);
-            // Show completed screen after rating
-            setShowCompletedScreen(true);
-          }}
-        />
-      </Suspense>
-    );
+    return <Suspense fallback={<ScreenSkeleton />}>
+      <RideRatingScreen
+        rideId={completedRide.id}
+        driverId={completedRide.driver_id}
+        driverName={"السائق"}
+        fare={completedRide.final_fare || completedRide.estimated_fare || 0}
+        onClose={() => {
+          setShowRatingScreen(false);
+          // Show completed screen after rating
+          setShowCompletedScreen(true);
+        }}
+      />
+    </Suspense>;
   }
 
   // Show completed screen for summary
   if (showCompletedScreen && completedRide) {
-    return (
-      <Suspense fallback={<ScreenSkeleton />}>
-        <RideCompletedScreen
-          ride={{
-            id: completedRide.id,
-            pickup_address: completedRide.pickup_address,
-            dropoff_address: completedRide.dropoff_address,
-            final_fare: completedRide.final_fare,
-            estimated_fare: completedRide.estimated_fare,
-            distance_km: completedRide.distance_km,
-            duration_minutes: completedRide.duration_minutes,
-            driver_id: completedRide.driver_id,
-          }}
-          driverName={"السائق"}
-          onClose={() => {
-            console.log(
-              "🎉 [RideCompleted] onClose -> clearing completed ride and resetting booking/map",
-            );
-            setShowRatingScreen(false);
-            setShowCompletedScreen(false);
-            handleRideCompletion();
-            resetBooking();
-          }}
-        />
-      </Suspense>
-    );
+    return <Suspense fallback={<ScreenSkeleton />}>
+        <RideCompletedScreen ride={{
+        id: completedRide.id,
+        pickup_address: completedRide.pickup_address,
+        dropoff_address: completedRide.dropoff_address,
+        final_fare: completedRide.final_fare,
+        estimated_fare: completedRide.estimated_fare,
+        distance_km: completedRide.distance_km,
+        duration_minutes: completedRide.duration_minutes,
+        driver_id: completedRide.driver_id
+      }} driverName={"السائق"} onClose={() => {
+        console.log('🎉 [RideCompleted] onClose -> clearing completed ride and resetting booking/map');
+        setShowRatingScreen(false);
+        setShowCompletedScreen(false);
+        handleRideCompletion();
+        resetBooking();
+      }} />
+      </Suspense>;
   }
 
   // Show waiting screen if ride is pending or accepted
   if (showWaitingScreen && activeRide) {
-    return (
-      <Suspense fallback={<ScreenSkeleton />}>
-        <RideWaitingScreen
-          rideId={activeRide.id}
-          pickupAddress={
-            activeRide.pickup_address ||
-            pickupLocation?.address ||
-            "موقعي الحالي"
-          }
-          dropoffAddress={
-            activeRide.dropoff_address || dropoffLocation?.address || ""
-          }
-          estimatedFare={
-            activeRide.estimated_fare || fareBreakdown?.total_fare || 0
-          }
-          onCancel={resetBooking}
-          onDriverFound={() => {
-            setShowWaitingScreen(false);
-            setShowLiveTracker(true);
-          }}
-        />
-      </Suspense>
-    );
+    return <Suspense fallback={<ScreenSkeleton />}>
+        <RideWaitingScreen rideId={activeRide.id} pickupAddress={activeRide.pickup_address || pickupLocation?.address || "موقعي الحالي"} dropoffAddress={activeRide.dropoff_address || dropoffLocation?.address || ""} estimatedFare={activeRide.estimated_fare || fareBreakdown?.total_fare || 0} onCancel={resetBooking} onDriverFound={() => {
+        setShowWaitingScreen(false);
+        setShowLiveTracker(true);
+      }} />
+      </Suspense>;
   }
 
   // Show live tracker if ride is in progress
   if (showLiveTracker && activeRide) {
-    return (
-      <Suspense fallback={<ScreenSkeleton />}>
-        <LiveRideTracker
-          ride={activeRide}
-          onClose={resetBooking}
-          onRideUpdate={(updatedRide) => {
-            if (
-              updatedRide.status === "completed" ||
-              updatedRide.status === "cancelled"
-            ) {
-              resetBooking();
-            }
-          }}
-        />
-      </Suspense>
-    );
+    return <Suspense fallback={<ScreenSkeleton />}>
+        <LiveRideTracker ride={activeRide} onClose={resetBooking} onRideUpdate={updatedRide => {
+        if (updatedRide.status === "completed" || updatedRide.status === "cancelled") {
+          resetBooking();
+        }
+      }} />
+      </Suspense>;
   }
 
   // Booking confirmation screen
   if (isBookingMode && pickupLocation && dropoffLocation) {
-    return (
-      <motion.div
-        initial={{
-          opacity: 0,
-        }}
-        animate={{
-          opacity: 1,
-        }}
-        className="h-screen bg-background flex flex-col overflow-hidden"
-      >
+    return <motion.div initial={{
+      opacity: 0
+    }} animate={{
+      opacity: 1
+    }} className="h-screen bg-background flex flex-col overflow-hidden">
         {/* Offline/Online status indicator */}
-        {!isOnline && (
-          <div className="absolute top-0 left-0 right-0 z-50 bg-destructive/90 backdrop-blur-md px-4 py-2 text-center text-sm font-medium text-destructive-foreground flex items-center justify-center gap-2">
+        {!isOnline && <div className="absolute top-0 left-0 right-0 z-50 bg-destructive/90 backdrop-blur-md px-4 py-2 text-center text-sm font-medium text-destructive-foreground flex items-center justify-center gap-2">
             <AlertTriangle className="w-4 h-4" />
             <span>أنت بدون إنترنت - بعض الميزات قد لا تعمل</span>
-          </div>
-        )}
+          </div>}
 
         {/* Progress indicator - Top */}
-        <div
-          className={`absolute left-0 right-0 z-50 px-4 pointer-events-none ${!isOnline ? "pt-14" : "pt-2"}`}
-        >
+        <div className={`absolute left-0 right-0 z-50 px-4 pointer-events-none ${!isOnline ? "pt-14" : "pt-2"}`}>
           <div className="flex gap-2">
             <div className="flex-1 h-1 rounded-full bg-primary" />
             <div className="flex-1 h-1 rounded-full bg-accent" />
@@ -1690,15 +1247,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
         </div>
 
         {/* Header - Transparent over map */}
-        <div
-          className={`absolute left-0 right-0 z-40 px-4 pointer-events-auto ${!isOnline ? "top-20" : "top-4"}`}
-        >
+        <div className={`absolute left-0 right-0 z-40 px-4 pointer-events-auto ${!isOnline ? "top-20" : "top-4"}`}>
           <div className="flex items-center justify-between gap-2">
-            <button
-              onClick={() => setMenuOpen(true)}
-              className="w-11 h-11 flex items-center justify-center rounded-md bg-card/90 backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0"
-              aria-label="القائمة"
-            >
+            <button onClick={() => setMenuOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-md bg-card/90 backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0" aria-label="القائمة">
               <Menu className="w-5 h-5" />
             </button>
 
@@ -1706,20 +1257,15 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
             <div className="flex-1 flex items-center justify-center gap-2">
               {/* Logo removed */}
 
-              <motion.div
-                initial={{
-                  y: -20,
-                  opacity: 0,
-                }}
-                animate={{
-                  y: 0,
-                  opacity: 1,
-                }}
-                transition={{
-                  delay: 0.2,
-                }}
-                className="bg-card/70 backdrop-blur-xl rounded-md px-3 py-2 flex items-center gap-3 shadow-lg border border-white/10"
-              >
+              <motion.div initial={{
+              y: -20,
+              opacity: 0
+            }} animate={{
+              y: 0,
+              opacity: 1
+            }} transition={{
+              delay: 0.2
+            }} className="bg-card/70 backdrop-blur-xl rounded-md px-3 py-2 flex items-center gap-3 shadow-lg border border-white/10">
                 <div className="flex items-center gap-1.5">
                   <Navigation className="w-3.5 h-3.5 text-primary" />
                   <span className="text-sm font-bold">
@@ -1728,7 +1274,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
                 </div>
                 <div className="w-px h-4 bg-border/30" />
                 <div className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" style={{ color: "#2A6CD5" }} />
+                  <Clock className="w-3.5 h-3.5" style={{color: '#2A6CD5'}} />
                   <span className="text-sm font-bold">
                     {routeDuration ? `${Math.round(routeDuration)} د` : "---"}
                   </span>
@@ -1743,10 +1289,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
 
         {/* Map - Top Half */}
         <div className="h-[45%] relative bg-gray-200">
-          <div
-            ref={bookingMapContainer}
-            className="absolute inset-0 bg-gray-100"
-          />
+          <div ref={bookingMapContainer} className="absolute inset-0 bg-gray-100" />
 
           {/* Floating manual geolocate button for booking map (raised) */}
           <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top pointer-events-auto">
@@ -1769,43 +1312,23 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
           </div>
 
           {/* Scrollable content */}
-          <div
-            className={`flex-1 overflow-y-auto px-4 space-y-3 ${bottomNavEnabled ? "pb-40" : "pb-6"}`}
-          >
+          <div className={`flex-1 overflow-y-auto px-4 space-y-3 ${bottomNavEnabled ? 'pb-40' : 'pb-6'}`}>
             {/* Route summary - Modern vertical timeline */}
-            <motion.div
-              initial={{
-                y: 20,
-                opacity: 0,
-              }}
-              animate={{
-                y: 0,
-                opacity: 1,
-              }}
-              className="bg-card rounded-2xl p-4 border border-border/30 shadow-sm"
-            >
+            <motion.div initial={{
+            y: 20,
+            opacity: 0
+          }} animate={{
+            y: 0,
+            opacity: 1
+          }} className="bg-card rounded-2xl p-4 border border-border/30 shadow-sm">
               <div className="flex gap-3">
                 {/* Vertical connecting line */}
                 <div className="flex flex-col items-center gap-0">
                   <div className="w-3 h-3 rounded-full bg-primary ring-4 ring-primary/20" />
-                  <div
-                    className="w-0.5 flex-1 min-h-[32px]"
-                    style={{
-                      background:
-                        "linear-gradient(to bottom, hsl(var(--primary)), hsl(var(--muted)), #2A6CD5)",
-                    }}
-                  />
-                  <div
-                    className="w-3 h-3 rounded-full ring-4"
-                    style={
-                      {
-                        backgroundColor: "#2A6CD5",
-                        "--tw-ring-color": "rgba(42, 108, 213, 0.2)",
-                      } as any
-                    }
-                  />
+                  <div className="w-0.5 flex-1 min-h-[32px]" style={{background: 'linear-gradient(to bottom, hsl(var(--primary)), hsl(var(--muted)), #2A6CD5)'}} />
+                  <div className="w-3 h-3 rounded-full ring-4" style={{backgroundColor: '#2A6CD5', '--tw-ring-color': 'rgba(42, 108, 213, 0.2)'} as any} />
                 </div>
-
+                
                 {/* Locations */}
                 <div className="flex-1 space-y-4">
                   {/* Pickup */}
@@ -1817,13 +1340,10 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
                       {buildDescriptiveAddress(pickupLocation.address || "")}
                     </p>
                   </div>
-
+                  
                   {/* Dropoff */}
                   <div>
-                    <p
-                      className="text-[10px] uppercase tracking-wider font-bold mb-0.5"
-                      style={{ color: "#2A6CD5" }}
-                    >
+                    <p className="text-[10px] uppercase tracking-wider font-bold mb-0.5" style={{color: '#2A6CD5'}}>
                       الوجهة
                     </p>
                     <p className="text-sm font-semibold text-foreground line-clamp-1">
@@ -1831,7 +1351,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
                     </p>
                   </div>
                 </div>
-
+                
                 {/* Swap button */}
                 <button
                   onClick={() => {
@@ -1854,9 +1374,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
 
             {/* Trip Info - Distance & Time */}
             {fareBreakdown && (
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
+              <motion.div 
+                initial={{ y: 20, opacity: 0 }} 
+                animate={{ y: 0, opacity: 1 }} 
                 transition={{ delay: 0.1 }}
                 className="grid grid-cols-2 gap-2"
               >
@@ -1864,27 +1384,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
                 <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 rounded-xl p-3 border border-blue-500/20">
                   <div className="flex items-center gap-2 mb-1">
                     <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                      <svg
-                        className="w-4 h-4 text-blue-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                        />
+                      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                       </svg>
                     </div>
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                      المسافة
-                    </span>
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">المسافة</span>
                   </div>
                   <p className="text-lg font-bold text-blue-600">
-                    {fareBreakdown.distance_km.toFixed(1)}{" "}
-                    <span className="text-xs font-medium">كم</span>
+                    {fareBreakdown.distance_km.toFixed(1)} <span className="text-xs font-medium">كم</span>
                   </p>
                 </div>
 
@@ -1892,58 +1399,36 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
                 <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 rounded-xl p-3 border border-purple-500/20">
                   <div className="flex items-center gap-2 mb-1">
                     <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                      <svg
-                        className="w-4 h-4 text-purple-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
+                      <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                      الوقت
-                    </span>
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">الوقت</span>
                   </div>
                   <p className="text-lg font-bold text-purple-600">
-                    {Math.ceil(fareBreakdown.distance_km * 2.5)}{" "}
-                    <span className="text-xs font-medium">دقيقة</span>
+                    {routeDuration ? Math.ceil(routeDuration) : Math.ceil(fareBreakdown.distance_km * 2.5)} <span className="text-xs font-medium">دقيقة</span>
                   </p>
                 </div>
               </motion.div>
             )}
 
             {/* Vehicle selector */}
-            <motion.div
-              initial={{
-                y: 20,
-                opacity: 0,
-              }}
-              animate={{
-                y: 0,
-                opacity: 1,
-              }}
-              transition={{
-                delay: 0.15,
-              }}
-            >
-              <CompactVehicleSelector
-                selectedVehicle={selectedVehicle}
-                onSelect={setSelectedVehicle}
-                availableDrivers={availableDriversByType}
-                baseFare={fareBreakdown?.total_fare}
-              />
+            <motion.div initial={{
+            y: 20,
+            opacity: 0
+          }} animate={{
+            y: 0,
+            opacity: 1
+          }} transition={{
+            delay: 0.15
+          }}>
+              <CompactVehicleSelector selectedVehicle={selectedVehicle} onSelect={setSelectedVehicle} availableDrivers={availableDriversByType} baseFare={fareBreakdown?.total_fare} />
             </motion.div>
 
             {/* Fare & Payment - Combined Card */}
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
+            <motion.div 
+              initial={{ y: 20, opacity: 0 }} 
+              animate={{ y: 0, opacity: 1 }} 
               transition={{ delay: 0.2 }}
               className="bg-gradient-to-br from-primary/5 via-primary/8 to-primary/10 rounded-2xl p-4 border border-primary/20 shadow-lg"
             >
@@ -1956,65 +1441,37 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
                         <Zap className="w-5 h-5 text-primary" />
                       </div>
                       <div>
-                        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                          الأجرة المتوقعة
-                        </p>
-                        <p className="text-xs text-muted-foreground/70">
-                          {fareBreakdown.region_name}
-                        </p>
+                        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">الأجرة المتوقعة</p>
+                        <p className="text-xs text-muted-foreground/70">{fareBreakdown.region_name}</p>
                       </div>
                     </div>
                     <div className="text-left">
                       <p className="text-2xl font-bold text-primary">
                         {roundFare(fareBreakdown.total_fare).toLocaleString()}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        دينار عراقي
-                      </p>
+                      <p className="text-xs text-muted-foreground">دينار عراقي</p>
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Payment Method Selector */}
-              <button
-                onClick={() => setPaymentSheetOpen(true)}
+              <button 
+                onClick={() => setPaymentSheetOpen(true)} 
                 className="w-full bg-card/50 rounded-xl px-4 py-3 border border-border/40 hover:border-primary/40 hover:bg-card/80 transition-all duration-200 active:scale-[0.98] flex items-center justify-between group"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-lg">
-                    {paymentMethod === "cash"
-                      ? "💵"
-                      : paymentMethod === "wallet"
-                        ? "👛"
-                        : paymentMethod === "card"
-                          ? "💳"
-                          : paymentMethod === "zain_cash"
-                            ? "📱"
-                            : paymentMethod === "super_key"
-                              ? "🔑"
-                              : paymentMethod === "nas_wallet"
-                                ? "💼"
-                                : "💵"}
+                    {paymentMethod === 'cash' ? '💵' : 
+                     paymentMethod === 'wallet' ? '👛' : 
+                     paymentMethod === 'card' ? '💳' : '💵'}
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                      طريقة الدفع
-                    </p>
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">طريقة الدفع</p>
                     <p className="font-bold text-sm">
-                      {paymentMethod === "cash"
-                        ? "نقداً"
-                        : paymentMethod === "wallet"
-                          ? "المحفظة"
-                          : paymentMethod === "card"
-                            ? "البطاقة"
-                            : paymentMethod === "zain_cash"
-                              ? "زين كاش"
-                              : paymentMethod === "super_key"
-                                ? "سوبر كي"
-                                : paymentMethod === "nas_wallet"
-                                  ? "ناس ولت"
-                                  : "نقداً"}
+                      {paymentMethod === 'cash' ? 'نقداً' : 
+                       paymentMethod === 'wallet' ? 'المحفظة' : 
+                       paymentMethod === 'card' ? 'البطاقة' : 'نقداً'}
                     </p>
                   </div>
                 </div>
@@ -2022,54 +1479,35 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
               </button>
             </motion.div>
 
-            {/* Promo Code */}
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.25 }}
-              className="px-1"
-            >
-              <PromoCodeSheet
-                userId={userId}
-                onApplyPromo={(promo) => {
-                  console.log("✅ Promo applied:", promo);
-                  toast({
-                    title: "🎉 تم تطبيق الخصم",
-                    description: promo.message,
-                  });
-                }}
-              />
-            </motion.div>
-
             {/* Schedule option - Enhanced */}
-            <motion.div
+            <motion.div 
               initial={{
                 y: 20,
-                opacity: 0,
-              }}
+                opacity: 0
+              }} 
               animate={{
                 y: 0,
-                opacity: 1,
-              }}
+                opacity: 1
+              }} 
               transition={{
-                delay: 0.3,
+                delay: 0.3
               }}
               className="px-1"
             >
-              <ScheduleRideDialog
+              <ScheduleRideDialog 
                 ref={scheduleDialogRef}
-                pickup={pickupLocation}
-                dropoff={dropoffLocation}
-                vehicleType={selectedVehicle}
-                paymentMethod={paymentMethod}
-                estimatedFare={fareBreakdown?.total_fare || null}
+                pickup={pickupLocation} 
+                dropoff={dropoffLocation} 
+                vehicleType={selectedVehicle} 
+                paymentMethod={paymentMethod} 
+                estimatedFare={fareBreakdown?.total_fare || null} 
                 onScheduled={() => {
                   toast({
                     title: "تم جدولة الرحلة ✅",
-                    description: "سيتم تذكيرك قبل الموعد",
+                    description: "سيتم تذكيرك قبل الموعد"
                   });
                   resetBooking();
-                }}
+                }} 
               />
             </motion.div>
           </div>
@@ -2078,20 +1516,22 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
           {!bottomNavEnabled && (
             <div className="px-4 pb-6">
               <div className="max-w-lg mx-auto">
-                <Button
-                  onClick={handleBookRide}
-                  disabled={fareLoading}
-                  className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground"
-                >
+                <Button onClick={() => { if (navigator.vibrate) navigator.vibrate(50); handleBookRide(); }} disabled={fareLoading || !fareBreakdown} className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground">
                   <span className="flex items-center gap-3 justify-center">
-                    <Navigation className="w-5 h-5" />
-                    <span>احجز الآن</span>
-                    <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
-                      {fareBreakdown?.total_fare
-                        ? roundFare(fareBreakdown.total_fare).toLocaleString()
-                        : "---"}{" "}
-                      د.ع
-                    </span>
+                    {fareLoading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>جاري حساب السعر...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Navigation className="w-5 h-5" />
+                        <span>احجز الآن</span>
+                        <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
+                          {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
+                        </span>
+                      </>
+                    )}
                   </span>
                 </Button>
               </div>
@@ -2101,35 +1541,32 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
           {/* Book button - Fixed at bottom when nav is visible */}
           {bottomNavEnabled && (
             <div className="fixed bottom-20 left-0 right-0 p-4 bg-background/98 backdrop-blur-md border-t border-border/20 z-40">
-              <div className="max-w-lg mx-auto">
-                <Button
-                  onClick={handleBookRide}
-                  disabled={fareLoading}
-                  className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground"
-                >
-                  <span className="flex items-center gap-3 justify-center">
-                    <Navigation className="w-5 h-5" />
-                    <span>احجز الآن</span>
-                    <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
-                      {fareBreakdown?.total_fare
-                        ? roundFare(fareBreakdown.total_fare).toLocaleString()
-                        : "---"}{" "}
-                      د.ع
-                    </span>
-                  </span>
-                </Button>
-              </div>
+            <div className="max-w-lg mx-auto">
+              <Button onClick={() => { if (navigator.vibrate) navigator.vibrate(50); handleBookRide(); }} disabled={fareLoading || !fareBreakdown} className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground">
+                <span className="flex items-center gap-3 justify-center">
+                  {fareLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>جاري حساب السعر...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Navigation className="w-5 h-5" />
+                      <span>احجز الآن</span>
+                      <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
+                        {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
+                      </span>
+                    </>
+                  )}
+                </span>
+              </Button>
             </div>
+          </div>
           )}
         </div>
 
         {/* Payment Method Sheet */}
-        <PaymentMethodSheet
-          open={paymentSheetOpen}
-          onOpenChange={setPaymentSheetOpen}
-          selectedMethod={paymentMethod}
-          onSelect={setPaymentMethod}
-        />
+        <PaymentMethodSheet open={paymentSheetOpen} onOpenChange={setPaymentSheetOpen} selectedMethod={paymentMethod} onSelect={setPaymentMethod} />
 
         {/* Side Menu */}
         <RiderSideMenu
@@ -2143,54 +1580,37 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
             }
           }}
         />
-      </motion.div>
-    );
+      </motion.div>;
   }
 
   // Location picker screen
   return (
     <div className="fixed inset-0 z-50 flex flex-col">
       {/* Progress indicator - Top of screen */}
-      <motion.div
-        initial={{
-          y: -10,
-          opacity: 0,
-        }}
-        animate={{
-          y: 0,
-          opacity: 1,
-        }}
-        className="absolute top-0 left-0 right-0 z-40 px-4 pt-2 pointer-events-none"
-      >
+      <motion.div initial={{
+      y: -10,
+      opacity: 0
+    }} animate={{
+      y: 0,
+      opacity: 1
+    }} className="absolute top-0 left-0 right-0 z-40 px-4 pt-2 pointer-events-none">
         <div className="flex gap-2">
-          <div
-            className={`flex-1 h-1 rounded-full transition-colors ${isPickup || pickupLocation ? "bg-primary" : "bg-muted/30"}`}
-          />
-          <div
-            className={`flex-1 h-1 rounded-full transition-colors ${isDropoff || dropoffLocation ? "bg-accent" : "bg-muted/30"}`}
-          />
+          <div className={`flex-1 h-1 rounded-full transition-colors ${isPickup || pickupLocation ? "bg-primary" : "bg-muted/30"}`} />
+          <div className={`flex-1 h-1 rounded-full transition-colors ${isDropoff || dropoffLocation ? "bg-accent" : "bg-muted/30"}`} />
         </div>
       </motion.div>
 
       {/* Header */}
-      <motion.div
-        initial={{
-          y: -20,
-          opacity: 0,
-        }}
-        animate={{
-          y: 0,
-          opacity: 1,
-        }}
-        className="absolute top-4 left-0 right-0 z-30 pointer-events-auto"
-      >
+      <motion.div initial={{
+      y: -20,
+      opacity: 0
+    }} animate={{
+      y: 0,
+      opacity: 1
+    }} className="absolute top-4 left-0 right-0 z-30 pointer-events-auto">
         <div className="flex items-center justify-between p-4">
           {/* زر القائمة */}
-          <button
-            onClick={() => setMenuOpen(true)}
-            className="w-11 h-11 flex items-center justify-center rounded-xl bg-card/95 backdrop-blur-xl shadow-lg hover:bg-card hover:scale-105 transition-all duration-200 active:scale-95 border border-border/30"
-            aria-label="القائمة الرئيسية"
-          >
+          <button onClick={() => setMenuOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-xl bg-card/95 backdrop-blur-xl shadow-lg hover:bg-card hover:scale-105 transition-all duration-200 active:scale-95 border border-border/30" aria-label="القائمة الرئيسية">
             <Menu className="w-5 h-5" />
           </button>
 
@@ -2200,21 +1620,62 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
           {/* Notifications & Status Icons moved to side menu */}
           <div className="w-10" />
 
-          {/* زر الرجوع - مُخفي (عدم عرض الزر عند اختيار الوجهة) */}
-          <div className="w-11" />
+          {/* زر الرجوع - يظهر عند اختيار الوجهة للعودة لوضع الانطلاق */}
+          {!isPickup ? (
+            <button
+              onClick={() => {
+                if (navigator.vibrate) navigator.vibrate(30);
+                setCurrentMode("pickup");
+              }}
+              className="w-10 h-10 rounded-xl bg-card/90 backdrop-blur-xl flex items-center justify-center shadow-lg border border-border/20 hover:scale-105 transition-all"
+              aria-label="العودة لتحديد موقع الانطلاق"
+            >
+              <ArrowRight className="w-5 h-5 text-foreground" />
+            </button>
+          ) : (
+            <div className="w-10" />
+          )}
         </div>
       </motion.div>
 
       {/* Map Container - touch-action: pan-x pan-y to enable map dragging */}
-      <div
+      <div 
         className="flex-1 relative w-full h-full overflow-hidden"
-        style={{ touchAction: "pan-x pan-y pinch-zoom" }}
+        style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
       >
-        {/* Memoized Map Container - isolated from ride state re-renders */}
-        <MapContainer
-          mapRef={mapContainer}
-          isLoading={!mapToken || isLoading}
-          mapToken={mapToken}
+        {/* Enhanced map loading placeholder - pointer-events-none when map is ready */}
+        {(!mapToken || isLoading) && (
+          <div className="absolute inset-0 bg-background flex items-center justify-center z-50 pointer-events-none">
+            <div className="text-center space-y-4 px-6">
+              <div className="relative">
+                <div className="w-20 h-20 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <MapPin className="w-8 h-8 text-primary/40" />
+                </div>
+              </div>
+              <div>
+                <p className="text-foreground text-lg font-semibold">جاري تحميل الخريطة...</p>
+                <p className="text-muted-foreground text-sm mt-2">
+                  {!mapToken ? "جاري الاتصال بخادم الخرائط..." : "جاري تحديد موقعك..."}
+                </p>
+              </div>
+              {(isLoading && mapToken) && (
+                <div className="text-xs text-muted-foreground/70 mt-4">
+                  💡 تلميح: تأكد من تفعيل الموقع في متصفحك
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Map container - MUST have pointer-events-auto and proper touch-action */}
+        <div 
+          ref={mapContainer} 
+          className="absolute inset-0 z-0"
+          style={{ 
+            touchAction: 'none', // Let Google Maps handle all touch events
+            pointerEvents: 'auto'
+          }}
         />
 
         {/* Favorite Markers Layer */}
@@ -2246,54 +1707,45 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
 
         {/* Drag instruction - Top-left corner - Disappears after first drag */}
         <AnimatePresence>
-          {!isDragging && centerAddress && !hasStartedDragging && (
-            <motion.div
-              initial={{ y: -8, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -8, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              className="absolute left-4 top-4 z-30 pointer-events-none"
-            >
-              <div className="bg-card/95 backdrop-blur-lg px-3 py-2 rounded-full shadow-lg border border-border/50 whitespace-nowrap">
-                <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2">
-                  <span className="text-base">👉</span>
-                  <span>اسحب الخريطة لتغيير الموقع</span>
-                </p>
-              </div>
-            </motion.div>
-          )}
+          {!isDragging && centerAddress && !hasStartedDragging && <motion.div 
+            initial={{ y: -8, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -8, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            className="absolute left-4 top-4 z-30 pointer-events-none"
+          >
+            <div className="bg-card/95 backdrop-blur-lg px-3 py-2 rounded-full shadow-lg border border-border/50 whitespace-nowrap">
+              <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2">
+                <span className="text-base">👉</span>
+                <span>اسحب الخريطة لتغيير الموقع</span>
+              </p>
+            </div>
+          </motion.div>}
         </AnimatePresence>
 
         {/* Location pin - دبوس CSS بدون صور خارجية - pointer-events-none للسماح بتحريك الخريطة */}
-        <div
-          className="pointer-events-none"
-          style={{
-            position: "fixed",
-            left: "50%",
-            top: "50%",
-            transform: "translate(-50%, -100%)",
-            zIndex: 9999, // عالي ليظهر فوق كل شيء
-          }}
+        <div 
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full z-[10]"
         >
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }} 
             animate={{ scale: 1, opacity: 1 }}
             className="flex flex-col items-center"
           >
-            <motion.div
-              animate={{ y: isDragging ? -12 : 0 }}
+            <motion.div 
+              animate={{ y: isDragging ? -12 : 0 }} 
               transition={{ type: "spring", stiffness: 300 }}
               className="relative"
             >
               {/* Pin Head */}
-              <div
+              <div 
                 className={`w-14 h-14 rounded-full flex items-center justify-center border-4 border-white ${
-                  isPickup ? "bg-green-500" : "bg-sky-500"
+                  isPickup ? 'bg-green-500' : 'bg-sky-500'
                 }`}
                 style={{
-                  boxShadow: isPickup
-                    ? "0 0 20px rgba(34, 197, 94, 0.6), 0 4px 20px rgba(0,0,0,0.3)"
-                    : "0 0 20px rgba(14, 165, 233, 0.6), 0 4px 20px rgba(0,0,0,0.3)",
+                  boxShadow: isPickup 
+                    ? '0 0 20px rgba(34, 197, 94, 0.6), 0 4px 20px rgba(0,0,0,0.3)' 
+                    : '0 0 20px rgba(14, 165, 233, 0.6), 0 4px 20px rgba(0,0,0,0.3)',
                 }}
               >
                 {isPickup ? (
@@ -2302,78 +1754,59 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
                   <MapPin className="w-6 h-6 text-white" />
                 )}
               </div>
-
+              
               {/* Pin Needle */}
-              <div
-                className={`w-0 h-0 mx-auto -mt-1 ${isPickup ? "" : ""}`}
+              <div 
+                className={`w-0 h-0 mx-auto -mt-1 ${isPickup ? '' : ''}`}
                 style={{
-                  borderLeft: "10px solid transparent",
-                  borderRight: "10px solid transparent",
-                  borderTop: isPickup
-                    ? "16px solid #22c55e"
-                    : "16px solid #0ea5e9",
-                  filter: "drop-shadow(0 4px 6px rgba(0,0,0,0.3))",
+                  borderLeft: '10px solid transparent',
+                  borderRight: '10px solid transparent',
+                  borderTop: isPickup ? '16px solid #22c55e' : '16px solid #0ea5e9',
+                  filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))',
                 }}
               />
-
+              
               {/* Shadow dot */}
-              <motion.div
-                animate={{
-                  scale: isDragging ? 0.5 : 1,
-                  opacity: isDragging ? 0.2 : 0.4,
-                }}
-                className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-2 bg-black/50 rounded-full blur-sm"
+              <motion.div 
+                animate={{ scale: isDragging ? 0.5 : 1, opacity: isDragging ? 0.2 : 0.4 }} 
+                className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-2 bg-black/50 rounded-full blur-sm" 
               />
             </motion.div>
           </motion.div>
         </div>
 
         {/* Loading overlay with static map placeholder */}
-        {isLoading && (
-          <StaticMapPlaceholder
-            lat={userLocation?.lat || lastLocation?.lat}
-            lng={userLocation?.lng || lastLocation?.lng}
-            zoom={14}
-            message="جاري تحميل الخريطة..."
-          />
-        )}
+        {isLoading && <StaticMapPlaceholder lat={userLocation?.lat || lastLocation?.lat} lng={userLocation?.lng || lastLocation?.lng} zoom={14} message="جاري تحميل الخريطة..." />}
 
         {/* Network status bar */}
         <NetworkStatusBar />
+
+
       </div>
 
       {/* 🟢 Bottom panel - Glassmorphism متكاملة مع شريط التنقل + safe-area-inset */}
-      <motion.div
+      <motion.div 
         ref={bottomPanelRef}
         initial={{
-          y: 100,
-        }}
-        animate={{
-          y: 0,
-        }}
-        className={`bg-card/98 backdrop-blur-xl border-t border-border/30 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] z-20 rounded-t-3xl transition-all duration-300 pointer-events-auto ${bottomNavEnabled ? "fixed left-0 right-0" : "fixed bottom-0 left-0 right-0"}`}
+        y: 100
+      }} animate={{
+        y: 0
+      }} className={`bg-card/98 backdrop-blur-xl border-t border-border/30 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] z-20 rounded-t-3xl transition-all duration-300 pointer-events-auto ${bottomNavEnabled ? 'fixed left-0 right-0' : 'fixed bottom-0 left-0 right-0'}`}
         style={{
-          bottom: bottomNavEnabled
-            ? "calc(env(safe-area-inset-bottom) + 65px)"
-            : "env(safe-area-inset-bottom, 0px)",
-          maxHeight: bottomNavEnabled
-            ? "calc(100vh - 200px - env(safe-area-inset-bottom))"
-            : "calc(100vh - 60px - env(safe-area-inset-bottom))",
-          overflowY: "auto",
-          WebkitBackdropFilter: "blur(12px)",
-          contain: "layout style paint",
+          bottom: bottomNavEnabled ? 'calc(env(safe-area-inset-bottom) + 65px)' : 'env(safe-area-inset-bottom, 0px)',
+          maxHeight: bottomNavEnabled ? 'calc(100vh - 200px - env(safe-area-inset-bottom))' : 'calc(100vh - 60px - env(safe-area-inset-bottom))',
+          overflowY: 'auto',
+          WebkitBackdropFilter: 'blur(12px)',
+          contain: 'layout style paint'
         }}
       >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1 pointer-events-auto">
           <div className="w-12 h-1.5 rounded-full bg-muted-foreground/25" />
         </div>
-        <div
-          className={`px-4 pt-1 max-w-lg mx-auto transition-all duration-300 ${bottomNavEnabled ? "pb-12" : "pb-6"}`}
-        >
+        <div className={`px-4 pt-1 max-w-lg mx-auto transition-all duration-300 ${bottomNavEnabled ? 'pb-12' : 'pb-6'}`}>
           {/* Service area warning */}
-          {localServiceAreaStatus && !localServiceAreaStatus.in_service && (
-            <div className="flex items-center gap-3 p-3 mb-3 rounded-md bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/30">
+          {localServiceAreaStatus && !localServiceAreaStatus.in_service && <div className="flex items-center gap-3 p-3 mb-3 rounded-md bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/30">
               <div className="w-8 h-8 rounded-md bg-destructive/20 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4 text-destructive" />
               </div>
@@ -2381,15 +1814,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
                 <p className="font-semibold text-destructive text-sm mb-1">
                   ⚠️ خارج منطقة الخدمة
                 </p>
-                {localServiceAreaStatus.nearest_region && (
-                  <p className="text-muted-foreground text-xs">
+                {localServiceAreaStatus.nearest_region && <p className="text-muted-foreground text-xs">
                     أقرب منطقة: {localServiceAreaStatus.nearest_region.name_ar}{" "}
                     ({localServiceAreaStatus.nearest_region.distance_km} كم)
-                  </p>
-                )}
+                  </p>}
               </div>
-            </div>
-          )}
+            </div>}
 
           {/* Location Input Field with Heart */}
           <LocationInputField
@@ -2417,9 +1847,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
               onQueryChange={setSearchQuery}
               onClear={clearSearch}
               isSearching={isSearching}
-              placeholder={
-                isPickup ? "ابحث عن موقع الانطلاق..." : "ابحث عن الوجهة..."
-              }
+              placeholder={isPickup ? "ابحث عن موقع الانطلاق..." : "ابحث عن الوجهة..."}
             />
 
             {searchQuery && (
@@ -2435,7 +1863,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
                   const geofenceCheck = await checkDestinationGeofence(
                     placeDetails.lat,
                     placeDetails.lng,
-                    mapToken,
+                    mapToken
                   );
                   if (!geofenceCheck.allowed) {
                     setGeofenceResult(geofenceCheck);
@@ -2450,46 +1878,39 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
                     });
                     map.current.setZoom(16);
                   }
-
+                  
                   // ✨ بناء عنوان ذكي = اسم المكان + المدينة (بدون Plus Code)
-                  let descriptiveAddress =
-                    placeDetails.name || placeDetails.address;
-
+                  let descriptiveAddress = placeDetails.name || placeDetails.address;
+                  
                   // محاولة استخراج المدينة من formatted_address
                   const addressParts = placeDetails.address
                     .split(/[،,]/)
-                    .map((p) => p.trim())
-                    .filter((p) => p.length > 0);
-
+                    .map(p => p.trim())
+                    .filter(p => p.length > 0);
+                  
                   // حذف Plus Code إذا وجد
                   const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
-                  const cleanParts = addressParts.filter(
-                    (p) => !plusCodeRegex.test(p),
-                  );
-
+                  const cleanParts = addressParts.filter(p => !plusCodeRegex.test(p));
+                  
                   // استخراج المدينة (آخر جزء عادةً، بدون "محافظة" أو "العراق")
                   const city = cleanParts
                     .reverse()
-                    .find((p) => !p.includes("محافظة") && p !== "العراق");
-
+                    .find(p => !p.includes("محافظة") && p !== "العراق");
+                  
                   // بناء العنوان النهائي
                   if (placeDetails.name && city && placeDetails.name !== city) {
                     descriptiveAddress = `${placeDetails.name}، ${city}`;
                   } else if (placeDetails.name) {
                     descriptiveAddress = placeDetails.name;
                   } else {
-                    descriptiveAddress =
-                      cleanParts.slice(0, 2).join("، ") || placeDetails.address;
+                    descriptiveAddress = cleanParts.slice(0, 2).join('، ') || placeDetails.address;
                   }
-
-                  console.log(
-                    "✅ Built descriptive address from search:",
-                    descriptiveAddress,
-                  );
-
+                  
+                  console.log("✅ Built descriptive address from search:", descriptiveAddress);
+                  
                   // ✨ استخدم setManualAddress بدلاً من setCenterAddress
                   setManualAddress(descriptiveAddress);
-
+                  
                   checkServiceArea(placeDetails.lat, placeDetails.lng);
                   setSearchQuery("");
                 }}
@@ -2497,107 +1918,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
               />
             )}
           </div>
-
-          {isDropoff && smartSuggestions.length > 0 && (
-            <div className="mb-4 rounded-xl border border-primary/10 bg-primary/5 p-3">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-foreground">
-                    وجهتك الذكية
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    اقتراحات سريعة بناءً على مفضلاتك
-                  </p>
-                </div>
-              </div>
-              <div className="grid gap-2">
-                {smartSuggestions.map((suggestion) => (
-                  <button
-                    key={suggestion.id}
-                    onClick={() => handleSmartSuggestionSelect(suggestion)}
-                    className="w-full text-right p-3 rounded-lg border border-border/40 bg-card/80 hover:bg-card transition-all"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          {suggestion.label}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {suggestion.address}
-                        </p>
-                      </div>
-                      <span className="text-[10px] px-2 py-1 rounded-full bg-primary/10 text-primary">
-                        {suggestion.reason}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {isDropoff && (
-            <div className="mb-4 rounded-xl border border-border/40 bg-card/70 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center">
-                    <MapPin className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-foreground">
-                      توقفات إضافية
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      اختياري (حتى 3 توقفات)
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 px-3"
-                  onClick={handleAddStop}
-                  disabled={!centerLat || !centerLng || !centerAddress}
-                >
-                  <Plus className="w-4 h-4 ml-1" />
-                  إضافة توقف
-                </Button>
-              </div>
-
-              {routeStops.length === 0 ? (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  حرّك الخريطة إلى موقع التوقف ثم اضغط "إضافة توقف"
-                </p>
-              ) : (
-                <div className="mt-3 space-y-2">
-                  {routeStops.map((stop, index) => (
-                    <div
-                      key={`${stop.lat}-${stop.lng}-${index}`}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-border/30 bg-background/80 px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs text-muted-foreground">
-                          توقف {index + 1}
-                        </p>
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          {stop.address}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveStop(index)}
-                        className="text-xs text-destructive hover:text-destructive/80"
-                      >
-                        إزالة
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* 🟢 المفضلة في جميع المراحل - الانطلاق والوجهة */}
           <QuickAccessChips
@@ -2613,31 +1933,34 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
           />
 
           {/* Confirm button - Enhanced with semantic colors */}
-          <Button
-            onClick={handleConfirm}
-            disabled={!centerAddress || isCheckingService || isConfirming}
+          <Button 
+            onClick={() => {
+              // Haptic feedback عند النقر
+              if (navigator.vibrate) navigator.vibrate(50);
+              handleConfirm();
+            }} 
+            disabled={!centerAddress || isCheckingService || isConfirming} 
             className={`w-full h-12 sm:h-14 text-sm sm:text-base font-bold rounded-xl shadow-lg transition-all duration-200 active:scale-[0.98] sticky bottom-4 ${
-              centerAddress
-                ? "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary shadow-primary/25 text-primary-foreground"
+              centerAddress 
+                ? "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary shadow-primary/25 text-primary-foreground" 
                 : "bg-muted/50 text-muted-foreground cursor-not-allowed"
             }`}
           >
             {isCheckingService || isConfirming ? (
               <div className="flex items-center gap-2">
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>
-                  {isConfirming ? "جاري التأكيد..." : "جاري التحقق..."}
-                </span>
+                <span>{isConfirming ? "جاري التأكيد..." : "جاري التحقق..."}</span>
+              </div>
+            ) : !centerAddress ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>جاري تحديد العنوان...</span>
               </div>
             ) : (
               <div className="flex items-center gap-2">
                 <Check className="w-5 h-5" />
                 <span>تأكيد {isPickup ? "موقع الانطلاق" : "الوجهة"}</span>
-                {isPickup ? (
-                  <Target className="w-4 h-4" />
-                ) : (
-                  <MapPin className="w-4 h-4" />
-                )}
+                {isPickup ? <Target className="w-4 h-4" /> : <MapPin className="w-4 h-4" />}
               </div>
             )}
           </Button>
@@ -2645,17 +1968,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
       </motion.div>
 
       {/* Side Menu */}
-      <RiderSideMenu
-        user={user}
-        isOpen={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        onLogout={async () => {
-          await supabase.auth.signOut();
-          if (navigate) {
-            navigate("/auth");
-          }
-        }}
-      />
+      <RiderSideMenu user={user} isOpen={menuOpen} onClose={() => setMenuOpen(false)} onLogout={async () => {
+      await supabase.auth.signOut();
+      if (navigate) {
+        navigate("/auth");
+      }
+    }} />
 
       {/* Geofencing Alert Dialog */}
       <AnimatePresence>
@@ -2670,13 +1988,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
               >
                 <DialogHeader>
                   <DialogTitle className="text-center text-xl">
-                    {geofenceResult.isIran
-                      ? "🙏"
-                      : geofenceResult.isIsland
-                        ? "✈️🚢"
-                        : geofenceResult.isFar
-                          ? "✈️"
-                          : "🚗✨"}
+                    {geofenceResult.isIran ? "🙏" : geofenceResult.isIsland ? "✈️🚢" : geofenceResult.isFar ? "✈️" : "🚗✨"}
                   </DialogTitle>
                   <DialogDescription className="text-center text-base leading-relaxed pt-2">
                     {geofenceResult.message}
@@ -2702,20 +2014,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({
   );
 };
 
-const GoPage: React.FC<{ scheduleMode?: boolean }> = ({
-  scheduleMode = false,
-}) => {
+const GoPage: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = false }) => {
   return (
-    <Suspense
-      fallback={
-        <div className="h-screen w-full bg-background flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-muted-foreground">جاري التحميل...</p>
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<SplashScreen />}>
       <GoPageContent scheduleMode={scheduleMode} />
     </Suspense>
   );

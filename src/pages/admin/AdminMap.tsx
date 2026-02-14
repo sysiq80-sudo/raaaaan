@@ -1,4 +1,3 @@
-import mapboxgl from 'mapbox-gl';
 import { useEffect, useRef, useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
@@ -53,11 +52,11 @@ interface ActiveRide {
 const AdminMap = () => {
   const { loading: authLoading, isAdmin } = useAdminAuth();
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const driverMarkers = useRef<Map<string, mapboxgl.Marker>>(new Map());
-  const rideMarkers = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const map = useRef<google.maps.Map | null>(null);
+  const driverMarkers = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
+  const rideMarkers = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
   
-  const [mapToken, setMapToken] = useState<string | null>(null);
+  const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
   const [isLoading, setIsLoading] = useState(true);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [activeRides, setActiveRides] = useState<ActiveRide[]>([]);
@@ -66,26 +65,7 @@ const AdminMap = () => {
   const [selectedRegion, setSelectedRegion] = useState<string>("all");
 
   // Ramadi center (Anbar)
-  const ramadiCenter: [number, number] = [43.3009, 33.4279];
-
-  // Fetch Mapbox token
-  useEffect(() => {
-    if (!isAdmin) return;
-    const fetchToken = async () => {
-      try {
-        const response = await fetch(
-          `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token`
-        );
-        const data = await response.json();
-        if (data.token) {
-          setMapToken(data.token);
-        }
-      } catch (error) {
-        console.error('Error fetching token:', error);
-      }
-    };
-    fetchToken();
-  }, [isAdmin]);
+  const ramadiCenter = { lat: 33.4279, lng: 43.3009 };
 
   // Fetch regions
   useEffect(() => {
@@ -177,40 +157,58 @@ const AdminMap = () => {
     };
   }, [isAdmin]);
 
+  // Load Google Maps script
+  useEffect(() => {
+    if (!googleMapsApiKey || !isAdmin) return;
+    if (window.google?.maps) return;
+    
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=marker&v=weekly`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      // Trigger map initialization
+      setIsLoading(prev => prev); // force re-render
+    };
+    document.head.appendChild(script);
+  }, [googleMapsApiKey, isAdmin]);
+
   // Initialize map
   useEffect(() => {
-    if (!mapContainer.current || !mapToken) return;
+    if (!mapContainer.current || !window.google?.maps) return;
+    if (map.current) return;
 
-    mapboxgl.accessToken = mapToken;
-    
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
+    const darkStyle = [
+      { elementType: "geometry", stylers: [{ color: "#1d2c4d" }] },
+      { elementType: "labels.text.fill", stylers: [{ color: "#8ec3b9" }] },
+      { elementType: "labels.text.stroke", stylers: [{ color: "#1a3646" }] },
+      { featureType: "road", elementType: "geometry", stylers: [{ color: "#304a7d" }] },
+      { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#255763" }] },
+      { featureType: "water", elementType: "geometry", stylers: [{ color: "#0e1626" }] },
+      { featureType: "poi", elementType: "geometry", stylers: [{ color: "#283d6a" }] },
+    ];
+
+    map.current = new google.maps.Map(mapContainer.current, {
       center: ramadiCenter,
       zoom: 11,
-      pitch: 30,
+      tilt: 30,
+      styles: darkStyle,
+      mapId: 'admin-live-map',
+      disableDefaultUI: false,
+      zoomControl: true,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: true,
     });
 
-    map.current.addControl(
-      new mapboxgl.NavigationControl({ visualizePitch: true }),
-      'top-left'
-    );
-
-    map.current.on('load', () => {
+    map.current.addListener('tilesloaded', () => {
       setIsLoading(false);
-      
-      map.current?.setFog({
-        color: 'rgb(20, 20, 25)',
-        'high-color': 'rgb(36, 92, 66)',
-        'horizon-blend': 0.1,
-      });
     });
 
     return () => {
-      // Google Maps doesn't have remove method, just nullify reference
       map.current = null;
     };
-  }, [mapToken]);
+  }, [googleMapsApiKey, isLoading]);
 
   // Filter data based on selected region
   const filteredDrivers = selectedRegion === "all" 
@@ -234,39 +232,34 @@ const AdminMap = () => {
     // Remove old markers
     driverMarkers.current.forEach((marker, id) => {
       if (!displayDrivers.find(d => d.id === id)) {
-        marker.remove();
+        marker.map = null;
         driverMarkers.current.delete(id);
       }
     });
 
     // Add/update driver markers
     displayDrivers.forEach(driver => {
-      // Use driver location or default to map center (Ramadi)
       const location = driver.current_location || { lat: 33.4279, lng: 43.3009 };
-
       const existingMarker = driverMarkers.current.get(driver.id);
       
-      // Determine marker color based on status
       const hasLocation = !!driver.current_location;
       const bgColor = !hasLocation ? '#94a3b8' : (driver.is_online ? (driver.is_available ? '#00d9a5' : '#f59e0b') : '#6b7280');
       const glowColor = !hasLocation ? 'rgba(148, 163, 184, 0.3)' : (driver.is_online ? (driver.is_available ? 'rgba(0, 217, 165, 0.5)' : 'rgba(245, 158, 11, 0.5)') : 'rgba(107, 114, 128, 0.3)');
       
       if (existingMarker) {
-        existingMarker.setLngLat([location.lng, location.lat]);
-        // Update marker element for status changes
-        const el = existingMarker.getElement();
-        const innerDiv = el.querySelector('.driver-inner');
+        existingMarker.position = new google.maps.LatLng(location.lat, location.lng);
+        const el = existingMarker.content as HTMLElement;
+        const innerDiv = el?.querySelector('.driver-inner') as HTMLElement;
         if (innerDiv) {
-          (innerDiv as HTMLElement).style.background = bgColor;
-          (innerDiv as HTMLElement).style.boxShadow = `0 0 15px ${glowColor}`;
+          innerDiv.style.background = bgColor;
+          innerDiv.style.boxShadow = `0 0 15px ${glowColor}`;
         }
       } else {
         const el = document.createElement('div');
         el.className = 'driver-marker';
         el.innerHTML = `
           <div class="relative cursor-pointer" style="transform: translate(-50%, -50%);">
-            <div class="driver-inner w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110" 
-                 style="background: ${bgColor}; box-shadow: 0 0 15px ${glowColor};">
+            <div class="driver-inner" style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${bgColor};box-shadow:0 0 15px ${glowColor};transition:transform 0.2s;">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
                 <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>
                 <circle cx="7" cy="17" r="2"/>
@@ -274,16 +267,18 @@ const AdminMap = () => {
                 <circle cx="17" cy="17" r="2"/>
               </svg>
             </div>
-            ${!hasLocation ? '<div class="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-background bg-slate-400 animate-pulse"></div>' : ''}
-            ${hasLocation && driver.is_online ? `<div class="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-background" style="background: ${driver.is_available ? '#22c55e' : '#f59e0b'};"></div>` : ''}
+            ${!hasLocation ? '<div style="position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;border:2px solid #1a1a2e;background:#94a3b8;animation:pulse 2s infinite;"></div>' : ''}
+            ${hasLocation && driver.is_online ? `<div style="position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;border:2px solid #1a1a2e;background:${driver.is_available ? '#22c55e' : '#f59e0b'};"></div>` : ''}
           </div>
         `;
 
         el.addEventListener('click', () => setSelectedDriver(driver));
 
-        const marker = new mapboxgl.Marker(el)
-          .setLngLat([location.lng, location.lat])
-          .addTo(map.current!);
+        const marker = new google.maps.marker.AdvancedMarkerElement({
+          map: map.current!,
+          position: new google.maps.LatLng(location.lat, location.lng),
+          content: el,
+        });
 
         driverMarkers.current.set(driver.id, marker);
       }
@@ -301,7 +296,7 @@ const AdminMap = () => {
     // Remove old ride markers
     rideMarkers.current.forEach((marker, id) => {
       if (!displayRides.find(r => r.id === id)) {
-        marker.remove();
+        marker.map = null;
         rideMarkers.current.delete(id);
       }
     });
@@ -313,21 +308,22 @@ const AdminMap = () => {
       const el = document.createElement('div');
       el.className = 'ride-marker';
       el.innerHTML = `
-        <div class="relative cursor-pointer animate-pulse" style="transform: translate(-50%, -100%);">
-          <div class="w-8 h-8 rounded-full flex items-center justify-center shadow-lg" 
-               style="background: #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);">
+        <div class="relative cursor-pointer" style="animation:pulse 2s infinite;transform:translate(-50%,-100%);">
+          <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#ef4444;box-shadow:0 0 20px rgba(239,68,68,0.6);">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
               <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
               <circle cx="12" cy="10" r="3"/>
             </svg>
           </div>
-          <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-red-500"></div>
+          <div style="position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:4px solid #ef4444;"></div>
         </div>
       `;
 
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([ride.pickup_location.lng, ride.pickup_location.lat])
-        .addTo(map.current!);
+      const marker = new google.maps.marker.AdvancedMarkerElement({
+        map: map.current!,
+        position: new google.maps.LatLng(ride.pickup_location.lat, ride.pickup_location.lng),
+        content: el,
+      });
 
       rideMarkers.current.set(ride.id, marker);
     });
@@ -335,11 +331,8 @@ const AdminMap = () => {
 
   const focusOnDriver = (driver: Driver) => {
     if (driver.current_location && map.current) {
-      map.current.flyTo({
-        center: [driver.current_location.lng, driver.current_location.lat],
-        zoom: 16,
-        duration: 1500
-      });
+      map.current.panTo({ lat: driver.current_location.lat, lng: driver.current_location.lng });
+      map.current.setZoom(16);
       setSelectedDriver(driver);
     }
   };
@@ -586,10 +579,8 @@ const AdminMap = () => {
                       key={ride.id}
                       className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 space-y-2 cursor-pointer hover:bg-destructive/20 transition-colors"
                       onClick={() => {
-                        map.current?.flyTo({
-                          center: [ride.pickup_location.lng, ride.pickup_location.lat],
-                          zoom: 15
-                        });
+                        map.current?.panTo({ lat: ride.pickup_location.lat, lng: ride.pickup_location.lng });
+                        map.current?.setZoom(15);
                       }}
                     >
                       <div className="flex items-center justify-between">

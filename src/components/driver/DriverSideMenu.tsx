@@ -1,8 +1,9 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { User } from "@supabase/supabase-js";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
+import GamifiedEarnings from "@/components/driver/GamifiedEarnings";
 import { 
   X, 
   LogOut, 
@@ -37,11 +38,14 @@ interface DriverSideMenuProps {
   driverId?: string | null;
 }
 
-const DAILY_GOAL = 50000; // هدف يومي
+const DAILY_GOAL_DEFAULT = 50000; // هدف يومي افتراضي
+const DAILY_GOAL_MIN = 25000; // الحد الأدنى للهدف
+const DAILY_GOAL_MAX = 200000; // الحد الأقصى للهدف
 
 interface Stats {
   todayEarnings: number;
   todayRides: number;
+  dynamicGoal: number;
 }
 
 const MenuLink = ({ 
@@ -78,14 +82,14 @@ const DriverSideMenu = ({
   rating,
   driverId
 }: DriverSideMenuProps) => {
-  const navigate = useNavigate();
   const [stats, setStats] = useState<Stats>({
     todayEarnings: 0,
     todayRides: 0,
+    dynamicGoal: DAILY_GOAL_DEFAULT,
   });
   const [loading, setLoading] = useState(false);
 
-  // Fetch today's stats
+  // Fetch today's stats AND calculate dynamic goal from last 7 days
   useEffect(() => {
     if (!driverId) return;
 
@@ -101,7 +105,8 @@ const DriverSideMenu = ({
         const todayEnd = new Date(todayStart);
         todayEnd.setDate(todayEnd.getDate() + 1);
 
-        const { data, error } = await supabase
+        // جلب أرباح اليوم
+        const { data: todayData, error: todayError } = await supabase
           .from("rides")
           .select("final_fare")
           .eq("driver_id", driverId)
@@ -109,14 +114,51 @@ const DriverSideMenu = ({
           .gte("completed_at", todayStart.toISOString())
           .lt("completed_at", todayEnd.toISOString());
 
-        if (error) throw error;
+        if (todayError) throw todayError;
 
-        const earnings = data?.reduce((sum, ride) => sum + (ride.final_fare || 0), 0) || 0;
-        const rides = data?.length || 0;
+        const earnings = todayData?.reduce((sum, ride) => sum + (ride.final_fare || 0), 0) || 0;
+        const rides = todayData?.length || 0;
+
+        // حساب الهدف الديناميكي من آخر 7 أيام
+        const weekAgo = new Date(todayStart);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+
+        const { data: weekData, error: weekError } = await supabase
+          .from("rides")
+          .select("final_fare, completed_at")
+          .eq("driver_id", driverId)
+          .eq("status", "completed")
+          .gte("completed_at", weekAgo.toISOString())
+          .lt("completed_at", todayStart.toISOString());
+
+        let dynamicGoal = DAILY_GOAL_DEFAULT;
+        
+        if (!weekError && weekData && weekData.length > 0) {
+          // حساب المعدل اليومي من الأيام التي عمل فيها فعلاً
+          const dailyEarningsMap = new Map<string, number>();
+          weekData.forEach(ride => {
+            if (ride.completed_at) {
+              const day = new Date(ride.completed_at).toDateString();
+              dailyEarningsMap.set(day, (dailyEarningsMap.get(day) || 0) + (ride.final_fare || 0));
+            }
+          });
+
+          const activeDays = dailyEarningsMap.size;
+          if (activeDays > 0) {
+            const totalWeekEarnings = Array.from(dailyEarningsMap.values()).reduce((a, b) => a + b, 0);
+            const avgDaily = totalWeekEarnings / activeDays;
+            // الهدف = 10% أعلى من المعدل، مقرب لأقرب 5000
+            const rawGoal = avgDaily * 1.1;
+            dynamicGoal = Math.ceil(rawGoal / 5000) * 5000;
+            // تقييد بالحدود الدنيا والعليا
+            dynamicGoal = Math.max(DAILY_GOAL_MIN, Math.min(DAILY_GOAL_MAX, dynamicGoal));
+          }
+        }
 
         setStats({
           todayEarnings: earnings,
           todayRides: rides,
+          dynamicGoal,
         });
       } catch (error) {
         console.error("Error fetching stats:", error);
@@ -155,9 +197,9 @@ const DriverSideMenu = ({
     }
   };
 
-  const handleSwitchToRider = async () => {
-    onClose();
-    navigate('/rider');
+  const handleSwitchToRider = () => {
+    // Hard reload: يدمر كل مكونات السائق و Location Tracking بالكامل
+    window.location.href = '/rider';
   };
 
   const statusBadge = getStatusBadge();
@@ -212,43 +254,14 @@ const DriverSideMenu = ({
           <span className="font-medium">التبديل لوضع الراكب</span>
         </button>
 
-        {/* Today's Earnings Section */}
+        {/* Today's Earnings Section - Gamified */}
         {driverId && (
           <div className="mb-6 p-4 bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-xl">
-            <div className="flex items-center gap-2 mb-3">
-              <Calendar className="w-4 h-4 text-green-600 dark:text-green-400" />
-              <h3 className="text-sm font-bold text-foreground">أرباح اليوم</h3>
-            </div>
-            
-            {/* Earnings Amount */}
-            <div className="mb-3">
-              <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                {stats.todayEarnings.toLocaleString()}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stats.todayRides} رحلات مكتملة
-              </p>
-            </div>
-
-            {/* Daily Goal Progress */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">الهدف اليومي</span>
-                <span className="font-semibold text-foreground">
-                  {Math.round((stats.todayEarnings / DAILY_GOAL) * 100)}%
-                </span>
-              </div>
-              <Progress 
-                value={Math.min((stats.todayEarnings / DAILY_GOAL) * 100, 100)} 
-                className="h-2"
-              />
-              <p className="text-xs text-muted-foreground">
-                {DAILY_GOAL - stats.todayEarnings > 0 
-                  ? `متبقي: ${(DAILY_GOAL - stats.todayEarnings).toLocaleString()} د.ع`
-                  : "✅ تم تحقيق الهدف!"
-                }
-              </p>
-            </div>
+            <GamifiedEarnings
+              todayEarnings={stats.todayEarnings}
+              todayRides={stats.todayRides}
+              dailyGoal={stats.dynamicGoal}
+            />
           </div>
         )}
 

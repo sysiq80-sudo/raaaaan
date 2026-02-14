@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import mapboxgl from "mapbox-gl";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -86,10 +85,14 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   onRideUpdate,
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const driverMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const pickupMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const dropoffMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const map = useRef<google.maps.Map | null>(null);
+  const driverMarkerRef = useRef<google.maps.Marker | null>(null);
+  const pickupMarkerRef = useRef<google.maps.Marker | null>(null);
+  const dropoffMarkerRef = useRef<google.maps.Marker | null>(null);
+  const routePolylineRef = useRef<google.maps.Polyline | null>(null);
+  const routeGlowRef = useRef<google.maps.Polyline | null>(null);
+  const driverRouteRef = useRef<google.maps.Polyline | null>(null);
+  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
 
   // 🔥 Real-time driver location tracking for rider
   // Enables continuous tracking with 5-second updates (reduced from 30s)
@@ -99,7 +102,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     updateInterval: 5000 // تحديث كل 5 ثواني للرؤية المباشرة
   });
 
-  const [mapToken, setMapToken] = useState<string | null>(null);
+  const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
   const [driver, setDriver] = useState<Driver | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [estimatedArrival, setEstimatedArrival] = useState<number | null>(null);
@@ -151,7 +154,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
   // Handle "I'm on my way" button for arrived status
   const handleOnMyWay = () => {
-    console.log("[LiveRideTracker] Rider clicked: I'm on my way");
     sendQuickMessage(
       "rider_on_my_way",
       "✅ تم إبلاغ السائق",
@@ -221,23 +223,17 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   // ✅ REMOVED: Duplicate logic - شاشة التقييم يتم التحكم بها من useActiveRide في GoPage
   // هذا المنطق كان يسبب race condition مع parent component
 
-  // Fetch Mapbox token
+  // Load Google Maps API script
   useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        const response = await fetch(
-          "https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token"
-        );
-        const data = await response.json();
-        if (data.token) {
-          setMapToken(data.token);
-        }
-      } catch (error) {
-        console.error("Error fetching token:", error);
-      }
-    };
-    fetchToken();
-  }, []);
+    if (typeof window === "undefined" || window.google?.maps) return;
+    if (!googleMapsApiKey) return;
+
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places,geocoding,directions&language=ar`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  }, [googleMapsApiKey]);
 
   // Fetch driver info
   useEffect(() => {
@@ -265,137 +261,189 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     fetchDriver();
   }, [ride.driver_id]);
 
-  // Initialize map
+  // Initialize Google Map
   useEffect(() => {
-    if (!mapContainer.current || !mapToken) return;
+    if (!mapContainer.current || !googleMapsApiKey) return;
 
-    mapboxgl.accessToken = mapToken;
+    const checkGoogleMaps = setInterval(() => {
+      if (window.google?.maps) {
+        clearInterval(checkGoogleMaps);
+        if (!mapContainer.current || map.current) return;
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: [ride.pickup_location.lng, ride.pickup_location.lat],
-      zoom: 14,
-      pitch: 45,
-    });
+        map.current = new google.maps.Map(mapContainer.current, {
+          center: { lat: ride.pickup_location.lat, lng: ride.pickup_location.lng },
+          zoom: 14,
+          tilt: 45,
+          disableDefaultUI: true,
+          zoomControl: false,
+          mapTypeControl: false,
+          scaleControl: false,
+          streetViewControl: false,
+          rotateControl: false,
+          fullscreenControl: false,
+          styles: [
+            // نمط داكن مشابه لـ dark-v11
+            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+            { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+            { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+            { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#263c3f" }] },
+            { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#6b9a76" }] },
+            { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+            { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
+            { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b3" }] },
+            { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#746855" }] },
+            { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#1f2835" }] },
+            { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#f3d19c" }] },
+            { featureType: "transit", elementType: "geometry", stylers: [{ color: "#2f3948" }] },
+            { featureType: "transit.station", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+            { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] },
+            { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#515c6d" }] },
+            { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] },
+          ],
+        });
 
-    map.current.on("load", () => {
-      setIsLoading(false);
+        directionsServiceRef.current = new google.maps.DirectionsService();
 
-      // Add route source
-      map.current?.addSource("route", {
-        type: "geojson",
-        data: {
-          type: "Feature",
-          properties: {},
-          geometry: { type: "LineString", coordinates: [] },
-        },
-      });
+        map.current.addListener("tilesloaded", () => {
+          setIsLoading(false);
+        });
 
-      // Route glow
-      map.current?.addLayer({
-        id: "route-glow",
-        type: "line",
-        source: "route",
-        paint: {
-          "line-color": "#00d9a5",
-          "line-width": 12,
-          "line-blur": 8,
-          "line-opacity": 0.4,
-        },
-      });
-
-      // Route line
-      map.current?.addLayer({
-        id: "route",
-        type: "line",
-        source: "route",
-        paint: { "line-color": "#00d9a5", "line-width": 5, "line-opacity": 1 },
-      });
-
-      // Add pickup marker
-      const pickupEl = document.createElement("div");
-      pickupEl.innerHTML = `
-        <div class="flex flex-col items-center">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-lg" style="background: linear-gradient(135deg, #00d9a5, #00b389);">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
+        // إضافة علامة نقطة الانطلاق (أخضر)
+        const pickupIcon = document.createElement("div");
+        pickupIcon.innerHTML = `
+          <div class="flex flex-col items-center">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-lg" style="background: linear-gradient(135deg, #00d9a5, #00b389);">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </div>
           </div>
-        </div>
-      `;
-      pickupMarkerRef.current = new mapboxgl.Marker(pickupEl)
-        .setLngLat([ride.pickup_location.lng, ride.pickup_location.lat])
-        .addTo(map.current!);
+        `;
+        pickupMarkerRef.current = new google.maps.marker.AdvancedMarkerElement
+          ? new google.maps.Marker({
+              position: ride.pickup_location,
+              map: map.current,
+              icon: {
+                url: "data:image/svg+xml," + encodeURIComponent(`
+                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+                    <defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00d9a5"/><stop offset="100%" stop-color="#00b389"/></linearGradient></defs>
+                    <circle cx="20" cy="20" r="18" fill="url(#pg)" stroke="white" stroke-width="3"/>
+                    <circle cx="20" cy="20" r="6" fill="none" stroke="white" stroke-width="2"/>
+                    <circle cx="20" cy="20" r="2" fill="white"/>
+                  </svg>
+                `),
+                scaledSize: new google.maps.Size(40, 40),
+                anchor: new google.maps.Point(20, 20),
+              },
+            })
+          : new google.maps.Marker({
+              position: ride.pickup_location,
+              map: map.current,
+            });
 
-      // Add dropoff marker (blue)
-      const dropoffEl = document.createElement("div");
-      dropoffEl.innerHTML = `
-        <div class="flex flex-col items-center">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-lg" style="background: linear-gradient(135deg, #0ea5e9, #0284c7); box-shadow: 0 0 30px rgba(14, 165, 233, 0.8), 0 4px 20px rgba(14, 165, 233, 0.4); border: 3px solid rgba(255, 255, 255, 0.95);">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
-              <circle cx="12" cy="10" r="3"></circle>
-            </svg>
-          </div>
-        </div>
-      `;
-      dropoffMarkerRef.current = new mapboxgl.Marker(dropoffEl)
-        .setLngLat([ride.dropoff_location.lng, ride.dropoff_location.lat])
-        .addTo(map.current!);
+        // إضافة علامة الوجهة (أزرق)
+        dropoffMarkerRef.current = new google.maps.Marker({
+          position: ride.dropoff_location,
+          map: map.current,
+          icon: {
+            url: "data:image/svg+xml," + encodeURIComponent(`
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48">
+                <defs><linearGradient id="dg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0ea5e9"/><stop offset="100%" stop-color="#0284c7"/></linearGradient></defs>
+                <path d="M20 0C9 0 0 9 0 20c0 15 20 28 20 28s20-13 20-28C40 9 31 0 20 0z" fill="url(#dg)" stroke="white" stroke-width="3"/>
+                <circle cx="20" cy="18" r="7" fill="none" stroke="white" stroke-width="2"/>
+                <circle cx="20" cy="18" r="3" fill="white"/>
+              </svg>
+            `),
+            scaledSize: new google.maps.Size(40, 48),
+            anchor: new google.maps.Point(20, 48),
+          },
+        });
 
-      // Fetch and display route
-      fetchRoute();
-    });
+        // رسم المسار
+        fetchRoute();
+      }
+    }, 100);
 
     return () => {
-      // Google Maps doesn't have remove method, just nullify reference
+      clearInterval(checkGoogleMaps);
+      // تنظيف
+      routePolylineRef.current?.setMap(null);
+      routeGlowRef.current?.setMap(null);
+      driverRouteRef.current?.setMap(null);
+      driverMarkerRef.current?.setMap(null);
+      pickupMarkerRef.current?.setMap(null);
+      dropoffMarkerRef.current?.setMap(null);
       map.current = null;
     };
-  }, [mapToken]);
+  }, [googleMapsApiKey]);
 
-  // Fetch route
+  // Helper: ضبط إطار الخريطة لتشمل كل النقاط
+  const fitBoundsToPoints = useCallback((points: Array<{ lat: number; lng: number }>) => {
+    if (!map.current || points.length === 0) return;
+    const bounds = new google.maps.LatLngBounds();
+    points.forEach(p => bounds.extend(p));
+    map.current.fitBounds(bounds, { top: 80, bottom: 80, left: 40, right: 40 });
+  }, []);
+
+  // Helper: رسم خط على الخريطة
+  const drawPolyline = useCallback((path: google.maps.LatLng[], color: string, weight: number, opacity: number, isDashed = false): google.maps.Polyline => {
+    const polyline = new google.maps.Polyline({
+      path,
+      strokeColor: color,
+      strokeWeight: weight,
+      strokeOpacity: opacity,
+      geodesic: true,
+      ...(isDashed ? {
+        icons: [{
+          icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: 3 },
+          offset: "0",
+          repeat: "15px",
+        }],
+        strokeOpacity: 0,
+      } : {}),
+    });
+    polyline.setMap(map.current);
+    return polyline;
+  }, []);
+
+  // Fetch route using Google Directions
   const fetchRoute = async () => {
-    if (!map.current) return;
-
-    const start = `${ride.pickup_location.lng},${ride.pickup_location.lat}`;
-    const end = `${ride.dropoff_location.lng},${ride.dropoff_location.lat}`;
+    if (!map.current || !directionsServiceRef.current) return;
 
     try {
-      const response = await fetch(
-        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=directions&start=${start}&end=${end}`
-      );
-      const data = await response.json();
+      const result = await directionsServiceRef.current.route({
+        origin: ride.pickup_location,
+        destination: ride.dropoff_location,
+        travelMode: google.maps.TravelMode.DRIVING,
+      });
 
-      if (data.routes?.[0]) {
-        const route = data.routes[0];
-        const source = map.current?.getSource(
-          "route"
-        ) as mapboxgl.GeoJSONSource;
-        if (source) {
-          source.setData({
-            type: "Feature",
-            properties: {},
-            geometry: {
-              type: "LineString",
-              coordinates: route.geometry.coordinates,
-            },
-          });
+      if (result.routes?.[0]) {
+        const route = result.routes[0];
+        const path = route.overview_path;
+
+        // رسم خط التوهج (glow)
+        routeGlowRef.current?.setMap(null);
+        routeGlowRef.current = drawPolyline(path, "#00d9a5", 12, 0.3);
+
+        // رسم خط المسار الأساسي
+        routePolylineRef.current?.setMap(null);
+        routePolylineRef.current = drawPolyline(path, "#00d9a5", 5, 1);
+
+        // حفظ إحداثيات المسار
+        const coords = path.map(p => ({ lng: p.lng(), lat: p.lat() }));
+        setRouteCoordinates(coords);
+        
+        // المسافة المتبقية
+        const leg = route.legs?.[0];
+        if (leg?.distance?.value) {
+          setRemainingDistance(leg.distance.value / 1000);
         }
 
-        // Save route coordinates for destination change calculations
-        const coords = route.geometry.coordinates.map(
-          (c: [number, number]) => ({ lng: c[0], lat: c[1] })
-        );
-        setRouteCoordinates(coords);
-        setRemainingDistance(route.distance / 1000); // Convert to km
-
-        const bounds = new mapboxgl.LngLatBounds();
-        route.geometry.coordinates.forEach((coord: [number, number]) =>
-          bounds.extend(coord)
-        );
-        map.current?.fitBounds(bounds, { padding: 80, duration: 1000 });
+        // ضبط الإطار
+        fitBoundsToPoints([ride.pickup_location, ride.dropoff_location]);
       }
     } catch (error) {
       console.error("Error fetching route:", error);
@@ -404,44 +452,32 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
   // Update route to destination after arrival
   const updateRouteToDestination = async (driverLocation: { lat: number; lng: number }) => {
-    if (!map.current) return;
-
-    const start = `${driverLocation.lng},${driverLocation.lat}`;
-    const end = `${ride.dropoff_location.lng},${ride.dropoff_location.lat}`;
-
-    console.log('[updateRouteToDestination] From:', start, 'To:', end);
+    if (!map.current || !directionsServiceRef.current) return;
 
     try {
-      const response = await fetch(
-        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=directions&start=${start}&end=${end}`
-      );
-      const data = await response.json();
+      const result = await directionsServiceRef.current.route({
+        origin: driverLocation,
+        destination: ride.dropoff_location,
+        travelMode: google.maps.TravelMode.DRIVING,
+      });
 
-      if (data.routes?.[0]) {
-        const route = data.routes[0];
-        const source = map.current?.getSource("route") as mapboxgl.GeoJSONSource;
-        
-        if (source) {
-          console.log('[updateRouteToDestination] ✅ Updating route on map');
-          source.setData({
-            type: "Feature",
-            properties: {},
-            geometry: {
-              type: "LineString",
-              coordinates: route.geometry.coordinates,
-            },
-          });
+      if (result.routes?.[0]) {
+        const route = result.routes[0];
+        const path = route.overview_path;
 
-          // Update remaining distance
-          setRemainingDistance(route.distance / 1000);
+        // تحديث خط المسار
+        routeGlowRef.current?.setMap(null);
+        routeGlowRef.current = drawPolyline(path, "#00d9a5", 12, 0.3);
 
-          // Fit bounds to new route
-          const bounds = new mapboxgl.LngLatBounds();
-          route.geometry.coordinates.forEach((coord: [number, number]) =>
-            bounds.extend(coord)
-          );
-          map.current?.fitBounds(bounds, { padding: 80, duration: 1000 });
+        routePolylineRef.current?.setMap(null);
+        routePolylineRef.current = drawPolyline(path, "#00d9a5", 5, 1);
+
+        const leg = route.legs?.[0];
+        if (leg?.distance?.value) {
+          setRemainingDistance(leg.distance.value / 1000);
         }
+
+        fitBoundsToPoints([driverLocation, ride.dropoff_location]);
       }
     } catch (error) {
       console.error("Error updating route to destination:", error);
@@ -466,7 +502,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
           // 🔄 تحديث المسار عند تغيير الحالة إلى arrived أو in_progress
           if ((updatedRide.status === "arrived" || updatedRide.status === "in_progress") && driver?.current_location) {
-            console.log('[LiveRideTracker] 🗺️ Updating route to destination after arrival');
             updateRouteToDestination(driver.current_location);
           }
 
@@ -572,55 +607,21 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     lat: number;
     lng: number;
   }) => {
-    if (!map.current || ride.status === "in_progress") return;
+    if (!map.current || !directionsServiceRef.current || ride.status === "in_progress") return;
 
     try {
-      const response = await fetch(
-        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=directions&start=${driverLocation.lng},${driverLocation.lat}&end=${ride.pickup_location.lng},${ride.pickup_location.lat}`
-      );
-      const data = await response.json();
+      const result = await directionsServiceRef.current.route({
+        origin: driverLocation,
+        destination: ride.pickup_location,
+        travelMode: google.maps.TravelMode.DRIVING,
+      });
 
-      if (data.routes?.[0]) {
-        const route = data.routes[0];
+      if (result.routes?.[0]) {
+        const path = result.routes[0].overview_path;
 
-        if (map.current.getSource("driver-route")) {
-          (
-            map.current.getSource("driver-route") as mapboxgl.GeoJSONSource
-          ).setData({
-            type: "Feature",
-            properties: {},
-            geometry: {
-              type: "LineString",
-              coordinates: route.geometry.coordinates,
-            },
-          });
-        } else {
-          map.current.addSource("driver-route", {
-            type: "geojson",
-            data: {
-              type: "Feature",
-              properties: {},
-              geometry: {
-                type: "LineString",
-                coordinates: route.geometry.coordinates,
-              },
-            },
-          });
-
-          map.current.addLayer(
-            {
-              id: "driver-route",
-              type: "line",
-              source: "driver-route",
-              paint: {
-                "line-color": "#3b82f6",
-                "line-width": 4,
-                "line-dasharray": [2, 2],
-              },
-            },
-            "route-glow"
-          );
-        }
+        // تحديث أو إنشاء خط مسار السائق (أزرق متقطع)
+        driverRouteRef.current?.setMap(null);
+        driverRouteRef.current = drawPolyline(path, "#3b82f6", 4, 1, true);
       }
     } catch (error) {
       console.error("Error fetching driver route:", error);
@@ -632,31 +633,38 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     if (!map.current) return;
 
     if (driverMarkerRef.current) {
-      driverMarkerRef.current.setLngLat([location.lng, location.lat]);
+      driverMarkerRef.current.setPosition(location);
     } else {
-      const driverEl = document.createElement("div");
-      driverEl.innerHTML = `
-        <div class="relative">
-          <div class="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-30"></div>
-          <div class="relative w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-2 border-white" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white">
-              <path d="M5 11l1.5-4.5h11L19 11M17.5 15a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm-11 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM5 11v5a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-1h8v1a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-5H5z"/>
+      driverMarkerRef.current = new google.maps.Marker({
+        position: location,
+        map: map.current,
+        icon: {
+          url: "data:image/svg+xml," + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+              <circle cx="24" cy="24" r="22" fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.3">
+                <animate attributeName="r" values="16;22;16" dur="2s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite"/>
+              </circle>
+              <defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient></defs>
+              <circle cx="24" cy="24" r="16" fill="url(#cg)" stroke="white" stroke-width="2"/>
+              <path d="M14 24l3-9h14l3 9M32 30a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm-16 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4zM14 24v8h2v-2h16v2h2v-8H14z" fill="white"/>
             </svg>
-          </div>
-        </div>
-      `;
-      driverMarkerRef.current = new mapboxgl.Marker(driverEl)
-        .setLngLat([location.lng, location.lat])
-        .addTo(map.current);
+          `),
+          scaledSize: new google.maps.Size(48, 48),
+          anchor: new google.maps.Point(24, 24),
+        },
+        zIndex: 999,
+      });
     }
 
-    const bounds = new mapboxgl.LngLatBounds();
-    bounds.extend([location.lng, location.lat]);
-    bounds.extend([ride.pickup_location.lng, ride.pickup_location.lat]);
+    // ضبط إطار الخريطة ليشمل السائق والنقاط المهمة
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend(location);
+    bounds.extend(ride.pickup_location);
     if (ride.status === "in_progress") {
-      bounds.extend([ride.dropoff_location.lng, ride.dropoff_location.lat]);
+      bounds.extend(ride.dropoff_location);
     }
-    map.current.fitBounds(bounds, { padding: 80, duration: 500 });
+    map.current.fitBounds(bounds, { top: 80, bottom: 80, left: 40, right: 40 });
   };
 
   // Calculate distance between two points (Haversine formula)
@@ -677,20 +685,25 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     return R * c;
   };
 
-  // Calculate ETA
+  // Calculate ETA using Google Directions
   const calculateETA = async (driverLocation: { lat: number; lng: number }) => {
+    if (!directionsServiceRef.current) return;
+    
     const targetLocation =
       ride.status === "in_progress"
         ? ride.dropoff_location
         : ride.pickup_location;
 
     try {
-      const response = await fetch(
-        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=directions&start=${driverLocation.lng},${driverLocation.lat}&end=${targetLocation.lng},${targetLocation.lat}`
-      );
-      const data = await response.json();
-      if (data.routes?.[0]) {
-        setEstimatedArrival(Math.round(data.routes[0].duration / 60));
+      const result = await directionsServiceRef.current.route({
+        origin: driverLocation,
+        destination: targetLocation,
+        travelMode: google.maps.TravelMode.DRIVING,
+      });
+      
+      if (result.routes?.[0]?.legs?.[0]) {
+        const durationSec = result.routes[0].legs[0].duration?.value || 0;
+        setEstimatedArrival(Math.round(durationSec / 60));
       }
     } catch (error) {
       console.error("Error calculating ETA:", error);
@@ -1158,7 +1171,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
                 size="sm"
                 className="text-primary text-xs h-6 px-2"
                 onClick={() => {
-                  console.log('[LiveRideTracker] Change destination button clicked');
                   setShowDestinationChange(true);
                 }}
               >

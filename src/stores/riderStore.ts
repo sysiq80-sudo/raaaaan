@@ -14,7 +14,7 @@ interface Location {
 }
 
 type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
-type PaymentMethod = 'cash' | 'zain_cash' | 'asia_hawala' | 'qi_card';
+type PaymentMethod = 'cash' | 'wallet' | 'card';
 type RideStatus = 'pending' | 'accepted' | 'arrived' | 'in_progress' | 'completed' | 'cancelled';
 type MapProvider = 'google'; // Google Maps only
 

@@ -124,6 +124,8 @@ const RiderBottomNav = () => {
               mass: 0.8
             }}
             className="fixed bottom-0 left-0 right-0 z-50 safe-area-pb"
+            role="navigation"
+            aria-label="التنقل الرئيسي للراكب"
           >
             <div className="mx-4 mb-4">
               <motion.div 
@@ -179,8 +181,10 @@ const RiderBottomNav = () => {
                       <Link
                         key={item.id}
                         to={item.path}
+                        aria-label={item.label}
+                        aria-current={active ? "page" : undefined}
                         className={cn(
-                          "relative flex flex-col items-center justify-center flex-1 h-full py-2 transition-all duration-300 rounded-lg cursor-pointer group"
+                          "relative flex flex-col items-center justify-center flex-1 h-full py-2 transition-all duration-300 rounded-lg cursor-pointer group min-h-[48px] min-w-[48px]"
                         )}
                       >
                         <motion.div

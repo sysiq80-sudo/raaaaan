@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import SplashScreen from "@/components/common/SplashScreen";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -108,9 +109,13 @@ const DriverRides = () => {
   const getPaymentLabel = (method: string | null) => {
     const methods: Record<string, string> = {
       cash: "نقدي",
-      zain_cash: "زين كاش",
-      asia_hawala: "آسيا حوالة",
-      qi_card: "كي آي كارد",
+      nas_wallet: "المحفظة",
+      nass: "البطاقة",
+      wallet: "المحفظة",
+      card: "البطاقة",
+      zain_cash: "نقدي",
+      asia_hawala: "نقدي",
+      qi_card: "البطاقة",
     };
     return methods[method || "cash"] || "نقدي";
   };
@@ -120,16 +125,7 @@ const DriverRides = () => {
   const cancelledRides = rides.filter(r => r.status === "cancelled");
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-primary flex items-center justify-center mb-4 animate-pulse">
-            <Car className="w-10 h-10 text-primary-foreground" />
-          </div>
-          <p className="text-muted-foreground">جاري التحميل...</p>
-        </div>
-      </div>
-    );
+    return <SplashScreen />;
   }
 
   if (!user) {

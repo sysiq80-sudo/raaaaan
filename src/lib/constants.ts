@@ -62,35 +62,28 @@ export const VEHICLE_TYPES = {
     },
 } as const;
 
-// طرق الدفع
+// طرق الدفع - 3 خيارات أساسية
 export const PAYMENT_METHODS = {
     cash: {
         id: 'cash',
-        nameAr: 'نقدي',
+        nameAr: 'نقداً',
         nameEn: 'Cash',
+        icon: 'Banknote',
+        enabled: true,
+    },
+    wallet: {
+        id: 'wallet',
+        nameAr: 'المحفظة',
+        nameEn: 'Wallet',
         icon: 'Wallet',
         enabled: true,
     },
-    zain_cash: {
-        id: 'zain_cash',
-        nameAr: 'زين كاش',
-        nameEn: 'Zain Cash',
-        icon: 'Smartphone',
-        enabled: true,
-    },
-    asia_hawala: {
-        id: 'asia_hawala',
-        nameAr: 'آسيا حوالة',
-        nameEn: 'Asia Hawala',
+    card: {
+        id: 'card',
+        nameAr: 'البطاقة',
+        nameEn: 'Card',
         icon: 'CreditCard',
         enabled: true,
-    },
-    qi_card: {
-        id: 'qi_card',
-        nameAr: 'كي كارد',
-        nameEn: 'QI Card',
-        icon: 'CreditCard',
-        enabled: false,
     },
 } as const;
 

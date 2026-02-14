@@ -37,7 +37,7 @@ const Index = () => {
         navigator.userAgent
       );
 
-    // Redirect to auth page if installed as PWA or on mobile
+    // Redirect to auth for PWA/mobile to avoid loop when unauthenticated
     if (isStandalone || isMobile) {
       navigate("/auth", {
         replace: true,
@@ -101,7 +101,7 @@ const Index = () => {
                 تسجيل السائق
               </Button>
             </Link>
-            <Link to="/auth">
+            <Link to="/rider">
               <Button
                 size="sm"
                 className="bg-gradient-primary shadow-glow btn-glow font-semibold px-5"

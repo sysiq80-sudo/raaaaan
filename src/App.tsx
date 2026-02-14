@@ -1,746 +1,879 @@
-import { Toaster } from "@/components/ui/toaster";
-import { lazy, Suspense } from "react";
-import { Toaster as Sonner } from "@/components/ui/sonner";
+﻿import { Toaster as Sonner } from "@/components/ui/sonner";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { AuthProvider } from "@/contexts/AuthContext";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import SplashScreen from "@/components/SplashScreen";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
 
-// Pages
+// ØµÙØ­Ø§Øª Ø£Ø³Ø§Ø³ÙŠØ© (Ù…Ø­Ù…Ù„Ø© Ù…Ø¨Ø§Ø´Ø±Ø© - ÙŠØ­ØªØ§Ø¬Ù‡Ø§ Ø§Ù„Ø¬Ù…ÙŠØ¹)
 import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
-import AdminLogin from "./pages/admin/AdminLogin";
-import Terms from "./pages/Terms";
-import Privacy from "./pages/Privacy";
-import TrackRide from "./pages/TrackRide";
-import About from "./pages/About";
-import Help from "./pages/Help";
-import ContactUs from "./pages/ContactUs";
-import PaymentResult from "./pages/payment/PaymentResult";
+import NotFound from "./pages/NotFound";
 
-// Rider Pages
-import GoPage from "./pages/rider/GoPage";
-import PremiumBookingPage from "./pages/rider/PremiumBookingPage";
-import RiderRidesPage from "./pages/rider/RiderRidesPage";
-import RiderPaymentsPage from "./pages/rider/RiderPaymentsPage";
-import WalletTopupPage from "./pages/rider/WalletTopupPage";
-import RiderSavedPlacesPage from "./pages/rider/RiderSavedPlacesPage";
-import RiderSettingsPage from "./pages/rider/RiderSettingsPage";
-import RiderLayout from "./components/rider/RiderLayout";
+// ØµÙØ­Ø§Øª Ø¹Ø§Ù…Ø© - ØªØ­Ù…ÙŠÙ„ ÙƒØ³ÙˆÙ„
+const Onboarding = lazy(() => import("./pages/Onboarding"));
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
+const Terms = lazy(() => import("./pages/Terms"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const TrackRide = lazy(() => import("./pages/TrackRide"));
+const About = lazy(() => import("./pages/About"));
+const Help = lazy(() => import("./pages/Help"));
+const ContactUs = lazy(() => import("./pages/ContactUs"));
+const PaymentResult = lazy(() => import("./pages/payment/PaymentResult"));
 
-// Driver Pages
-import DriverHome from "./pages/driver/DriverHome";
-import DriverAuth from "./pages/driver/DriverAuth";
-import DriverRegister from "./pages/driver/DriverRegister";
-import DriverCompleteRegistration from "./pages/driver/DriverCompleteRegistration";
-import DriverApplicationStatus from "./pages/driver/DriverApplicationStatus";
-import DriverRides from "./pages/driver/DriverRides";
-import DriverSettings from "./pages/driver/DriverSettings";
-import DriverStatistics from "./pages/driver/DriverStatistics";
-import DriverProfile from "./pages/driver/DriverProfile";
-import DriverIncentives from "./pages/driver/DriverIncentives";
-import DriverFinance from "./pages/driver/DriverFinance";
+// ØµÙØ­Ø§Øª Ø§Ù„Ø±Ø§ÙƒØ¨ - ØªØ­Ù…ÙŠÙ„ ÙƒØ³ÙˆÙ„ (Ù„Ø§ ÙŠØ­Ù…Ù„Ù‡Ø§ Ø§Ù„Ø³Ø§Ø¦Ù‚ Ø£Ùˆ Ø§Ù„Ø£Ø¯Ù…Ù†)
+const GoPage = lazy(() => import("./pages/rider/GoPage"));
+const RiderRidesPage = lazy(() => import("./pages/rider/RiderRidesPage"));
+const RiderPaymentsPage = lazy(() => import("./pages/rider/RiderPaymentsPage"));
+const WalletTopupPage = lazy(() => import("./pages/rider/WalletTopupPage"));
+const RiderSavedPlacesPage = lazy(() => import("./pages/rider/RiderSavedPlacesPage"));
+const RiderSettingsPage = lazy(() => import("./pages/rider/RiderSettingsPage"));
 
-// Admin Pages
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminRegions from "./pages/admin/AdminRegions";
-import AdminDrivers from "./pages/admin/AdminDrivers";
-import AdminRides from "./pages/admin/AdminRides";
-import AdminUsers from "./pages/admin/AdminUsers";
-import AdminRiders from "./pages/admin/AdminRiders";
-import AdminSettings from "./pages/admin/AdminSettings";
-import AdminApiStats from "./pages/admin/AdminApiStats";
-import AdminMap from "./pages/admin/AdminMap";
-import AdminReports from "./pages/admin/AdminReports";
-import AdminLandmarks from "./pages/admin/AdminLandmarks";
-import AdminCancellationSettings from "./pages/admin/AdminCancellationSettings";
-import AdminCancellationReport from "./pages/admin/AdminCancellationReport";
-import AdminIncentives from "./pages/admin/AdminIncentives";
-import AdminDriverApplication from "./pages/admin/AdminDriverApplication";
-import AdminPendingRides from "./pages/admin/AdminPendingRides";
-import AdminCommissionReports from "./pages/admin/AdminCommissionReports";
-import AdminVehicleTypes from "./pages/admin/AdminVehicleTypes";
-import AdminSurgePricing from "./pages/admin/AdminSurgePricing";
-import AdminSubscriptionPlans from "./pages/admin/AdminSubscriptionPlans";
-import AdminCommissionTiers from "./pages/admin/AdminCommissionTiers";
-import AdminFareSettings from "./pages/admin/AdminFareSettings";
-import AdminBannedNames from "./pages/admin/AdminBannedNames";
-import AdminPromoBanners from "./pages/admin/AdminPromoBanners";
-import AdminRiderPages from "./pages/admin/AdminRiderPages";
-import AdminPageEditor from "./pages/admin/AdminPageEditor";
-import AdminWalletRequests from "./pages/admin/AdminWalletRequests";
-import AdminSMSLogs from "./pages/admin/AdminSMSLogs";
-import AdminDriverVisibility from "./pages/admin/AdminDriverVisibility";
-import DriverRegistrationSettings from "./pages/admin/DriverRegistrationSettings";
-import AdminRiderWaitSettings from "./pages/admin/AdminRiderWaitSettings";
-import AdminComplaints from "./pages/admin/AdminComplaints";
-import AdminStoppedRides from "./pages/admin/AdminStoppedRides";
-import AdminEmergencySettings from "./pages/admin/AdminEmergencySettings";
+// ØµÙØ­Ø§Øª Ø§Ù„Ø³Ø§Ø¦Ù‚ - ØªØ­Ù…ÙŠÙ„ ÙƒØ³ÙˆÙ„
+const DriverHome = lazy(() => import("./pages/driver/DriverHome"));
+const DriverAuth = lazy(() => import("./pages/driver/DriverAuth"));
+const DriverRegister = lazy(() => import("./pages/driver/DriverRegister"));
+const DriverCompleteRegistration = lazy(() => import("./pages/driver/DriverCompleteRegistration"));
+const DriverApplicationStatus = lazy(() => import("./pages/driver/DriverApplicationStatus"));
+const DriverRides = lazy(() => import("./pages/driver/DriverRides"));
+const DriverSettings = lazy(() => import("./pages/driver/DriverSettings"));
+const DriverStatistics = lazy(() => import("./pages/driver/DriverStatistics"));
+const DriverProfile = lazy(() => import("./pages/driver/DriverProfile"));
+const DriverIncentives = lazy(() => import("./pages/driver/DriverIncentives"));
+const DriverFinance = lazy(() => import("./pages/driver/DriverFinance"));
+
+// Layout components
+const RiderLayout = lazy(() => import("./components/rider/RiderLayout"));
+const DriverLayout = lazy(() => import("./components/driver/DriverLayout"));
+
+// ØµÙØ­Ø§Øª Ø§Ù„Ø£Ø¯Ù…Ù† - ØªØ­Ù…ÙŠÙ„ ÙƒØ³ÙˆÙ„ (Ù„Ø§ ÙŠØ­Ù…Ù„Ù‡Ø§ Ø§Ù„Ø±Ø§ÙƒØ¨ Ø£Ùˆ Ø§Ù„Ø³Ø§Ø¦Ù‚)
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminRegions = lazy(() => import("./pages/admin/AdminRegions"));
+const AdminDrivers = lazy(() => import("./pages/admin/AdminDrivers"));
+const AdminRides = lazy(() => import("./pages/admin/AdminRides"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminRiders = lazy(() => import("./pages/admin/AdminRiders"));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
+const AdminApiStats = lazy(() => import("./pages/admin/AdminApiStats"));
+const AdminMap = lazy(() => import("./pages/admin/AdminMap"));
+const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
+const AdminLandmarks = lazy(() => import("./pages/admin/AdminLandmarks"));
+const AdminCancellationSettings = lazy(() => import("./pages/admin/AdminCancellationSettings"));
+const AdminCancellationReport = lazy(() => import("./pages/admin/AdminCancellationReport"));
+const AdminIncentives = lazy(() => import("./pages/admin/AdminIncentives"));
+const AdminDriverApplication = lazy(() => import("./pages/admin/AdminDriverApplication"));
+const AdminPendingRides = lazy(() => import("./pages/admin/AdminPendingRides"));
+const AdminCommissionReports = lazy(() => import("./pages/admin/AdminCommissionReports"));
+const AdminVehicleTypes = lazy(() => import("./pages/admin/AdminVehicleTypes"));
+const AdminSurgePricing = lazy(() => import("./pages/admin/AdminSurgePricing"));
+const AdminSubscriptionPlans = lazy(() => import("./pages/admin/AdminSubscriptionPlans"));
+const AdminCommissionTiers = lazy(() => import("./pages/admin/AdminCommissionTiers"));
+const AdminFareSettings = lazy(() => import("./pages/admin/AdminFareSettings"));
+const AdminBannedNames = lazy(() => import("./pages/admin/AdminBannedNames"));
+const AdminPromoBanners = lazy(() => import("./pages/admin/AdminPromoBanners"));
+const AdminRiderPages = lazy(() => import("./pages/admin/AdminRiderPages"));
+const AdminPageEditor = lazy(() => import("./pages/admin/AdminPageEditor"));
+const AdminWalletRequests = lazy(() => import("./pages/admin/AdminWalletRequests"));
+const AdminSMSLogs = lazy(() => import("./pages/admin/AdminSMSLogs"));
+const AdminDriverVisibility = lazy(() => import("./pages/admin/AdminDriverVisibility"));
+const DriverRegistrationSettings = lazy(() => import("./pages/admin/DriverRegistrationSettings"));
+const AdminRiderWaitSettings = lazy(() => import("./pages/admin/AdminRiderWaitSettings"));
+const AdminComplaints = lazy(() => import("./pages/admin/AdminComplaints"));
+const AdminStoppedRides = lazy(() => import("./pages/admin/AdminStoppedRides"));
+const AdminEmergencySettings = lazy(() => import("./pages/admin/AdminEmergencySettings"));
 const queryClient = new QueryClient();
 
-const LoadingFallback = () => (
-  <div className="h-screen w-full bg-background flex items-center justify-center">
-    <div className="text-center space-y-4">
-      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-      <p className="text-muted-foreground">جاري التحميل...</p>
-    </div>
-  </div>
-);
+// Ù…Ø³Ø§Ø¹Ø¯: ÙƒØ´Ù Ø§Ù„Ø¬ÙˆØ§Ù„
+const isMobileDevice = () => {
+  if (typeof window === "undefined") return false;
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isNarrow = window.innerWidth < 768;
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+  return isMobileUA || isNarrow || isStandalone;
+};
+
+const LoadingFallback = () => <SplashScreen />;
 
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <ConnectionStatus />
-        <BrowserRouter
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        >
-          <AuthProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Sonner />
+          <ConnectionStatus />
+          <BrowserRouter
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
             <Suspense fallback={<LoadingFallback />}>
-              <Routes>
-                {/* Public Routes */}
-                <Route
-                  path="/"
-                  element={
-                    <ErrorBoundary>
-                      <Index />
-                    </ErrorBoundary>
-                  }
-                />
-                <Route
-                  path="/auth"
-                  element={
-                    <ErrorBoundary>
-                      <Auth />
-                    </ErrorBoundary>
-                  }
-                />
-                <Route path="/terms" element={<Terms />} />
-                <Route path="/privacy" element={<Privacy />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/help" element={<Help />} />
-                <Route path="/contact" element={<ContactUs />} />
-                <Route
-                  path="/track/:token"
-                  element={
-                    <ErrorBoundary>
-                      <TrackRide />
-                    </ErrorBoundary>
-                  }
-                />
-
-                {/* Rider Auth Route */}
-                <Route
-                  path="/rider/auth"
-                  element={
-                    <ErrorBoundary>
-                      <Auth />
-                    </ErrorBoundary>
-                  }
-                />
-
-                {/* Main Rider Route - Go Page */}
-                <Route
-                  path="/rider"
-                  element={
-                    <ProtectedRoute redirectTo="/rider/auth">
-                      <ErrorBoundary>
-                        <RiderLayout>
-                          <GoPage />
-                        </RiderLayout>
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/rider/schedule"
-                  element={
-                    <ProtectedRoute redirectTo="/rider/auth">
-                      <ErrorBoundary>
-                        <RiderLayout>
-                          <GoPage scheduleMode={true} />
-                        </RiderLayout>
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                {/* Premium Booking - Full-screen immersive experience */}
-                <Route
-                  path="/rider/premium"
-                  element={
-                    <ProtectedRoute redirectTo="/rider/auth">
-                      <ErrorBoundary>
-                        <PremiumBookingPage />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/rider/rides"
-                  element={
-                    <ProtectedRoute redirectTo="/rider/auth">
-                      <ErrorBoundary>
-                        <RiderLayout>
-                          <RiderRidesPage />
-                        </RiderLayout>
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/rider/payments"
-                  element={
-                    <ProtectedRoute redirectTo="/rider/auth">
-                      <ErrorBoundary>
-                        <RiderLayout>
-                          <RiderPaymentsPage />
-                        </RiderLayout>
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/rider/wallet-topup"
-                  element={
-                    <ProtectedRoute redirectTo="/rider/auth">
-                      <ErrorBoundary>
-                        <RiderLayout>
-                          <WalletTopupPage />
-                        </RiderLayout>
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/rider/saved-places"
-                  element={
-                    <ProtectedRoute redirectTo="/rider/auth">
-                      <ErrorBoundary>
-                        <RiderLayout>
-                          <RiderSavedPlacesPage />
-                        </RiderLayout>
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/rider/settings"
-                  element={
-                    <ProtectedRoute redirectTo="/rider/auth">
-                      <ErrorBoundary>
-                        <RiderLayout>
-                          <RiderSettingsPage />
-                        </RiderLayout>
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Driver Routes */}
-                <Route
-                  path="/driver"
-                  element={
-                    <ProtectedRoute redirectTo="/driver/auth">
-                      <ErrorBoundary>
-                        <DriverHome />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/driver/auth"
-                  element={
-                    <ErrorBoundary>
-                      <DriverAuth />
-                    </ErrorBoundary>
-                  }
-                />
-                <Route
-                  path="/driver/register"
-                  element={
-                    <ProtectedRoute redirectTo="/driver/auth">
-                      <ErrorBoundary>
-                        <DriverRegister />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/driver/complete-registration"
-                  element={
-                    <ProtectedRoute redirectTo="/driver/auth">
-                      <ErrorBoundary>
-                        <DriverCompleteRegistration />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/driver/application-status"
-                  element={
-                    <ProtectedRoute redirectTo="/driver/auth">
-                      <ErrorBoundary>
-                        <DriverApplicationStatus />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/driver/rides"
-                  element={
-                    <ProtectedRoute redirectTo="/driver/auth">
-                      <ErrorBoundary>
-                        <DriverRides />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/driver/finance"
-                  element={
-                    <ProtectedRoute redirectTo="/driver/auth">
-                      <ErrorBoundary>
-                        <DriverFinance />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/driver/wallet"
-                  element={
-                    <ProtectedRoute redirectTo="/driver/auth">
-                      <ErrorBoundary>
-                        <DriverFinance />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/driver/payments"
-                  element={
-                    <ProtectedRoute redirectTo="/driver/auth">
-                      <ErrorBoundary>
-                        <DriverFinance />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/driver/statistics"
-                  element={
-                    <ProtectedRoute redirectTo="/driver/auth">
-                      <ErrorBoundary>
-                        <DriverStatistics />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/driver/profile"
-                  element={
-                    <ProtectedRoute redirectTo="/driver/auth">
-                      <ErrorBoundary>
-                        <DriverProfile />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/driver/settings"
-                  element={
-                    <ProtectedRoute redirectTo="/driver/auth">
-                      <ErrorBoundary>
-                        <DriverSettings />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/driver/incentives"
-                  element={
-                    <ProtectedRoute redirectTo="/driver/auth">
-                      <ErrorBoundary>
-                        <DriverIncentives />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Admin Routes */}
-                <Route
-                  path="/admin/login"
-                  element={
-                    <ErrorBoundary>
-                      <AdminLogin />
-                    </ErrorBoundary>
-                  }
-                />
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminDashboard />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/regions"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminRegions />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/landmarks"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminLandmarks />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/vehicle-types"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminVehicleTypes />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/drivers"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminDrivers />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/rides"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminRides />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/users"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminUsers />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/riders"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminRiders />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/settings"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminSettings />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/map"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminMap />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/reports"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminReports />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/cancellation"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminCancellationSettings />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/cancellation-report"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminCancellationReport />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/incentives"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminIncentives />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/pending-rides"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminPendingRides />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/drivers/:id"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminDriverApplication />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/api-stats"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminApiStats />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/commission-reports"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminCommissionReports />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/fare-settings"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminFareSettings />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/surge-pricing"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminSurgePricing />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/subscription-plans"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminSubscriptionPlans />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/commission-tiers"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminCommissionTiers />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/banned-names"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminBannedNames />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/promo-banners"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminPromoBanners />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/rider-pages"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminRiderPages />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/page-editor/:pageId"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminPageEditor />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/wallet-requests"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminWalletRequests />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/sms-logs"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminSMSLogs />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/driver-visibility"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminDriverVisibility />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/driver-registration-settings"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <DriverRegistrationSettings />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/rider-wait-settings"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminRiderWaitSettings />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/complaints"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminComplaints />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/stopped-rides"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminStoppedRides />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/emergency-settings"
-                  element={
-                    <ProtectedRoute redirectTo="/admin/login">
-                      <ErrorBoundary>
-                        <AdminEmergencySettings />
-                      </ErrorBoundary>
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Payment Result Route */}
-                <Route
-                  path="/payment/result"
-                  element={
-                    <ErrorBoundary>
-                      <PaymentResult />
-                    </ErrorBoundary>
-                  }
-                />
-
-                {/* Catch-all */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <AppRoutes />
             </Suspense>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   </ErrorBoundary>
 );
+
+// Separate AppRoutes component to use useAuth hook
+const AppRoutes = () => {
+  const { user, userRole, isLoading, isOnboardingComplete } = useAuth();
+
+  // Minimum splash screen display (3 seconds)
+  const [minSplashDone, setMinSplashDone] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setMinSplashDone(true), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Show splash while auth is loading OR minimum time hasn't passed
+  if (isLoading || !minSplashDone) {
+  
+    return <LoadingFallback />;
+  }
+
+
+
+  // No user - show public routes only (Ù…ØµØ§Ø¯Ù‚Ø© Ø¥Ù„Ø²Ø§Ù…ÙŠØ©)
+  if (!user) {
+    return (
+      <Routes>
+        {/* Ø§Ù„ØµÙØ­Ø© Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©: Ø§Ù„Ø¬ÙˆØ§Ù„ ÙŠØ°Ù‡Ø¨ Ù…Ø¨Ø§Ø´Ø±Ø© Ù„ØµÙØ­Ø© Ø§Ù„Ø¯Ø®ÙˆÙ„ */}
+        <Route
+          path="/"
+          element={
+            isMobileDevice() ? (
+              <Navigate to="/auth" replace />
+            ) : (
+              <ErrorBoundary>
+                <Index />
+              </ErrorBoundary>
+            )
+          }
+        />
+        <Route
+          path="/auth"
+          element={
+            <ErrorBoundary>
+              <Auth />
+            </ErrorBoundary>
+          }
+        />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/help" element={<Help />} />
+        <Route path="/contact" element={<ContactUs />} />
+        <Route
+          path="/track/:token"
+          element={
+            <ErrorBoundary>
+              <TrackRide />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/driver/auth"
+          element={
+            <ErrorBoundary>
+              <DriverAuth />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/driver/register"
+          element={
+            <ErrorBoundary>
+              <DriverRegister />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/driver/complete-registration"
+          element={
+            <ErrorBoundary>
+              <DriverCompleteRegistration />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/driver/application-status"
+          element={
+            <ErrorBoundary>
+              <DriverApplicationStatus />
+            </ErrorBoundary>
+          }
+        />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route
+          path="/payment/result"
+          element={
+            <ErrorBoundary>
+              <PaymentResult />
+            </ErrorBoundary>
+          }
+        />
+        {/* Catch all - redirect to home */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
+  }
+
+  // User logged in AND onboarding NOT complete - show onboarding only
+  if (user && !isOnboardingComplete) {
+  
+    return (
+      <Routes>
+        <Route
+          path="/onboarding"
+          element={
+            <ErrorBoundary>
+              <Onboarding />
+            </ErrorBoundary>
+          }
+        />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/help" element={<Help />} />
+        <Route path="/contact" element={<ContactUs />} />
+        {/* âœ… Redirect to onboarding if user tries other routes without completing it */}
+        <Route path="*" element={<Navigate to="/onboarding" replace={false} />} />
+      </Routes>
+    );
+  }
+
+  // âœ… User logged in AND onboarding complete - show full app
+
+  return (
+    <Routes>
+            {/* Redirect /onboarding to appropriate page if already completed */}
+            <Route path="/onboarding" element={<Navigate to={userRole === "driver" ? "/driver" : "/rider"} replace />} />
+
+            {/* Ø§Ù„ØµÙØ­Ø© Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©: Ø§Ù„Ø¬ÙˆØ§Ù„ â†’ /rider ØŒ Ø§Ù„Ø¯ÙŠØ³ÙƒØªÙˆØ¨ â†’ Ø­Ø³Ø¨ Ø§Ù„Ø¯ÙˆØ± */}
+            <Route
+              path="/"
+              element={
+                <Navigate to={
+                  userRole === "admin" ? "/admin" :
+                  userRole === "driver" ? "/driver" :
+                  "/rider"
+                } replace />
+              }
+            />
+            <Route
+              path="/auth"
+              element={
+                <Navigate to={
+                  userRole === "admin" ? "/admin" :
+                  userRole === "driver" ? "/driver" :
+                  "/rider"
+                } replace />
+              }
+            />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/contact" element={<ContactUs />} />
+            <Route
+              path="/track/:token"
+              element={
+                <ErrorBoundary>
+                  <TrackRide />
+                </ErrorBoundary>
+              }
+            />
+
+            {/* Rider Auth Route - المستخدم مسجل بالفعل → توجيه لصفحة الراكب */}
+            <Route
+              path="/rider/auth"
+              element={<Navigate to="/rider" replace />}
+            />
+
+            {/* Main Rider Route - Go Page */}
+            <Route
+              path="/rider"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="rider">
+                    <RiderLayout>
+                      <GoPage />
+                    </RiderLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/rider/schedule"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="rider">
+                    <RiderLayout>
+                      <GoPage scheduleMode={true} />
+                    </RiderLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/rider/rides"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="rider">
+                    <RiderLayout>
+                      <RiderRidesPage />
+                    </RiderLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/rider/payments"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="rider">
+                    <RiderLayout>
+                      <RiderPaymentsPage />
+                    </RiderLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/rider/wallet-topup"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="rider">
+                    <RiderLayout>
+                      <WalletTopupPage />
+                    </RiderLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/rider/saved-places"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="rider">
+                    <RiderLayout>
+                      <RiderSavedPlacesPage />
+                    </RiderLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/rider/settings"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="rider">
+                    <RiderLayout>
+                      <RiderSettingsPage />
+                    </RiderLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+
+            {/* Driver Routes */}
+            <Route
+              path="/driver"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="driver">
+                    <DriverLayout>
+                      <DriverHome />
+                    </DriverLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/driver/auth"
+              element={<Navigate to="/driver" replace />}
+            />
+            <Route
+              path="/driver/register"
+              element={
+                <ErrorBoundary>
+                  <DriverRegister />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/driver/complete-registration"
+              element={
+                <ErrorBoundary>
+                  <DriverCompleteRegistration />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/driver/application-status"
+              element={
+                <ErrorBoundary>
+                  <DriverApplicationStatus />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/driver/rides"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="driver">
+                    <DriverLayout>
+                      <DriverRides />
+                    </DriverLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/driver/finance"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="driver">
+                    <DriverLayout>
+                      <DriverFinance />
+                    </DriverLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/driver/wallet"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="driver">
+                    <DriverLayout>
+                      <DriverFinance />
+                    </DriverLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/driver/payments"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="driver">
+                    <DriverLayout>
+                      <DriverFinance />
+                    </DriverLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/driver/statistics"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="driver">
+                    <DriverLayout>
+                      <DriverStatistics />
+                    </DriverLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/driver/profile"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="driver">
+                    <DriverLayout>
+                      <DriverProfile />
+                    </DriverLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/driver/settings"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="driver">
+                    <DriverLayout>
+                      <DriverSettings />
+                    </DriverLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/driver/incentives"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="driver">
+                    <DriverLayout>
+                      <DriverIncentives />
+                    </DriverLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+
+            {/* Admin Routes */}
+            <Route
+              path="/admin"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/regions"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminRegions />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/landmarks"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminLandmarks />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/vehicle-types"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminVehicleTypes />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/drivers"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminDrivers />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/rides"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminRides />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminUsers />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/riders"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminRiders />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/settings"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminSettings />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/map"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminMap />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/reports"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminReports />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/cancellation"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminCancellationSettings />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/cancellation-report"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminCancellationReport />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/incentives"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminIncentives />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/pending-rides"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminPendingRides />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/drivers/:id"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminDriverApplication />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/api-stats"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminApiStats />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/commission-reports"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminCommissionReports />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/fare-settings"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminFareSettings />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/surge-pricing"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminSurgePricing />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/subscription-plans"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminSubscriptionPlans />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/commission-tiers"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminCommissionTiers />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/banned-names"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminBannedNames />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/promo-banners"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminPromoBanners />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/rider-pages"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminRiderPages />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/page-editor/:pageId"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminPageEditor />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/wallet-requests"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminWalletRequests />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/sms-logs"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminSMSLogs />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/driver-visibility"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminDriverVisibility />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/driver-registration-settings"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <DriverRegistrationSettings />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/rider-wait-settings"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminRiderWaitSettings />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/complaints"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminComplaints />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/stopped-rides"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminStoppedRides />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/emergency-settings"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminEmergencySettings />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+
+            {/* Payment Result Route */}
+            <Route
+              path="/payment/result"
+              element={
+                <ErrorBoundary>
+                  <PaymentResult />
+                </ErrorBoundary>
+              }
+            />
+
+            {/* Catch-all */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+    );
+};
 
 export default App;

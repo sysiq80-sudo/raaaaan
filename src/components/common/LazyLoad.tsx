@@ -6,6 +6,7 @@
 import { Suspense, lazy, ComponentType, LazyExoticComponent } from 'react';
 import { Skeleton, MapSkeleton, HomePageSkeleton, ProfileSkeleton } from './Skeletons';
 import { Loader2 } from 'lucide-react';
+import SplashScreen from './SplashScreen';
 
 // Fallback بسيط
 const SimpleFallback = () => (
@@ -14,15 +15,8 @@ const SimpleFallback = () => (
     </div>
 );
 
-// Fallback للصفحة كاملة
-const PageFallback = () => (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-            <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-            <p className="text-muted-foreground">جاري التحميل...</p>
-        </div>
-    </div>
-);
+// Fallback للصفحة كاملة — يستخدم SplashScreen الفاخر
+const PageFallback = () => <SplashScreen />;
 
 // أنواع Fallback المتاحة
 type FallbackType = 'simple' | 'page' | 'map' | 'home' | 'profile' | 'skeleton';

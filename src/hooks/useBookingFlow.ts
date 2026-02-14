@@ -6,13 +6,9 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useToast } from "./use-toast";
-import {
-  getDirections,
-  drawPolyline,
-  ROUTE_STYLES,
-} from "@/lib/googleMapService";
+import { getDirections, drawPolyline, ROUTE_STYLES } from "@/lib/googleMapService";
 import { useGoogleMapsApiKey } from "./useGoogleMapsApiKey";
-import { getMapStyle } from "@/utils/mapStyles";
+import type { PaymentMethod } from "@/types/savedCards";
 
 interface LocationType {
   lat: number;
@@ -21,13 +17,6 @@ interface LocationType {
 }
 
 type VehicleType = "economy" | "comfort" | "premium" | "women_only";
-type PaymentMethodType =
-  | "cash"
-  | "wallet"
-  | "card"
-  | "zain_cash"
-  | "super_key"
-  | "nas_wallet";
 
 export const useBookingFlow = (apiKey: string | null) => {
   const { toast } = useToast();
@@ -35,55 +24,18 @@ export const useBookingFlow = (apiKey: string | null) => {
 
   const bookingMapContainer = useRef<HTMLDivElement>(null);
   const bookingMap = useRef<google.maps.Map | null>(null);
-  const waypointMarkersRef = useRef<google.maps.Marker[]>([]);
 
   const [selectedVehicle, setSelectedVehicle] =
     useState<VehicleType>("economy");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
   const [isBooking, setIsBooking] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
 
-  const clearWaypointMarkers = useCallback(() => {
-    waypointMarkersRef.current.forEach((marker) => marker.setMap(null));
-    waypointMarkersRef.current = [];
-  }, []);
-
-  const renderWaypointMarkers = useCallback(
-    (waypoints: Array<{ lat: number; lng: number }>) => {
-      if (!bookingMap.current) return;
-
-      clearWaypointMarkers();
-
-      waypointMarkersRef.current = waypoints.map((point, index) => {
-        return new google.maps.Marker({
-          map: bookingMap.current,
-          position: new google.maps.LatLng(point.lat, point.lng),
-          title: `توقف ${index + 1}`,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: "#f59e0b",
-            fillOpacity: 1,
-            strokeColor: "#fff",
-            strokeWeight: 2,
-            scale: 7,
-          },
-          zIndex: 102 + index,
-        });
-      });
-    },
-    [clearWaypointMarkers],
-  );
-
   // Helper function to fetch and draw route
   const fetchRouteAndDraw = useCallback(
-    async (
-      pickupLocation: LocationType,
-      dropoffLocation: LocationType,
-      waypoints: LocationType[] = [],
-      options?: { optimizeWaypoints?: boolean },
-    ) => {
+    async (pickupLocation: LocationType, dropoffLocation: LocationType) => {
       if (!googleApiKey || !bookingMap.current) {
         console.warn("⚠️ Cannot fetch route - missing map or API key");
         return;
@@ -93,44 +45,30 @@ export const useBookingFlow = (apiKey: string | null) => {
         console.log("🔍 Fetching route...");
         const result = await getDirections(
           { lat: pickupLocation.lat, lng: pickupLocation.lng },
-          { lat: dropoffLocation.lat, lng: dropoffLocation.lng },
-          waypoints.map((point) => ({ lat: point.lat, lng: point.lng })),
-          { optimizeWaypoints: options?.optimizeWaypoints ?? true },
+          { lat: dropoffLocation.lat, lng: dropoffLocation.lng }
         );
 
         if (result && result.route) {
-          console.log(
-            "✅ Route received, distance:",
-            result.distance,
-            "duration:",
-            result.duration,
-          );
-          setRouteDistance(parseFloat(result.distance.replace(/[^\d.-]/g, "")));
-          setRouteDuration(
-            Math.ceil(parseInt(result.duration.replace(/[^\d]/g, "")) / 60),
-          );
+          console.log("✅ Route received, distance:", result.distance, "duration:", result.duration);
+          // ✅ استخدام القيم الرقمية بدلاً من تحليل النص المحلي (قد يكون بالعربية)
+          const distanceKm = result.distanceMeters / 1000;
+          const durationMin = Math.ceil(result.durationSeconds / 60);
+          setRouteDistance(Math.round(distanceKm * 10) / 10); // تقريب لأقرب 0.1 كم
+          setRouteDuration(durationMin);
 
           // Draw route on booking map
           console.log("🎨 Drawing polyline on map...");
           drawPolyline(bookingMap.current, result.route, ROUTE_STYLES.main);
           console.log("✅ Polyline drawn");
 
-          renderWaypointMarkers(
-            waypoints.map((point) => ({ lat: point.lat, lng: point.lng })),
-          );
-
           // Fit map to route bounds
           const bounds = new google.maps.LatLngBounds();
           result.route.forEach((point) => {
             bounds.extend(new google.maps.LatLng(point.lat, point.lng));
           });
-          bounds.extend(
-            new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng),
-          );
-          bounds.extend(
-            new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng),
-          );
-
+          bounds.extend(new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng));
+          bounds.extend(new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng));
+          
           if (bookingMap.current) {
             console.log("📍 Fitting map to bounds...");
             bookingMap.current.fitBounds(bounds, 100);
@@ -148,17 +86,12 @@ export const useBookingFlow = (apiKey: string | null) => {
         });
       }
     },
-    [googleApiKey, toast, renderWaypointMarkers],
+    [googleApiKey, toast]
   );
 
   // Initialize booking map
   const initializeBookingMap = useCallback(
-    (
-      pickupLocation: LocationType,
-      dropoffLocation: LocationType,
-      waypoints: LocationType[] = [],
-      options?: { optimizeWaypoints?: boolean },
-    ) => {
+    (pickupLocation: LocationType, dropoffLocation: LocationType) => {
       if (!bookingMapContainer.current || !googleApiKey) return;
 
       // Prevent duplicate initialization
@@ -180,26 +113,45 @@ export const useBookingFlow = (apiKey: string | null) => {
         return;
       }
 
-      // 🌙 خلفية مناسبة للثيم
+      // Ensure container has proper background
       if (bookingMapContainer.current) {
-        const isDark =
-          document.documentElement.classList.contains("dark") ||
-          window.matchMedia("(prefers-color-scheme: dark)").matches;
-        bookingMapContainer.current.style.backgroundColor = isDark
-          ? "#1a1a2e"
-          : "#f5f5f5";
+        bookingMapContainer.current.style.backgroundColor = "#1a1a1a"; // 🌙 Dark background
       }
 
       console.log("🗺️ Initializing booking map...");
-
-      // 🎨 استخدام أنماط الخريطة الذكية
-      const mapStyle = getMapStyle();
-
+      
+      // 🌙 Dark Mode Styling (same as location picker)
+      const darkModeStyles = [
+        { elementType: "geometry", stylers: [{ color: "#212121" }] },
+        { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
+        { elementType: "labels.text.fill", stylers: [{ color: "#10b981" }] },
+        {
+          featureType: "road",
+          elementType: "geometry",
+          stylers: [{ color: "#2c2c2c" }]
+        },
+        {
+          featureType: "road",
+          elementType: "labels.text.fill",
+          stylers: [{ color: "#10b981" }]
+        },
+        {
+          featureType: "poi",
+          elementType: "labels.text.fill",
+          stylers: [{ color: "#10b981" }]
+        },
+        {
+          featureType: "water",
+          elementType: "geometry",
+          stylers: [{ color: "#1a1a2e" }]
+        }
+      ];
+      
       bookingMap.current = new google.maps.Map(bookingMapContainer.current, {
         center: new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng),
         zoom: 13,
-        mapTypeId: "roadmap",
-        styles: mapStyle, // 🎨 نمط ذكي يتكيف مع الثيم
+        mapTypeId: 'roadmap',
+        styles: darkModeStyles, // 🌙 تطبيق النمط الداكن
         mapTypeControl: false,
         fullscreenControl: false,
         streetViewControl: false,
@@ -209,15 +161,12 @@ export const useBookingFlow = (apiKey: string | null) => {
         zoomControl: true,
       });
 
-      console.log("✅ Booking map initialized with adaptive theme styles");
+      console.log("✅ Booking map initialized with dark mode");
 
       // Add pickup marker
       const pickupMarker = new google.maps.Marker({
         map: bookingMap.current,
-        position: new google.maps.LatLng(
-          pickupLocation.lat,
-          pickupLocation.lng,
-        ),
+        position: new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng),
         title: "الانطلاق",
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
@@ -234,10 +183,7 @@ export const useBookingFlow = (apiKey: string | null) => {
       // Add dropoff marker
       const dropoffMarker = new google.maps.Marker({
         map: bookingMap.current,
-        position: new google.maps.LatLng(
-          dropoffLocation.lat,
-          dropoffLocation.lng,
-        ),
+        position: new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng),
         title: "الوصول",
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
@@ -251,60 +197,40 @@ export const useBookingFlow = (apiKey: string | null) => {
       });
       console.log("📍 Dropoff marker added");
 
-      renderWaypointMarkers(
-        waypoints.map((point) => ({ lat: point.lat, lng: point.lng })),
-      );
-
       // Fetch and draw the route after map is fully loaded
       setTimeout(() => {
-        fetchRouteAndDraw(pickupLocation, dropoffLocation, waypoints, options);
+        fetchRouteAndDraw(pickupLocation, dropoffLocation);
       }, 300);
     },
-    [googleApiKey, fetchRouteAndDraw, renderWaypointMarkers],
+    [googleApiKey, fetchRouteAndDraw]
   );
 
   // Fetch route
   const fetchRoute = useCallback(
-    async (
-      pickupLocation: LocationType,
-      dropoffLocation: LocationType,
-      waypoints: LocationType[] = [],
-      options?: { optimizeWaypoints?: boolean },
-    ) => {
+    async (pickupLocation: LocationType, dropoffLocation: LocationType) => {
       if (!googleApiKey) return;
 
       try {
         const result = await getDirections(
           { lat: pickupLocation.lat, lng: pickupLocation.lng },
-          { lat: dropoffLocation.lat, lng: dropoffLocation.lng },
-          waypoints.map((point) => ({ lat: point.lat, lng: point.lng })),
-          { optimizeWaypoints: options?.optimizeWaypoints ?? true },
+          { lat: dropoffLocation.lat, lng: dropoffLocation.lng }
         );
 
         if (result) {
           setRouteDistance(parseFloat(result.distance.replace(/[^\d.-]/g, "")));
-          setRouteDuration(
-            Math.ceil(parseInt(result.duration.replace(/[^\d]/g, "")) / 60),
-          );
+          setRouteDuration(Math.ceil(parseInt(result.duration.replace(/[^\d]/g, "")) / 60));
 
           // Draw route on booking map
           if (bookingMap.current) {
             drawPolyline(bookingMap.current, result.route, ROUTE_STYLES.main);
-            renderWaypointMarkers(
-              waypoints.map((point) => ({ lat: point.lat, lng: point.lng })),
-            );
 
             // Fit map to route bounds
             const bounds = new google.maps.LatLngBounds();
             result.route.forEach((point) => {
               bounds.extend(new google.maps.LatLng(point.lat, point.lng));
             });
-            bounds.extend(
-              new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng),
-            );
-            bounds.extend(
-              new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng),
-            );
+            bounds.extend(new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng));
+            bounds.extend(new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng));
             bookingMap.current.fitBounds(bounds, 80);
           }
         }
@@ -317,13 +243,12 @@ export const useBookingFlow = (apiKey: string | null) => {
         });
       }
     },
-    [googleApiKey, toast, renderWaypointMarkers],
+    [googleApiKey, toast]
   );
 
   const cleanup = useCallback(() => {
     bookingMap.current = null;
-    clearWaypointMarkers();
-  }, [clearWaypointMarkers]);
+  }, []);
 
   return {
     bookingMapContainer,

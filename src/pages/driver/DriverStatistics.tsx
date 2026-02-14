@@ -264,10 +264,9 @@ const DriverStatistics = () => {
     });
 
     const paymentData: PaymentData[] = [
-      { name: "نقدي", value: paymentMap["cash"] || 0, color: COLORS[0] },
-      { name: "زين كاش", value: paymentMap["zain_cash"] || 0, color: COLORS[1] },
-      { name: "آسيا حوالة", value: paymentMap["asia_hawala"] || 0, color: COLORS[2] },
-      { name: "كي كارد", value: paymentMap["qi_card"] || 0, color: COLORS[3] },
+      { name: "نقدي", value: (paymentMap["cash"] || 0) + (paymentMap["zain_cash"] || 0) + (paymentMap["asia_hawala"] || 0), color: COLORS[0] },
+      { name: "المحفظة", value: (paymentMap["nas_wallet"] || 0), color: COLORS[1] },
+      { name: "البطاقة", value: (paymentMap["nass"] || 0) + (paymentMap["qi_card"] || 0), color: COLORS[2] },
     ].filter(p => p.value > 0);
 
     // Update state

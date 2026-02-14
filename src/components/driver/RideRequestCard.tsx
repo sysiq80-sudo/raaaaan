@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { logger } from "@/lib/logger";
 import { roundFare } from "@/lib/constants";
+import { playNotificationSound } from "@/lib/audioContext";
 import {
   MapPin,
   Clock,
@@ -38,6 +39,7 @@ interface RideRequestCardProps {
   driverId: string;
   vehicleType: string | null;
   isOnline: boolean;
+  isPaused?: boolean;
   driverLocation?: { lat: number; lng: number } | null;
   onRideAccepted?: () => void;
   maxPickupRadius?: number;
@@ -66,36 +68,13 @@ const getVehicleIcon = (type: string) => {
   }
 };
 
-// Play notification sound
-const playNotificationSound = () => {
-  try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const playTone = (frequency: number, duration: number, startTime: number) => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      oscillator.frequency.value = frequency;
-      oscillator.type = "sine";
-      gainNode.gain.setValueAtTime(0, startTime);
-      gainNode.gain.linearRampToValueAtTime(0.4, startTime + 0.05);
-      gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
-      oscillator.start(startTime);
-      oscillator.stop(startTime + duration);
-    };
-    const now = audioContext.currentTime;
-    playTone(880, 0.15, now);
-    playTone(1100, 0.15, now + 0.15);
-    playTone(1320, 0.2, now + 0.3);
-  } catch {
-    logger.debug("RideRequestCard", "Audio not supported");
-  }
-};
+// صوت الإشعار يتم تشغيله من audioContext.ts المركزي
 
 export const RideRequestCard = ({
   driverId,
   vehicleType,
   isOnline,
+  isPaused = false,
   driverLocation,
   onRideAccepted,
   maxPickupRadius = 10,
@@ -162,7 +141,8 @@ export const RideRequestCard = ({
   }, [driverId]);
 
   const fetchPendingRides = useCallback(async () => {
-    if (!isOnline) {
+    // لا تبحث عن رحلات إذا كان السائق غير متصل أو في وضع الإيقاف المؤقت
+    if (!isOnline || isPaused) {
       setPendingRide(null);
       return;
     }
@@ -269,11 +249,11 @@ export const RideRequestCard = ({
       logger.error("RideRequestCard", "Error fetching rides", error);
       setPendingRide(null);
     }
-  }, [isOnline, vehicleType, driverLocation, maxPickupRadius, canDriverServeRide, searchFromDropoff, activeRideDropoff]);
+  }, [isOnline, isPaused, vehicleType, driverLocation, maxPickupRadius, canDriverServeRide, searchFromDropoff, activeRideDropoff]);
 
   // Subscribe to realtime ride insertions
   useEffect(() => {
-    if (!isOnline || !driverId) return;
+    if (!isOnline || !driverId || isPaused) return;
 
     logger.debug("RideRequestCard", "Setting up realtime subscription");
     

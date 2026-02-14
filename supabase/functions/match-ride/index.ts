@@ -100,6 +100,25 @@ serve(async (req) => {
       );
     }
 
+    // منع الحجز الذاتي - Check if rider is also a driver
+    const { data: riderAsDriver } = await supabase
+      .from("drivers")
+      .select("id")
+      .eq("user_id", ride.rider_id)
+      .single();
+
+    if (riderAsDriver) {
+      console.log("🚫 منع الحجز الذاتي - الراكب هو سائق أيضاً:", ride.rider_id);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "لا يمكنك حجز رحلة لنفسك",
+          error_code: "SELF_BOOKING_NOT_ALLOWED",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // 2. البحث عن السائقين المتاحين - Optimized query
     const { data: drivers, error: driversError } = await supabase
       .from("drivers")

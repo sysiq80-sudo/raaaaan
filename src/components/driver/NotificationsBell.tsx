@@ -8,7 +8,6 @@ import {
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
@@ -134,17 +133,14 @@ export function NotificationsBell({ driverId }: NotificationsBellProps) {
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
+        <button className="relative bg-black/40 backdrop-blur-md p-2.5 rounded-full border border-white/10 active:scale-95 transition-transform">
+          <Bell className="w-5 h-5 text-white" />
           {unreadCount > 0 && (
-            <Badge 
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
-              variant="destructive"
-            >
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white font-bold rounded-full text-[10px] flex items-center justify-center border-2 border-black px-0.5">
               {unreadCount > 9 ? '9+' : unreadCount}
-            </Badge>
+            </span>
           )}
-        </Button>
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between p-3 border-b">

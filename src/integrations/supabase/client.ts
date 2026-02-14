@@ -23,6 +23,12 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: true,
+    // تجاوز navigator.locks الذي قد يعلق إذا بقي قفل قديم من تبويب سابق
+    // lockNoOp: ينفذ العملية مباشرة بدون قفل — آمن لتطبيق تبويب واحد
+    lock: async (name: string, acquireTimeout: number, fn: () => Promise<any>) => {
+      return await fn();
+    },
   },
   // Add error handling and logging
   global: {

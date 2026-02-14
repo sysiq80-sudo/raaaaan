@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, User, Phone, ArrowRight, Loader2 } from "lucide-react";
+import { Mail, Lock, User, Phone, ArrowLeft, Loader2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import OTPVerification from "@/components/OTPVerification";
 import PasswordResetDialog from "@/components/PasswordResetDialog";
@@ -631,7 +631,7 @@ const Auth = () => {
                     ) : (
                       <>
                         إنشاء الحساب
-                        <ArrowRight className="mr-2 h-4 w-4" />
+                        <ArrowLeft className="ml-2 h-4 w-4" />
                       </>
                     )}
                   </Button>
@@ -656,7 +656,7 @@ const Auth = () => {
                   className="w-full text-white border-white hover:bg-white hover:text-gray-900 h-12 text-lg font-medium"
                 >
                   تسجيل دخول السائقين
-                  <ArrowRight className="mr-2 h-4 w-4" />
+                  <ArrowLeft className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
             </CardContent>

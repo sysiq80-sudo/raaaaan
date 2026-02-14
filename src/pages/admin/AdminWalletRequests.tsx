@@ -182,6 +182,8 @@ export default function AdminWalletRequests() {
 
   const getPaymentMethodName = (method: string) => {
     const methods: Record<string, string> = {
+      nass: "بوابة ناس",
+      nas_wallet: "المحفظة",
       zain_cash: "زين كاش",
       asia_hawala: "آسيا حوالة",
       fastpay: "فاست باي",

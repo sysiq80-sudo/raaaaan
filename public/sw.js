@@ -27,8 +27,8 @@ const API_CACHE_CONFIG = {
   'regions': { maxAge: 86400, strategy: 'cache-first' },
   // Landmarks - cache for 12 hours
   'landmarks': { maxAge: 43200, strategy: 'cache-first' },
-  // App settings - cache for 1 hour
-  'app_settings': { maxAge: 3600, strategy: 'cache-first' },
+  // App settings - cache for 5 minutes (reduced to prevent excessive caching)
+  'app_settings': { maxAge: 300, strategy: 'network-first' },
   // Promo banners - cache for 30 minutes
   'promo_banners': { maxAge: 1800, strategy: 'network-first' },
   // Saved places - cache for 5 minutes
@@ -176,6 +176,24 @@ function isResponseFresh(response, maxAge) {
   return age < maxAge;
 }
 
+// Limit cache size for API responses (max 50 entries per cache)
+async function limitCacheSize(cacheName, maxEntries = 50) {
+  try {
+    const cache = await caches.open(cacheName);
+    const requests = await cache.keys();
+    
+    if (requests.length > maxEntries) {
+      const entriesToDelete = requests.slice(0, requests.length - maxEntries);
+      for (const request of entriesToDelete) {
+        await cache.delete(request);
+      }
+      console.log(`[SW] Limited ${cacheName} to ${maxEntries} entries, deleted ${entriesToDelete.length}`);
+    }
+  } catch (error) {
+    console.error(`[SW] Failed to limit cache size for ${cacheName}:`, error);
+  }
+}
+
 // Add timestamp header to response before caching
 function addCacheTimestamp(response) {
   const headers = new Headers(response.headers);
@@ -212,26 +230,89 @@ self.addEventListener('install', (event) => {
     })
   );
   self.skipWaiting();
+  
+  // Start periodic cleanup (every 10 minutes)
+  setInterval(periodicCacheCleanup, 600000);
 });
 
-// Activate event - clean up old caches
+// Periodic cache cleanup to prevent excessive memory usage
+async function periodicCacheCleanup() {
+  try {
+    const cache = await caches.open(API_CACHE);
+    const requests = await cache.keys();
+    const now = Date.now();
+    let cleaned = 0;
+    
+    for (const request of requests) {
+      const response = await cache.match(request);
+      if (response) {
+        const cachedAt = parseInt(response.headers.get('sw-cached-at') || 0);
+        // Remove entries older than 24 hours
+        if (now - cachedAt > 86400000) {
+          await cache.delete(request);
+          cleaned++;
+        }
+      }
+    }
+    
+    if (cleaned > 0) {
+      console.log(`[SW] Periodic cleanup: removed ${cleaned} old cache entries`);
+    }
+    
+    // Also maintain size limit
+    await limitCacheSize(API_CACHE, 50);
+  } catch (error) {
+    console.error('[SW] Periodic cleanup failed:', error);
+  }
+}
+
+// Activate event - clean up old caches and expired entries
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating v3...');
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => {
-            // Delete old version caches
-            return name.startsWith('raan-') && 
-                   !name.includes(CACHE_VERSION);
-          })
-          .map((name) => {
-            console.log('[SW] Deleting old cache:', name);
-            return caches.delete(name);
-          })
-      );
-    })
+    Promise.all([
+      // Clean up old version caches
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames
+            .filter((name) => {
+              // Delete old version caches
+              return name.startsWith('raan-') && 
+                     !name.includes(CACHE_VERSION);
+            })
+            .map((name) => {
+              console.log('[SW] Deleting old cache:', name);
+              return caches.delete(name);
+            })
+        );
+      }),
+      // Clean up expired entries from current API cache
+      caches.open(API_CACHE).then((cache) => {
+        return cache.keys().then((requests) => {
+          const now = Date.now();
+          let cleaned = 0;
+          
+          return Promise.all(
+            requests.map(async (request) => {
+              const response = await cache.match(request);
+              if (response) {
+                const cachedAt = parseInt(response.headers.get('sw-cached-at') || 0);
+                const maxAge = 86400000; // 24 hours default max age in ms
+                
+                if (now - cachedAt > maxAge) {
+                  await cache.delete(request);
+                  cleaned++;
+                }
+              }
+            })
+          ).then(() => {
+            if (cleaned > 0) {
+              console.log(`[SW] Cleaned ${cleaned} expired entries from API cache`);
+            }
+          });
+        });
+      })
+    ])
   );
   self.clients.claim();
 });
@@ -581,6 +662,8 @@ async function handleApiRequest(request) {
       if (response.ok) {
         const responseToCache = addCacheTimestamp(response.clone());
         await cache.put(request, responseToCache);
+        // Limit cache size to prevent excessive memory usage
+        await limitCacheSize(API_CACHE, 50);
         console.log('[SW] Cached API response:', url);
       }
       return response;
@@ -600,6 +683,8 @@ async function handleApiRequest(request) {
     if (response.ok) {
       const responseToCache = addCacheTimestamp(response.clone());
       await cache.put(request, responseToCache);
+      // Limit cache size to prevent excessive memory usage
+      await limitCacheSize(API_CACHE, 50);
     }
     return response;
   } catch (error) {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import SplashScreen from "@/components/common/SplashScreen";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
+import RadiusSlider from "@/components/driver/RadiusSlider";
 import { toast } from "sonner";
 import { User, Session } from "@supabase/supabase-js";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -261,16 +263,7 @@ const DriverSettings = () => {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-primary flex items-center justify-center mb-4 animate-pulse">
-            <Car className="w-10 h-10 text-primary-foreground" />
-          </div>
-          <p className="text-muted-foreground">جاري التحميل...</p>
-        </div>
-      </div>
-    );
+    return <SplashScreen />;
   }
 
   if (!user) {
@@ -542,23 +535,15 @@ const DriverSettings = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label>نطاق استقبال الطلبات</Label>
-                  <span className="text-sm font-medium text-primary">{driverProfile.max_pickup_radius} كم</span>
-                </div>
-                <Slider
-                  value={[driverProfile.max_pickup_radius]}
-                  onValueChange={(value) => setDriverProfile({ ...driverProfile, max_pickup_radius: value[0] })}
-                  min={1}
-                  max={30}
-                  step={1}
-                  className="w-full"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  ستصلك طلبات من الركاب ضمن هذا النطاق فقط
-                </p>
-              </div>
+              <RadiusSlider
+                value={driverProfile.max_pickup_radius}
+                onChange={(v) => setDriverProfile({ ...driverProfile, max_pickup_radius: v })}
+                min={1}
+                max={30}
+                step={1}
+                driverLocation={null}
+                workingRegionId={null}
+              />
 
               <Separator />
 

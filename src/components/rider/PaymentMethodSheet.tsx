@@ -1,8 +1,7 @@
 import React from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import PaymentMethodSelector from './PaymentMethodSelector';
-
-type PaymentMethod = 'cash' | 'wallet' | 'card' | 'zain_cash' | 'super_key' | 'nas_wallet';
+import type { PaymentMethod } from '@/types/savedCards';
 
 interface PaymentMethodSheetProps {
   open: boolean;

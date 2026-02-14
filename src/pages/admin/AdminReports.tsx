@@ -175,16 +175,20 @@ const AdminReports = () => {
 
       const paymentLabels: Record<string, string> = {
         cash: "نقدي",
-        zain_cash: "زين كاش",
-        asia_hawala: "آسيا حوالة",
-        qi_card: "كي كارد",
+        nas_wallet: "المحفظة",
+        nass: "البطاقة",
+        zain_cash: "نقدي",
+        asia_hawala: "نقدي",
+        qi_card: "البطاقة",
       };
 
       const paymentColors: Record<string, string> = {
         cash: "hsl(var(--chart-1))",
-        zain_cash: "hsl(var(--chart-2))",
-        asia_hawala: "hsl(var(--chart-3))",
-        qi_card: "hsl(var(--chart-4))",
+        nas_wallet: "hsl(var(--chart-2))",
+        nass: "hsl(var(--chart-3))",
+        zain_cash: "hsl(var(--chart-1))",
+        asia_hawala: "hsl(var(--chart-1))",
+        qi_card: "hsl(var(--chart-3))",
       };
 
       setPaymentDistribution(

@@ -338,9 +338,13 @@ const AdminRiders = () => {
   const getPaymentMethodLabel = (method: string | null) => {
     const labels: Record<string, string> = {
       cash: "نقداً",
-      zain_cash: "زين كاش",
-      asia_hawala: "آسيا حوالة",
-      qi_card: "كي كارد"
+      nas_wallet: "المحفظة",
+      nass: "البطاقة",
+      wallet: "المحفظة",
+      card: "البطاقة",
+      zain_cash: "نقداً",
+      asia_hawala: "نقداً",
+      qi_card: "البطاقة"
     };
     return method ? labels[method] || method : "-";
   };

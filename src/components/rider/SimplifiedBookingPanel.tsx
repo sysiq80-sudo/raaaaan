@@ -20,9 +20,9 @@ import CompactVehicleSelector from "./CompactVehicleSelector";
 import PaymentMethodSelector from "./PaymentMethodSelector";
 import DriverETABadge from "./DriverETABadge";
 import { ScheduleRideDialog } from "./ScheduleRideDialog";
+import type { PaymentMethod } from "@/types/savedCards";
 
 type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
-type PaymentMethod = 'cash' | 'wallet' | 'card' | 'zain_cash' | 'super_key' | 'nas_wallet';
 
 interface DriverLocation {
   id: string;
@@ -94,9 +94,6 @@ const SimplifiedBookingPanel = ({
       cash: 'نقدي',
       wallet: 'المحفظة',
       card: 'البطاقة',
-      zain_cash: 'زين كاش',
-      super_key: 'سوبر كي',
-      nas_wallet: 'ناس ولت'
     };
     return labels[method];
   };

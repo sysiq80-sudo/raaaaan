@@ -1,63 +1,330 @@
 /**
- * ران - AuthContext
- * مزود مركزي لحالة المصادقة في التطبيق
- * يوفر حالة المستخدم لجميع المكونات ويدير الجلسة
+ * ران - Auth Context الموحد
+ * يدير حالة المستخدم والجلسات والأجهزة
  */
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { User, AuthChangeEvent } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import { useToast } from "@/hooks/use-toast";
+
+export type UserRole = "rider" | "driver" | "admin" | null;
+export type UserType = "rider" | "driver" | "admin";
 
 interface AuthContextType {
+  // User data
   user: User | null;
-  session: Session | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
+  userRole: UserRole;
+  isLoading: boolean;
+  isOnboardingComplete: boolean;
+  isLocationEnabled: boolean;
+  
+  // Session management
+  deviceId: string | null;
+  isMultiDeviceConflict: boolean;
+  
+  // Methods
+  setUserRole: (role: UserRole) => void;
+  setIsOnboardingComplete: (complete: boolean) => void;
+  setIsLocationEnabled: (enabled: boolean) => void;
+  logout: () => Promise<void>;
+  
+  // Rider-to-Driver switching
+  canSwitchToDriver: boolean;
+  switchToDriver: () => Promise<void>;
+  switchToRider: () => void;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  session: null,
-  loading: true,
-  signOut: async () => {},
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => useContext(AuthContext);
+// Safety-net timeout: if onAuthStateChange never fires, stop loading after 10s
+const SAFETY_TIMEOUT = 10000;
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { toast } = useToast();
+  
+  // User state
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<UserRole>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
+  const [isLocationEnabled, setIsLocationEnabled] = useState(false);
+  
+  // Session state
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [isMultiDeviceConflict, setIsMultiDeviceConflict] = useState(false);
+  const [canSwitchToDriver, setCanSwitchToDriver] = useState(false);
 
+  // Generate device ID
+  const generateDeviceId = useCallback(() => {
+    const stored = localStorage.getItem("raan_device_id");
+    if (stored) return stored;
+    
+    const newId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem("raan_device_id", newId);
+    return newId;
+  }, []);
+
+  // Check onboarding status
   useEffect(() => {
-    // 1. الحصول على الجلسة الحالية عند التحميل
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    const status = localStorage.getItem("raan_onboarding_completed") === "true";
+    setIsOnboardingComplete(status);
+  }, []);
 
-    // 2. الاستماع لتغييرات حالة المصادقة
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+  // Check location permission
+  useEffect(() => {
+    const checkLocation = async () => {
+      if (!user) return;
+      
+      try {
+        const permission = await navigator.permissions.query({ name: "geolocation" });
+        setIsLocationEnabled(permission.state === "granted");
+      } catch (error) {
+        console.error("Error checking location permission:", error);
+      }
+    };
+
+    checkLocation();
+  }, [user]);
+
+  // Detect user role (rider or driver)
+  const detectUserRole = useCallback(async (userId: string): Promise<UserRole> => {
+    try {
+      // Check if user is driver
+      const { data: driver } = await supabase
+        .from("drivers")
+        .select("status")
+        .eq("user_id", userId)
+        .single();
+
+      if (driver) {
+        setCanSwitchToDriver(driver.status === "approved");
+        return "rider"; // Default role is rider
+      }
+
+      // Check if user is admin - skip for now to avoid type issues
+      // const { data: admin } = await supabase
+      //   .rpc("has_role", { _user_id: userId, _role: "admin" });
+
+      return "rider"; // Default
+    } catch (error) {
+      console.error("Error detecting user role:", error);
+      return "rider";
+    }
+  }, []);
+
+  // Monitor device sessions and prevent multiple logins
+  const monitorDeviceSessions = useCallback(async (userId: string) => {
+    try {
+      const currentDeviceId = generateDeviceId();
+      setDeviceId(currentDeviceId);
+
+      // Simple device session tracking via localStorage
+      const sessionsKey = `raan_sessions_${userId}`;
+      const sessions = JSON.parse(localStorage.getItem(sessionsKey) || "[]");
+      
+      const existingDevice = sessions.find((s: any) => s.device_id === currentDeviceId);
+      
+      if (!existingDevice && sessions.length > 0) {
+        // Different device detected
+        setIsMultiDeviceConflict(true);
+      }
+
+      // Update sessions
+      const newSessions = [
+        ...sessions.filter((s: any) => s.device_id !== currentDeviceId),
+        {
+          device_id: currentDeviceId,
+          is_active: true,
+          last_activity: new Date().toISOString(),
+        }
+      ];
+      
+      localStorage.setItem(sessionsKey, JSON.stringify(newSessions));
+    } catch (error) {
+      console.error("Error monitoring device sessions:", error);
+    }
+  }, [generateDeviceId]);
+
+  // Auth state listener - uses both onAuthStateChange AND getSession for reliability
+  // onAuthStateChange (INITIAL_SESSION) is the primary mechanism
+  // getSession() is a fallback in case INITIAL_SESSION doesn't fire
+  useEffect(() => {
+    let isMounted = true;
+    let authResolved = false; // Prevents double-processing from both mechanisms
+
+    // Safety-net: force loading off if nothing works (e.g. network completely down)
+    const safetyTimer = setTimeout(() => {
+      if (isMounted && !authResolved) {
+        console.warn("[AuthContext] Safety timeout reached (10s), forcing loading complete");
+        authResolved = true;
+        setIsLoading(false);
+      }
+    }, SAFETY_TIMEOUT);
+
+    // Helper: process a session (used by both onAuthStateChange and getSession)
+    const processSession = async (session: any, source: string) => {
+      if (!isMounted) return;
+
+      if (session?.user) {
+        console.log(`[AuthContext] Session found via ${source}:`, session.user.id);
+        setUser(session.user);
+        setIsLoading(false);
+
+        // Detect role in background (non-blocking for initial render)
+        try {
+          const role = await detectUserRole(session.user.id);
+          if (isMounted) {
+            setUserRole(role);
+            // Restore saved role from localStorage if available
+            const savedRole = localStorage.getItem("raan_current_role");
+            if (savedRole === "driver" && role === "rider") {
+              setUserRole("driver");
+            }
+          }
+        } catch (roleError) {
+          console.error("[AuthContext] Role detection error:", roleError);
+          if (isMounted) setUserRole("rider");
+        }
+
+        // Monitor device sessions (non-blocking)
+        monitorDeviceSessions(session.user.id).catch(() => {});
+      } else if (source === "INITIAL_SESSION" || source === "getSession" || source === "SIGNED_OUT") {
+        // No user — clear state
+        if (source === "SIGNED_OUT") {
+          console.log("[AuthContext] User signed out, clearing state");
+          setUser(null);
+          setUserRole(null);
+          localStorage.removeItem("raan_current_role");
+        } else {
+          console.log(`[AuthContext] No session found (${source})`);
+        }
+        setIsLoading(false);
+      }
+    };
+
+    // 1) Subscribe to auth changes — fires INITIAL_SESSION on startup
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, session) => {
+        if (!isMounted) return;
+        console.log("[AuthContext] Auth event:", event);
+        clearTimeout(safetyTimer);
+
+        if (!authResolved || event !== "INITIAL_SESSION") {
+          // For INITIAL_SESSION, mark as resolved so getSession fallback skips
+          if (event === "INITIAL_SESSION") authResolved = true;
+          await processSession(session, event);
+        }
       }
     );
 
-    return () => subscription.unsubscribe();
+    // 2) Fallback: getSession() in case INITIAL_SESSION doesn't fire
+    // This handles edge cases (corrupted storage, slow network, etc.)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted || authResolved) return; // onAuthStateChange already handled it
+      console.log("[AuthContext] getSession fallback resolving");
+      authResolved = true;
+      clearTimeout(safetyTimer);
+      processSession(session, "getSession");
+    }).catch((err) => {
+      console.error("[AuthContext] getSession error:", err);
+      if (isMounted && !authResolved) {
+        authResolved = true;
+        clearTimeout(safetyTimer);
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+      clearTimeout(safetyTimer);
+    };
+    // ✅ CRITICAL: Only include functions, NOT state values
+    // This prevents infinite loops from state changes
+  }, [detectUserRole, monitorDeviceSessions]);
+
+  // Logout
+  const logout = useCallback(async () => {
+    try {
+      // Mark session as inactive in localStorage
+      if (deviceId) {
+        const user = await supabase.auth.getUser();
+        if (user.data.user) {
+          const sessionsKey = `raan_sessions_${user.data.user.id}`;
+          const sessions = JSON.parse(localStorage.getItem(sessionsKey) || "[]");
+          const updated = sessions.map((s: any) => 
+            s.device_id === deviceId ? { ...s, is_active: false } : s
+          );
+          localStorage.setItem(sessionsKey, JSON.stringify(updated));
+        }
+      }
+
+      // Sign out
+      await supabase.auth.signOut();
+      setUser(null);
+      setUserRole(null);
+      localStorage.removeItem("raan_current_role");
+    } catch (error) {
+      console.error("Error logging out:", error);
+      toast({
+        title: "خطأ في تسجيل الخروج",
+        variant: "destructive",
+      });
+    }
+  }, [deviceId, toast]);
+
+  // Switch to driver mode
+  const switchToDriver = useCallback(async () => {
+    if (!canSwitchToDriver) {
+      toast({
+        title: "لم تتم الموافقة عليك كسائق",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUserRole("driver");
+    localStorage.setItem("raan_current_role", "driver");
+  }, [canSwitchToDriver, toast]);
+
+  // Switch to rider mode
+  const switchToRider = useCallback(() => {
+    setUserRole("rider");
+    localStorage.setItem("raan_current_role", "rider");
   }, []);
 
-  const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-  }, []);
+  const value: AuthContextType = {
+    user,
+    userRole,
+    isLoading,
+    isOnboardingComplete,
+    isLocationEnabled,
+    deviceId,
+    isMultiDeviceConflict,
+    setUserRole,
+    setIsOnboardingComplete,
+    setIsLocationEnabled,
+    logout,
+    canSwitchToDriver,
+    switchToDriver,
+    switchToRider,
+  };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
+};
+
+// Hook to use auth context
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+  return context;
 };

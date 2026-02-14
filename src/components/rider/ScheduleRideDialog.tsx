@@ -11,6 +11,7 @@ import { format, addDays, addHours, setHours, setMinutes, isBefore, isAfter, sta
 import { ar } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { mapPaymentToDb } from '@/types/savedCards';
 
 interface ScheduleRideDialogProps {
   pickup: { lat: number; lng: number; address: string } | null;
@@ -127,7 +128,7 @@ export const ScheduleRideDialog = forwardRef<
         dropoff_address: dropoff.address,
         scheduled_at: scheduledAt.toISOString(),
         vehicle_type: vehicleType as any,
-        payment_method: paymentMethod as any,
+        payment_method: mapPaymentToDb(paymentMethod as any) as any,
         estimated_fare: estimatedFare,
         notes: notes || null,
         trip_type: tripType,

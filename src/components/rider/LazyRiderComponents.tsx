@@ -1,5 +1,6 @@
 import React, { lazy, Suspense, ComponentType } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import SplashScreen from '@/components/common/SplashScreen';
 
 // Loading fallbacks
 const MapLoadingSkeleton = () => (
@@ -11,14 +12,7 @@ const MapLoadingSkeleton = () => (
   </div>
 );
 
-const ScreenLoadingSkeleton = () => (
-  <div className="h-screen w-full bg-background flex items-center justify-center">
-    <div className="text-center space-y-4">
-      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-      <p className="text-muted-foreground">جاري التحميل...</p>
-    </div>
-  </div>
-);
+const ScreenLoadingSkeleton = () => <SplashScreen />;
 
 const PanelLoadingSkeleton = () => (
   <div className="p-4 space-y-4">
