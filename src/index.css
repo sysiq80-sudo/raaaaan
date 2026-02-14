@@ -1,4 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap");
+
+@import "./styles/rtl.css";
+@import "./styles/typography.css";
 
 @tailwind base;
 @tailwind components;
@@ -29,7 +32,7 @@
     --primary-light: 160 100% 55%;
     --primary-dark: 160 100% 35%;
     --primary-glow: 160 100% 50%;
-    
+
     /* الخلفيات - داكنة أنيقة */
     --background: 160 20% 4%;
     --foreground: 0 0% 98%;
@@ -53,13 +56,13 @@
     /* ألوان الحالة */
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    
+
     --success: 160 100% 45%;
     --success-foreground: 0 0% 100%;
-    
+
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    
+
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
 
@@ -88,7 +91,7 @@
   }
 
   html {
-    font-family: 'IBM Plex Sans Arabic', sans-serif;
+    font-family: "IBM Plex Sans Arabic", sans-serif;
     direction: rtl;
     font-size: 14px; /* Base font size for better mobile scaling */
   }
@@ -101,12 +104,19 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
     line-height: 1.5; /* Better line height for readability */
   }
 
   /* Responsive text scaling */
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-bold tracking-tight;
   }
 }
@@ -115,81 +125,114 @@
   /* تدرج النص الأخضر */
   .text-gradient {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(160 100% 50%), hsl(160 100% 70%));
+    background-image: linear-gradient(
+      135deg,
+      hsl(160 100% 50%),
+      hsl(160 100% 70%)
+    );
   }
-  
+
   /* تدرج الخلفية الأخضر */
   .bg-gradient-primary {
-    background-image: linear-gradient(135deg, hsl(160 100% 40%), hsl(160 100% 50%));
+    background-image: linear-gradient(
+      135deg,
+      hsl(160 100% 40%),
+      hsl(160 100% 50%)
+    );
   }
-  
+
   /* ظل أخضر متوهج */
   .shadow-glow {
-    box-shadow: 0 0 30px hsl(160 100% 50% / 0.3), 0 0 60px hsl(160 100% 50% / 0.15);
+    box-shadow:
+      0 0 30px hsl(160 100% 50% / 0.3),
+      0 0 60px hsl(160 100% 50% / 0.15);
   }
-  
+
   .shadow-glow-lg {
-    box-shadow: 0 0 50px hsl(160 100% 50% / 0.4), 0 0 100px hsl(160 100% 50% / 0.2);
+    box-shadow:
+      0 0 50px hsl(160 100% 50% / 0.4),
+      0 0 100px hsl(160 100% 50% / 0.2);
   }
-  
+
   .shadow-glow-sm {
     box-shadow: 0 0 15px hsl(160 100% 50% / 0.25);
   }
-  
+
   /* تأثير الزجاج الداكن */
   .glass {
     @apply bg-background/80 backdrop-blur-xl border-b border-border/50;
   }
-  
+
   .glass-card {
     @apply bg-card/50 backdrop-blur-xl border border-border/30 rounded-2xl;
   }
-  
+
   /* خلفية متدرجة للهيرو */
   .hero-gradient {
-    background: 
-      radial-gradient(ellipse 80% 50% at 50% -20%, hsl(160 100% 50% / 0.12), transparent),
-      radial-gradient(ellipse 60% 40% at 80% 50%, hsl(160 100% 45% / 0.08), transparent),
-      radial-gradient(ellipse 60% 40% at 20% 80%, hsl(160 100% 50% / 0.06), transparent);
+    background:
+      radial-gradient(
+        ellipse 80% 50% at 50% -20%,
+        hsl(160 100% 50% / 0.12),
+        transparent
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 80% 50%,
+        hsl(160 100% 45% / 0.08),
+        transparent
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 20% 80%,
+        hsl(160 100% 50% / 0.06),
+        transparent
+      );
   }
-  
+
   /* بطاقة متوهجة عند الهوفر */
   .card-hover {
     @apply transition-all duration-500;
   }
-  
+
   .card-hover:hover {
     @apply border-primary/50;
-    box-shadow: 0 0 30px hsl(160 100% 50% / 0.15), inset 0 0 20px hsl(160 100% 50% / 0.05);
+    box-shadow:
+      0 0 30px hsl(160 100% 50% / 0.15),
+      inset 0 0 20px hsl(160 100% 50% / 0.05);
   }
-  
+
   /* زر متوهج */
   .btn-glow {
     @apply relative overflow-hidden;
     transition: all 0.3s ease;
   }
-  
+
   .btn-glow:hover {
-    box-shadow: 0 0 40px hsl(160 100% 50% / 0.5), 0 0 80px hsl(160 100% 50% / 0.3);
+    box-shadow:
+      0 0 40px hsl(160 100% 50% / 0.5),
+      0 0 80px hsl(160 100% 50% / 0.3);
     transform: translateY(-2px);
   }
-  
+
   /* أيقونة متوهجة */
   .icon-glow {
     filter: drop-shadow(0 0 10px hsl(160 100% 50% / 0.6));
   }
-  
+
   /* خلفية النقاط */
   .dots-pattern {
-    background-image: radial-gradient(hsl(160 100% 50% / 0.15) 1px, transparent 1px);
+    background-image: radial-gradient(
+      hsl(160 100% 50% / 0.15) 1px,
+      transparent 1px
+    );
     background-size: 30px 30px;
   }
-  
+
   /* نص متوهج */
   .text-glow {
-    text-shadow: 0 0 30px hsl(160 100% 50% / 0.5), 0 0 60px hsl(160 100% 50% / 0.3);
+    text-shadow:
+      0 0 30px hsl(160 100% 50% / 0.5),
+      0 0 60px hsl(160 100% 50% / 0.3);
   }
-  
+
   /* حد متوهج */
   .border-glow {
     border: 1px solid hsl(160 100% 50% / 0.3);
@@ -199,63 +242,118 @@
 
 /* تأثيرات الحركة المتقدمة */
 @keyframes float {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-15px) rotate(1deg); }
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-15px) rotate(1deg);
+  }
 }
 
 @keyframes float-slow {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { 
+  0%,
+  100% {
     box-shadow: 0 0 20px hsl(160 100% 50% / 0.3);
   }
-  50% { 
+  50% {
     box-shadow: 0 0 50px hsl(160 100% 50% / 0.5);
   }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
 }
 
 @keyframes fade-up {
-  0% { opacity: 0; transform: translateY(40px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes fade-in {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 @keyframes scale-in {
-  0% { opacity: 0; transform: scale(0.9); }
-  100% { opacity: 1; transform: scale(1); }
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes slide-in-right {
-  0% { opacity: 0; transform: translateX(-30px); }
-  100% { opacity: 1; transform: translateX(0); }
+  0% {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @keyframes gradient-x {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 @keyframes ping-slow {
-  0% { transform: scale(1); opacity: 0.8; }
-  75%, 100% { transform: scale(2); opacity: 0; }
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  75%,
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
 }
 
 /* User location pulse ring animation for map markers */
 @keyframes pulse-ring {
-  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
-  100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0;
+  }
 }
 
 .animate-float {
@@ -296,14 +394,30 @@
 }
 
 /* تأخير الحركات */
-.delay-100 { animation-delay: 100ms; }
-.delay-200 { animation-delay: 200ms; }
-.delay-300 { animation-delay: 300ms; }
-.delay-400 { animation-delay: 400ms; }
-.delay-500 { animation-delay: 500ms; }
-.delay-600 { animation-delay: 600ms; }
-.delay-700 { animation-delay: 700ms; }
-.delay-800 { animation-delay: 800ms; }
+.delay-100 {
+  animation-delay: 100ms;
+}
+.delay-200 {
+  animation-delay: 200ms;
+}
+.delay-300 {
+  animation-delay: 300ms;
+}
+.delay-400 {
+  animation-delay: 400ms;
+}
+.delay-500 {
+  animation-delay: 500ms;
+}
+.delay-600 {
+  animation-delay: 600ms;
+}
+.delay-700 {
+  animation-delay: 700ms;
+}
+.delay-800 {
+  animation-delay: 800ms;
+}
 
 /* Fill mode for animations */
 .fill-forwards {
@@ -331,7 +445,7 @@
 
 /* Phone mockup shadows */
 .phone-shadow {
-  box-shadow: 
+  box-shadow:
     0 50px 100px -20px hsl(0 0% 0% / 0.5),
     0 30px 60px -30px hsl(0 0% 0% / 0.4),
     0 0 60px hsl(160 100% 50% / 0.1);
@@ -343,21 +457,30 @@
 }
 
 .gradient-border::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   padding: 1px;
   border-radius: inherit;
-  background: linear-gradient(135deg, hsl(160 100% 50% / 0.5), hsl(160 100% 50% / 0.1));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  background: linear-gradient(
+    135deg,
+    hsl(160 100% 50% / 0.5),
+    hsl(160 100% 50% / 0.1)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
 }
 
 /* Notification animations */
 @keyframes bounce-subtle {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -384,21 +507,27 @@
 
 /* Swap button animations */
 @keyframes swap-rotate {
-  0% { transform: rotate(0deg); }
-  50% { transform: rotate(180deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(180deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes swap-pulse {
-  0% { 
+  0% {
     box-shadow: 0 0 0 0 hsl(160 100% 50% / 0.6);
     transform: translate(-50%, -50%) scale(1);
   }
-  50% { 
+  50% {
     box-shadow: 0 0 0 10px hsl(160 100% 50% / 0);
     transform: translate(-50%, -50%) scale(1.1);
   }
-  100% { 
+  100% {
     box-shadow: 0 0 0 0 hsl(160 100% 50% / 0);
     transform: translate(-50%, -50%) scale(1);
   }
@@ -414,7 +543,8 @@
 
 /* Search pulse animation for waiting screen */
 @keyframes search-pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 1;
   }
@@ -430,16 +560,33 @@
 
 /* Encouraging message fade animation */
 @keyframes message-cycle {
-  0%, 100% { opacity: 1; transform: translateY(0); }
-  48% { opacity: 1; transform: translateY(0); }
-  50% { opacity: 0; transform: translateY(-10px); }
-  52% { opacity: 0; transform: translateY(10px); }
-  54% { opacity: 1; transform: translateY(0); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  48% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  52% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  54% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Mapbox cluster animations */
 @keyframes cluster-pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 0.4;
   }
@@ -483,7 +630,9 @@
   background: white;
   border-radius: 16px;
   padding: 12px;
-  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 10px 40px -10px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
   animation: popup-enter 0.25s ease-out;
 }
 
@@ -519,7 +668,9 @@
 /* Dark mode popup */
 .dark .driver-info-popup .mapboxgl-popup-content {
   background: hsl(160 15% 12%);
-  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 10px 40px -10px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .dark .driver-info-popup .mapboxgl-popup-tip {
@@ -593,10 +744,9 @@
 .manual-geolocate-button {
   display: flex !important;
   z-index: 99999 !important;
-  outline: 2px solid rgba(255,165,0,0.9) !important;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.6) !important;
+  outline: 2px solid rgba(255, 165, 0, 0.9) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6) !important;
 }
-
 
 /* Hide Mapbox control logo (keeps UI clean for our custom top bar) */
 .mapboxgl-ctrl-logo {
@@ -606,5 +756,3 @@
   margin: 0 !important;
   overflow: hidden !important;
 }
-
-

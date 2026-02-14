@@ -216,7 +216,7 @@ export const LiveRideTracker = ({
             });
             if (onRideComplete) onRideComplete();
           }
-        }
+        },
       )
       .on(
         "postgres_changes",
@@ -236,7 +236,7 @@ export const LiveRideTracker = ({
             setDriverLocation(newLocation);
             calculateETA(newLocation);
           }
-        }
+        },
       )
       .subscribe((status) => {
         console.log("Subscription status:", status);
@@ -275,7 +275,7 @@ export const LiveRideTracker = ({
             full_name,
             profile_image_url
           )
-        `
+        `,
         )
         .eq("id", rideId)
         .single();
@@ -554,7 +554,7 @@ export const LiveRideTracker = ({
                               currentStatus.dotColor
                             } ring-2 ring-offset-1 ring-offset-background ${currentStatus.dotColor.replace(
                               "bg-",
-                              "ring-"
+                              "ring-",
                             )}/30`
                           : "bg-emerald-500"
                         : "bg-muted-foreground/20"

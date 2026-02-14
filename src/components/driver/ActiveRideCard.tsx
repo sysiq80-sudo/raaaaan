@@ -9,6 +9,7 @@ import { ChatButton } from "@/components/ride/RideChat";
 import { DriverEmergencyButton } from "./DriverEmergencyButton";
 import { logger } from "@/lib/logger";
 import { roundFare } from "@/lib/constants";
+import FareBreakdownCard from "@/components/driver/FareBreakdownCard";
 import {
   playSound,
   vibrate,
@@ -139,6 +140,13 @@ export const ActiveRideCard = ({
   const [showCancellationNotice, setShowCancellationNotice] = useState(false);
   const [cancellationInfo, setCancellationInfo] =
     useState<CancellationInfo | null>(null);
+  const [fareBreakdown, setFareBreakdown] = useState<{
+    base_fare: number;
+    per_km_rate: number;
+    waiting_rate_per_min: number;
+    vehicle_multiplier: number;
+    total_fare: number;
+  } | null>(null);
   const [completedRideData, setCompletedRideData] = useState<{
     id: string;
     final_fare: number;
@@ -219,11 +227,10 @@ export const ActiveRideCard = ({
           filter: `driver_id=eq.${driverId}`,
         },
         (payload) => {
-          logger.debug(
-            "ActiveRideCard",
-            "Ride update via realtime",
-            { eventType: payload.eventType, ride: payload.new }
-          );
+          logger.debug("ActiveRideCard", "Ride update via realtime", {
+            eventType: payload.eventType,
+            ride: payload.new,
+          });
 
           // Immediately update state for faster response
           if (payload.eventType === "UPDATE") {
@@ -272,7 +279,7 @@ export const ActiveRideCard = ({
                   fee > 0
                     ? `ستحصل على تعويض مالي بقيمة ${fee.toLocaleString()} د.ع`
                     : "تم إلغاء الرحلة",
-                  { tag: "ride-cancelled", requireInteraction: true }
+                  { tag: "ride-cancelled", requireInteraction: true },
                 );
 
                 toast({
@@ -303,14 +310,14 @@ export const ActiveRideCard = ({
 
           // Also re-fetch for complete data
           fetchActiveRide();
-        }
+        },
       )
       .subscribe((status) => {
         logger.debug("ActiveRideCard", "Subscription status", status);
         if (status === "CHANNEL_ERROR") {
           logger.error(
             "ActiveRideCard",
-            "Channel error - setting up polling fallback"
+            "Channel error - setting up polling fallback",
           );
         }
       });
@@ -326,6 +333,44 @@ export const ActiveRideCard = ({
     };
   }, [driverId, fetchActiveRide]);
 
+  useEffect(() => {
+    if (!activeRide) return;
+    if (!activeRide.pickup_location || !activeRide.dropoff_location) return;
+
+    const fetchFareBreakdown = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke(
+          "calculate-fare",
+          {
+            body: {
+              pickup_lat: activeRide.pickup_location.lat,
+              pickup_lng: activeRide.pickup_location.lng,
+              dropoff_lat: activeRide.dropoff_location.lat,
+              dropoff_lng: activeRide.dropoff_location.lng,
+              distance_km: activeRide.distance_km || 0,
+              vehicle_type: activeRide.vehicle_type || "economy",
+              waiting_minutes: 0,
+            },
+          },
+        );
+
+        if (error) throw error;
+
+        if (data?.fare_breakdown) {
+          setFareBreakdown(data.fare_breakdown);
+        } else if (data?.fareBreakdown) {
+          setFareBreakdown(data.fareBreakdown);
+        } else if (data) {
+          setFareBreakdown(data);
+        }
+      } catch (error) {
+        logger.warn("ActiveRideCard", "Fare breakdown fetch failed", error);
+      }
+    };
+
+    fetchFareBreakdown();
+  }, [activeRide?.id]);
+
   // Setup broadcast channel for communication with rider - with proper subscription
   useEffect(() => {
     if (!activeRide) return;
@@ -333,7 +378,7 @@ export const ActiveRideCard = ({
     logger.debug(
       "ActiveRideCard",
       "Setting up broadcast channel for ride",
-      activeRide.id
+      activeRide.id,
     );
 
     const channel = supabase.channel(`ride-comm-${activeRide.id}`, {
@@ -349,7 +394,7 @@ export const ActiveRideCard = ({
         broadcastChannel.current = channel;
         logger.info(
           "ActiveRideCard",
-          "Channel ready for instant communication"
+          "Channel ready for instant communication",
         );
 
         // Send initial location immediately when channel is ready
@@ -377,7 +422,7 @@ export const ActiveRideCard = ({
   const notifyRider = async (
     event: string,
     message: string,
-    extraPayload?: Record<string, any>
+    extraPayload?: Record<string, any>,
   ) => {
     if (broadcastChannel.current) {
       try {
@@ -392,12 +437,16 @@ export const ActiveRideCard = ({
         });
         logger.debug("ActiveRideCard", `Sent broadcast: ${event}`);
       } catch (error) {
-        logger.error("ActiveRideCard", `Failed to send broadcast ${event}`, error);
+        logger.error(
+          "ActiveRideCard",
+          `Failed to send broadcast ${event}`,
+          error,
+        );
       }
     } else {
       logger.warn(
         "ActiveRideCard",
-        `Broadcast channel not ready, event queued: ${event}`
+        `Broadcast channel not ready, event queued: ${event}`,
       );
     }
   };
@@ -416,14 +465,16 @@ export const ActiveRideCard = ({
           timestamp: new Date().toISOString(),
         },
       })
-      .catch((err) => logger.error("ActiveRideCard", "Location broadcast error", err));
+      .catch((err) =>
+        logger.error("ActiveRideCard", "Location broadcast error", err),
+      );
   }, [driverLocation?.lat, driverLocation?.lng, activeRide?.id]);
 
   // Send quick message to rider
   const sendQuickMessageToRider = (
     event: string,
     message: string,
-    confirmTitle: string
+    confirmTitle: string,
   ) => {
     notifyRider(event, message);
 
@@ -444,13 +495,17 @@ export const ActiveRideCard = ({
     logger.debug(
       "ActiveRideCard",
       "Setting up rider message listener for ride",
-      activeRide.id
+      activeRide.id,
     );
 
     const commChannel = supabase
       .channel(`ride-comm-${activeRide.id}`)
       .on("broadcast", { event: "ride_completed_by_rider" }, (payload) => {
-        logger.debug("ActiveRideCard", "Received: ride_completed_by_rider", payload);
+        logger.debug(
+          "ActiveRideCard",
+          "Received: ride_completed_by_rider",
+          payload,
+        );
 
         playSound("completed");
         vibrate(VibrationPatterns.completed);
@@ -464,7 +519,7 @@ export const ActiveRideCard = ({
         showNotification(
           "🏁 الراكب أنهى الرحلة",
           "تم إنهاء الرحلة وستحصل على أرباحك قريباً",
-          { tag: "ride-completed-by-rider", requireInteraction: true }
+          { tag: "ride-completed-by-rider", requireInteraction: true },
         );
 
         // تحديث واجهة السائق
@@ -485,7 +540,7 @@ export const ActiveRideCard = ({
         showNotification(
           "🏁 الراكب وصل للوجهة!",
           "اضغط تم الوصول لإنهاء الرحلة وتحصيل الأجرة",
-          { tag: "rider-arrived", requireInteraction: true }
+          { tag: "rider-arrived", requireInteraction: true },
         );
       })
       .on("broadcast", { event: "rider_on_my_way" }, (payload) => {
@@ -523,7 +578,11 @@ export const ActiveRideCard = ({
         });
       })
       .on("broadcast", { event: "rider_where_are_you" }, (payload) => {
-        logger.debug("ActiveRideCard", "Received: rider_where_are_you", payload);
+        logger.debug(
+          "ActiveRideCard",
+          "Received: rider_where_are_you",
+          payload,
+        );
 
         playSound("riderQuestion");
         vibrate(VibrationPatterns.riderQuestion);
@@ -537,7 +596,7 @@ export const ActiveRideCard = ({
         showNotification(
           "📍 أين أنت؟",
           "الراكب يسأل عن موقعك - يمكنك الاتصال به",
-          { tag: "rider-question", requireInteraction: true }
+          { tag: "rider-question", requireInteraction: true },
         );
       })
       .on("broadcast", { event: "rider_waiting" }, (payload) => {
@@ -611,7 +670,7 @@ export const ActiveRideCard = ({
           showNotification(
             "⚠️ دقيقة واحدة متبقية!",
             "وقت الانتظار المجاني يوشك على الانتهاء",
-            { tag: "waiting-warning" }
+            { tag: "waiting-warning" },
           );
         }
 
@@ -629,7 +688,7 @@ export const ActiveRideCard = ({
           showNotification(
             "🚨 30 ثانية متبقية!",
             "الانتظار الإضافي سيُحتسب على العميل",
-            { tag: "waiting-critical", requireInteraction: true }
+            { tag: "waiting-critical", requireInteraction: true },
           );
         }
 
@@ -668,7 +727,7 @@ export const ActiveRideCard = ({
     try {
       // التحقق من الموقع الحالي بدقة عالية
       let currentLocation: { lat: number; lng: number };
-      
+
       if (driverLocation) {
         currentLocation = driverLocation;
       } else {
@@ -676,7 +735,7 @@ export const ActiveRideCard = ({
           title: "جاري تحديد موقعك...",
           description: "يرجى الانتظار",
         });
-        
+
         const position = await getCurrentLocationHighAccuracy();
         currentLocation = {
           lat: position.coords.latitude,
@@ -688,7 +747,7 @@ export const ActiveRideCard = ({
       const validation = validateDriverAtPickup(
         currentLocation,
         activeRide.pickup_location,
-        100
+        100,
       );
 
       if (!validation.isValid) {
@@ -788,7 +847,7 @@ export const ActiveRideCard = ({
     try {
       // التحقق من الموقع الحالي بدقة عالية
       let currentLocation: { lat: number; lng: number };
-      
+
       if (driverLocation) {
         currentLocation = driverLocation;
       } else {
@@ -796,7 +855,7 @@ export const ActiveRideCard = ({
           title: "جاري تحديد موقعك...",
           description: "يرجى الانتظار",
         });
-        
+
         const position = await getCurrentLocationHighAccuracy();
         currentLocation = {
           lat: position.coords.latitude,
@@ -808,7 +867,7 @@ export const ActiveRideCard = ({
       const validation = validateDriverAtDropoff(
         currentLocation,
         activeRide.dropoff_location,
-        150
+        150,
       );
 
       if (!validation.isValid) {
@@ -824,7 +883,7 @@ export const ActiveRideCard = ({
       const waitingMinutes =
         activeRide.status === "arrived"
           ? Math.floor(
-              (Date.now() - new Date(activeRide.created_at).getTime()) / 60000
+              (Date.now() - new Date(activeRide.created_at).getTime()) / 60000,
             )
           : 0;
 
@@ -1022,8 +1081,18 @@ export const ActiveRideCard = ({
                 className="h-8 w-8 p-0 hover:bg-white/20 text-white"
                 title="تصغير البطاقة"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M20 12H4"
+                  />
                 </svg>
               </Button>
             )}
@@ -1046,8 +1115,8 @@ export const ActiveRideCard = ({
                     {activeRide.payment_method === "cash"
                       ? "الدفع نقداً"
                       : activeRide.payment_method === "wallet"
-                      ? "المحفظة"
-                      : "الدفع نقداً"}
+                        ? "المحفظة"
+                        : "الدفع نقداً"}
                   </span>
                   <span className="flex items-center gap-1 text-amber-400">
                     <Star className="w-3 h-3" />
@@ -1092,8 +1161,8 @@ export const ActiveRideCard = ({
                     const whatsappNumber = cleanPhone.startsWith("0")
                       ? "964" + cleanPhone.slice(1)
                       : cleanPhone.startsWith("964")
-                      ? cleanPhone
-                      : "964" + cleanPhone;
+                        ? cleanPhone
+                        : "964" + cleanPhone;
                     window.open(`https://wa.me/${whatsappNumber}`, "_blank");
                   } else {
                     toast({
@@ -1175,6 +1244,23 @@ export const ActiveRideCard = ({
             </div>
           </div>
 
+          {fareBreakdown && (
+            <div className="mb-3">
+              <FareBreakdownCard
+                baseFare={fareBreakdown.base_fare || 0}
+                distanceKm={activeRide.distance_km || 0}
+                perKmRate={fareBreakdown.per_km_rate || 0}
+                waitingMinutes={0}
+                waitingRatePerMin={fareBreakdown.waiting_rate_per_min || 0}
+                vehicleType={activeRide.vehicle_type || "economy"}
+                vehicleMultiplier={fareBreakdown.vehicle_multiplier || 1}
+                finalFare={
+                  fareBreakdown.total_fare || activeRide.estimated_fare || 0
+                }
+              />
+            </div>
+          )}
+
           {/* Navigation Button with Waze/Google/Apple support */}
           <NavigationButton
             lat={
@@ -1194,10 +1280,17 @@ export const ActiveRideCard = ({
             }
             size="compact"
             className="mb-3"
-            onOpenModal={onNavigationClick ? (lat, lng) => {
-              const label = activeRide.status === "in_progress" ? "الوجهة" : "موقع العميل";
-              onNavigationClick(lat, lng, label);
-            } : undefined}
+            onOpenModal={
+              onNavigationClick
+                ? (lat, lng) => {
+                    const label =
+                      activeRide.status === "in_progress"
+                        ? "الوجهة"
+                        : "موقع العميل";
+                    onNavigationClick(lat, lng, label);
+                  }
+                : undefined
+            }
           />
 
           {/* Quick Messages to Rider */}
@@ -1215,7 +1308,7 @@ export const ActiveRideCard = ({
                     sendQuickMessageToRider(
                       "driver_approaching_soon",
                       "السائق قريب وفي الطريق إليك",
-                      "✅ تم إبلاغ الراكب"
+                      "✅ تم إبلاغ الراكب",
                     )
                   }
                 >
@@ -1232,10 +1325,10 @@ export const ActiveRideCard = ({
                         activeRide.vehicle_type === "economy"
                           ? "اقتصادية"
                           : activeRide.vehicle_type === "comfort"
-                          ? "مريحة"
-                          : "فاخرة"
+                            ? "مريحة"
+                            : "فاخرة"
                       }`,
-                      "✅ تم إرسال معلومات السيارة"
+                      "✅ تم إرسال معلومات السيارة",
                     )
                   }
                 >
@@ -1259,7 +1352,7 @@ export const ActiveRideCard = ({
                     sendQuickMessageToRider(
                       "driver_at_location",
                       "وصلت للموقع - أنا بانتظارك",
-                      "✅ تم إبلاغ الراكب"
+                      "✅ تم إبلاغ الراكب",
                     )
                   }
                 >
@@ -1273,7 +1366,7 @@ export const ActiveRideCard = ({
                     sendQuickMessageToRider(
                       "driver_waiting_outside",
                       "أنتظرك أمام البناية",
-                      "✅ تم إبلاغ الراكب"
+                      "✅ تم إبلاغ الراكب",
                     )
                   }
                 >
@@ -1287,7 +1380,7 @@ export const ActiveRideCard = ({
                     sendQuickMessageToRider(
                       "driver_car_color",
                       "السيارة بالقرب منك - ابحث عني!",
-                      "✅ تم إبلاغ الراكب"
+                      "✅ تم إبلاغ الراكب",
                     )
                   }
                 >
@@ -1326,7 +1419,8 @@ export const ActiveRideCard = ({
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    <CheckCircle className="w-4 h-4 ml-2" />✓ العميل ركب في السيارة
+                    <CheckCircle className="w-4 h-4 ml-2" />✓ العميل ركب في
+                    السيارة
                   </>
                 )}
               </Button>

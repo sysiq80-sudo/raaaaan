@@ -48,7 +48,8 @@ export class GoogleMarkerPool {
       if (options.map) marker.setMap(options.map);
       if (options.title) marker.setTitle(options.title);
       if (options.icon) marker.setIcon(options.icon);
-      if (options.draggable !== undefined) marker.setDraggable(options.draggable);
+      if (options.draggable !== undefined)
+        marker.setDraggable(options.draggable);
       if (options.opacity !== undefined) marker.setOpacity(options.opacity);
       if (options.zIndex !== undefined) marker.setZIndex(options.zIndex);
     }
@@ -171,7 +172,7 @@ export const MARKER_STYLES = {
  */
 export const createSvgIcon = (
   svgString: string,
-  scale: number = 1
+  scale: number = 1,
 ): google.maps.Icon => {
   const svg = new Blob([svgString], { type: "image/svg+xml" });
   const url = URL.createObjectURL(svg);
@@ -187,7 +188,9 @@ export const createSvgIcon = (
 /**
  * Get marker icon for different types
  */
-export const getMarkerIcon = (type: "pickup" | "dropoff" | "driver" | "user" | "landmark"): google.maps.Symbol => {
+export const getMarkerIcon = (
+  type: "pickup" | "dropoff" | "driver" | "user" | "landmark",
+): google.maps.Symbol => {
   const style = MARKER_STYLES[type];
 
   // Return Google Maps Symbol (not Icon)
@@ -204,7 +207,9 @@ export const getMarkerIcon = (type: "pickup" | "dropoff" | "driver" | "user" | "
 /**
  * Calculate map bounds from multiple points
  */
-export const calculateBounds = (points: Array<{ lat: number; lng: number }>): google.maps.LatLngBounds => {
+export const calculateBounds = (
+  points: Array<{ lat: number; lng: number }>,
+): google.maps.LatLngBounds => {
   const bounds = new google.maps.LatLngBounds();
 
   points.forEach((point) => {
@@ -220,7 +225,7 @@ export const calculateBounds = (points: Array<{ lat: number; lng: number }>): go
 export const fitMapToBounds = (
   map: google.maps.Map,
   bounds: google.maps.LatLngBounds,
-  padding: number = 50
+  padding: number = 50,
 ): void => {
   map.fitBounds(bounds, padding);
 };
@@ -228,7 +233,9 @@ export const fitMapToBounds = (
 /**
  * Geocode an address using Google Maps API
  */
-export const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+export const geocodeAddress = async (
+  address: string,
+): Promise<{ lat: number; lng: number } | null> => {
   if (!window.google) return null;
 
   const geocoder = new google.maps.Geocoder();
@@ -258,7 +265,7 @@ export const geocodeAddress = async (address: string): Promise<{ lat: number; ln
 export const reverseGeocodeCoordinates = async (
   lat: number,
   lng: number,
-  map?: google.maps.Map
+  map?: google.maps.Map,
 ): Promise<string | null> => {
   if (!window.google) return null;
 
@@ -267,7 +274,7 @@ export const reverseGeocodeCoordinates = async (
     const geocoder = new google.maps.Geocoder();
     const result = await geocoder.geocode({
       location: { lat, lng },
-      language: 'ar'
+      language: "ar",
     });
 
     if (!result.results || result.results.length === 0) return null;
@@ -282,38 +289,78 @@ export const reverseGeocodeCoordinates = async (
         const request = {
           location: new google.maps.LatLng(lat, lng),
           radius: 50,
-          language: 'ar'
+          language: "ar",
         };
-        
+
         poiName = await new Promise<string | null>((resolve) => {
           placesService.nearbySearch(request, (results, status) => {
-            if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+            if (
+              status === google.maps.places.PlacesServiceStatus.OK &&
+              results &&
+              results.length > 0
+            ) {
               const nearestPlace = results[0];
-              
+
               // ✅ فلترة: فقط الأماكن المميزة
               const validPoiTypes = [
-                'hospital', 'clinic', 'doctor', 'pharmacy',
-                'mosque', 'church', 'place_of_worship',
-                'school', 'university', 'library',
-                'government', 'city_hall', 'police', 'fire_station',
-                'shopping_mall', 'supermarket', 'store',
-                'restaurant', 'cafe', 'bakery',
-                'bank', 'atm', 'post_office',
-                'gas_station', 'car_repair',
-                'park', 'stadium', 'gym',
-                'museum', 'tourist_attraction', 'point_of_interest'
+                "hospital",
+                "clinic",
+                "doctor",
+                "pharmacy",
+                "mosque",
+                "church",
+                "place_of_worship",
+                "school",
+                "university",
+                "library",
+                "government",
+                "city_hall",
+                "police",
+                "fire_station",
+                "shopping_mall",
+                "supermarket",
+                "store",
+                "restaurant",
+                "cafe",
+                "bakery",
+                "bank",
+                "atm",
+                "post_office",
+                "gas_station",
+                "car_repair",
+                "park",
+                "stadium",
+                "gym",
+                "museum",
+                "tourist_attraction",
+                "point_of_interest",
               ];
-              
-              const hasValidType = nearestPlace.types?.some(t => validPoiTypes.includes(t));
-              const isRoute = nearestPlace.types?.includes('route');
-              const isNeighborhood = nearestPlace.types?.includes('neighborhood');
-              
-              if (nearestPlace.name && hasValidType && !isRoute && !isNeighborhood) {
-                console.log("✅ Valid POI found via Places API:", nearestPlace.name);
+
+              const hasValidType = nearestPlace.types?.some((t) =>
+                validPoiTypes.includes(t),
+              );
+              const isRoute = nearestPlace.types?.includes("route");
+              const isNeighborhood =
+                nearestPlace.types?.includes("neighborhood");
+
+              if (
+                nearestPlace.name &&
+                hasValidType &&
+                !isRoute &&
+                !isNeighborhood
+              ) {
+                console.log(
+                  "✅ Valid POI found via Places API:",
+                  nearestPlace.name,
+                );
                 resolve(nearestPlace.name);
                 return;
               } else {
-                console.log("⚠️ Filtered out non-POI:", nearestPlace.name, nearestPlace.types);
+                console.log(
+                  "⚠️ Filtered out non-POI:",
+                  nearestPlace.name,
+                  nearestPlace.types,
+                );
               }
             }
             resolve(null);
@@ -326,13 +373,14 @@ export const reverseGeocodeCoordinates = async (
 
     // Step 3: Look for POI in geocoding results if not found
     if (!poiName) {
-      const poiResult = result.results.find(r => 
-        r.types.includes('point_of_interest') && 
-        r.name &&
-        !r.types.includes('route') &&
-        !r.types.includes('neighborhood')
+      const poiResult = result.results.find(
+        (r) =>
+          r.types.includes("point_of_interest") &&
+          r.name &&
+          !r.types.includes("route") &&
+          !r.types.includes("neighborhood"),
       );
-      
+
       if (poiResult && poiResult.name) {
         poiName = poiResult.name;
         console.log("✅ POI name from geocoding:", poiName);
@@ -340,22 +388,22 @@ export const reverseGeocodeCoordinates = async (
     }
 
     // Step 4: Build final address (POI + address without Plus Code)
-    const addressParts = finalAddress.split(',').map(p => p.trim());
+    const addressParts = finalAddress.split(",").map((p) => p.trim());
     const isPlusCode = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/.test(addressParts[0]);
-    
+
     if (isPlusCode) {
       addressParts.shift(); // Remove Plus Code
       console.log("⚠️ Removed Plus Code from address");
     }
-    
+
     if (poiName) {
       // POI name + rest of address
-      finalAddress = [poiName, ...addressParts].join('، ');
+      finalAddress = [poiName, ...addressParts].join("، ");
       console.log("✅ Final address with POI:", finalAddress);
     } else if (isPlusCode) {
       // No POI but Plus Code was removed
-      finalAddress = addressParts.join('، ');
-      
+      finalAddress = addressParts.join("، ");
+
       if (!finalAddress && result.results.length > 1) {
         finalAddress = result.results[1].formatted_address;
       }
@@ -374,7 +422,8 @@ export const reverseGeocodeCoordinates = async (
 export const getDirections = async (
   origin: { lat: number; lng: number },
   destination: { lat: number; lng: number },
-  waypoints?: Array<{ lat: number; lng: number }>
+  waypoints?: Array<{ lat: number; lng: number }>,
+  options?: { optimizeWaypoints?: boolean },
 ): Promise<{
   distance: string;
   duration: string;
@@ -393,13 +442,26 @@ export const getDirections = async (
         location: new google.maps.LatLng(w.lat, w.lng),
         stopover: true,
       })),
+      optimizeWaypoints: options?.optimizeWaypoints || false,
     };
 
     const result = await directionsService.route(request);
 
     if (result.routes && result.routes.length > 0) {
       const route = result.routes[0];
-      const leg = route.legs[0];
+      const totalDistanceMeters = route.legs.reduce(
+        (sum, leg) => sum + (leg.distance?.value || 0),
+        0,
+      );
+      const totalDurationSeconds = route.legs.reduce(
+        (sum, leg) => sum + (leg.duration?.value || 0),
+        0,
+      );
+      const totalDistanceKm = totalDistanceMeters / 1000;
+      const totalDurationMinutes = Math.max(
+        1,
+        Math.round(totalDurationSeconds / 60),
+      );
 
       // Extract route coordinates
       const routeCoordinates: Array<{ lat: number; lng: number }> = [];
@@ -411,8 +473,8 @@ export const getDirections = async (
       });
 
       return {
-        distance: leg.distance?.text || "",
-        duration: leg.duration?.text || "",
+        distance: `${totalDistanceKm.toFixed(1)} كم`,
+        duration: `${totalDurationMinutes} دقيقة`,
         route: routeCoordinates,
       };
     }
@@ -430,13 +492,13 @@ export const getDirections = async (
 export const drawPolyline = (
   map: google.maps.Map,
   path: Array<{ lat: number; lng: number }>,
-  options?: google.maps.PolylineOptions
+  options?: google.maps.PolylineOptions,
 ): google.maps.Polyline => {
   if (!map) {
     console.error("❌ No map provided to drawPolyline");
     return null as any;
   }
-  
+
   if (!path || path.length === 0) {
     console.error("❌ No path provided to drawPolyline");
     return null as any;
@@ -458,7 +520,7 @@ export const drawPolyline = (
 export const drawPolygon = (
   map: google.maps.Map,
   path: Array<{ lat: number; lng: number }>,
-  options?: google.maps.PolygonOptions
+  options?: google.maps.PolygonOptions,
 ): google.maps.Polygon => {
   return new google.maps.Polygon({
     paths: path.map((p) => new google.maps.LatLng(p.lat, p.lng)),
@@ -473,7 +535,7 @@ export const drawPolygon = (
 export const addInfoWindow = (
   map: google.maps.Map,
   position: { lat: number; lng: number },
-  content: string
+  content: string,
 ): google.maps.InfoWindow => {
   const infoWindow = new google.maps.InfoWindow({
     content,
@@ -489,7 +551,7 @@ export const addInfoWindow = (
  */
 export const createHeatmap = (
   map: google.maps.Map,
-  points: Array<{ lat: number; lng: number }>
+  points: Array<{ lat: number; lng: number }>,
 ): google.maps.visualization.HeatmapLayer | null => {
   if (!window.google || !google.maps.visualization) {
     console.warn("Google Maps visualization library not loaded");

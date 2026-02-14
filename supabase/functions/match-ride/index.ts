@@ -12,7 +12,7 @@ function calculateDistance(
   lat1: number,
   lng1: number,
   lat2: number,
-  lng2: number
+  lng2: number,
 ): number {
   const R = 6371; // نصف قطر الأرض بالكيلومتر
   const dLat = (lat2 - lat1) * 0.017453292519943295; // Math.PI / 180
@@ -41,7 +41,7 @@ function calculateETA(distanceKm: number): number {
 function isVehicleTypeCompatible(
   driverType: string,
   rideType: string,
-  preferWomenDriver: boolean
+  preferWomenDriver: boolean,
 ): boolean {
   // إذا كان العميل يفضّل سائقة، لا نقبل إلا women_only
   if (preferWomenDriver) return driverType === "women_only";
@@ -96,7 +96,7 @@ serve(async (req) => {
           message: "الرحلة ليست في حالة انتظار",
           status: ride.status,
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -104,7 +104,7 @@ serve(async (req) => {
     const { data: drivers, error: driversError } = await supabase
       .from("drivers")
       .select(
-        "id, user_id, full_name, vehicle_type, current_location, rating, total_rides, max_pickup_radius"
+        "id, user_id, full_name, vehicle_type, current_location, rating, total_rides, max_pickup_radius",
       )
       .eq("is_online", true)
       .eq("is_available", true)
@@ -133,7 +133,7 @@ serve(async (req) => {
           message: "لا يوجد سائقين متاحين حالياً",
           drivers_count: 0,
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -144,7 +144,13 @@ serve(async (req) => {
     const driversWithDistance = drivers
       .filter((driver) => {
         // Filter by vehicle type compatibility + تفضيل السائقة
-        if (!isVehicleTypeCompatible(driver.vehicle_type, ride.vehicle_type, !!ride.prefer_women_driver))
+        if (
+          !isVehicleTypeCompatible(
+            driver.vehicle_type,
+            ride.vehicle_type,
+            !!ride.prefer_women_driver,
+          )
+        )
           return false;
         // Skip already notified drivers
         if (alreadyNotified.has(driver.id)) return false;
@@ -159,30 +165,26 @@ serve(async (req) => {
           pickupLoc.lat,
           pickupLoc.lng,
           driverLoc.lat,
-          driverLoc.lng
+          driverLoc.lng,
         );
         const eta = calculateETA(distance);
-        const maxRadius = (driver.max_pickup_radius || 10) + (ride.high_priority ? 5 : 0);
+        const maxRadius =
+          (driver.max_pickup_radius || 10) + (ride.high_priority ? 5 : 0);
 
-        // Enhanced priority scoring
-        const distanceScore = Math.max(0, 100 - distance * 10);
-        const ratingScore = (driver.rating || 5.0) * 15;
-        const experienceScore = Math.min(30, (driver.total_rides || 0) / 5);
-        // Bonus for exact vehicle type match
-        const vehicleMatchBonus =
-          driver.vehicle_type === ride.vehicle_type ? 20 : 0;
-        // Bonus for high priority rides
-        const priorityBonus = ride.high_priority ? 15 : 0;
-        // Penalty if distance exceeds driver's preferred radius
-        const radiusPenalty = distance > maxRadius ? -30 : 0;
-
-        const priorityScore =
-          distanceScore +
-          ratingScore +
-          experienceScore +
-          vehicleMatchBonus +
-          priorityBonus +
-          radiusPenalty;
+        // Weighted dispatch: distance + rating (primary) with a small experience tie-breaker
+        const normalizedDistance = Math.max(0, 1 - distance / maxRadius);
+        const normalizedRating = Math.min(5, driver.rating || 5.0) / 5;
+        const distanceWeight = 0.7;
+        const ratingWeight = 0.3;
+        const experienceBonus = Math.min(
+          0.05,
+          (driver.total_rides || 0) / 1000,
+        );
+        const weightedScore =
+          normalizedDistance * distanceWeight +
+          normalizedRating * ratingWeight +
+          experienceBonus;
+        const priorityScore = Math.round(weightedScore * 100);
 
         return {
           ...driver,
@@ -205,7 +207,7 @@ serve(async (req) => {
           drivers_count: 0,
           already_notified: alreadyNotified.size,
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -221,7 +223,7 @@ serve(async (req) => {
         eta: d.eta_minutes,
         score: d.priority_score,
         vehicle: d.vehicle_type,
-      }))
+      })),
     );
 
     // 5. تسجيل محاولات المطابقة - Batch insert
@@ -296,13 +298,13 @@ serve(async (req) => {
                 priority: index + 1,
               },
             },
-          }
+          },
         );
 
         if (notifError) {
           console.error(
             `❌ فشل إرسال الإشعار للسائق ${driver.full_name}:`,
-            notifError
+            notifError,
           );
           return { success: false, error: notifError };
         }
@@ -310,7 +312,7 @@ serve(async (req) => {
         console.log(
           `✅ إشعار للسائق ${driver.full_name} (${index + 1}/${
             topDrivers.length
-          })`
+          })`,
         );
         return { success: true, driver_id: driver.id };
       } catch (error) {
@@ -326,7 +328,7 @@ serve(async (req) => {
     const processingTime = Math.round(endTime - startTime);
 
     console.log(
-      `📨 تم إرسال ${successCount}/${topDrivers.length} إشعار (${processingTime}ms)`
+      `📨 تم إرسال ${successCount}/${topDrivers.length} إشعار (${processingTime}ms)`,
     );
 
     return new Response(
@@ -347,7 +349,7 @@ serve(async (req) => {
           vehicle_type: d.vehicle_type,
         })),
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
     console.error("❌ خطأ في مطابقة الرحلة:", error);
@@ -362,7 +364,7 @@ serve(async (req) => {
       {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 });

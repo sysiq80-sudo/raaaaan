@@ -43,6 +43,8 @@ export const useRiderData = () => {
   // This is kept for compatibility but now just initializes as ready
   useEffect(() => {
     let mounted = true;
+    let retryCount = 0;
+    const maxRetries = 3;
 
     const initializeMapToken = () => {
       if (mounted) {
@@ -73,7 +75,7 @@ export const useRiderData = () => {
 
     if (navigator.geolocation) {
       console.log("📍 Requesting user location (non-blocking)...");
-      
+
       // Try high accuracy first (15 seconds timeout)
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -81,7 +83,7 @@ export const useRiderData = () => {
             console.log(
               "✅ User location received:",
               position.coords.latitude,
-              position.coords.longitude
+              position.coords.longitude,
             );
             setUserLocation({
               lat: position.coords.latitude,
@@ -90,8 +92,12 @@ export const useRiderData = () => {
           }
         },
         (error) => {
-          console.warn("⚠️ High-accuracy geolocation failed:", error.code, error.message);
-          
+          console.warn(
+            "⚠️ High-accuracy geolocation failed:",
+            error.code,
+            error.message,
+          );
+
           // Fallback: Try with lower accuracy (coarse - WiFi/Cell)
           if (mounted) {
             console.log("📍 Falling back to coarse location (WiFi/Cell)...");
@@ -106,14 +112,17 @@ export const useRiderData = () => {
                 }
               },
               (fallbackError) => {
-                console.warn("⚠️ Coarse geolocation also failed:", fallbackError.message);
+                console.warn(
+                  "⚠️ Coarse geolocation also failed:",
+                  fallbackError.message,
+                );
                 // Default location already set above - no crash
               },
-              { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+              { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
             );
           }
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
       );
     } else {
       console.warn("⚠️ Geolocation not supported - using default location");

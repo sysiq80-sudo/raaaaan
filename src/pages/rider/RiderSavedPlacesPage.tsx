@@ -61,23 +61,28 @@ interface CurrentLocation {
 }
 
 const PRESET_LABELS = [
-  { label: 'home', name: 'المنزل', icon: '🏠', lucideIcon: Home },
-  { label: 'work', name: 'العمل', icon: '💼', lucideIcon: Briefcase },
-  { label: 'favorite', name: 'مفضل', icon: '⭐', lucideIcon: Star },
+  { label: "home", name: "المنزل", icon: "🏠", lucideIcon: Home },
+  { label: "work", name: "العمل", icon: "💼", lucideIcon: Briefcase },
+  { label: "favorite", name: "مفضل", icon: "⭐", lucideIcon: Star },
 ];
 
 const EXTENDED_ICONS = [
-  { icon: '🏠', label: 'home', name: 'منزل', lucideIcon: Home },
-  { icon: '💼', label: 'work', name: 'عمل', lucideIcon: Briefcase },
-  { icon: '⭐', label: 'favorite', name: 'مفضل', lucideIcon: Star },
-  { icon: '❤️', label: 'loved', name: 'محبب', lucideIcon: Heart },
-  { icon: '🎓', label: 'school', name: 'مدرسة/جامعة', lucideIcon: GraduationCap },
-  { icon: '💪', label: 'gym', name: 'نادي رياضي', lucideIcon: Dumbbell },
-  { icon: '🍽️', label: 'restaurant', name: 'مطعم', lucideIcon: Utensils },
-  { icon: '🏥', label: 'hospital', name: 'مستشفى', lucideIcon: Cross },
-  { icon: '🛍️', label: 'shopping', name: 'تسوق', lucideIcon: ShoppingBag },
-  { icon: '🏢', label: 'office', name: 'مكتب', lucideIcon: Building2 },
-  { icon: '📍', label: 'other', name: 'آخر', lucideIcon: MapPin },
+  { icon: "🏠", label: "home", name: "منزل", lucideIcon: Home },
+  { icon: "💼", label: "work", name: "عمل", lucideIcon: Briefcase },
+  { icon: "⭐", label: "favorite", name: "مفضل", lucideIcon: Star },
+  { icon: "❤️", label: "loved", name: "محبب", lucideIcon: Heart },
+  {
+    icon: "🎓",
+    label: "school",
+    name: "مدرسة/جامعة",
+    lucideIcon: GraduationCap,
+  },
+  { icon: "💪", label: "gym", name: "نادي رياضي", lucideIcon: Dumbbell },
+  { icon: "🍽️", label: "restaurant", name: "مطعم", lucideIcon: Utensils },
+  { icon: "🏥", label: "hospital", name: "مستشفى", lucideIcon: Cross },
+  { icon: "🛍️", label: "shopping", name: "تسوق", lucideIcon: ShoppingBag },
+  { icon: "🏢", label: "office", name: "مكتب", lucideIcon: Building2 },
+  { icon: "📍", label: "other", name: "آخر", lucideIcon: MapPin },
 ];
 
 const RiderSavedPlacesPage: React.FC = () => {
@@ -86,25 +91,26 @@ const RiderSavedPlacesPage: React.FC = () => {
   const [places, setPlaces] = useState<SavedPlace[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  
+
   // Dialog state
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [selectedLabel, setSelectedLabel] = useState<string>('home');
-  const [selectedIcon, setSelectedIcon] = useState<string>('🏠');
-  const [customName, setCustomName] = useState('');
+  const [selectedLabel, setSelectedLabel] = useState<string>("home");
+  const [selectedIcon, setSelectedIcon] = useState<string>("🏠");
+  const [customName, setCustomName] = useState("");
   const [saving, setSaving] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
-  
+
   // Location state
-  const [currentLocation, setCurrentLocation] = useState<CurrentLocation | null>(null);
+  const [currentLocation, setCurrentLocation] =
+    useState<CurrentLocation | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
-  
+
   // Search state
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  
+
   // Map picker state
   const [showMapPicker, setShowMapPicker] = useState(false);
 
@@ -144,21 +150,23 @@ const RiderSavedPlacesPage: React.FC = () => {
 
   const getCurrentLocation = useCallback(async () => {
     setGettingLocation(true);
-    
+
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-        });
-      });
+      const position = await new Promise<GeolocationPosition>(
+        (resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+          });
+        },
+      );
 
       const { latitude, longitude } = position.coords;
-      
+
       // Reverse geocode using Supabase function
-      const { data, error } = await supabase.functions.invoke('search-places', {
+      const { data, error } = await supabase.functions.invoke("search-places", {
         body: {
-          action: 'reverse',
+          action: "reverse",
           lat: latitude,
           lng: longitude,
         },
@@ -166,18 +174,18 @@ const RiderSavedPlacesPage: React.FC = () => {
 
       if (error) throw error;
 
-      const address = data?.address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-      
+      const address =
+        data?.address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
       setCurrentLocation({
         lat: latitude,
         lng: longitude,
         address: address,
       });
-      
+
       setShowAddDialog(true);
-      
     } catch (error: any) {
-      console.error('Error getting location:', error);
+      console.error("Error getting location:", error);
       toast({
         title: "خطأ في تحديد الموقع",
         description: error.message || "تعذر الحصول على موقعك الحالي",
@@ -198,7 +206,7 @@ const RiderSavedPlacesPage: React.FC = () => {
 
     setIsSearching(true);
     try {
-      const { data, error } = await supabase.functions.invoke('search-places', {
+      const { data, error } = await supabase.functions.invoke("search-places", {
         body: {
           query,
           lat: 33.3, // Default Iraq coordinates
@@ -219,7 +227,7 @@ const RiderSavedPlacesPage: React.FC = () => {
       setSearchResults(results);
       setShowSearchResults(true);
     } catch (error) {
-      console.error('Search error:', error);
+      console.error("Search error:", error);
     } finally {
       setIsSearching(false);
     }
@@ -242,23 +250,25 @@ const RiderSavedPlacesPage: React.FC = () => {
       lng: result.lng,
       address: result.address,
     });
-    setSearchQuery('');
+    setSearchQuery("");
     setSearchResults([]);
     setShowSearchResults(false);
   };
 
   const handleSavePlace = async () => {
     if (!userId || !currentLocation) return;
-    
-    const preset = PRESET_LABELS.find(p => p.label === selectedLabel);
-    const isBasicLabel = ['home', 'work'].includes(selectedLabel);
-    const name = isBasicLabel ? preset?.name || customName : customName || preset?.name || 'مكان جديد';
-    
+
+    const preset = PRESET_LABELS.find((p) => p.label === selectedLabel);
+    const isBasicLabel = ["home", "work"].includes(selectedLabel);
+    const name = isBasicLabel
+      ? preset?.name || customName
+      : customName || preset?.name || "مكان جديد";
+
     if (!name) {
       toast({
         title: "خطأ",
         description: "يرجى إدخال اسم للمكان",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -267,49 +277,45 @@ const RiderSavedPlacesPage: React.FC = () => {
     try {
       if (isBasicLabel) {
         // Check if home/work already exists
-        const existing = places.find(p => p.label === selectedLabel);
+        const existing = places.find((p) => p.label === selectedLabel);
         if (existing) {
           const { error } = await supabase
-            .from('saved_places')
+            .from("saved_places")
             .update({
               address: currentLocation.address,
               lat: currentLocation.lat,
               lng: currentLocation.lng,
-              name: name
+              name: name,
             })
-            .eq('id', existing.id);
+            .eq("id", existing.id);
 
           if (error) throw error;
           toast({ title: "تم تحديث المكان بنجاح ✅" });
         } else {
-          const { error } = await supabase
-            .from('saved_places')
-            .insert({
-              user_id: userId,
-              name: name,
-              label: selectedLabel,
-              address: currentLocation.address,
-              lat: currentLocation.lat,
-              lng: currentLocation.lng,
-              icon: selectedIcon
-            });
-
-          if (error) throw error;
-          toast({ title: "تم حفظ المكان بنجاح ✅" });
-        }
-      } else {
-        // Insert new custom place
-        const { error } = await supabase
-          .from('saved_places')
-          .insert({
+          const { error } = await supabase.from("saved_places").insert({
             user_id: userId,
             name: name,
             label: selectedLabel,
             address: currentLocation.address,
             lat: currentLocation.lat,
             lng: currentLocation.lng,
-            icon: selectedIcon
+            icon: selectedIcon,
           });
+
+          if (error) throw error;
+          toast({ title: "تم حفظ المكان بنجاح ✅" });
+        }
+      } else {
+        // Insert new custom place
+        const { error } = await supabase.from("saved_places").insert({
+          user_id: userId,
+          name: name,
+          label: selectedLabel,
+          address: currentLocation.address,
+          lat: currentLocation.lat,
+          lng: currentLocation.lng,
+          icon: selectedIcon,
+        });
 
         if (error) throw error;
         toast({ title: "تم حفظ المكان بنجاح ✅" });
@@ -318,11 +324,11 @@ const RiderSavedPlacesPage: React.FC = () => {
       await fetchPlaces();
       handleCloseDialog();
     } catch (error: any) {
-      console.error('Error saving place:', error);
+      console.error("Error saving place:", error);
       toast({
         title: "خطأ في الحفظ",
         description: error.message,
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setSaving(false);
@@ -331,12 +337,12 @@ const RiderSavedPlacesPage: React.FC = () => {
 
   const handleCloseDialog = () => {
     setShowAddDialog(false);
-    setSelectedLabel('home');
-    setSelectedIcon('🏠');
-    setCustomName('');
+    setSelectedLabel("home");
+    setSelectedIcon("🏠");
+    setCustomName("");
     setShowIconPicker(false);
     setCurrentLocation(null);
-    setSearchQuery('');
+    setSearchQuery("");
     setSearchResults([]);
     setShowSearchResults(false);
   };
@@ -444,11 +450,7 @@ const RiderSavedPlacesPage: React.FC = () => {
             <ArrowRight className="w-5 h-5" />
           </Button>
           <h1 className="text-xl font-bold flex-1">الأماكن المحفوظة</h1>
-          <Button
-            size="sm"
-            onClick={openAddDialog}
-            className="gap-2"
-          >
+          <Button size="sm" onClick={openAddDialog} className="gap-2">
             <Plus className="w-4 h-4" />
             إضافة مكان
           </Button>
@@ -470,8 +472,8 @@ const RiderSavedPlacesPage: React.FC = () => {
             <p className="text-sm text-muted-foreground max-w-xs mx-auto">
               احفظ أماكنك المفضلة مثل المنزل والعمل للوصول السريع إليها
             </p>
-            <Button 
-              onClick={getCurrentLocation} 
+            <Button
+              onClick={getCurrentLocation}
               disabled={gettingLocation}
               className="gap-2"
             >
@@ -492,8 +494,8 @@ const RiderSavedPlacesPage: React.FC = () => {
                   variant="outline"
                   className="h-auto py-4 flex-col gap-2 hover:bg-blue-500/10 hover:border-blue-500/30"
                   onClick={() => {
-                    setSelectedLabel('home');
-                    setSelectedIcon('🏠');
+                    setSelectedLabel("home");
+                    setSelectedIcon("🏠");
                     getCurrentLocation();
                   }}
                   disabled={gettingLocation}
@@ -507,8 +509,8 @@ const RiderSavedPlacesPage: React.FC = () => {
                   variant="outline"
                   className="h-auto py-4 flex-col gap-2 hover:bg-amber-500/10 hover:border-amber-500/30"
                   onClick={() => {
-                    setSelectedLabel('work');
-                    setSelectedIcon('💼');
+                    setSelectedLabel("work");
+                    setSelectedIcon("💼");
                     getCurrentLocation();
                   }}
                   disabled={gettingLocation}
@@ -527,7 +529,7 @@ const RiderSavedPlacesPage: React.FC = () => {
                     <div className="flex items-start gap-4">
                       <div
                         className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${getColorForLabel(
-                          place.label
+                          place.label,
                         )}`}
                       >
                         {getIconComponent(place.label, place.icon)}
@@ -572,12 +574,12 @@ const RiderSavedPlacesPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>حفظ مكان جديد</DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             {/* Location Selection Section */}
             <div className="space-y-3">
               <label className="text-sm font-medium block">تحديد الموقع</label>
-              
+
               {/* Search Input */}
               <div className="relative">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -590,7 +592,7 @@ const RiderSavedPlacesPage: React.FC = () => {
                 {searchQuery && (
                   <button
                     onClick={() => {
-                      setSearchQuery('');
+                      setSearchQuery("");
                       setSearchResults([]);
                       setShowSearchResults(false);
                     }}
@@ -613,8 +615,12 @@ const RiderSavedPlacesPage: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <MapPin className="w-4 h-4 text-primary shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{result.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{result.address}</p>
+                          <p className="text-sm font-medium truncate">
+                            {result.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {result.address}
+                          </p>
                         </div>
                       </div>
                     </button>
@@ -625,7 +631,9 @@ const RiderSavedPlacesPage: React.FC = () => {
               {isSearching && (
                 <div className="flex items-center justify-center py-2">
                   <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                  <span className="text-xs text-muted-foreground mr-2">جاري البحث...</span>
+                  <span className="text-xs text-muted-foreground mr-2">
+                    جاري البحث...
+                  </span>
                 </div>
               )}
 
@@ -645,7 +653,7 @@ const RiderSavedPlacesPage: React.FC = () => {
                   )}
                   موقعي الحالي
                 </Button>
-                
+
                 <Button
                   type="button"
                   variant="outline"
@@ -665,8 +673,12 @@ const RiderSavedPlacesPage: React.FC = () => {
                       <MapPin className="w-4 h-4 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-muted-foreground">الموقع المحدد</p>
-                      <p className="font-medium truncate">{currentLocation.address}</p>
+                      <p className="text-xs text-muted-foreground">
+                        الموقع المحدد
+                      </p>
+                      <p className="font-medium truncate">
+                        {currentLocation.address}
+                      </p>
                     </div>
                     <button
                       onClick={() => setCurrentLocation(null)}
@@ -684,7 +696,9 @@ const RiderSavedPlacesPage: React.FC = () => {
 
             {/* Basic label selection */}
             <div>
-              <label className="text-sm font-medium mb-2 block">نوع المكان</label>
+              <label className="text-sm font-medium mb-2 block">
+                نوع المكان
+              </label>
               <div className="grid grid-cols-3 gap-2">
                 {PRESET_LABELS.map((preset) => (
                   <button
@@ -695,8 +709,8 @@ const RiderSavedPlacesPage: React.FC = () => {
                     }}
                     className={`p-3 rounded-xl text-center transition-all ${
                       selectedLabel === preset.label
-                        ? 'bg-primary text-primary-foreground scale-105'
-                        : 'bg-secondary hover:bg-secondary/80'
+                        ? "bg-primary text-primary-foreground scale-105"
+                        : "bg-secondary hover:bg-secondary/80"
                     }`}
                   >
                     <span className="text-xl block mb-1">{preset.icon}</span>
@@ -712,9 +726,9 @@ const RiderSavedPlacesPage: React.FC = () => {
                 onClick={() => setShowIconPicker(!showIconPicker)}
                 className="text-xs text-primary hover:underline"
               >
-                {showIconPicker ? 'إخفاء الأيقونات' : 'اختيار أيقونة مختلفة'}
+                {showIconPicker ? "إخفاء الأيقونات" : "اختيار أيقونة مختلفة"}
               </button>
-              
+
               {showIconPicker && (
                 <div className="grid grid-cols-6 gap-2 mt-3 p-3 rounded-xl bg-secondary/30 animate-in fade-in-50 duration-200">
                   {EXTENDED_ICONS.map((iconOption) => (
@@ -726,8 +740,8 @@ const RiderSavedPlacesPage: React.FC = () => {
                       }}
                       className={`p-2 rounded-lg text-center transition-all ${
                         selectedIcon === iconOption.icon
-                          ? 'bg-primary text-primary-foreground'
-                          : 'hover:bg-secondary'
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-secondary"
                       }`}
                       title={iconOption.name}
                     >
@@ -740,11 +754,16 @@ const RiderSavedPlacesPage: React.FC = () => {
 
             {/* Custom name input */}
             <div>
-              <label className="text-sm text-muted-foreground mb-2 block">اسم المكان (اختياري)</label>
+              <label className="text-sm text-muted-foreground mb-2 block">
+                اسم المكان (اختياري)
+              </label>
               <Input
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value)}
-                placeholder={PRESET_LABELS.find(p => p.label === selectedLabel)?.name || "مثال: بيت جدتي"}
+                placeholder={
+                  PRESET_LABELS.find((p) => p.label === selectedLabel)?.name ||
+                  "مثال: بيت جدتي"
+                }
               />
             </div>
 

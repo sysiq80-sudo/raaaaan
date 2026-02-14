@@ -15,29 +15,35 @@ declare global {
 // RTL support is natively handled by Google Maps for Arabic text
 
 // Register Service Worker only after auth session is validated
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => {
+let serviceWorkerRegistered = false;
+
+if ("serviceWorker" in navigator && !serviceWorkerRegistered) {
+  window.addEventListener("load", async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session && !serviceWorkerRegistered) {
         const registration = await registerServiceWorker();
         if (registration) {
-          console.log('Service Worker registered successfully');
+          serviceWorkerRegistered = true;
+          console.log("✅ Service Worker registered successfully");
         }
       } else {
-        console.log('⏳ Service Worker deferred - no active session');
+        console.log("⏳ Service Worker deferred - no active session");
       }
     } catch (error) {
-      console.error('SW registration check failed:', error);
+      console.error("SW registration check failed:", error);
     }
   });
 
-  // Also register when user signs in later
+  // Also register when user signs in later (only once)
   supabase.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_IN') {
+    if (event === "SIGNED_IN" && !serviceWorkerRegistered) {
       registerServiceWorker().then((registration) => {
         if (registration) {
-          console.log('Service Worker registered after sign-in');
+          serviceWorkerRegistered = true;
+          console.log("✅ Service Worker registered after sign-in");
         }
       });
     }
@@ -45,4 +51,3 @@ if ('serviceWorker' in navigator) {
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
-

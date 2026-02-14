@@ -21,12 +21,9 @@ import { FloatingTripBubble } from "@/components/driver/FloatingTripBubble";
 import { ExternalNavigationModal } from "@/components/driver/ExternalNavigationModal";
 import DriverScheduledRidesBoard from "@/components/driver/DriverScheduledRidesBoard";
 import DriverSideMenu from "@/components/driver/DriverSideMenu";
+import { backgroundLocationService } from "@/services/backgroundLocationService";
 import logo from "@/assets/logo.png";
-import {
-  Menu,
-  X,
-  LogOut,
-} from "lucide-react";
+import { Menu, X, LogOut } from "lucide-react";
 
 const DriverHome = () => {
   const navigate = useNavigate();
@@ -42,10 +39,10 @@ const DriverHome = () => {
   const [driverName, setDriverName] = useState<string | null>(null);
   const [driverPhone, setDriverPhone] = useState<string | null>(null);
   const [driverProfileImage, setDriverProfileImage] = useState<string | null>(
-    null
+    null,
   );
   const [isDriverRegistered, setIsDriverRegistered] = useState<boolean | null>(
-    null
+    null,
   );
   const [currentLocation, setCurrentLocation] = useState<{
     lat: number;
@@ -53,7 +50,10 @@ const DriverHome = () => {
   } | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showNavigationModal, setShowNavigationModal] = useState(false);
-  const [navigationDestination, setNavigationDestination] = useState<{ lat: number; lng: number } | null>(null);
+  const [navigationDestination, setNavigationDestination] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [notificationCount, setNotificationCount] = useState(0);
   const [activeRideData, setActiveRideData] = useState<any>(null);
   const [riderName, setRiderName] = useState<string>("الراكب");
@@ -67,11 +67,14 @@ const DriverHome = () => {
   const [newRideData, setNewRideData] = useState<any>(null);
   const watchIdRef = useRef<number | null>(null);
   const locationUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const locationChannelRef = useRef<BroadcastChannel | null>(null);
   const [rating, setRating] = useState(5.0);
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [adminActivated, setAdminActivated] = useState(true);
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'scheduled'>('dashboard');
+  const [activeTab, setActiveTab] = useState<"dashboard" | "scheduled">(
+    "dashboard",
+  );
 
   // Enable real-time notifications for new rides
   const { notificationPermission, requestNotificationPermission } =
@@ -83,16 +86,18 @@ const DriverHome = () => {
       // Only for approved drivers who haven't been asked yet
       if (!driverId || driverStatus !== "approved") return;
       if (typeof window === "undefined" || !("Notification" in window)) return;
-      
+
       // Check if already asked (not default)
       if (Notification.permission !== "default") return;
 
       // Check if already shown before (using localStorage)
-      const hasAskedBefore = localStorage.getItem(`notification_asked_${driverId}`);
+      const hasAskedBefore = localStorage.getItem(
+        `notification_asked_${driverId}`,
+      );
       if (hasAskedBefore) return;
 
       // Wait a bit for better UX (2 seconds after load)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Mark as asked
       localStorage.setItem(`notification_asked_${driverId}`, "true");
@@ -134,8 +139,11 @@ const DriverHome = () => {
             .eq("id", driverId);
 
           if (error) throw error;
-          console.log("📍 Location updated (Real-time):", { lat: preciseLat, lng: preciseLng });
-          
+          console.log("📍 Location updated (Real-time):", {
+            lat: preciseLat,
+            lng: preciseLng,
+          });
+
           // Broadcast location update to rider immediately
           if (hasActiveRide) {
             const broadcastChannel = supabase.channel("driver-updates");
@@ -153,14 +161,14 @@ const DriverHome = () => {
         } catch (error) {
           console.error(
             `Location update failed, retries left: ${retries - 1}`,
-            error
+            error,
           );
           retries--;
           await new Promise((r) => setTimeout(r, 1000));
         }
       }
     },
-    [driverId, isOnline, hasActiveRide]
+    [driverId, isOnline, hasActiveRide],
   );
 
   // Start location tracking with fixed closure
@@ -174,60 +182,68 @@ const DriverHome = () => {
       return;
     }
 
-    // Get initial position and update immediately
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const newLocation = { lat: latitude, lng: longitude };
-        setCurrentLocation(newLocation);
-        latestLocationRef.current = newLocation;
-        updateDriverLocation(latitude, longitude);
-      },
-      (error) => {
-        console.error("Geolocation error:", error);
-        toast({
-          title: "⚠️ خطأ GPS",
-          description: "تفعيل الموقع مطلوب",
-          variant: "locationError" as any,
-          duration: 3000,
-        });
-      },
-      { enableHighAccuracy: true }
-    );
+    if (locationTracking) return;
 
-    // Watch position changes and update ref
-    // enableHighAccuracy: true - ensures GPS accuracy
-    // maximumAge: 5000 - max 5 seconds old location cache
-    // timeout: 3000 - force new location within 3 seconds
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const newLocation = { lat: latitude, lng: longitude };
-        setCurrentLocation(newLocation);
-        latestLocationRef.current = newLocation;
-        // Send location update immediately (not waiting for interval)
-        updateDriverLocation(latitude, longitude);
-      },
-      (error) => console.error("Watch position error:", error),
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 3000 }
-    );
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    if (locationUpdateIntervalRef.current) {
+      clearInterval(locationUpdateIntervalRef.current);
+      locationUpdateIntervalRef.current = null;
+    }
 
-    watchIdRef.current = watchId;
+    if (locationChannelRef.current) {
+      locationChannelRef.current.close();
+    }
 
-    // Update database every 5 seconds for real-time tracking (reduced from 30s)
-    // This ensures driver location is synced to rider within ~5 seconds
-    const intervalId = setInterval(() => {
-      if (latestLocationRef.current) {
-        updateDriverLocation(
-          latestLocationRef.current.lat,
-          latestLocationRef.current.lng
-        );
+    locationChannelRef.current = new BroadcastChannel("location_sync");
+    locationChannelRef.current.onmessage = (event) => {
+      const payload = event.data?.payload;
+
+      if (event.data?.type === "LOCATION_BATCH" && Array.isArray(payload)) {
+        const latest = payload[payload.length - 1];
+        if (latest?.lat && latest?.lng) {
+          const newLocation = { lat: latest.lat, lng: latest.lng };
+          setCurrentLocation(newLocation);
+          latestLocationRef.current = newLocation;
+          updateDriverLocation(latest.lat, latest.lng);
+        }
       }
-    }, 5000);
 
-    locationUpdateIntervalRef.current = intervalId;
+      if (
+        event.data?.type === "LOCATION_UPDATE" &&
+        payload?.lat &&
+        payload?.lng
+      ) {
+        const newLocation = { lat: payload.lat, lng: payload.lng };
+        setCurrentLocation(newLocation);
+        latestLocationRef.current = newLocation;
+        updateDriverLocation(payload.lat, payload.lng);
+      }
+    };
+
+    backgroundLocationService
+      .startTracking({
+        rideId: driverId || "driver-location",
+        updateInterval: 5000,
+        minAccuracy: 80,
+      })
+      .catch((error) => {
+        console.error("Background tracking error:", error);
+      });
+
+    backgroundLocationService.requestImmediateUpdate().then((location) => {
+      if (location?.lat && location?.lng) {
+        const newLocation = { lat: location.lat, lng: location.lng };
+        setCurrentLocation(newLocation);
+        latestLocationRef.current = newLocation;
+        updateDriverLocation(location.lat, location.lng);
+      }
+    });
+
     setLocationTracking(true);
-  }, [updateDriverLocation, toast]);
+  }, [driverId, locationTracking, updateDriverLocation, toast]);
 
   // Stop location tracking
   const stopLocationTracking = useCallback(() => {
@@ -238,6 +254,11 @@ const DriverHome = () => {
     if (locationUpdateIntervalRef.current) {
       clearInterval(locationUpdateIntervalRef.current);
       locationUpdateIntervalRef.current = null;
+    }
+    backgroundLocationService.stopTracking();
+    if (locationChannelRef.current) {
+      locationChannelRef.current.close();
+      locationChannelRef.current = null;
     }
     setLocationTracking(false);
   }, []);
@@ -276,7 +297,13 @@ const DriverHome = () => {
     } else {
       stopLocationTracking();
     }
-  }, [isOnline, hasActiveRide, driverId, startLocationTracking, stopLocationTracking]);
+  }, [
+    isOnline,
+    hasActiveRide,
+    driverId,
+    startLocationTracking,
+    stopLocationTracking,
+  ]);
 
   // Track active ride status to keep location updates while on trip
   useEffect(() => {
@@ -307,13 +334,14 @@ const DriverHome = () => {
           filter: `driver_id=eq.${driverId}`,
         },
         (payload) => {
-          const status = (payload.new as any)?.status || (payload.old as any)?.status;
+          const status =
+            (payload.new as any)?.status || (payload.old as any)?.status;
           if (["accepted", "arrived", "in_progress"].includes(status)) {
             setHasActiveRide(true);
           } else {
             fetchActiveRideStatus();
           }
-        }
+        },
       )
       .subscribe();
 
@@ -326,7 +354,7 @@ const DriverHome = () => {
     const { data, error } = await supabase
       .from("drivers")
       .select(
-        "id, vehicle_type, is_online, rating, status, full_name, phone, current_location, vehicle_image_url, license_image_url, profile_image_url, vehicle_model, vehicle_plate, admin_activated, max_pickup_radius"
+        "id, vehicle_type, is_online, rating, status, full_name, phone, current_location, vehicle_image_url, license_image_url, profile_image_url, vehicle_model, vehicle_plate, admin_activated, max_pickup_radius",
       )
       .eq("user_id", userId)
       .maybeSingle();
@@ -423,7 +451,11 @@ const DriverHome = () => {
         .update({
           is_online: online,
           is_available: online,
-          current_location: online ? currentLocation : hasActiveRide ? currentLocation : null,
+          current_location: online
+            ? currentLocation
+            : hasActiveRide
+              ? currentLocation
+              : null,
         })
         .eq("id", driverId);
 
@@ -624,21 +656,21 @@ const DriverHome = () => {
             <div className="absolute top-16 left-0 right-0 z-40 bg-background/80 backdrop-blur-sm border-b border-border">
               <div className="flex">
                 <button
-                  onClick={() => setActiveTab('dashboard')}
+                  onClick={() => setActiveTab("dashboard")}
                   className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                    activeTab === 'dashboard'
-                      ? 'text-primary border-b-2 border-primary'
-                      : 'text-muted-foreground'
+                    activeTab === "dashboard"
+                      ? "text-primary border-b-2 border-primary"
+                      : "text-muted-foreground"
                   }`}
                 >
                   📍 الخريطة
                 </button>
                 <button
-                  onClick={() => setActiveTab('scheduled')}
+                  onClick={() => setActiveTab("scheduled")}
                   className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                    activeTab === 'scheduled'
-                      ? 'text-primary border-b-2 border-primary'
-                      : 'text-muted-foreground'
+                    activeTab === "scheduled"
+                      ? "text-primary border-b-2 border-primary"
+                      : "text-muted-foreground"
                   }`}
                 >
                   📅 الرحلات المجدولة
@@ -647,119 +679,119 @@ const DriverHome = () => {
             </div>
 
             {/* Dashboard Tab */}
-            {activeTab === 'dashboard' && (
+            {activeTab === "dashboard" && (
               <>
-            {/* Full Screen Map - Absolute background */}
-            <div className="absolute inset-0 top-20">
-              <DriverMap
-                driverLocation={currentLocation}
-                isOnline={isOnline}
-              />
-            </div>
+                {/* Full Screen Map - Absolute background */}
+                <div className="absolute inset-0 top-20">
+                  <DriverMap
+                    driverLocation={currentLocation}
+                    isOnline={isOnline}
+                  />
+                </div>
 
-            {/* Status & Search Bar - Compact (overlay) */}
-            <div className="relative z-20 pt-16">
-              <div className="h-12 px-3 py-1">
-                <StatusSearchBar
-                  isOnline={isOnline}
-                  isSearching={isSearching}
-                  onToggleOnline={handleOnlineToggle}
-                  isLoading={onlineToggleLoading}
-                  locationTracking={locationTracking}
-                  driverStatus={driverStatus}
-                />
-              </div>
-            </div>
-
-            {/* Bottom Action Card - Sticky/Fixed (shown only when not minimized) */}
-            {!isMinimized && (
-              <div className="absolute bottom-0 left-0 right-0 h-40 pointer-events-none z-30">
-                {/* Gradient fade to make card appear on top of map */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-                
-                {/* Cards Container */}
-                <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto">
-                  <div className="flex flex-col gap-2 max-w-sm mx-auto">
-                    {/* Active Ride Card */}
-                    <ActiveRideCard
-                      driverId={driverId}
-                      driverLocation={currentLocation}
-                      onMinimize={() => setIsMinimized(true)}
-                      onNavigationClick={(lat, lng, label) => {
-                        setNavigationDestination({ lat, lng });
-                        setShowNavigationModal(true);
-                      }}
-                    />
-
-                    {/* Ride Request Card - Shows search status or ride details */}
-                    <RideRequestCard
-                      driverId={driverId}
-                      vehicleType={vehicleType}
+                {/* Status & Search Bar - Compact (overlay) */}
+                <div className="relative z-20 pt-16">
+                  <div className="h-12 px-3 py-1">
+                    <StatusSearchBar
                       isOnline={isOnline}
-                      driverLocation={currentLocation}
-                      maxPickupRadius={maxPickupRadius}
-                      onRideAccepted={() => {
-                        console.log(
-                          "[DriverHome] Ride accepted, ActiveRideCard will update via subscription"
-                        );
-                      }}
+                      isSearching={isSearching}
+                      onToggleOnline={handleOnlineToggle}
+                      isLoading={onlineToggleLoading}
+                      locationTracking={locationTracking}
+                      driverStatus={driverStatus}
                     />
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* Floating Trip Bubble - shown when minimized */}
-            {isMinimized && (
-              <FloatingTripBubble
-                isMinimized={isMinimized}
-                onToggleMinimize={() => setIsMinimized(false)}
-                notificationCount={notificationCount}
-                onCallClick={() => {
-                  toast({
-                    title: "اتصال",
-                    description: "يمكنك الاتصال بالراكب"
-                  });
-                }}
-                onChatClick={() => {
-                  toast({
-                    title: "محادثة",
-                    description: "فتح الدردشة"
-                  });
-                }}
-                onCancelClick={() => {
-                  toast({
-                    title: "إلغاء",
-                    description: "هل تريد إلغاء الرحلة؟"
-                  });
-                }}
-                passengerName={riderName}
-                passengerRating={riderRating}
-              >
-                <div className="text-sm text-slate-300 space-y-2">
-                  {/* Content will show here when expanded */}
-                  <p>الرحلة نشطة - اسحب الأيقونة لنقلها</p>
-                </div>
-              </FloatingTripBubble>
-            )}
+                {/* Bottom Action Card - Sticky/Fixed (shown only when not minimized) */}
+                {!isMinimized && (
+                  <div className="absolute bottom-0 left-0 right-0 h-40 pointer-events-none z-30">
+                    {/* Gradient fade to make card appear on top of map */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
 
-            {/* Navigation Modal */}
-            <ExternalNavigationModal
-              isOpen={showNavigationModal}
-              onClose={() => setShowNavigationModal(false)}
-              lat={navigationDestination?.lat || 0}
-              lng={navigationDestination?.lng || 0}
-              onInternalNavigation={() => {
-                setIsMinimized(true);
-                // Maximize map and focus on navigation
-              }}
-              destinationLabel="الوجهة"
-            />
-            </>
+                    {/* Cards Container */}
+                    <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-auto">
+                      <div className="flex flex-col gap-2 max-w-sm mx-auto">
+                        {/* Active Ride Card */}
+                        <ActiveRideCard
+                          driverId={driverId}
+                          driverLocation={currentLocation}
+                          onMinimize={() => setIsMinimized(true)}
+                          onNavigationClick={(lat, lng, label) => {
+                            setNavigationDestination({ lat, lng });
+                            setShowNavigationModal(true);
+                          }}
+                        />
+
+                        {/* Ride Request Card - Shows search status or ride details */}
+                        <RideRequestCard
+                          driverId={driverId}
+                          vehicleType={vehicleType}
+                          isOnline={isOnline}
+                          driverLocation={currentLocation}
+                          maxPickupRadius={maxPickupRadius}
+                          onRideAccepted={() => {
+                            console.log(
+                              "[DriverHome] Ride accepted, ActiveRideCard will update via subscription",
+                            );
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Floating Trip Bubble - shown when minimized */}
+                {isMinimized && (
+                  <FloatingTripBubble
+                    isMinimized={isMinimized}
+                    onToggleMinimize={() => setIsMinimized(false)}
+                    notificationCount={notificationCount}
+                    onCallClick={() => {
+                      toast({
+                        title: "اتصال",
+                        description: "يمكنك الاتصال بالراكب",
+                      });
+                    }}
+                    onChatClick={() => {
+                      toast({
+                        title: "محادثة",
+                        description: "فتح الدردشة",
+                      });
+                    }}
+                    onCancelClick={() => {
+                      toast({
+                        title: "إلغاء",
+                        description: "هل تريد إلغاء الرحلة؟",
+                      });
+                    }}
+                    passengerName={riderName}
+                    passengerRating={riderRating}
+                  >
+                    <div className="text-sm text-slate-300 space-y-2">
+                      {/* Content will show here when expanded */}
+                      <p>الرحلة نشطة - اسحب الأيقونة لنقلها</p>
+                    </div>
+                  </FloatingTripBubble>
+                )}
+
+                {/* Navigation Modal */}
+                <ExternalNavigationModal
+                  isOpen={showNavigationModal}
+                  onClose={() => setShowNavigationModal(false)}
+                  lat={navigationDestination?.lat || 0}
+                  lng={navigationDestination?.lng || 0}
+                  onInternalNavigation={() => {
+                    setIsMinimized(true);
+                    // Maximize map and focus on navigation
+                  }}
+                  destinationLabel="الوجهة"
+                />
+              </>
             )}
 
             {/* Scheduled Rides Tab */}
-            {activeTab === 'scheduled' && (
+            {activeTab === "scheduled" && (
               <div className="absolute inset-0 top-20 overflow-y-auto bg-background">
                 <DriverScheduledRidesBoard />
               </div>

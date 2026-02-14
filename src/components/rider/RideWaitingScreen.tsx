@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import RideProgressStepper from "@/components/rider/RideProgressStepper";
 import CancellationReasonDialog from "@/components/rider/CancellationReasonDialog";
 import { useRiderWaitSettings } from "@/hooks/useRiderWaitSettings";
 import { useRiderStore } from "@/stores/riderStore";
+import { useOptimizedRealtime } from "@/hooks/useOptimizedRealtime";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
   Car,
@@ -71,6 +73,8 @@ export const RideWaitingScreen = ({
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [acceptedDriver, setAcceptedDriver] = useState<Driver | null>(null);
   const [showDriverCard, setShowDriverCard] = useState(false);
+  const [showDriverFoundTransition, setShowDriverFoundTransition] =
+    useState(false);
   const [rideStatus, setRideStatus] = useState<string>("pending");
   const [encouragingMessageIndex, setEncouragingMessageIndex] = useState(0);
   const [maxWaitTimeout, setMaxWaitTimeout] = useState(10); // Default 10 minutes
@@ -82,6 +86,8 @@ export const RideWaitingScreen = ({
   });
   const [lastTappedDhikr, setLastTappedDhikr] = useState<string | null>(null);
   const { toast } = useToast();
+  const driverFoundTimeoutRef = useRef<number | null>(null);
+  const driverFoundInProgress = showDriverCard || showDriverFoundTransition;
 
   // Use settings from database or defaults
   const encouragingMessages = waitSettings?.search_messages || [];
@@ -275,7 +281,7 @@ export const RideWaitingScreen = ({
 
   // Fetch driver info when accepted
   const fetchDriverInfo = async (driverId: string) => {
-    console.log('[RideWaiting] 👨‍✈️ Fetching driver info:', driverId);
+    console.log("[RideWaiting] 👨‍✈️ Fetching driver info:", driverId);
     const { data, error } = await supabase
       .from("drivers")
       .select(
@@ -284,11 +290,12 @@ export const RideWaitingScreen = ({
       .eq("id", driverId)
       .single();
     if (!error && data) {
-      console.log('[RideWaiting] ✅ Driver info received');
+      console.log("[RideWaiting] ✅ Driver info received");
       setAcceptedDriver(data as Driver);
-      setShowDriverCard(true);
+      return true;
     } else {
-      console.error('[RideWaiting] ❌ Driver fetch error:', error);
+      console.error("[RideWaiting] ❌ Driver fetch error:", error);
+      return false;
     }
   };
 
@@ -297,7 +304,18 @@ export const RideWaitingScreen = ({
     console.log("[RideWaiting] Driver found! Playing celebration");
 
     // Fetch driver info first
-    await fetchDriverInfo(driverId);
+    const hasDriver = await fetchDriverInfo(driverId);
+
+    if (hasDriver) {
+      setShowDriverFoundTransition(true);
+      if (driverFoundTimeoutRef.current) {
+        window.clearTimeout(driverFoundTimeoutRef.current);
+      }
+      driverFoundTimeoutRef.current = window.setTimeout(() => {
+        setShowDriverFoundTransition(false);
+        setShowDriverCard(true);
+      }, 1200);
+    }
 
     // Play sound + vibrate
     playSound("driverFound");
@@ -317,85 +335,70 @@ export const RideWaitingScreen = ({
     });
   };
 
+  useEffect(() => {
+    return () => {
+      if (driverFoundTimeoutRef.current) {
+        window.clearTimeout(driverFoundTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Continue to tracking after seeing driver info
   const handleContinueToTracking = () => {
     onDriverFound();
   };
+  // استخدم Realtime المحسّن بدلاً من Polling التقليدي
+  const { isConnected, lastUpdate } = useOptimizedRealtime(rideId, {
+    enabled: true,
+    batchInterval: 300,
+    enableCrossTabs: true,
+    maxEventsPerMinute: 60,
+  });
 
-  // Listen for ride updates via realtime + broadcast + polling
+  // الاستماع لتحديثات الرحلة من Realtime
+  useEffect(() => {
+    if (!lastUpdate) return;
+
+    const updatedRide = lastUpdate as any;
+
+    // تحقق من قبول السائق
+    if (
+      updatedRide.status === "accepted" &&
+      updatedRide.driver_id &&
+      !driverFoundInProgress
+    ) {
+      console.log("[RideWaiting] ✅ Driver found via Realtime!");
+      setRideStatus("accepted");
+      handleDriverFound(updatedRide.driver_id);
+    }
+
+    // تحقق من إلغاء الرحلة
+    if (updatedRide.status === "cancelled") {
+      console.log("[RideWaiting] ❌ Ride cancelled");
+      toast({
+        title: "تم إلغاء الرحلة",
+        description: updatedRide.cancellation_reason || "تم إلغاء الطلب",
+        variant: "destructive",
+      });
+      onCancel();
+    }
+
+    // تحديث عداد إعادة التوجيه
+    if (updatedRide.reassignment_count !== undefined) {
+      setReassignmentCount(updatedRide.reassignment_count);
+    }
+  }, [lastUpdate, driverFoundInProgress, onCancel, toast]);
+
+  // Listen for ride updates - fallback with slower polling when Realtime unavailable
   useEffect(() => {
     console.log(
-      "[RideWaiting] Setting up realtime subscriptions for ride:",
+      "[RideWaiting] Setting up fallback subscriptions for ride:",
       rideId,
     );
 
-    // Database realtime subscription
-    const dbChannel = supabase
-      .channel(`ride-waiting-db-${rideId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "rides",
-          filter: `id=eq.${rideId}`,
-        },
-        (payload) => {
-          console.log("[RideWaiting] 📡 DB update received:", payload.new);
-          const updatedRide = payload.new as any;
-          if (
-            updatedRide.status === "accepted" &&
-            updatedRide.driver_id &&
-            !showDriverCard
-          ) {
-            console.log("[RideWaiting] ✅ Driver found via DB subscription!");
-            setRideStatus("accepted");
-            handleDriverFound(updatedRide.driver_id);
-          }
-          if (updatedRide.status === "cancelled") {
-            console.log("[RideWaiting] ❌ Ride cancelled");
-            toast({
-              title: "تم إلغاء الرحلة",
-              description: updatedRide.cancellation_reason || "تم إلغاء الطلب",
-              variant: "destructive",
-            });
-            onCancel();
-          }
-        },
-      )
-      .subscribe((status) => {
-        console.log("[RideWaiting] DB subscription status:", status);
-      });
-
-    // Broadcast channel for instant updates
-    const broadcastChannel = supabase.channel(`ride-comm-${rideId}`, {
-      config: {
-        broadcast: {
-          self: false,
-        },
-      },
-    });
-    broadcastChannel
-      .on(
-        "broadcast",
-        {
-          event: "ride_accepted",
-        },
-        (payload: any) => {
-          console.log("[RideWaiting] ⚡ Broadcast: ride_accepted received");
-          if (!showDriverCard && payload.payload?.driverId) {
-            setRideStatus("accepted");
-            handleDriverFound(payload.payload.driverId);
-          }
-        },
-      )
-      .subscribe((status) => {
-        console.log("[RideWaiting] Broadcast subscription status:", status);
-      });
-
-    // Faster polling every 2 seconds as fallback
+    // Fallback polling (أبطأ عندما يكون Realtime متصل)
     const pollInterval = setInterval(async () => {
-      if (showDriverCard) return; // Skip if already found
+      if (driverFoundInProgress || isConnected) return; // Skip if found or Realtime connected
 
       try {
         const { data } = await supabase
@@ -403,14 +406,15 @@ export const RideWaitingScreen = ({
           .select("status, driver_id, reassignment_count")
           .eq("id", rideId)
           .single();
-        
-        // ✅ تحديث عداد إعادة التوجيه
-        if (data?.reassignment_count !== undefined) {
-          setReassignmentCount(data.reassignment_count);
-        }
-        
-        if (data?.status === "accepted" && data?.driver_id && !showDriverCard) {
-          console.log("[RideWaiting] ✅ Poll detected driver acceptance");
+
+        if (
+          data?.status === "accepted" &&
+          data?.driver_id &&
+          !driverFoundInProgress
+        ) {
+          console.log(
+            "[RideWaiting] ✅ Poll detected driver acceptance (fallback)",
+          );
           handleDriverFound(data.driver_id);
         }
         if (data?.status === "cancelled") {
@@ -421,21 +425,22 @@ export const RideWaitingScreen = ({
       }
     }, 2000);
     return () => {
-      supabase.removeChannel(dbChannel);
-      supabase.removeChannel(broadcastChannel);
       clearInterval(pollInterval);
     };
-  }, [rideId, showDriverCard, toast, onCancel]);
+  }, [rideId, driverFoundInProgress, toast, onCancel]);
 
   // Handle cancel button click - show dialog
   const handleCancelClick = () => {
-    console.log('[RideWaiting] ❌ Cancel button clicked - opening dialog');
+    console.log("[RideWaiting] ❌ Cancel button clicked - opening dialog");
     setShowCancelDialog(true);
   };
 
   // Handle actual cancellation with reason
   const handleConfirmCancel = async (reason: string, category: string) => {
-    console.log('[RideWaiting] 🗑️ Confirming cancellation:', { reason, category });
+    console.log("[RideWaiting] 🗑️ Confirming cancellation:", {
+      reason,
+      category,
+    });
     setCancelling(true);
 
     // Check if driver already accepted - apply cancellation fee
@@ -531,7 +536,9 @@ export const RideWaitingScreen = ({
                   <Sparkles className="w-5 h-5" />
                   تم قبول طلبك!
                 </h2>
-                <p className="text-primary-foreground/90 text-sm mt-0.5">السائق في الطريق إليك الآن</p>
+                <p className="text-primary-foreground/90 text-sm mt-0.5">
+                  السائق في الطريق إليك الآن
+                </p>
               </div>
             </div>
           </div>
@@ -571,13 +578,15 @@ export const RideWaitingScreen = ({
                   </div>
                 </div>
               </div>
-              
+
               {/* Contact Buttons */}
               <div className="flex gap-2 mt-4">
                 <Button
                   variant="outline"
                   className="flex-1 h-11 rounded-xl bg-card hover:bg-primary/5 border-border/50 transition-all"
-                  onClick={() => window.open(`tel:${acceptedDriver.phone}`, "_self")}
+                  onClick={() =>
+                    window.open(`tel:${acceptedDriver.phone}`, "_self")
+                  }
                 >
                   <Phone className="w-4 h-4 ml-2 text-primary" />
                   <span className="text-sm font-semibold">اتصال</span>
@@ -585,7 +594,12 @@ export const RideWaitingScreen = ({
                 <Button
                   variant="outline"
                   className="flex-1 h-11 rounded-xl bg-card hover:bg-success/5 border-border/50 transition-all"
-                  onClick={() => window.open(`https://wa.me/${acceptedDriver.phone}`, "_blank")}
+                  onClick={() =>
+                    window.open(
+                      `https://wa.me/${acceptedDriver.phone}`,
+                      "_blank",
+                    )
+                  }
                 >
                   <MessageCircle className="w-4 h-4 ml-2 text-success" />
                   <span className="text-sm font-semibold">واتساب</span>
@@ -600,20 +614,27 @@ export const RideWaitingScreen = ({
                   <Car className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">المركبة</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    المركبة
+                  </p>
                   <p className="text-sm font-bold text-foreground truncate">
                     {getVehicleTypeName(acceptedDriver.vehicle_type)}
-                    {acceptedDriver.vehicle_model && ` • ${acceptedDriver.vehicle_model}`}
+                    {acceptedDriver.vehicle_model &&
+                      ` • ${acceptedDriver.vehicle_model}`}
                   </p>
                   {acceptedDriver.vehicle_color && (
-                    <p className="text-xs text-muted-foreground">{acceptedDriver.vehicle_color}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {acceptedDriver.vehicle_color}
+                    </p>
                   )}
                 </div>
               </div>
 
               {acceptedDriver.vehicle_plate && (
                 <div className="bg-gradient-to-br from-muted/60 to-muted/30 rounded-xl px-4 py-2 text-center border border-border/50">
-                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">رقم اللوحة</p>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">
+                    رقم اللوحة
+                  </p>
                   <p className="text-base font-black text-foreground tracking-[0.2em] font-mono">
                     {acceptedDriver.vehicle_plate}
                   </p>
@@ -631,23 +652,33 @@ export const RideWaitingScreen = ({
                 <div className="w-0.5 flex-1 bg-gradient-to-b from-primary to-accent my-1.5" />
                 <div className="w-2.5 h-2.5 rounded-full bg-accent ring-4 ring-accent/20" />
               </div>
-              
+
               {/* Locations */}
               <div className="flex-1 min-w-0 space-y-4">
                 <div>
-                  <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-0.5">الانطلاق</p>
-                  <p className="text-sm font-semibold text-foreground line-clamp-1">{pickupAddress}</p>
+                  <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-0.5">
+                    الانطلاق
+                  </p>
+                  <p className="text-sm font-semibold text-foreground line-clamp-1">
+                    {pickupAddress}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-accent-foreground font-bold uppercase tracking-wider mb-0.5">الوجهة</p>
-                  <p className="text-sm font-semibold text-foreground line-clamp-1">{dropoffAddress}</p>
+                  <p className="text-[10px] text-accent-foreground font-bold uppercase tracking-wider mb-0.5">
+                    الوجهة
+                  </p>
+                  <p className="text-sm font-semibold text-foreground line-clamp-1">
+                    {dropoffAddress}
+                  </p>
                 </div>
               </div>
-              
+
               {/* Fare */}
               <div className="flex flex-col justify-center items-end border-r border-border/40 pr-4 mr-1">
                 <p className="text-[10px] text-muted-foreground">الأجرة</p>
-                <p className="text-xl font-bold text-primary">{estimatedFare.toLocaleString()}</p>
+                <p className="text-xl font-bold text-primary">
+                  {estimatedFare.toLocaleString()}
+                </p>
                 <p className="text-[10px] text-muted-foreground">د.ع</p>
               </div>
             </div>
@@ -655,7 +686,9 @@ export const RideWaitingScreen = ({
         </div>
 
         {/* Fixed Bottom Button */}
-        <div className={`p-4 bg-background/98 backdrop-blur-md border-t border-border/30 safe-area-bottom ${bottomNavEnabled ? 'pb-24' : ''}`}>
+        <div
+          className={`p-4 bg-background/98 backdrop-blur-md border-t border-border/30 safe-area-bottom ${bottomNavEnabled ? "pb-24" : ""}`}
+        >
           <Button
             size="lg"
             className="w-full h-14 bg-gradient-to-r from-primary via-primary/90 to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground rounded-xl shadow-xl shadow-primary/30 text-base font-bold transition-all duration-300 hover:shadow-2xl active:scale-[0.98]"
@@ -677,6 +710,35 @@ export const RideWaitingScreen = ({
         <RideProgressStepper status="pending" />
       </div>
 
+      <AnimatePresence>
+        {showDriverFoundTransition && acceptedDriver && (
+          <motion.div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              transition={{ type: "spring", stiffness: 300, damping: 24 }}
+              className="bg-card rounded-2xl border border-primary/20 shadow-2xl p-6 text-center max-w-xs"
+            >
+              <div className="w-14 h-14 mx-auto rounded-full bg-primary/15 flex items-center justify-center mb-3">
+                <Sparkles className="w-7 h-7 text-primary" />
+              </div>
+              <h2 className="text-lg font-bold text-foreground mb-1">
+                تم العثور على سائق!
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {acceptedDriver.full_name} في الطريق إليك الآن
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Main content */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {/* Search Animation - Premium */}
@@ -692,19 +754,28 @@ export const RideWaitingScreen = ({
               </div>
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-bold text-foreground mb-1">بانتظار سائق</h1>
-              <p className="text-sm text-muted-foreground leading-relaxed" key={encouragingMessageIndex}>
+              <h1 className="text-lg font-bold text-foreground mb-1">
+                بانتظار سائق
+              </h1>
+              <p
+                className="text-sm text-muted-foreground leading-relaxed"
+                key={encouragingMessageIndex}
+              >
                 {encouragingMessages[encouragingMessageIndex]?.icon}{" "}
-                {encouragingMessages[encouragingMessageIndex]?.text || "نبحث في منطقتك عن سائق متاح..."}
+                {encouragingMessages[encouragingMessageIndex]?.text ||
+                  "نبحث في منطقتك عن سائق متاح..."}
               </p>
               {/* ✅ رسالة إعادة التوجيه */}
               {reassignmentCount > 0 && (
                 <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
-                    {reassignmentCount === 1 && "السائق ألغى الطلب، جاري البحث عن سائق بديل..."}
-                    {reassignmentCount === 2 && "لا تزال نبحث عن سائق آخر، يرجى الانتظار قليلاً..."}
-                    {reassignmentCount >= 3 && "آخر محاولة للعثور على سائق متاح..."}
+                    {reassignmentCount === 1 &&
+                      "السائق ألغى الطلب، جاري البحث عن سائق بديل..."}
+                    {reassignmentCount === 2 &&
+                      "لا تزال نبحث عن سائق آخر، يرجى الانتظار قليلاً..."}
+                    {reassignmentCount >= 3 &&
+                      "آخر محاولة للعثور على سائق متاح..."}
                   </p>
                 </div>
               )}
@@ -719,16 +790,20 @@ export const RideWaitingScreen = ({
               <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Clock className="w-4 h-4 text-primary" />
               </div>
-              <span className="text-sm font-medium text-muted-foreground">وقت الانتظار</span>
+              <span className="text-sm font-medium text-muted-foreground">
+                وقت الانتظار
+              </span>
             </div>
             <div className="flex items-baseline gap-1.5">
               <span className="text-2xl font-bold font-mono text-foreground tabular-nums">
                 {formatTime(elapsedTime)}
               </span>
-              <span className="text-sm text-muted-foreground">/ {maxWaitTimeout}:00</span>
+              <span className="text-sm text-muted-foreground">
+                / {maxWaitTimeout}:00
+              </span>
             </div>
           </div>
-          
+
           {/* Progress bar */}
           <div className="w-full h-2.5 bg-muted/50 rounded-full overflow-hidden">
             <div
@@ -742,13 +817,14 @@ export const RideWaitingScreen = ({
               }}
             />
           </div>
-          
-          {elapsedTime / 60 >= maxWaitTimeout * warningThreshold && autoCancelEnabled && (
-            <p className="text-xs text-destructive text-center mt-3 font-medium animate-pulse flex items-center justify-center gap-1.5 bg-destructive/10 rounded-lg py-2">
-              <Sparkles className="w-3.5 h-3.5" />
-              {warningMessage}
-            </p>
-          )}
+
+          {elapsedTime / 60 >= maxWaitTimeout * warningThreshold &&
+            autoCancelEnabled && (
+              <p className="text-xs text-destructive text-center mt-3 font-medium animate-pulse flex items-center justify-center gap-1.5 bg-destructive/10 rounded-lg py-2">
+                <Sparkles className="w-3.5 h-3.5" />
+                {warningMessage}
+              </p>
+            )}
         </div>
 
         {/* Trip Details - Premium */}
@@ -768,16 +844,24 @@ export const RideWaitingScreen = ({
                 <div className="w-0.5 flex-1 bg-gradient-to-b from-primary to-accent my-2" />
                 <div className="w-3 h-3 rounded-full bg-accent ring-4 ring-accent/20" />
               </div>
-              
+
               {/* Locations */}
               <div className="flex-1 space-y-5 min-w-0">
                 <div>
-                  <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-1">نقطة الانطلاق</p>
-                  <p className="text-sm font-semibold text-foreground line-clamp-2">{pickupAddress}</p>
+                  <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-1">
+                    نقطة الانطلاق
+                  </p>
+                  <p className="text-sm font-semibold text-foreground line-clamp-2">
+                    {pickupAddress}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-accent-foreground font-bold uppercase tracking-wider mb-1">الوجهة</p>
-                  <p className="text-sm font-semibold text-foreground line-clamp-2">{dropoffAddress}</p>
+                  <p className="text-[10px] text-accent-foreground font-bold uppercase tracking-wider mb-1">
+                    الوجهة
+                  </p>
+                  <p className="text-sm font-semibold text-foreground line-clamp-2">
+                    {dropoffAddress}
+                  </p>
                 </div>
               </div>
             </div>
@@ -788,10 +872,14 @@ export const RideWaitingScreen = ({
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                   <span className="text-sm">💵</span>
                 </div>
-                <span className="text-sm text-muted-foreground">الأجرة التقديرية</span>
+                <span className="text-sm text-muted-foreground">
+                  الأجرة التقديرية
+                </span>
               </div>
               <div className="text-left">
-                <span className="text-xl font-bold text-primary">{estimatedFare.toLocaleString()}</span>
+                <span className="text-xl font-bold text-primary">
+                  {estimatedFare.toLocaleString()}
+                </span>
                 <span className="text-sm text-muted-foreground mr-1">د.ع</span>
               </div>
             </div>
@@ -808,7 +896,9 @@ export const RideWaitingScreen = ({
       </div>
 
       {/* Fixed Bottom - Cancel Button - ALWAYS VISIBLE */}
-      <div className={`p-4 bg-background/98 backdrop-blur-md border-t border-border/30 safe-area-bottom ${bottomNavEnabled ? 'pb-24' : ''}`}>
+      <div
+        className={`p-4 bg-background/98 backdrop-blur-md border-t border-border/30 safe-area-bottom ${bottomNavEnabled ? "pb-24" : ""}`}
+      >
         <Button
           variant="outline"
           size="lg"
