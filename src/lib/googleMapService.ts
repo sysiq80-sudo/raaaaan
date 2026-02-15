@@ -275,50 +275,40 @@ export const reverseGeocodeCoordinates = async (
     let finalAddress = result.results[0].formatted_address;
     let poiName: string | null = null;
 
-    // Step 2: Try to get POI name (if map provided)
-    if (map) {
+    // Step 2: Try to get POI name using Place.searchNearby (New API)
+    if (window.google?.maps?.places?.Place) {
       try {
-        const placesService = new google.maps.places.PlacesService(map);
-        const request = {
-          location: new google.maps.LatLng(lat, lng),
-          radius: 50,
-          language: 'ar'
-        };
-        
-        poiName = await new Promise<string | null>((resolve) => {
-          placesService.nearbySearch(request, (results, status) => {
-            if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
-              const nearestPlace = results[0];
-              
-              // ✅ فلترة: فقط الأماكن المميزة
-              const validPoiTypes = [
-                'hospital', 'clinic', 'doctor', 'pharmacy',
-                'mosque', 'church', 'place_of_worship',
-                'school', 'university', 'library',
-                'government', 'city_hall', 'police', 'fire_station',
-                'shopping_mall', 'supermarket', 'store',
-                'restaurant', 'cafe', 'bakery',
-                'bank', 'atm', 'post_office',
-                'gas_station', 'car_repair',
-                'park', 'stadium', 'gym',
-                'museum', 'tourist_attraction', 'point_of_interest'
-              ];
-              
-              const hasValidType = nearestPlace.types?.some(t => validPoiTypes.includes(t));
-              const isRoute = nearestPlace.types?.includes('route');
-              const isNeighborhood = nearestPlace.types?.includes('neighborhood');
-              
-              if (nearestPlace.name && hasValidType && !isRoute && !isNeighborhood) {
-                console.log("✅ Valid POI found via Places API:", nearestPlace.name);
-                resolve(nearestPlace.name);
-                return;
-              } else {
-                console.log("⚠️ Filtered out non-POI:", nearestPlace.name, nearestPlace.types);
-              }
-            }
-            resolve(null);
-          });
+        const POI_TYPES = [
+          'hospital', 'doctor', 'pharmacy',
+          'mosque', 'church',
+          'school', 'university', 'library',
+          'city_hall', 'police', 'fire_station',
+          'shopping_mall', 'supermarket', 'store',
+          'restaurant', 'cafe', 'bakery',
+          'bank', 'atm', 'post_office',
+          'gas_station', 'car_repair',
+          'park', 'stadium', 'gym',
+          'museum', 'tourist_attraction'
+        ];
+
+        const { places } = await google.maps.places.Place.searchNearby({
+          fields: ['displayName', 'types'],
+          locationRestriction: {
+            center: { lat, lng },
+            radius: 50,
+          },
+          includedTypes: POI_TYPES,
+          maxResultCount: 5,
+          languageCode: 'ar',
         });
+
+        if (places && places.length > 0) {
+          const nearestPlace = places[0];
+          if (nearestPlace.displayName) {
+            poiName = nearestPlace.displayName;
+            console.log("✅ Valid POI found via Place.searchNearby:", poiName);
+          }
+        }
       } catch (placeError) {
         console.warn("Places API error (non-critical):", placeError);
       }

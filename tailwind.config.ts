@@ -22,7 +22,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["IBM Plex Sans Arabic", "sans-serif"],
+        sans: ['"IBM Plex Sans Arabic"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        cairo: ['"IBM Plex Sans Arabic"', 'sans-serif'],
+        kufi: ['"IBM Plex Sans Arabic"', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",

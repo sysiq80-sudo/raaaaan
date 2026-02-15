@@ -49,6 +49,7 @@ export const useLocationPicker = (
   const [serviceAreaStatus, setServiceAreaStatus] =
     useState<ServiceAreaCheck | null>(null);
   const [isCheckingService, setIsCheckingService] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   // Force reinitialization when requested (e.g., after ride end/cancel)
   useEffect(() => {
@@ -88,305 +89,220 @@ export const useLocationPicker = (
   }, []);
 
   /**
-   * Reverse Geocode مع دمج اسم POI مع العنوان الكامل
+   * 🏛️ Reverse Geocoding — POI-First with Robust Fallbacks
    *
-   * خوارزمية العمل:
-   * 1️⃣ Geocoding API - جلب العنوان الكامل
-   * 2️⃣ PlacesService.nearbySearch - البحث عن اسم POI قريب
-   * 3️⃣ حذف Plus Code (C7GX+9C8) من العنوان
-   * 4️⃣ دمج: اسم POI + باقي العنوان
-   *
-   * مثال: "دائرة صحة الأنبار، مدحت باشا، الرمادي"
-   * بدلاً من: "C7GX+9C8، مدحت باشا، الرمادي"
+   * 1️⃣ Geocoding + Place.searchNearby(50م) بالتوازي
+   * 2️⃣ مسح جميع نتائج Geocoding (ليس فقط الأول) لاستخراج الشارع/الحي/POI
+   * 3️⃣ توسيع POI إلى 150م إذا لم يوجد
+   * 4️⃣ بناء عنوان مركّب أو استخدام formatted_address بتنظيف خفيف
    */
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
-      // Wait for Google Maps to be available
       if (!window.google?.maps) {
         console.warn("Google Maps not yet loaded");
         return;
       }
 
       try {
-        // Step 1: Get full address from Geocoding API first
         const geocoder = new window.google.maps.Geocoder();
-        const result = await geocoder.geocode({
+
+        const IRAQ_POI_TYPES = [
+          'mosque', 'church',
+          'school', 'university', 'secondary_school', 'primary_school',
+          'hospital', 'doctor', 'pharmacy', 'dentist',
+          'shopping_mall', 'store', 'supermarket', 'restaurant', 'cafe', 'bakery', 'bank',
+          'gas_station', 'car_repair', 'car_wash', 'parking',
+          'local_government_office', 'city_hall', 'courthouse', 'post_office',
+          'police', 'fire_station', 'library',
+          'museum', 'tourist_attraction', 'park', 'stadium', 'gym',
+          'bus_station', 'transit_station',
+        ];
+
+        const PRIORITY_GROUPS = [
+          ['mosque', 'church'],
+          ['hospital', 'doctor', 'pharmacy', 'dentist'],
+          ['school', 'university', 'secondary_school', 'primary_school'],
+          ['local_government_office', 'city_hall', 'courthouse', 'post_office', 'police', 'fire_station'],
+          ['museum', 'tourist_attraction', 'park', 'stadium'],
+          ['shopping_mall', 'store', 'supermarket', 'bank'],
+          ['restaurant', 'cafe', 'bakery'],
+          ['gas_station', 'car_repair', 'car_wash', 'parking'],
+          ['bus_station', 'transit_station', 'library', 'gym'],
+        ];
+
+        const pickBestPOI = (places: any[]): string | null => {
+          if (!places || places.length === 0) return null;
+          for (const group of PRIORITY_GROUPS) {
+            for (const place of places) {
+              if (place.displayName && place.types?.some((t: string) => group.includes(t))) {
+                return place.displayName;
+              }
+            }
+          }
+          return places[0]?.displayName || null;
+        };
+
+        // ═══════════════════ Step 1: بحث بالتوازي ═══════════════════
+        const geocodePromise = geocoder.geocode({
           location: new window.google.maps.LatLng(lat, lng),
           language: "ar",
         });
 
-        if (!result.results || result.results.length === 0) {
-          console.warn("No geocoding results found");
-          setCenterAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-          checkServiceArea(lat, lng);
-          return;
-        }
+        const nearbySearch50m = window.google?.maps?.places?.Place
+          ? google.maps.places.Place.searchNearby({
+              fields: ['displayName', 'types', 'location'],
+              locationRestriction: { center: { lat, lng }, radius: 50 },
+              includedTypes: IRAQ_POI_TYPES,
+              maxResultCount: 5,
+              languageCode: 'ar',
+            }).catch(() => ({ places: [] as any[] }))
+          : Promise.resolve({ places: [] as any[] });
 
-        let finalAddress = result.results[0].formatted_address;
-        console.log("📍 Raw formatted_address from Google:", finalAddress);
+        const [geocodeResult, nearbyResult50] = await Promise.all([
+          geocodePromise,
+          nearbySearch50m,
+        ]);
 
-        // Step 2: Try to get POI name (المعالم لها الأولوية القصوى!)
-        let poiName: string | null = null;
+        // ═══════════════════ Step 2: مسح جميع نتائج Geocoding ═══════════════════
+        const geoResults = geocodeResult?.results || [];
 
-        // ⚠️ NOTE: Using PlacesService - Google recommends migrating to google.maps.places.Place
-        // Timeline: 12+ months until deprecation - see https://developers.google.com/maps/legacy
-        if (map.current) {
-          try {
-            const placesService = new window.google.maps.places.PlacesService(
-              map.current,
-            );
-            const request = {
-              location: new window.google.maps.LatLng(lat, lng),
-              radius: 50, // نطاق معقول (50م)
-              language: "ar",
-            };
+        // استخراج أفضل القيم من كل النتائج (ليس فقط الأول)
+        let bestStreet = "";
+        let bestNeighborhood = "";
+        let bestCity = "";
+        let geoPOIName = "";
 
-            await new Promise<void>((resolve) => {
-              placesService.nearbySearch(request, (results, status) => {
-                if (
-                  status === window.google.maps.places.PlacesServiceStatus.OK &&
-                  results &&
-                  results.length > 0
-                ) {
-                  // ✅ الأولوية القصوى: المعالم الحقيقية (POI, Establishments)
-                  const priorityTypes = [
-                    // أولوية عالية جداً (معالم دينية وتعليمية)
-                    ["mosque", "place_of_worship", "church"],
-                    ["school", "university", "secondary_school"],
-                    // أولوية عالية (صحة وخدمات)
-                    ["hospital", "health", "doctor", "pharmacy"],
-                    // أولوية متوسطة (تجاري)
-                    [
-                      "shopping_mall",
-                      "store",
-                      "supermarket",
-                      "restaurant",
-                      "cafe",
-                      "bank",
-                    ],
-                    ["gas_station", "car_repair", "parking"],
-                    // أولوية منخفضة (معالم عامة)
-                    ["establishment", "point_of_interest", "premise"],
-                    // أقل أولوية (شوارع وأحياء)
-                    ["route", "neighborhood"],
-                  ];
+        for (const result of geoResults) {
+          const comps = result.address_components || [];
+          const get = (type: string) =>
+            comps.find((c) => c.types.includes(type))?.long_name;
 
-                  let foundPOI = false;
+          // POI من نتائج Geocoding
+          if (
+            !geoPOIName &&
+            (result.types.includes("point_of_interest") ||
+              result.types.includes("establishment") ||
+              result.types.includes("premise")) &&
+            result.name &&
+            !result.types.includes("country") &&
+            !result.types.includes("administrative_area_level_1") &&
+            !result.types.includes("locality")
+          ) {
+            geoPOIName = result.name;
+          }
 
-                  // البحث بالترتيب في كل النتائج (ليس فقط أول 3)
-                  for (const typesGroup of priorityTypes) {
-                    for (const place of results) {
-                      const hasType = place.types?.some((t) =>
-                        typesGroup.includes(t),
-                      );
-                      const isNotGeneric =
-                        !place.types?.includes("country") &&
-                        !place.types?.includes("administrative_area_level_1") &&
-                        !place.types?.includes("locality");
+          if (!bestStreet) {
+            const route = get("route");
+            const streetNum = get("street_number");
+            bestStreet = [route, streetNum].filter(Boolean).join(" ").trim();
+          }
 
-                      if (place.name && hasType && isNotGeneric) {
-                        poiName = place.name;
-                        console.log(
-                          "✅ POI found (priority):",
-                          poiName,
-                          "types:",
-                          place.types,
-                        );
-                        foundPOI = true;
-                        break;
-                      }
-                    }
-                    if (foundPOI) break;
-                  }
+          if (!bestNeighborhood) {
+            bestNeighborhood =
+              get("neighborhood") ||
+              get("sublocality") ||
+              get("sublocality_level_1") ||
+              "";
+          }
 
-                  if (!foundPOI && results[0]?.name) {
-                    poiName = results[0].name;
-                    console.log("✅ Fallback to nearest:", poiName);
-                  }
-                }
-                resolve();
-              });
-            });
-          } catch (placeError) {
-            console.warn("Places API error (non-critical):", placeError);
+          if (!bestCity) {
+            bestCity =
+              get("locality") ||
+              get("administrative_area_level_2") ||
+              "";
           }
         }
 
-        // Step 3: Look for point_of_interest in geocoding results if no nearby POI
-        if (!poiName) {
-          // ✅ البحث بالأولوية: معالم > شوارع > أحياء
-          const prioritySearchOrder = [
-            ["point_of_interest", "establishment", "premise"],
-            ["route"],
-            ["neighborhood", "sublocality"],
-          ];
-
-          for (const typeGroup of prioritySearchOrder) {
-            const poiResult = result.results.find(
-              (r) =>
-                typeGroup.some((type) => r.types.includes(type)) &&
-                r.name &&
-                !r.types.includes("country") &&
-                !r.types.includes("administrative_area_level_1") &&
-                !r.types.includes("locality"),
-            );
-
-            if (poiResult && poiResult.name) {
-              poiName = poiResult.name;
-              console.log(
-                "✅ Place name from geocoding:",
-                poiName,
-                "types:",
-                poiResult.types,
-              );
-              break;
-            }
-          }
-        }
-
-        // Step 4: Build descriptive final address with priority logic
-        // منطق الأولويات: معلم > شارع + حي > المدينة (آخر العنوان)
-        const components = result.results[0]?.address_components || [];
-        const getComponent = (type: string) =>
-          components.find((c) => c.types.includes(type))?.long_name;
-
-        // 🔍 DEBUG: Log all address components
-        console.log(
-          "📍 All address_components:",
-          components.map((c) => ({ name: c.long_name, types: c.types })),
-        );
-
-        const streetNumber = getComponent("street_number");
-        const route = getComponent("route");
-        const neighborhood =
-          getComponent("neighborhood") ||
-          getComponent("sublocality") ||
-          getComponent("sublocality_level_1") ||
-          getComponent("sublocality_level_2");
-        const locality =
-          getComponent("locality") ||
-          getComponent("administrative_area_level_2");
-        const admin1 = getComponent("administrative_area_level_1");
-
-        // 🔍 DEBUG: Log extracted components
-        console.log("📍 Extracted:", {
-          route,
-          streetNumber,
-          neighborhood,
-          locality,
-          admin1,
+        console.log("📍 All results scanned:", {
+          bestStreet,
+          bestNeighborhood,
+          bestCity,
+          geoPOIName,
+          totalResults: geoResults.length,
         });
 
-        const street = [route, streetNumber].filter(Boolean).join(" ").trim();
-        const city = locality || admin1;
+        // ═══════════════════ Step 3: POI — Places API → 150م → Geocoding ═══════════════════
+        let poiName = pickBestPOI(nearbyResult50?.places || []);
 
-        // ✅ إصلاح: إذا لم نجد POI، نستخدم الشارع من address_components أو من formatted_address
-        let mainPart = poiName?.trim() || "";
-
-        // إذا لم يكن هناك POI، استخدم الشارع (route) مباشرة
-        if (!mainPart && route) {
-          mainPart = street || route;
-          console.log("✅ Using street as main part:", mainPart);
-        }
-
-        const componentParts = [mainPart, neighborhood || "", city || ""]
-          .filter((p) => p && p.length > 0)
-          .filter((p, idx, arr) => arr.indexOf(p) === idx); // إزالة التكرار
-
-        console.log("📍 Component parts after build:", componentParts);
-
-        let addressParts = finalAddress
-          .split(/[،,]/)
-          .map((p) => p.trim())
-          .filter((p) => p.length > 0);
-
-        // فحص وحذف Plus Code من البداية
-        const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
-        const isPlusCode = plusCodeRegex.test(addressParts[0]);
-        if (isPlusCode) {
-          addressParts.shift();
-          console.log("⚠️ Removed Plus Code from address");
-        }
-
-        // ✅ إصلاح جديد: استخدم formatted_address إذا كان يحتوي على معلومات أكثر من address_components
-        // الأولوية 1: إذا وجدنا شارع أو معلم في componentParts (ليس فقط المدينة)
-        let priorityAddress = "";
-        const hasDetailedInfo =
-          componentParts.length >= 2 ||
-          (componentParts.length === 1 && componentParts[0] !== city);
-
-        if (hasDetailedInfo && componentParts.length > 0) {
-          priorityAddress = componentParts.join("، ");
-          console.log(
-            "✅ Priority 1 - Detailed address components:",
-            priorityAddress,
-          );
-        }
-
-        // الأولوية 2: استخدم formatted_address بدون Plus Code (شارع + حي + مدينة)
-        if (!priorityAddress && addressParts.length >= 1) {
-          // فلترة محافظة + حافظ على أول 3 أجزاء مفيدة
-          const usefulParts = addressParts
-            .filter(
-              (p) =>
-                !p.includes("محافظة") && !p.includes("العراق") && p.length > 0,
-            )
-            .slice(0, 3);
-
-          // ⚡ قبول حتى جزء واحد إذا كان مفيداً (ليس فقط إذا >= 2)
-          if (usefulParts.length >= 1) {
-            priorityAddress = usefulParts.join("، ");
-            console.log(
-              "✅ Priority 2 - Formatted address parts:",
-              priorityAddress,
-            );
+        // توسيع إلى 150م
+        if (!poiName && window.google?.maps?.places?.Place) {
+          try {
+            const nearbyResult150 = await google.maps.places.Place.searchNearby({
+              fields: ['displayName', 'types', 'location'],
+              locationRestriction: { center: { lat, lng }, radius: 150 },
+              includedTypes: IRAQ_POI_TYPES,
+              maxResultCount: 5,
+              languageCode: 'ar',
+            });
+            poiName = pickBestPOI(nearbyResult150?.places || []);
+            if (poiName) console.log("🔍 POI at 150m:", poiName);
+          } catch {
+            // non-critical
           }
         }
 
-        // الأولوية 3: إذا لم نجد شيء مفيد، استخدم componentParts حتى لو فقط المدينة
-        if (!priorityAddress && componentParts.length > 0) {
-          priorityAddress = componentParts.join("، ");
-          console.log(
-            "✅ Priority 3 - Basic address components:",
-            priorityAddress,
-          );
+        // POI من نتائج Geocoding
+        if (!poiName && geoPOIName) {
+          poiName = geoPOIName;
+          console.log("🔍 POI from geocoding:", poiName);
         }
 
-        // الأولوية 4: إذا بقيت مشكلة في Plus Code، جرب النتيجة الثانية
-        if (!priorityAddress && isPlusCode && result.results.length > 1) {
-          const altAddress = result.results[1].formatted_address;
-          const altParts = altAddress
-            .split(/[،,]/)
-            .map((p) => p.trim())
-            .filter(
-              (p) =>
-                p.length > 0 && !plusCodeRegex.test(p) && !p.includes("محافظة"),
-            );
-          priorityAddress =
-            altParts.length > 0 ? altParts.slice(0, 3).join("، ") : altAddress;
-          console.log(
-            "✅ Priority 4 - Second geocoding result:",
-            priorityAddress,
-          );
-        }
+        console.log("🏛️ Best POI:", poiName || "(none)");
 
-        // الخيار الأخير: احتفظ بأي عنوان متاح أو استخدم الإحداثيات
-        if (!priorityAddress) {
-          // آخر محاولة: استخدم العنوان الأصلي إذا كان موجوداً
-          if (finalAddress && finalAddress.trim()) {
-            priorityAddress = finalAddress;
-            console.log(
-              "✅ Fallback - Using original address:",
-              priorityAddress,
-            );
+        // ═══════════════════ Step 4: بناء العنوان ═══════════════════
+        let finalAddress = "";
+
+        if (poiName) {
+          // ✅ الأولوية 1: معلم + سياق
+          const context = bestStreet || bestNeighborhood || bestCity;
+          if (context && context !== poiName) {
+            finalAddress = `${poiName}، ${context}`;
           } else {
-            // إذا لم يكن هناك عنوان أصلاً، استخدم الإحداثيات
-            priorityAddress = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-            console.log("✅ Fallback - Using coordinates:", priorityAddress);
+            finalAddress = poiName;
           }
+          console.log("✅ POI address:", finalAddress);
+
+        } else if (bestStreet) {
+          // ✅ الأولوية 2: شارع + حي/مدينة
+          const parts = [bestStreet, bestNeighborhood, bestCity].filter(Boolean);
+          const unique = parts.filter((p, i) => parts.indexOf(p) === i);
+          finalAddress = unique.slice(0, 3).join("، ");
+          console.log("✅ Street address:", finalAddress);
+
+        } else if (bestNeighborhood) {
+          // ✅ الأولوية 3: حي + مدينة
+          finalAddress =
+            bestCity && bestCity !== bestNeighborhood
+              ? `${bestNeighborhood}، ${bestCity}`
+              : bestNeighborhood;
+          console.log("✅ Neighborhood address:", finalAddress);
+
+        } else if (geoResults[0]?.formatted_address) {
+          // ✅ الأولوية 4: formatted_address — تنظيف خفيف فقط (Plus Code + "العراق")
+          const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
+          const faParts = geoResults[0].formatted_address
+            .split(/[،,]/)
+            .map((p: string) => p.trim())
+            .filter(
+              (p: string) =>
+                p.length > 0 &&
+                !plusCodeRegex.test(p) &&
+                p !== "العراق" &&
+                p !== "Iraq",
+            );
+
+          finalAddress =
+            faParts.slice(0, 3).join("، ") ||
+            bestCity ||
+            `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+          console.log("✅ Formatted address:", finalAddress);
+
+        } else {
+          finalAddress = bestCity || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+          console.log("✅ Fallback:", finalAddress);
         }
 
-        setCenterAddress(priorityAddress);
+        setCenterAddress(finalAddress);
         setCenterLat(lat);
         setCenterLng(lng);
         checkServiceArea(lat, lng);
@@ -395,7 +311,7 @@ export const useLocationPicker = (
 
         if (error.message?.includes("REQUEST_DENIED")) {
           console.error(
-            "⚠️ Geocoding API: REQUEST_DENIED - Check API Restrictions in Google Cloud Console",
+            "⚠️ Geocoding API: REQUEST_DENIED - Check API Restrictions",
           );
           toast({
             title: "تنبيه: Geocoding API",
@@ -430,7 +346,17 @@ export const useLocationPicker = (
     };
     script.onerror = () => {
       console.error("❌ Failed to load Google Maps API script");
+      setMapError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API");
+      setIsLoading(false);
     };
+
+    // معالجة أخطاء المصادقة مثل RefererNotAllowedMapError
+    window.gm_authFailure = () => {
+      console.error("❌ Google Maps authentication failure (RefererNotAllowed)");
+      setMapError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API");
+      setIsLoading(false);
+    };
+
     document.head.appendChild(script);
 
     return () => {
@@ -480,6 +406,7 @@ export const useLocationPicker = (
         clearInterval(checkGoogleMaps);
         console.error("❌ Google Maps API failed to load after 5 seconds");
         setIsLoading(false);
+        setMapError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API أو إعادة تحميل الصفحة");
         toast({
           title: "⚠️ خطأ في تحميل الخريطة",
           description: "يرجى إعادة تحميل الصفحة",
@@ -596,42 +523,32 @@ export const useLocationPicker = (
           // ✨ Handle clicking on POIs (Points of Interest)
           map.current.addListener(
             "click",
-            (event: google.maps.MapMouseEvent) => {
+            async (event: google.maps.MapMouseEvent) => {
               if (event.placeId) {
                 // User clicked on a POI - get its name
                 event.stop(); // Prevent default behavior
 
-                const placesService =
-                  new window.google.maps.places.PlacesService(map.current!);
-                placesService.getDetails(
-                  {
-                    placeId: event.placeId,
-                    fields: ["name", "geometry", "formatted_address"],
-                  },
-                  (place, status) => {
-                    if (
-                      status ===
-                        window.google.maps.places.PlacesServiceStatus.OK &&
-                      place
-                    ) {
-                      console.log("✅ Clicked POI:", place.name);
+                try {
+                  const place = new google.maps.places.Place({ id: event.placeId });
+                  await place.fetchFields({
+                    fields: ["displayName", "location", "formattedAddress"],
+                  });
 
-                      // Use POI name directly
-                      if (place.name) {
-                        setCenterAddress(place.name);
+                  if (place.displayName) {
+                    console.log("\u2705 Clicked POI:", place.displayName);
+                    setCenterAddress(place.displayName);
 
-                        // Pan to POI location if available
-                        if (place.geometry?.location) {
-                          map.current?.panTo(place.geometry.location);
-                          checkServiceArea(
-                            place.geometry.location.lat(),
-                            place.geometry.location.lng(),
-                          );
-                        }
-                      }
+                    if (place.location) {
+                      map.current?.panTo(place.location);
+                      checkServiceArea(
+                        place.location.lat(),
+                        place.location.lng(),
+                      );
                     }
-                  },
-                );
+                  }
+                } catch (err) {
+                  console.warn("POI details error:", err);
+                }
               }
             },
           );
@@ -705,6 +622,7 @@ export const useLocationPicker = (
     centerLng,
     serviceAreaStatus,
     isCheckingService,
+    mapError, // ✨ خطأ تحميل الخريطة
     setCenterAddress,
     setCenterLat,
     setCenterLng,

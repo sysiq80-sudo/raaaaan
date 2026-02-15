@@ -2,6 +2,11 @@
 // This allows us to use google.maps API without importing specific types
 
 declare global {
+  // Google Maps auth failure callback
+  interface Window {
+    gm_authFailure?: () => void;
+  }
+
   namespace google {
     namespace maps {
       interface LatLng {
@@ -605,9 +610,89 @@ declare global {
             callback: (results: PlaceResult[] | null, status: PlacesServiceStatus) => void
           ): void;
           getDetails(
-            request: { placeId: string; fields?: string[] },
+            request: { placeId: string; fields?: string[]; sessionToken?: AutocompleteSessionToken },
             callback: (result: PlaceResult | null, status: PlacesServiceStatus) => void
           ): void;
+        }
+
+        // ========== New Places API (recommended replacements) ==========
+
+        /** 
+         * FormattableText - text with match highlights 
+         */
+        interface FormattableText {
+          text: string;
+          matches?: Array<{ offset: number; length: number }>;
+        }
+
+        /**
+         * PlacePrediction - from AutocompleteSuggestion API
+         */
+        interface PlacePrediction {
+          placeId: string;
+          mainText: FormattableText;
+          secondaryText: FormattableText | null;
+          text: FormattableText;
+          distanceMeters: number | null;
+          types: string[];
+          toPlace(): Place;
+        }
+
+        /**
+         * AutocompleteSuggestion - replaces AutocompleteService
+         */
+        class AutocompleteSuggestion {
+          placePrediction: PlacePrediction | null;
+
+          static fetchAutocompleteSuggestions(
+            request: {
+              input: string;
+              locationBias?: { center: LatLng | { lat: number; lng: number }; radius: number } | LatLngBounds;
+              locationRestriction?: { center: LatLng | { lat: number; lng: number }; radius: number } | LatLngBounds;
+              includedRegionCodes?: string[];
+              includedPrimaryTypes?: string[];
+              language?: string;
+              origin?: LatLng | { lat: number; lng: number };
+              region?: string;
+              sessionToken?: AutocompleteSessionToken;
+            }
+          ): Promise<{ suggestions: AutocompleteSuggestion[] }>;
+        }
+
+        /**
+         * Place (New) - replaces PlacesService
+         */
+        class Place {
+          constructor(options: { id: string; requestedLanguage?: string });
+
+          // Properties (populated after fetchFields)
+          readonly displayName: string | null;
+          readonly formattedAddress: string | null;
+          readonly location: LatLng | null;
+          readonly id: string;
+          readonly types: string[];
+          readonly addressComponents: Array<{
+            longText: string;
+            shortText: string;
+            types: string[];
+          }> | null;
+
+          fetchFields(options: { fields: string[] }): Promise<{ place: Place }>;
+
+          static searchNearby(request: {
+            fields: string[];
+            locationRestriction: {
+              center: LatLng | { lat: number; lng: number };
+              radius: number;
+            };
+            includedTypes?: string[];
+            excludedTypes?: string[];
+            includedPrimaryTypes?: string[];
+            excludedPrimaryTypes?: string[];
+            maxResultCount?: number;
+            languageCode?: string;
+            rankPreference?: 'POPULARITY' | 'DISTANCE';
+          }): Promise<{ places: Place[] }>;
         }
       }
       // ========== End Places API Types ==========

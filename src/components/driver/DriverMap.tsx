@@ -58,7 +58,14 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
         };
 
         script.onerror = () => {
-          setError("فشل في تحميل الخريطة");
+          setError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API");
+          setLoading(false);
+        };
+
+        // معالجة أخطاء Google Maps مثل RefererNotAllowedMapError
+        window.gm_authFailure = () => {
+          console.error("❌ Google Maps authentication failure (RefererNotAllowed)");
+          setError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API");
           setLoading(false);
         };
 

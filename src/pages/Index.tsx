@@ -101,7 +101,7 @@ const Index = () => {
                 تسجيل السائق
               </Button>
             </Link>
-            <Link to="/rider">
+            <Link to="/auth">
               <Button
                 size="sm"
                 className="bg-gradient-primary shadow-glow btn-glow font-semibold px-5"
@@ -146,7 +146,7 @@ const Index = () => {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start animate-fade-up opacity-0 fill-forwards delay-300">
-                <Link to="/rider/auth">
+                <Link to="/auth">
                   <Button
                     size="lg"
                     className="w-full sm:w-auto bg-gradient-primary shadow-glow-lg btn-glow text-lg px-8 py-6 font-semibold"

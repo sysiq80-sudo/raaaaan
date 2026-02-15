@@ -126,12 +126,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] bg-[#0a0a0a] flex flex-col overflow-hidden"
+      className="fixed inset-0 z-[100] bg-[#1eb484] flex flex-col overflow-hidden"
     >
-      {/* خلفية مضيئة خافتة */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-[20%] left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-[#00E676]/[0.03] blur-[150px]" />
-      </div>
 
       {/* زر تخطي */}
       <AnimatePresence>

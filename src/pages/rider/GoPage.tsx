@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import SplashScreen from "@/components/common/SplashScreen";
-import { ArrowRight, Navigation, Loader2, MapPin, Target, AlertTriangle, Check, Clock, ChevronDown, Zap, Menu, ArrowUpDown } from "lucide-react";
+import { ArrowRight, Navigation, Loader2, MapPin, Target, AlertTriangle, AlertCircle, Check, Clock, ChevronDown, Zap, Menu, ArrowUpDown } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -161,6 +161,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     centerLng,
     serviceAreaStatus,
     isCheckingService,
+    mapError, // ✨ خطأ تحميل الخريطة
     setCenterAddress,
     setManualAddress, // ✨ NEW
     checkServiceArea,
@@ -535,8 +536,16 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
   // عرض طلب صلاحية الموقع عند أول دخول (بعد Onboarding)
   // ✅ If user reaches GoPage, they've completed onboarding via AppRoutes
+  // ✅ تخطي المودال إذا تم منح الصلاحية سابقاً
   useEffect(() => {
+    const hasGrantedBefore = localStorage.getItem('location_permission_granted') === 'true';
     const hasRequestedBefore = localStorage.getItem('location_permission_requested');
+    
+    // إذا تم منح الصلاحية سابقاً، لا حاجة لعرض المودال
+    if (hasGrantedBefore) {
+      return;
+    }
+    
     if (!hasRequestedBefore && userId) {
       // تأخير قليل لإعطاء فرصة للـ UI بالتحميل
       setTimeout(() => {
@@ -673,48 +682,38 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               let finalAddress = result.results[0].formatted_address;
               let poiName: string | null = null;
               
-              // Step 2: Try to get POI name
+              // Step 2: Try to get POI name using Place.searchNearby (New API)
               try {
-                const placesService = new google.maps.places.PlacesService(map.current);
-                const request = {
-                  location: new google.maps.LatLng(actualLat, actualLng),
-                  radius: 50,
-                  language: 'ar'
-                };
-                
-                await new Promise<void>((resolve) => {
-                  placesService.nearbySearch(request, (results, status) => {
-                    if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
-                      const nearestPlace = results[0];
-                      
-                      // ✅ فلترة: فقط الأماكن المميزة
-                      const validPoiTypes = [
-                        'hospital', 'clinic', 'doctor', 'pharmacy',
-                        'mosque', 'church', 'place_of_worship',
-                        'school', 'university', 'library',
-                        'government', 'city_hall', 'police', 'fire_station',
-                        'shopping_mall', 'supermarket', 'store',
-                        'restaurant', 'cafe', 'bakery',
-                        'bank', 'atm', 'post_office',
-                        'gas_station', 'car_repair',
-                        'park', 'stadium', 'gym',
-                        'museum', 'tourist_attraction', 'point_of_interest'
-                      ];
-                      
-                      const hasValidType = nearestPlace.types?.some(t => validPoiTypes.includes(t));
-                      const isRoute = nearestPlace.types?.includes('route');
-                      const isNeighborhood = nearestPlace.types?.includes('neighborhood');
-                      
-                      if (nearestPlace.name && hasValidType && !isRoute && !isNeighborhood) {
-                        poiName = nearestPlace.name;
-                        console.log("✅ Valid POI found in confirmation:", poiName);
-                      } else {
-                        console.log("⚠️ Filtered out non-POI:", nearestPlace.name, nearestPlace.types);
-                      }
-                    }
-                    resolve();
+                if (window.google?.maps?.places?.Place) {
+                  const POI_TYPES = [
+                    'hospital', 'doctor', 'pharmacy',
+                    'mosque', 'church',
+                    'school', 'university', 'library',
+                    'city_hall', 'police', 'fire_station',
+                    'shopping_mall', 'supermarket', 'store',
+                    'restaurant', 'cafe', 'bakery',
+                    'bank', 'atm', 'post_office',
+                    'gas_station', 'car_repair',
+                    'park', 'stadium', 'gym',
+                    'museum', 'tourist_attraction'
+                  ];
+
+                  const { places } = await google.maps.places.Place.searchNearby({
+                    fields: ['displayName', 'types'],
+                    locationRestriction: {
+                      center: { lat: actualLat, lng: actualLng },
+                      radius: 50,
+                    },
+                    includedTypes: POI_TYPES,
+                    maxResultCount: 5,
+                    languageCode: 'ar',
                   });
-                });
+
+                  if (places && places.length > 0 && places[0].displayName) {
+                    poiName = places[0].displayName;
+                    console.log("✅ Valid POI found in confirmation:", poiName);
+                  }
+                }
               } catch (placeError) {
                 console.warn("Places API error (non-critical):", placeError);
               }
@@ -1644,7 +1643,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
       >
         {/* Enhanced map loading placeholder - pointer-events-none when map is ready */}
-        {(!mapToken || isLoading) && (
+        {(!mapToken || isLoading) && !mapError && (
           <div className="absolute inset-0 bg-background flex items-center justify-center z-50 pointer-events-none">
             <div className="text-center space-y-4 px-6">
               <div className="relative">
@@ -1664,6 +1663,25 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                   💡 تلميح: تأكد من تفعيل الموقع في متصفحك
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* خطأ تحميل الخريطة - بدلاً من شاشة سوداء */}
+        {mapError && (
+          <div className="absolute inset-0 bg-background flex items-center justify-center z-50">
+            <div className="text-center p-6 max-w-sm">
+              <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-8 h-8 text-destructive" />
+              </div>
+              <h3 className="text-lg font-bold text-foreground mb-2">خطأ في الخريطة</h3>
+              <p className="text-sm text-muted-foreground mb-4">{mapError}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors"
+              >
+                إعادة المحاولة
+              </button>
             </div>
           </div>
         )}

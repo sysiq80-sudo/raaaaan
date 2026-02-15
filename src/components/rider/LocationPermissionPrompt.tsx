@@ -21,14 +21,34 @@ export const LocationPermissionPrompt = ({
   const [isRequesting, setIsRequesting] = useState(false);
 
   useEffect(() => {
-    // التحقق من عدم طلب الصلاحية سابقاً
+    // التحقق من عدم طلب الصلاحية سابقاً أو منحها
+    const hasGrantedBefore = localStorage.getItem('location_permission_granted') === 'true';
     const hasRequestedBefore = localStorage.getItem('location_permission_requested');
+    
+    // إذا تم منح الصلاحية سابقاً، تخطي المودال وإرسال الموقع مباشرة
+    if (hasGrantedBefore) {
+      navigator.geolocation?.getCurrentPosition(
+        (position) => {
+          onPermissionGranted({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        () => {
+          // الصلاحية كانت ممنوحة لكن تم سحبها - إعادة العرض
+          localStorage.removeItem('location_permission_granted');
+          setTimeout(() => setShow(true), 500);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+      return;
+    }
     
     if (!hasRequestedBefore && navigator.geolocation) {
       // تأخير العرض قليلاً لتحسين UX
       setTimeout(() => setShow(true), 500);
     }
-  }, []);
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const requestLocationPermission = async () => {
     setIsRequesting(true);

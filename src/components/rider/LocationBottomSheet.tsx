@@ -59,9 +59,8 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
   const [recentLocations, setRecentLocations] = useState<SearchResult[]>([]);
   const [isSettingCurrentLocation, setIsSettingCurrentLocation] = useState(false);
   const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
-  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
-  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
   const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const placesApiReadyRef = useRef(false);
   const pickupInputRef = useRef<HTMLInputElement>(null);
   const dropoffInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout>();
@@ -84,50 +83,47 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
     }
   }, [isOpen, activeField]);
 
-  // Load Google Maps API script and initialize services
+  // تهيئة Google Maps API - لا حاجة لـ service instances مع API الجديد
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!googleMapsApiKey) return;
+
+    const initPlacesApi = () => {
+      if (!window.google?.maps?.places?.AutocompleteSuggestion || !window.google?.maps?.places?.Place) {
+        return false;
+      }
+      if (!sessionTokenRef.current) {
+        sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+      }
+      placesApiReadyRef.current = true;
+      return true;
+    };
 
     if (!window.google) {
       const script = document.createElement('script');
       script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places,geocoding&language=ar`;
       script.async = true;
       script.defer = true;
-      script.onload = () => {
-        if (!autocompleteServiceRef.current) {
-          autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
-        }
-        if (!sessionTokenRef.current) {
-          sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
-        }
-        if (!placesServiceRef.current) {
-          const hiddenDiv = document.createElement('div');
-          hiddenDiv.style.display = 'none';
-          document.body.appendChild(hiddenDiv);
-          const dummyMap = new google.maps.Map(hiddenDiv);
-          placesServiceRef.current = new google.maps.places.PlacesService(dummyMap);
-        }
-      };
+      script.onload = () => initPlacesApi();
       document.head.appendChild(script);
       return;
     }
 
-    if (window.google?.maps?.places) {
-      if (!autocompleteServiceRef.current) {
-        autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
-      }
-      if (!sessionTokenRef.current) {
-        sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
-      }
-      if (!placesServiceRef.current) {
-        const hiddenDiv = document.createElement('div');
-        hiddenDiv.style.display = 'none';
-        document.body.appendChild(hiddenDiv);
-        const dummyMap = new google.maps.Map(hiddenDiv);
-        placesServiceRef.current = new google.maps.places.PlacesService(dummyMap);
-      }
-    }
+    if (initPlacesApi()) return;
+
+    // انتظار تحميل API
+    let delay = 100;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const tryInit = () => {
+      attempts++;
+      if (attempts > 20) return;
+      if (initPlacesApi()) return;
+      delay = Math.min(delay * 1.5, 1000);
+      timer = setTimeout(tryInit, delay);
+    };
+    timer = setTimeout(tryInit, delay);
+    return () => clearTimeout(timer);
   }, [googleMapsApiKey]);
 
   useEffect(() => {
@@ -146,44 +142,45 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
       return;
     }
 
-    if (!autocompleteServiceRef.current) {
+    if (!placesApiReadyRef.current) {
       return;
     }
 
     setIsLoading(true);
     try {
-      const request: google.maps.places.AutocompletionRequest = {
+      const request: any = {
         input: query,
         language: "ar",
         sessionToken: sessionTokenRef.current || undefined,
-        ...(userLocation && {
-          location: new google.maps.LatLng(userLocation.lat, userLocation.lng),
-          radius: 50000,
-        }),
-        componentRestrictions: { country: "iq" },
+        includedRegionCodes: ["iq"],
       };
 
-      const predictions = await new Promise<google.maps.places.AutocompletePrediction[]>((resolve) => {
-        autocompleteServiceRef.current!.getPlacePredictions(request, (preds, status) => {
-          if (status === google.maps.places.PlacesServiceStatus.OK && preds) {
-            resolve(preds);
-          } else {
-            resolve([]);
-          }
-        });
-      });
+      if (userLocation) {
+        request.locationBias = {
+          center: new google.maps.LatLng(userLocation.lat, userLocation.lng),
+          radius: 50000,
+        };
+      }
+
+      const { suggestions } = await google.maps.places.AutocompleteSuggestion
+        .fetchAutocompleteSuggestions(request);
 
       setResults(
-        predictions.map((p) => ({
-          id: p.place_id,
-          place_id: p.place_id,
-          type: 'address',
-          name: p.structured_formatting.main_text,
-          category: p.structured_formatting.secondary_text || 'مكان',
-          lat: 0,
-          lng: 0,
-          icon: '📍',
-        }))
+        suggestions
+          .filter(s => s.placePrediction)
+          .map((s) => {
+            const pred = s.placePrediction!;
+            return {
+              id: pred.placeId,
+              place_id: pred.placeId,
+              type: 'address' as const,
+              name: pred.mainText.text,
+              category: pred.secondaryText?.text || 'مكان',
+              lat: 0,
+              lng: 0,
+              icon: '📍',
+            };
+          })
       );
     } catch (error) {
       console.error('Search error:', error);
@@ -216,30 +213,21 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
     let lng = result.lng;
     let address = result.name;
 
-    if (result.place_id && placesServiceRef.current) {
+    if (result.place_id && placesApiReadyRef.current) {
       try {
-        const details = await new Promise<google.maps.places.PlaceResult | null>((resolve) => {
-          placesServiceRef.current!.getDetails(
-            {
-              placeId: result.place_id,
-              fields: ["formatted_address", "geometry", "name", "place_id"],
-              sessionToken: sessionTokenRef.current || undefined,
-            },
-            (res, status) => {
-              if (status === google.maps.places.PlacesServiceStatus.OK && res) {
-                resolve(res);
-              } else {
-                resolve(null);
-              }
-            }
-          );
+        const place = new google.maps.places.Place({ id: result.place_id });
+        await place.fetchFields({
+          fields: ["formattedAddress", "location", "displayName", "id"],
         });
 
-        if (details?.geometry?.location) {
-          lat = details.geometry.location.lat();
-          lng = details.geometry.location.lng();
-          address = details.formatted_address || details.name || address;
+        if (place.location) {
+          lat = place.location.lat();
+          lng = place.location.lng();
+          address = place.formattedAddress || place.displayName || address;
         }
+
+        // تجديد session token بعد الاختيار
+        sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
       } catch (error) {
         console.error('Place details error:', error);
       }

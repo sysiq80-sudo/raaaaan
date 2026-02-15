@@ -3059,6 +3059,47 @@ export type Database = {
         }
         Relationships: []
       }
+      ride_tracking_points: {
+        Row: {
+          id: string
+          ride_id: string
+          lat: number
+          lng: number
+          speed: number | null
+          heading: number | null
+          accuracy: number | null
+          recorded_at: string
+        }
+        Insert: {
+          id?: string
+          ride_id: string
+          lat: number
+          lng: number
+          speed?: number | null
+          heading?: number | null
+          accuracy?: number | null
+          recorded_at?: string
+        }
+        Update: {
+          id?: string
+          ride_id?: string
+          lat?: number
+          lng?: number
+          speed?: number | null
+          heading?: number | null
+          accuracy?: number | null
+          recorded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ride_tracking_points_ride_id_fkey"
+            columns: ["ride_id"]
+            isOneToOne: false
+            referencedRelation: "rides"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rider_wallet_transactions: {
         Row: {
           amount: number
@@ -3115,6 +3156,7 @@ export type Database = {
       }
       rides: {
         Row: {
+          actual_distance_km: number | null
           cancellation_fee: number | null
           cancellation_fee_paid: boolean | null
           cancellation_reason: string | null
@@ -3122,6 +3164,8 @@ export type Database = {
           completed_at: string | null
           created_at: string
           distance_km: number | null
+          distance_to_pickup_at_cancel: number | null
+          driver_arrival_time: string | null
           driver_id: string | null
           driver_rating: number | null
           dropoff_address: string | null
@@ -3131,6 +3175,8 @@ export type Database = {
           emergency_end_reason: string | null
           ended_by: string | null
           estimated_fare: number | null
+          fare_adjustment_reason: string | null
+          fare_variance_percent: number | null
           final_fare: number | null
           high_priority: boolean | null
           id: string
@@ -3141,6 +3187,7 @@ export type Database = {
           pickup_address: string | null
           pickup_location: Json
           prefer_women_driver: boolean | null
+          original_estimated_fare: number | null
           reassignment_count: number | null
           region_id: string | null
           return_trip_id: string | null
@@ -3160,6 +3207,7 @@ export type Database = {
           waiting_minutes: number | null
         }
         Insert: {
+          actual_distance_km?: number | null
           cancellation_fee?: number | null
           cancellation_fee_paid?: boolean | null
           cancellation_reason?: string | null
@@ -3167,6 +3215,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           distance_km?: number | null
+          distance_to_pickup_at_cancel?: number | null
+          driver_arrival_time?: string | null
           driver_id?: string | null
           driver_rating?: number | null
           dropoff_address?: string | null
@@ -3176,6 +3226,8 @@ export type Database = {
           emergency_end_reason?: string | null
           ended_by?: string | null
           estimated_fare?: number | null
+          fare_adjustment_reason?: string | null
+          fare_variance_percent?: number | null
           final_fare?: number | null
           high_priority?: boolean | null
           id?: string
@@ -3186,6 +3238,7 @@ export type Database = {
           pickup_address?: string | null
           pickup_location: Json
           prefer_women_driver?: boolean | null
+          original_estimated_fare?: number | null
           reassignment_count?: number | null
           region_id?: string | null
           return_trip_id?: string | null
@@ -3205,6 +3258,7 @@ export type Database = {
           waiting_minutes?: number | null
         }
         Update: {
+          actual_distance_km?: number | null
           cancellation_fee?: number | null
           cancellation_fee_paid?: boolean | null
           cancellation_reason?: string | null
@@ -3212,6 +3266,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           distance_km?: number | null
+          distance_to_pickup_at_cancel?: number | null
+          driver_arrival_time?: string | null
           driver_id?: string | null
           driver_rating?: number | null
           dropoff_address?: string | null
@@ -3221,6 +3277,8 @@ export type Database = {
           emergency_end_reason?: string | null
           ended_by?: string | null
           estimated_fare?: number | null
+          fare_adjustment_reason?: string | null
+          fare_variance_percent?: number | null
           final_fare?: number | null
           high_priority?: boolean | null
           id?: string
@@ -3231,6 +3289,7 @@ export type Database = {
           pickup_address?: string | null
           pickup_location?: Json
           prefer_women_driver?: boolean | null
+          original_estimated_fare?: number | null
           reassignment_count?: number | null
           region_id?: string | null
           return_trip_id?: string | null
@@ -4388,6 +4447,7 @@ export type Database = {
           max_radius_km?: number
         }
         Returns: {
+          actual_distance_km: number | null
           cancellation_fee: number | null
           cancellation_fee_paid: boolean | null
           cancellation_reason: string | null
@@ -4395,6 +4455,8 @@ export type Database = {
           completed_at: string | null
           created_at: string
           distance_km: number | null
+          distance_to_pickup_at_cancel: number | null
+          driver_arrival_time: string | null
           driver_id: string | null
           driver_rating: number | null
           dropoff_address: string | null
@@ -4404,6 +4466,8 @@ export type Database = {
           emergency_end_reason: string | null
           ended_by: string | null
           estimated_fare: number | null
+          fare_adjustment_reason: string | null
+          fare_variance_percent: number | null
           final_fare: number | null
           high_priority: boolean | null
           id: string
@@ -4414,6 +4478,7 @@ export type Database = {
           pickup_address: string | null
           pickup_location: Json
           prefer_women_driver: boolean | null
+          original_estimated_fare: number | null
           reassignment_count: number | null
           region_id: string | null
           return_trip_id: string | null

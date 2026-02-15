@@ -1,14 +1,17 @@
 /**
  * ران - Hook البحث الديناميكي عن الأماكن
- * يوفر بحث فوري عن المواقع عبر Google Places API بدلاً من الأماكن المحفوظة
+ * يوفر بحث فوري عن المواقع عبر Google Places API (New) بدلاً من الأماكن المحفوظة
+ * 
+ * يستخدم APIs الجديدة:
+ * - AutocompleteSuggestion.fetchAutocompleteSuggestions() بدلاً من AutocompleteService
+ * - Place.fetchFields() بدلاً من PlacesService.getDetails()
+ * - distanceMeters من API مباشرة (بدون استدعاءات إضافية)
  * 
  * ⚠️ خوارزمية الترتيب حسب القرب الجغرافي:
- * 1. locationRestriction مع نطاق 3km (بدلاً من locationBias 10km)
- * 2. strictBounds=true لفرض الحدود الصارمة
- * 3. origin لتمرير موقع المستخدم الحقيقي
- * 4. إثراء كل النتائج (ليس فقط أول 6) بالمسافة
- * 5. فلترة النتائج البعيدة (>5km)
- * 6. فرز قوي حسب المسافة (الأقرب أولاً)
+ * 1. locationBias مع نطاقات متزايدة (5km → 10km → 15km)
+ * 2. origin لحساب المسافة من API مباشرة
+ * 3. فلترة النتائج البعيدة (>5km)
+ * 4. فرز حسب المسافة (الأقرب أولاً)
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -43,101 +46,47 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
-  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
-  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
+  // لا حاجة لـ service refs - API الجديد يستخدم static methods
   const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const apiReadyRef = useRef(false);
 
   const formatDistance = useCallback((meters: number) => {
     if (meters < 1000) return `${Math.round(meters)} م`;
     return `${(meters / 1000).toFixed(1)} كم`;
   }, []);
 
-  const getDistanceMeters = useCallback(
-    (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
-      const R = 6371000;
-      const dLat = (b.lat - a.lat) * (Math.PI / 180);
-      const dLng = (b.lng - a.lng) * (Math.PI / 180);
-      const lat1 = a.lat * (Math.PI / 180);
-      const lat2 = b.lat * (Math.PI / 180);
-
-      const sinDLat = Math.sin(dLat / 2);
-      const sinDLng = Math.sin(dLng / 2);
-      const aVal = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
-      const c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
-      return R * c;
-    },
-    []
-  );
-
-  const fetchPlaceGeometry = useCallback(
-    async (placeId: string) => {
-      if (!placesServiceRef.current) return null;
-
-      const request: google.maps.places.PlaceDetailsRequest = {
-        placeId,
-        fields: ["geometry"],
-        sessionToken: sessionTokenRef.current,
-      };
-
-      try {
-        const result = await new Promise<google.maps.places.PlaceResult | null>(
-          (resolve, reject) => {
-            placesServiceRef.current!.getDetails(request, (res, status) => {
-              if (status === google.maps.places.PlacesServiceStatus.OK && res) {
-                resolve(res);
-              } else {
-                reject(new Error(`Places API error: ${status}`));
-              }
-            });
-          }
-        );
-
-        const loc = result?.geometry?.location;
-        if (!loc) return null;
-        return { lat: loc.lat(), lng: loc.lng() };
-      } catch {
-        return null;
-      }
-    },
-    []
-  );
-
-  // Initialize services - wait for Google Maps to be available (one-time check)
-  // Uses legacy AutocompleteService (still supported, new API requires additional libraries)
+  // تهيئة session token عند توفر Google Maps
   useEffect(() => {
     if (!googleMapsApiKey) return;
 
-    const initServices = () => {
+    const initSession = () => {
       if (typeof window === 'undefined' || !window.google?.maps?.places) return false;
       
-      if (!autocompleteServiceRef.current) {
-        try {
-          autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
-          console.log("✅ AutocompleteService initialized");
-        } catch (e) {
-          console.warn("⚠️ AutocompleteService init failed:", e);
-          return false;
-        }
+      // التأكد من توفر API الجديد
+      if (!window.google.maps.places.AutocompleteSuggestion || !window.google.maps.places.Place) {
+        console.warn("⚠️ New Places API not available, may need v=weekly");
+        return false;
       }
+
       if (!sessionTokenRef.current) {
         sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
       }
+      apiReadyRef.current = true;
+      console.log("✅ Places API (New) ready");
       return true;
     };
 
-    // Try immediately first
-    if (initServices()) return;
+    if (initSession()) return;
 
-    // If not ready yet, poll with increasing delay (100ms → 200ms → 400ms...)
+    // انتظار تحميل Google Maps
     let delay = 100;
     let attempts = 0;
-    const maxAttempts = 20; // ~6 seconds total
     let timer: ReturnType<typeof setTimeout>;
 
     const tryInit = () => {
       attempts++;
-      if (attempts > maxAttempts) return;
-      if (initServices()) return;
+      if (attempts > 20) return;
+      if (initSession()) return;
       delay = Math.min(delay * 1.5, 1000);
       timer = setTimeout(tryInit, delay);
     };
@@ -146,46 +95,7 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
     return () => clearTimeout(timer);
   }, [googleMapsApiKey]);
 
-  // Initialize Places Service with a dummy map (one-time)
-  useEffect(() => {
-    if (placesServiceRef.current) return;
-
-    const initPlaces = () => {
-      if (typeof window === 'undefined' || !window.google?.maps?.places) return false;
-      
-      try {
-        const hiddenDiv = document.createElement('div');
-        hiddenDiv.style.display = 'none';
-        document.body.appendChild(hiddenDiv);
-        const dummyMap = new google.maps.Map(hiddenDiv);
-        placesServiceRef.current = new google.maps.places.PlacesService(dummyMap);
-        console.log("✅ PlacesService initialized");
-        return true;
-      } catch (e) {
-        console.warn("⚠️ PlacesService init failed:", e);
-        return false;
-      }
-    };
-
-    if (initPlaces()) return;
-
-    let delay = 100;
-    let attempts = 0;
-    let timer: ReturnType<typeof setTimeout>;
-
-    const tryInit = () => {
-      attempts++;
-      if (attempts > 20) return;
-      if (initPlaces()) return;
-      delay = Math.min(delay * 1.5, 1000);
-      timer = setTimeout(tryInit, delay);
-    };
-    timer = setTimeout(tryInit, delay);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Debounced search function
+  // البحث الأساسي باستخدام AutocompleteSuggestion API الجديد
   const performSearch = useCallback(
     async (query: string) => {
       if (!query.trim()) {
@@ -193,8 +103,8 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
         return;
       }
 
-      if (!autocompleteServiceRef.current) {
-        console.error("❌ AutocompleteService not initialized");
+      if (!apiReadyRef.current) {
+        console.error("❌ Places API (New) not ready");
         setPredictions([]);
         return;
       }
@@ -203,98 +113,76 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
       console.log("🔍 Searching for:", query);
       
       try {
-        // ✨ مراحل البحث مع نطاقات متزايدة للعثور على النتائج
-        const radiuses = userLocation ? [5000, 10000, 15000] : []; // 5km, 10km, 15km
+        // ✨ بحث مع نطاقات متزايدة
+        const radiuses = userLocation ? [5000, 10000, 15000] : [];
         let formattedPredictions: PlacePrediction[] = [];
         
         for (const radius of radiuses) {
-          if (formattedPredictions.length > 0) break; // إذا وجدنا نتائج، توقف
+          if (formattedPredictions.length > 0) break;
           
           console.log(`🔍 Search attempt with ${radius / 1000}km radius...`);
           
-          const request: google.maps.places.AutocompletionRequest & {
-            locationBias?: google.maps.places.LocationBias;
-            locationRestriction?: google.maps.places.LocationRestriction;
-            strictBounds?: boolean;
-            origin?: google.maps.LatLng;
-            types?: string[];
-          } = {
+          const request: any = {
             input: query,
             language: "ar",
             sessionToken: sessionTokenRef.current,
-            componentRestrictions: { country: "iq" }, // Iraq only
+            includedRegionCodes: ["iq"],
           };
-
-          // ✨ إضافة types للبحث عن جميع أنواع الأماكن
-          request.types = ['establishment', 'geocode'];
 
           if (userLocation) {
             const center = new google.maps.LatLng(userLocation.lat, userLocation.lng);
-            // ✨ استخدام locationBias مع نطاق ديناميكي
-            request.locationBias = { radius, center }; // use current radius
+            request.locationBias = { center, radius };
             request.origin = center;
           }
 
-          console.log(`📤 Autocomplete request with ${radius / 1000}km radius:`, request);
-          const response = await autocompleteServiceRef.current.getPlacePredictions(request);
-          console.log(`📥 Autocomplete response (${radius / 1000}km):`, response);
+          const { suggestions } = await google.maps.places.AutocompleteSuggestion
+            .fetchAutocompleteSuggestions(request);
 
-          if (response.predictions.length > 0) {
-            formattedPredictions = response.predictions.map((p) => ({
-              place_id: p.place_id,
-              main_text: p.structured_formatting.main_text,
-              secondary_text: p.structured_formatting.secondary_text,
-              description: p.description,
-            }));
+          if (suggestions && suggestions.length > 0) {
+            formattedPredictions = suggestions
+              .filter(s => s.placePrediction)
+              .map((s) => {
+                const pred = s.placePrediction!;
+                const distMeters = pred.distanceMeters ?? undefined;
+                return {
+                  place_id: pred.placeId,
+                  main_text: pred.mainText.text,
+                  secondary_text: pred.secondaryText?.text,
+                  description: pred.text.text,
+                  distance_meters: distMeters,
+                  distance_text: distMeters != null ? formatDistance(distMeters) : undefined,
+                };
+              });
             
             console.log(`✅ Found ${formattedPredictions.length} results at ${radius / 1000}km radius`);
-            break; // خروج من الحلقة
+            break;
           }
         }
 
-        // إثراء كل النتائج بالمسافة والفرز حسب القرب
-        if (userLocation && placesServiceRef.current && formattedPredictions.length > 0) {
-          console.log(`📊 Enriching all ${formattedPredictions.length} results with distance data...`);
-          
-          // حساب المسافة لكل النتائج (ليس فقط أول 6)
-          const enriched = await Promise.all(
-            formattedPredictions.map(async (p) => {
-              const geo = await fetchPlaceGeometry(p.place_id);
-              if (!geo) return { ...p, distance_meters: Number.POSITIVE_INFINITY };
-              
-              const distance = getDistanceMeters(userLocation, geo);
-              return {
-                ...p,
-                lat: geo.lat,
-                lng: geo.lng,
-                distance_meters: distance,
-                distance_text: formatDistance(distance),
-              };
-            })
-          );
-
-          // فرز قوي حسب المسافة (الأقرب أولاً)
-          const withDistance = enriched.sort((a, b) => {
+        // فرز وفلترة حسب المسافة (إذا متوفرة من API)
+        if (userLocation && formattedPredictions.length > 0) {
+          // فرز حسب المسافة (الأقرب أولاً)
+          formattedPredictions.sort((a, b) => {
             const da = a.distance_meters ?? Number.POSITIVE_INFINITY;
             const db = b.distance_meters ?? Number.POSITIVE_INFINITY;
-            return da - db; // ترتيب تصاعدي (الأقرب أولاً)
+            return da - db;
           });
 
-          // فلترة النتائج البعيدة جداً فقط إذا وُجدت نتائج قريبة
-          const hasNearby = withDistance.some(p => (p.distance_meters ?? Number.POSITIVE_INFINITY) <= 5000);
-          formattedPredictions = hasNearby
-            ? withDistance.filter(p => {
-                if ((p.distance_meters ?? Number.POSITIVE_INFINITY) > 5000) {
-                  console.log(`🚫 Filtered out distant result: ${p.main_text} (${p.distance_text})`);
-                  return false;
-                }
-                return true;
-              })
-            : withDistance;
+          // فلترة النتائج البعيدة جداً
+          const hasNearby = formattedPredictions.some(p => (p.distance_meters ?? Infinity) <= 5000);
+          if (hasNearby) {
+            formattedPredictions = formattedPredictions.filter(p => {
+              if ((p.distance_meters ?? Infinity) > 5000) {
+                console.log(`🚫 Filtered out distant result: ${p.main_text} (${p.distance_text})`);
+                return false;
+              }
+              return true;
+            });
+          }
 
           console.log(`✅ Results after distance sorting:`);
           formattedPredictions.slice(0, 5).forEach((p, i) => {
-            console.log(`  ${i + 1}. ${p.main_text} - ${p.distance_text}`);
+            console.log(`  ${i + 1}. ${p.main_text} - ${p.distance_text ?? 'N/A'}`);
           });
         }
 
@@ -303,10 +191,8 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
       } catch (error: any) {
         console.error("❌ Search error:", error);
         
-        // رسائل واضحة حسب نوع الخطأ فقط
         if (error.message?.includes('REQUEST_DENIED')) {
           console.error("⚠️ Places API: REQUEST_DENIED - تحقق من Google Cloud Console");
-          // عرض toast مرة واحدة فقط
           toast({
             title: "⚠️ خطأ في الاتصال",
             description: "تعذر الاتصال بخدمة البحث، حاول مرة أخرى",
@@ -321,7 +207,7 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
         setIsSearching(false);
       }
     },
-    [userLocation, toast]
+    [userLocation, toast, formatDistance]
   );
 
   // Debounce search
@@ -333,50 +219,31 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
 
-  // Get place details
+  // جلب تفاصيل المكان باستخدام Place (New) API
   const getPlaceDetails = useCallback(
     async (placeId: string): Promise<PlaceDetails | null> => {
-      if (!placesServiceRef.current) {
-        console.error("Places service not initialized");
+      if (!apiReadyRef.current) {
+        console.error("Places API (New) not ready");
         return null;
       }
 
       setIsLoadingDetails(true);
       try {
-        const request: google.maps.places.PlaceDetailsRequest = {
-          placeId,
-          fields: [
-            "formatted_address",
-            "geometry",
-            "name",
-            "place_id",
-            "address_components",
-          ],
-          sessionToken: sessionTokenRef.current,
-        };
+        const place = new google.maps.places.Place({ id: placeId });
+        await place.fetchFields({
+          fields: ["formattedAddress", "location", "displayName", "id"],
+        });
 
-        const result = await new Promise<google.maps.places.PlaceResult | null>(
-          (resolve, reject) => {
-            placesServiceRef.current!.getDetails(request, (result, status) => {
-              if (status === google.maps.places.PlacesServiceStatus.OK && result) {
-                resolve(result);
-              } else {
-                reject(new Error(`Places API error: ${status}`));
-              }
-            });
-          }
-        );
-
-        if (result?.geometry?.location && result?.formatted_address) {
-          // Create new session token after successful search
+        if (place.location && place.formattedAddress) {
+          // تجديد session token بعد الاختيار
           sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
 
           return {
-            lat: result.geometry.location.lat(),
-            lng: result.geometry.location.lng(),
-            address: result.formatted_address,
-            name: result.name || "",
-            placeId: result.place_id || placeId,
+            lat: place.location.lat(),
+            lng: place.location.lng(),
+            address: place.formattedAddress,
+            name: place.displayName || "",
+            placeId: place.id || placeId,
           };
         }
         return null;

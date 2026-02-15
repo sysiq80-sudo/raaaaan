@@ -1,23 +1,12 @@
 /* ران RAAN - Arabic Typography */
-
-/* Import Arabic fonts */
-@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap");
+/* Primary font: IBM Plex Sans Arabic (loaded in index.html + index.css) */
 
 /* Body typography */
 body {
-  font-family:
-    "Cairo",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "Helvetica Neue",
-    sans-serif;
+  font-family: "IBM Plex Sans Arabic", sans-serif;
   font-size: 16px;
   line-height: 1.6;
   letter-spacing: 0.3px;
-  color: #1a1a1a;
-  background-color: #f9f9f9;
 }
 
 /* Headings */
@@ -27,11 +16,10 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: "Cairo", sans-serif;
+  font-family: "IBM Plex Sans Arabic", sans-serif;
   font-weight: 700;
   line-height: 1.4;
   margin-bottom: 1rem;
-  color: #000;
 }
 
 h1 {
@@ -92,17 +80,17 @@ p {
 }
 
 .text-arabic {
-  font-family: "Cairo", sans-serif;
+  font-family: "IBM Plex Sans Arabic", sans-serif;
   line-height: 1.8;
 }
 
 .text-english {
-  font-family: "Segoe UI", sans-serif;
+  font-family: "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
   line-height: 1.6;
 }
 
 .text-kurdi {
-  font-family: "Tajawal", sans-serif;
+  font-family: "IBM Plex Sans Arabic", sans-serif;
   line-height: 1.8;
 }
 

@@ -158,6 +158,11 @@ export const ActiveRideCard = ({
   // Broadcast channel for driver-rider communication
   const broadcastChannel = useRef<any>(null);
 
+  // ═══ GPS Tracking for Hybrid Pricing ═══
+  const trackingPointsRef = useRef<Array<{ lat: number; lng: number; recorded_at: string; speed?: number; heading?: number; accuracy?: number }>>([]);
+  const lastTrackingTimeRef = useRef<number>(0);
+  const trackingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const fetchRiderInfo = useCallback(async (riderId: string) => {
     const { data } = await supabase
       .from("profiles")
@@ -469,6 +474,50 @@ export const ActiveRideCard = ({
         logger.error("ActiveRideCard", "Location broadcast error", err),
       );
   }, [driverLocation?.lat, driverLocation?.lng, activeRide?.id]);
+
+  // 📍 Accumulate GPS tracking points every 30 seconds during in_progress
+  useEffect(() => {
+    if (activeRide?.status !== "in_progress") {
+      // Clear interval when not in_progress
+      if (trackingIntervalRef.current) {
+        clearInterval(trackingIntervalRef.current);
+        trackingIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Reset tracking points when ride enters in_progress
+    if (trackingPointsRef.current.length === 0 && driverLocation) {
+      trackingPointsRef.current.push({
+        lat: driverLocation.lat,
+        lng: driverLocation.lng,
+        recorded_at: new Date().toISOString(),
+      });
+    }
+
+    trackingIntervalRef.current = setInterval(() => {
+      if (driverLocation) {
+        const now = Date.now();
+        // Only record if at least 25s since last point (debounce)
+        if (now - lastTrackingTimeRef.current >= 25000) {
+          trackingPointsRef.current.push({
+            lat: driverLocation.lat,
+            lng: driverLocation.lng,
+            recorded_at: new Date().toISOString(),
+          });
+          lastTrackingTimeRef.current = now;
+          logger.debug("ActiveRideCard", `Tracking point #${trackingPointsRef.current.length} recorded`);
+        }
+      }
+    }, 30000);
+
+    return () => {
+      if (trackingIntervalRef.current) {
+        clearInterval(trackingIntervalRef.current);
+        trackingIntervalRef.current = null;
+      }
+    };
+  }, [activeRide?.status, activeRide?.id, driverLocation]);
 
   // Send quick message to rider
   const sendQuickMessageToRider = (
@@ -840,6 +889,27 @@ export const ActiveRideCard = ({
     }
   };
 
+  // حساب المسافة الفعلية من نقاط التتبع GPS (Haversine)
+  const calculateGpsDistance = (points: Array<{ lat: number; lng: number }>): number => {
+    if (points.length < 2) return 0;
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    let totalKm = 0;
+    for (let i = 1; i < points.length; i++) {
+      const R = 6371;
+      const dLat = toRad(points[i].lat - points[i - 1].lat);
+      const dLng = toRad(points[i].lng - points[i - 1].lng);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(points[i - 1].lat)) *
+          Math.cos(toRad(points[i].lat)) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      totalKm += R * c;
+    }
+    return Math.round(totalKm * 100) / 100;
+  };
+
   const handleCompleteRide = async () => {
     if (!activeRide) return;
     setLoading(true);
@@ -880,6 +950,17 @@ export const ActiveRideCard = ({
         return;
       }
 
+      // إضافة النقطة الأخيرة (موقع الوصول)
+      trackingPointsRef.current.push({
+        lat: currentLocation.lat,
+        lng: currentLocation.lng,
+        recorded_at: new Date().toISOString(),
+      });
+
+      // حساب المسافة الفعلية من نقاط GPS المتراكمة
+      const gpsDistance = calculateGpsDistance(trackingPointsRef.current);
+      console.log(`[Driver] GPS distance: ${gpsDistance} km from ${trackingPointsRef.current.length} points`);
+
       const waitingMinutes =
         activeRide.status === "arrived"
           ? Math.floor(
@@ -887,12 +968,11 @@ export const ActiveRideCard = ({
             )
           : 0;
 
-      const finalFare = activeRide.estimated_fare || 0;
-
       // ⚡ INSTANT: Send broadcast FIRST for immediate rider notification
+      const estimatedFare = activeRide.estimated_fare || 0;
       console.log("[Driver] ⚡ Sending instant ride_completed broadcast");
       await notifyRider("ride_completed", "الحمد لله على السلامة!", {
-        finalFare,
+        finalFare: estimatedFare,
         riderName: riderInfo?.full_name,
       });
 
@@ -900,24 +980,63 @@ export const ActiveRideCard = ({
       playSound("completed");
       vibrate(VibrationPatterns.completed);
 
-      // Then update database
-      const { error } = await supabase
-        .from("rides")
-        .update({
-          status: "completed",
-          completed_at: new Date().toISOString(),
-          final_fare: finalFare,
-          waiting_minutes: waitingMinutes,
-        })
-        .eq("id", activeRide.id);
+      // 🔄 استدعاء Edge Function لإكمال الرحلة مع تدقيق الأجرة
+      const { data: completionResult, error: completionError } =
+        await supabase.functions.invoke("complete-ride", {
+          body: {
+            ride_id: activeRide.id,
+            final_gps_distance: gpsDistance > 0 ? gpsDistance : null,
+            waiting_minutes: waitingMinutes,
+            tracking_points:
+              trackingPointsRef.current.length > 1
+                ? trackingPointsRef.current
+                : null,
+          },
+        });
 
-      if (error) throw error;
+      if (completionError) {
+        console.error("[Driver] complete-ride Edge Function failed:", completionError);
+        // Fallback: direct DB update if Edge Function fails
+        const { error } = await supabase
+          .from("rides")
+          .update({
+            status: "completed",
+            completed_at: new Date().toISOString(),
+            final_fare: estimatedFare,
+            waiting_minutes: waitingMinutes,
+            actual_distance_km: gpsDistance > 0 ? gpsDistance : null,
+          })
+          .eq("id", activeRide.id);
+        if (error) throw error;
+      }
+
+      // تحديد الأجرة النهائية (قد تكون مُعدّلة)
+      const finalFare = completionResult?.final_fare || estimatedFare;
+      const fareAdjusted = completionResult?.fare_adjusted || false;
+
+      // إشعار السائق إذا تم تعديل الأجرة
+      if (fareAdjusted && completionResult?.adjustment_message) {
+        toast({
+          title: "💰 تعديل الأجرة",
+          description: completionResult.adjustment_message,
+        });
+
+        // إشعار الراكب بالتعديل عبر البث
+        await notifyRider("fare_adjusted", completionResult.adjustment_message, {
+          oldFare: estimatedFare,
+          newFare: finalFare,
+        });
+      }
+
+      // تنظيف نقاط التتبع
+      trackingPointsRef.current = [];
+      lastTrackingTimeRef.current = 0;
 
       // Show completed screen with rating
       setCompletedRideData({
         id: activeRide.id,
         final_fare: finalFare,
-        distance_km: activeRide.distance_km,
+        distance_km: completionResult?.actual_distance_km || activeRide.distance_km,
         duration_minutes: activeRide.duration_minutes,
         rider_id: activeRide.rider_id,
       });
