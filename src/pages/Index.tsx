@@ -434,7 +434,7 @@ const Index = () => {
               <span className="text-gradient text-glow">يحجز بالذكاء الاصطناعي</span>
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto text-lg leading-relaxed">
-              تطبيق ران يستخدم تقنيات <span className="text-primary font-semibold">OpenAI Whisper</span> و <span className="text-primary font-semibold">GPT-4o</span> لفهم صوتك بالعراقي وحجز الرحلة فوراً — بدون ما تكتب حرف واحد!
+              تطبيق ران يستخدم <span className="text-primary font-semibold">أحدث تقنيات الذكاء الاصطناعي</span> لفهم صوتك بالعراقي وحجز الرحلة فوراً — بدون ما تكتب حرف واحد!
             </p>
           </div>
 
@@ -462,8 +462,8 @@ const Index = () => {
             {/* AI Features List */}
             <div className="order-1 lg:order-2 space-y-6">
               {[
-                { icon: <Mic className="w-6 h-6" />, title: "تحويل الصوت للنص", desc: 'تقنية Whisper تحول كلامك بالعراقي لنص دقيق — حتى لو تكول "أريد أروح ليم الجامعة"' },
-                { icon: <Brain className="w-6 h-6" />, title: "فهم المقصد بذكاء", desc: 'GPT-4o يفهم إنك تقصد "جامعة الأنبار" ويحدد الإحداثيات بدقة على خريطة الرمادي' },
+                { icon: <Mic className="w-6 h-6" />, title: "تحويل الصوت للنص", desc: 'تقنية التعرف الصوتي المتقدمة تحول كلامك بالعراقي لنص دقيق — حتى لو تكول "أريد أروح ليم الجامعة"' },
+                { icon: <Brain className="w-6 h-6" />, title: "فهم المقصد بذكاء", desc: 'الذكاء الاصطناعي يفهم إنك تقصد "جامعة الأنبار" ويحدد الإحداثيات بدقة على خريطة الرمادي' },
                 { icon: <MapPin className="w-6 h-6" />, title: "تحديد المواقع تلقائياً", desc: "يعرف 27+ معلم ومنطقة بالرمادي — من حي التأميم لجامعة الأنبار لتقاطع الزيوت" },
               ].map((f, i) => (
                 <div key={i} className="flex items-start gap-4 p-5 rounded-2xl bg-card border border-border/30 hover:border-primary/30 transition-colors">
@@ -859,7 +859,7 @@ const Index = () => {
                 أول تطبيق تاكسي بالعالم يعمل بالذكاء الاصطناعي. نفهم شوارع الأنبار ونوفر لك تجربة تنقل آمنة ومريحة. احجز بصوتك أو عبر تيليغرام!
               </p>
               <div className="flex items-center gap-2 mb-6">
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold"><Brain className="w-3 h-3" /> Powered by OpenAI</span>
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold"><Brain className="w-3 h-3" /> Powered by AI</span>
                 <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-500 text-xs font-semibold"><MapPin className="w-3 h-3" /> Google Maps</span>
               </div>
               <div className="flex gap-3">

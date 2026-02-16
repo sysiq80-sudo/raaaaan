@@ -358,40 +358,82 @@ serve(async (req) => {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
 
+  // ── قراءة البيانات الواردة
+  let update: any;
+  try {
+    update = await req.json();
+  } catch {
+    console.error("[telegram] Failed to parse request body");
+    return new Response("Bad Request", { status: 400, headers: corsHeaders });
+  }
+
+  console.log("[telegram] ===== NEW UPDATE =====");
+  console.log("[telegram] Update:", JSON.stringify(update).substring(0, 800));
+  console.log("[telegram] BOT_TOKEN available:", !!TELEGRAM_BOT_TOKEN);
+  console.log("[telegram] OPENAI_KEY available:", !!OPENAI_API_KEY);
+  console.log("[telegram] GOOGLE_KEY available:", !!GOOGLE_MAPS_KEY);
+  console.log("[telegram] SUPABASE_URL:", SUPABASE_URL || "NOT SET");
+
+  const message = update.message;
+  if (!message) {
+    console.log("[telegram] No message in update, skipping");
+    return new Response("OK", { status: 200, headers: corsHeaders });
+  }
+
+  const chatId = message.chat.id;
+  const telegramUser = message.from;
+  console.log(`[telegram] Chat ID: ${chatId}, User: ${telegramUser?.first_name} (${telegramUser?.id})`);
+  console.log(`[telegram] Message type: text="${message.text || ''}", voice=${!!message.voice}`);
+
+  // ═══════════ مساعد إرسال مباشر (fallback) ═══════════
+  async function directSend(text: string) {
+    const token = TELEGRAM_BOT_TOKEN;
+    if (!token) {
+      console.error("[telegram] TELEGRAM_BOT_TOKEN is empty! Cannot send message.");
+      return;
+    }
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    console.log(`[telegram] Sending to chat ${chatId}...`);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text }),
+      });
+      const result = await res.text();
+      console.log(`[telegram] Send result (${res.status}): ${result.substring(0, 300)}`);
+    } catch (e) {
+      console.error("[telegram] Failed to send message:", e);
+    }
+  }
+
+  // ═══════════ /start command ═══════════
+  if (message.text === "/start") {
+    console.log("[telegram] Handling /start command");
+    await directSend(MESSAGES.welcome);
+    return new Response("OK", { status: 200, headers: corsHeaders });
+  }
+
+  // ═══════════ رسالة نصية عادية ═══════════
+  if (message.text && !message.voice) {
+    console.log("[telegram] Text message (no voice), sending instructions");
+    await directSend(MESSAGES.noVoice);
+    return new Response("OK", { status: 200, headers: corsHeaders });
+  }
+
+  // ═══════════ رسالة صوتية ═══════════
+  if (!message.voice) {
+    console.log("[telegram] Non-voice non-text message, sending instructions");
+    await directSend(MESSAGES.noVoice);
+    return new Response("OK", { status: 200, headers: corsHeaders });
+  }
+
+  // ═══════════ معالجة الصوت بالذكاء الاصطناعي ═══════════
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    const update = await req.json();
-    console.log("[telegram] Received update:", JSON.stringify(update).substring(0, 500));
-
-    const message = update.message;
-    if (!message) {
-      return new Response("OK", { status: 200, headers: corsHeaders });
-    }
-
-    const chatId = message.chat.id;
-    const telegramUser = message.from;
-
-    // ═══════════════════ /start command ═══════════════════
-    if (message.text === "/start") {
-      await sendTelegramMessage(chatId, MESSAGES.welcome);
-      return new Response("OK", { status: 200, headers: corsHeaders });
-    }
-
-    // ═══════════════════ رسالة نصية عادية ═══════════════════
-    if (message.text && !message.voice) {
-      await sendTelegramMessage(chatId, MESSAGES.noVoice);
-      return new Response("OK", { status: 200, headers: corsHeaders });
-    }
-
-    // ═══════════════════ رسالة صوتية ═══════════════════
-    if (!message.voice) {
-      await sendTelegramMessage(chatId, MESSAGES.noVoice);
-      return new Response("OK", { status: 200, headers: corsHeaders });
-    }
-
     // ── إرسال رسالة "جاري التحليل" فوراً
-    await sendTelegramMessage(chatId, MESSAGES.processing);
+    await directSend(MESSAGES.processing);
 
     // ── الخطوة 1: تحميل الصوت من تيليغرام
     console.log("[telegram] Downloading voice file:", message.voice.file_id);
@@ -405,7 +447,7 @@ serve(async (req) => {
     console.log(`[whisper] Transcript: "${transcript}"`);
 
     if (!transcript || transcript.trim().length < 3) {
-      await sendTelegramMessage(chatId, MESSAGES.noTranscript);
+      await directSend(MESSAGES.noTranscript);
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
@@ -415,7 +457,7 @@ serve(async (req) => {
     console.log("[gpt4o] Intent:", JSON.stringify(intent));
 
     if (!intent.destination_search_query) {
-      await sendTelegramMessage(chatId, MESSAGES.noDestination);
+      await directSend(MESSAGES.noDestination);
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
@@ -425,7 +467,7 @@ serve(async (req) => {
     // نقطة الوصول (إلزامية)
     const destination = await resolveRamadiLocation(intent.destination_search_query);
     if (!destination) {
-      await sendTelegramMessage(chatId, MESSAGES.geocodeFailed(intent.destination_search_query));
+      await directSend(MESSAGES.geocodeFailed(intent.destination_search_query));
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
     console.log(`[geocode] Destination: ${destination.address} (${destination.lat}, ${destination.lng})`);
@@ -435,7 +477,7 @@ serve(async (req) => {
     if (intent.origin_search_query) {
       const resolved = await resolveRamadiLocation(intent.origin_search_query);
       if (!resolved) {
-        await sendTelegramMessage(chatId, MESSAGES.geocodeFailed(intent.origin_search_query));
+        await directSend(MESSAGES.geocodeFailed(intent.origin_search_query));
         return new Response("OK", { status: 200, headers: corsHeaders });
       }
       origin = resolved;
@@ -495,8 +537,7 @@ serve(async (req) => {
     }
 
     // ── الخطوة 9: إرسال رسالة التأكيد للراكب
-    await sendTelegramMessage(
-      chatId,
+    await directSend(
       MESSAGES.bookingConfirmed(origin.address, destination.address, estimatedFare)
     );
 
@@ -510,21 +551,18 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    console.error("[telegram-ai-booking] Error:", errMsg);
+    console.error("[telegram-ai-booking] CRITICAL ERROR:", errMsg);
+    console.error("[telegram-ai-booking] Stack:", error instanceof Error ? error.stack : "N/A");
 
     // محاولة إرسال رسالة خطأ للمستخدم
     try {
-      const update = await req.clone().json().catch(() => null);
-      const chatId = update?.message?.chat?.id;
-      if (chatId) {
-        await sendTelegramMessage(chatId, MESSAGES.error);
-      }
-    } catch {
-      // تجاهل — لا نستطيع إرسال رسالة للمستخدم
+      await directSend("عذراً، حدث خطأ تقني. يرجى المحاولة مرة أخرى. ⚠️");
+    } catch (sendErr) {
+      console.error("[telegram] Failed to send error message to user:", sendErr);
     }
 
     return new Response(JSON.stringify({ error: errMsg }), {
-      status: 500,
+      status: 200, // نرجع 200 حتى تيليغرام ما يعيد الإرسال
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
