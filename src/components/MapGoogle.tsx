@@ -85,8 +85,8 @@ export interface MapRef {
 }
 
 // Constants
-const DEFAULT_CENTER = { lat: 33.3128, lng: 44.3615 }; // Ramadi, Iraq
-const DEFAULT_ZOOM = 12;
+const DEFAULT_CENTER = { lat: 33.4233, lng: 43.2974 }; // Ramadi, Iraq
+const DEFAULT_ZOOM = 14;
 
 /**
  * Map Component - Google Maps Integration

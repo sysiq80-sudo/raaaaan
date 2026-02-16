@@ -114,8 +114,11 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
       
       try {
         // ✨ بحث مع نطاقات متزايدة
-        const radiuses = userLocation ? [5000, 10000, 15000] : [];
+        const radiuses = userLocation ? [5000, 10000, 20000] : [20000];
         let formattedPredictions: PlacePrediction[] = [];
+
+        // مركز الرمادي الافتراضي للتحيز الجغرافي
+        const ramadiCenter = new google.maps.LatLng(33.4233, 43.2974);
         
         for (const radius of radiuses) {
           if (formattedPredictions.length > 0) break;
@@ -129,11 +132,12 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
             includedRegionCodes: ["iq"],
           };
 
-          if (userLocation) {
-            const center = new google.maps.LatLng(userLocation.lat, userLocation.lng);
-            request.locationBias = { center, radius };
-            request.origin = center;
-          }
+          // تحيز البحث نحو الرمادي — حتى لو لم يتوفر موقع المستخدم
+          const biasCenter = userLocation
+            ? new google.maps.LatLng(userLocation.lat, userLocation.lng)
+            : ramadiCenter;
+          request.locationBias = { center: biasCenter, radius };
+          request.origin = biasCenter;
 
           const { suggestions } = await google.maps.places.AutocompleteSuggestion
             .fetchAutocompleteSuggestions(request);

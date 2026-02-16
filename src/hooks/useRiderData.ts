@@ -69,7 +69,7 @@ export const useRiderData = () => {
 
     // ⚡ Set default location IMMEDIATELY so the map can render instantly
     // This will be overwritten once GPS resolves
-    setUserLocation({ lat: 33.4262, lng: 43.2954 }); // Ramadi center
+    setUserLocation({ lat: 33.4233, lng: 43.2974 }); // Ramadi center
 
     let mounted = true;
 

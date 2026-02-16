@@ -44,8 +44,8 @@ const StaticMapPlaceholder = ({
         }
 
         // Default to Ramadi center if no location provided
-        const lat = centerLocation?.lat || 33.4262;
-        const lng = centerLocation?.lng || 43.2954;
+        const lat = centerLocation?.lat || 33.4233;
+        const lng = centerLocation?.lng || 43.2974;
 
         // Generate static map URL using Google Maps
         const url = generateStaticMapUrl(

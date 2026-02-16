@@ -65,7 +65,7 @@ const AdminMap = () => {
   const [selectedRegion, setSelectedRegion] = useState<string>("all");
 
   // Ramadi center (Anbar)
-  const ramadiCenter = { lat: 33.4279, lng: 43.3009 };
+  const ramadiCenter = { lat: 33.4233, lng: 43.2974 };
 
   // Fetch regions
   useEffect(() => {
@@ -239,7 +239,7 @@ const AdminMap = () => {
 
     // Add/update driver markers
     displayDrivers.forEach(driver => {
-      const location = driver.current_location || { lat: 33.4279, lng: 43.3009 };
+      const location = driver.current_location || { lat: 33.4233, lng: 43.2974 };
       const existingMarker = driverMarkers.current.get(driver.id);
       
       const hasLocation = !!driver.current_location;

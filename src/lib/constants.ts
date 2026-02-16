@@ -16,7 +16,7 @@ export const APP_INFO = {
 
 // إحداثيات المناطق
 export const LOCATIONS = {
-    RAMADI_CENTER: { lat: 33.4262, lng: 43.2954 },
+    RAMADI_CENTER: { lat: 33.4233, lng: 43.2974 },
     FALLUJAH_CENTER: { lat: 33.3500, lng: 43.7833 },
     ANBAR_BOUNDS: {
         north: 34.5,

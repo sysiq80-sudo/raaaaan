@@ -227,6 +227,7 @@ export const fitMapToBounds = (
 
 /**
  * Geocode an address using Google Maps API
+ * Biased to Ramadi, Al Anbar, Iraq
  */
 export const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
   if (!window.google) return null;
@@ -234,7 +235,15 @@ export const geocodeAddress = async (address: string): Promise<{ lat: number; ln
   const geocoder = new google.maps.Geocoder();
 
   try {
-    const result = await geocoder.geocode({ address });
+    const result = await geocoder.geocode({
+      address,
+      componentRestrictions: { country: 'IQ' },
+      bounds: new google.maps.LatLngBounds(
+        { lat: 33.35, lng: 43.20 }, // SW corner — south-west Ramadi
+        { lat: 33.50, lng: 43.40 }, // NE corner — north-east Ramadi
+      ),
+      region: 'IQ',
+    });
 
     if (result.results && result.results.length > 0) {
       const location = result.results[0].geometry.location;

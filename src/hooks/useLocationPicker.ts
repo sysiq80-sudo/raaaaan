@@ -68,7 +68,7 @@ export const useLocationPicker = (
   }, [reloadKey]);
 
   // Memoize Ramadi center coordinates
-  const ramadiCenter = useMemo(() => ({ lat: 33.4262, lng: 43.2954 }), []);
+  const ramadiCenter = useMemo(() => ({ lat: 33.4233, lng: 43.2974 }), []);
 
   // Check service area
   const checkServiceArea = useCallback(async (lat: number, lng: number) => {
@@ -440,7 +440,7 @@ export const useLocationPicker = (
 
           map.current = new window.google.maps.Map(mapContainer.current, {
             center: initialCenter,
-            zoom: 16,
+            zoom: 15,
             mapTypeId: window.google.maps.MapTypeId.ROADMAP,
             styles: mapStyle, // 🎨 نمط ذكي يتكيف مع الثيم
             disableDefaultUI: true,

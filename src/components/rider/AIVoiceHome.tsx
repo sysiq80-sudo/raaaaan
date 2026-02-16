@@ -3,15 +3,96 @@
  * Voice-First AI Home Screen — الابتكار الأول عالمياً في تطبيقات التاكسي
  */
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, MapPin, Shield, Sparkles, Volume2, ArrowLeft, Check, X, Map as MapIcon } from "lucide-react";
+import { Mic, MicOff, MapPin, Shield, Sparkles, Volume2, ArrowLeft, Check, X, Map as MapIcon, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useVoiceRecording, type VoiceResult, type VoiceState } from "@/hooks/useVoiceRecording";
 import useRiderStore from "@/stores/riderStore";
 import { useToast } from "@/hooks/use-toast";
+import { reverseGeocodeCoordinates } from "@/lib/googleMapService";
 import logo from "@/assets/logo.png";
+
+// ========================
+// ثوابت: أمثلة التلميحات الصوتية الدوارة
+// ========================
+const VOICE_HINTS = [
+  "جرب أن تقول: لجامعة الأنبار",
+  "جرب أن تقول: لشارع المستودع",
+  "جرب أن تقول: لمستشفى الرمادي التعليمي",
+  "جرب أن تقول: لتقاطع الزيوت",
+  "جرب أن تقول: لحي التأميم",
+  "جرب أن تقول: لسوق الرمادي المركزي",
+];
+
+// ========================
+// المكون الفرعي: عنوان الانطلاق المكتشف تلقائياً
+// ========================
+const PickupHeader: React.FC<{ address: string | null; isLoading: boolean }> = ({ address, isLoading }) => (
+  <motion.div
+    className="w-full px-6"
+    initial={{ opacity: 0, y: -10 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5, delay: 0.3 }}
+  >
+    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-primary/15 backdrop-blur-sm">
+      <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+        <Navigation className="w-4 h-4 text-primary" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] text-primary/50 mb-0.5">سيأخذك السائق من</p>
+        {isLoading ? (
+          <motion.p
+            className="text-sm text-white/40 truncate"
+            animate={{ opacity: [0.3, 0.7, 0.3] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            جاري تحديد أقرب نقطة دالة...
+          </motion.p>
+        ) : (
+          <p className="text-sm font-semibold text-white/90 truncate">
+            {address || "لم يتم تحديد الموقع"}
+          </p>
+        )}
+      </div>
+    </div>
+  </motion.div>
+);
+
+// ========================
+// المكون الفرعي: تلميحات صوتية دوارة
+// ========================
+const RotatingHints: React.FC<{ isPaused: boolean }> = ({ isPaused }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (isPaused) return;
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % VOICE_HINTS.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isPaused]);
+
+  if (isPaused) return null;
+
+  return (
+    <div className="h-8 flex items-center justify-center overflow-hidden">
+      <AnimatePresence mode="wait">
+        <motion.p
+          key={currentIndex}
+          className="text-sm text-primary/50 text-center px-4"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -12 }}
+          transition={{ duration: 0.4, ease: "easeInOut" }}
+        >
+          {VOICE_HINTS[currentIndex]}
+        </motion.p>
+      </AnimatePresence>
+    </div>
+  );
+};
 
 // ========================
 // المكون الفرعي: موجات الصوت
@@ -225,6 +306,71 @@ const AIVoiceHome: React.FC = () => {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isPressing, setIsPressing] = useState(false);
 
+  // === حالة موقع الانطلاق المكتشف تلقائياً ===
+  const [pickupAddress, setPickupAddress] = useState<string | null>(null);
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLoadingPickup, setIsLoadingPickup] = useState(true);
+  const locationFetchedRef = useRef(false);
+
+  // عند تحميل الشاشة → جلب الموقع الحالي وتحويله لعنوان مقروء
+  useEffect(() => {
+    if (locationFetchedRef.current) return;
+    locationFetchedRef.current = true;
+
+    if (!navigator.geolocation) {
+      setIsLoadingPickup(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude: lat, longitude: lng } = position.coords;
+        setPickupCoords({ lat, lng });
+
+        try {
+          // انتظار تحميل Google Maps SDK
+          const waitForGoogle = () =>
+            new Promise<void>((resolve) => {
+              if (window.google?.maps) return resolve();
+              const interval = setInterval(() => {
+                if (window.google?.maps) {
+                  clearInterval(interval);
+                  resolve();
+                }
+              }, 200);
+              // timeout بعد 8 ثواني
+              setTimeout(() => { clearInterval(interval); resolve(); }, 8000);
+            });
+
+          await waitForGoogle();
+
+          const address = await reverseGeocodeCoordinates(lat, lng);
+          if (address) {
+            // تنظيف العنوان — إزالة "العراق" والأجزاء الزائدة
+            const cleanParts = address
+              .split(/[،,]/)
+              .map((p) => p.trim())
+              .filter((p) => p && p !== "العراق" && p !== "Iraq");
+            const shortAddress = cleanParts.slice(0, 2).join("، ");
+            setPickupAddress(shortAddress || address);
+          } else {
+            setPickupAddress(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+          }
+        } catch (err) {
+          console.error("Voice home reverse geocode error:", err);
+          setPickupAddress(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        } finally {
+          setIsLoadingPickup(false);
+        }
+      },
+      (err) => {
+        console.warn("Geolocation error:", err.message);
+        setIsLoadingPickup(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  }, []);
+
   // عند نجاح التحليل → عرض مودال التأكيد
   useEffect(() => {
     if (voiceState === 'success' && result) {
@@ -261,12 +407,18 @@ const AIVoiceHome: React.FC = () => {
   const handleConfirm = useCallback(() => {
     if (!result) return;
 
-    // تخزين المواقع في الـ Store
-    if (result.origin) {
+    // استخدام الموقع المكتشف تلقائياً إذا لم يحدد المستخدم نقطة انطلاق
+    const origin = result.origin || (pickupCoords && pickupAddress ? {
+      lat: pickupCoords.lat,
+      lng: pickupCoords.lng,
+      name: pickupAddress,
+    } : null);
+
+    if (origin) {
       setPickupLocation({
-        lat: result.origin.lat,
-        lng: result.origin.lng,
-        address: result.origin.name,
+        lat: origin.lat,
+        lng: origin.lng,
+        address: origin.name,
       });
     }
 
@@ -288,11 +440,11 @@ const AIVoiceHome: React.FC = () => {
     navigate('/rider/go', {
       state: {
         fromVoice: true,
-        origin: result.origin,
+        origin: origin,
         destination: result.destination,
       },
     });
-  }, [result, navigate, setPickupLocation, setDropoffLocation, setVehicle]);
+  }, [result, pickupCoords, pickupAddress, navigate, setPickupLocation, setDropoffLocation, setVehicle]);
 
   // إعادة المحاولة
   const handleRetry = useCallback(() => {
@@ -350,19 +502,22 @@ const AIVoiceHome: React.FC = () => {
         />
       </div>
 
-      {/* === الجزء العلوي: اللوغو === */}
+      {/* === الجزء العلوي: اللوغو + عنوان الانطلاق === */}
       <motion.div
-        className="relative z-10 pt-16 pb-4 flex flex-col items-center"
+        className="relative z-10 pt-16 pb-2 flex flex-col items-center gap-3 w-full"
         initial={{ y: -30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.1 }}
       >
-        <img src={logo} alt="ران" className="w-16 h-16 mb-3 drop-shadow-2xl" />
+        <img src={logo} alt="ران" className="w-16 h-16 mb-1 drop-shadow-2xl" />
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-primary/60" />
           <span className="text-xs font-medium text-primary/50 tracking-wider">مدعوم بالذكاء الاصطناعي</span>
           <Sparkles className="w-4 h-4 text-primary/60" />
         </div>
+
+        {/* عنوان الانطلاق المكتشف تلقائياً */}
+        <PickupHeader address={pickupAddress} isLoading={isLoadingPickup} />
       </motion.div>
 
       {/* === الجزء الأوسط: زر المايكروفون === */}
@@ -449,19 +604,24 @@ const AIVoiceHome: React.FC = () => {
                 </motion.button>
               </motion.div>
 
-              {/* تعليمات حسب الحالة */}
-              <motion.p
-                className="text-sm text-white/30 text-center"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.7 }}
-              >
-                {voiceState === 'recording'
-                  ? '🎙️ يسمعك... ارفع إصبعك عندما تنتهي'
-                  : voiceState === 'error'
-                  ? '❌ حاول مرة أخرى'
-                  : '🎤 اضغط مطولاً وتكلم'}
-              </motion.p>
+              {/* تلميحات / تعليمات حسب الحالة */}
+              <div className="space-y-2">
+                <motion.p
+                  className="text-sm text-white/30 text-center"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.7 }}
+                >
+                  {voiceState === 'recording'
+                    ? '🎙️ يسمعك... ارفع إصبعك عندما تنتهي'
+                    : voiceState === 'error'
+                    ? '❌ حاول مرة أخرى'
+                    : '🎤 اضغط مطولاً وتكلم'}
+                </motion.p>
+
+                {/* التلميحات الصوتية الدوارة */}
+                <RotatingHints isPaused={voiceState === 'recording' || voiceState === 'processing'} />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
