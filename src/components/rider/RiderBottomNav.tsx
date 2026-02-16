@@ -7,15 +7,15 @@
 
 import { useLocation, Link } from "react-router-dom";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
-import { Home, Car, User, MapPin, Sparkles } from "lucide-react";
+import { Home, Car, User, MapPin, Sparkles, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRiderStore } from "@/stores/riderStore";
 
 // ترتيب RTL: index 0 = أقصى اليمين، index 4 = أقصى اليسار
 const NAV_ITEMS = [
-  { id: "home",     path: "/rider",               label: "الرئيسية",   icon: Home,     exact: true },
+  { id: "home",     path: "/rider/go",             label: "الخريطة",   icon: Home,     exact: true },
   { id: "places",   path: "/rider/saved-places",   label: "أماكني",     icon: MapPin,   exact: false },
-  { id: "schedule", path: "/rider/schedule",        label: "حجز متقدم", icon: Sparkles, exact: true },
+  { id: "voice",    path: "/rider",                 label: "صوتي AI",   icon: Mic,      exact: true },
   { id: "rides",    path: "/rider/rides",           label: "رحلاتي",    icon: Car,      exact: false },
   { id: "account",  path: "/rider/settings",        label: "حسابي",     icon: User,     exact: false },
 ] as const;
@@ -25,7 +25,10 @@ const RiderBottomNav = () => {
   const bottomNavEnabled = useRiderStore((state) => state.bottomNavEnabled);
 
   const getActiveId = () => {
-    if (location.pathname === "/rider") return "home";
+    // الخريطة (GoPage)
+    if (location.pathname === "/rider/go") return "home";
+    // الصفحة الرئيسية الصوتية
+    if (location.pathname === "/rider") return "voice";
     for (const item of NAV_ITEMS) {
       if (item.exact) {
         if (location.pathname === item.path) return item.id;

@@ -882,15 +882,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
       {/* Header - Menu Left, Logo Center, Status Icons Right */}
       <header className="absolute top-3 left-0 right-0 z-10 px-3 flex items-center justify-between">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setMenuOpen(true)}
-          className="bg-card/90 backdrop-blur-xl hover:bg-card shadow-lg rounded-xl w-10 h-10 border border-border/20 hover:scale-105 transition-all"
-        >
-          <Menu className="w-5 h-5" />
-        </Button>
-
         <div className="flex items-center gap-2 bg-card/90 backdrop-blur-xl px-3 py-2 rounded-xl shadow-lg border border-border/20">
           <span className="font-bold text-base bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
             ران
@@ -901,6 +892,15 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         <StatusIcons
           userLocation={driver?.current_location || ride.pickup_location}
         />
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setMenuOpen(true)}
+          className="bg-card/90 backdrop-blur-xl hover:bg-card shadow-lg rounded-xl w-10 h-10 border border-border/20 hover:scale-105 transition-all"
+        >
+          <Menu className="w-5 h-5" />
+        </Button>
       </header>
 
       {/* Status Progress Column - Right Side */}

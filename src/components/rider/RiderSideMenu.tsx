@@ -123,7 +123,7 @@ const RiderSideMenu = ({
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { user: authUser, logout } = useAuth();
+  const { user: authUser, logout, switchToDriver } = useAuth();
   // ✅ نستخدم المستخدم من AuthContext مباشرة — أكثر موثوقية من الـ prop
   const user = authUser;
   const bottomNavEnabled = useRiderStore((state) => state.bottomNavEnabled);
@@ -207,9 +207,13 @@ const RiderSideMenu = ({
             <Button
               variant="outline"
               className="w-full justify-start gap-3 border-[#00E676]/40 text-[#00E676] hover:bg-[#00E676]/10 h-12 text-base font-bold rounded-xl"
-              onClick={() => {
-                // Hard reload: يدمر كل مكونات الخريطة و Location Watchers بالكامل
-                window.location.href = '/driver';
+              onClick={async () => {
+                try {
+                  await switchToDriver();
+                  navigate('/driver');
+                } catch (err) {
+                  console.error('Failed to switch to driver:', err);
+                }
               }}
             >
               <Car className="w-5 h-5" />

@@ -23,6 +23,7 @@ import {
   Calendar
 } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface DriverSideMenuProps {
   user: User | null;
@@ -197,9 +198,16 @@ const DriverSideMenu = ({
     }
   };
 
+  const { switchToRider } = useAuth();
+
   const handleSwitchToRider = () => {
-    // Hard reload: يدمر كل مكونات السائق و Location Tracking بالكامل
-    window.location.href = '/rider';
+    try {
+      switchToRider();
+      navigate('/rider');
+    } catch (err) {
+      console.error('switchToRider failed', err);
+      navigate('/rider');
+    }
   };
 
   const statusBadge = getStatusBadge();

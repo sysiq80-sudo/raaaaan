@@ -27,6 +27,7 @@ const PaymentResult = lazy(() => import("./pages/payment/PaymentResult"));
 
 // ØµÙØ­Ø§Øª Ø§Ù„Ø±Ø§ÙƒØ¨ - ØªØ­Ù…ÙŠÙ„ ÙƒØ³ÙˆÙ„ (Ù„Ø§ ÙŠØ­Ù…Ù„Ù‡Ø§ Ø§Ù„Ø³Ø§Ø¦Ù‚ Ø£Ùˆ Ø§Ù„Ø£Ø¯Ù…Ù†)
 const GoPage = lazy(() => import("./pages/rider/GoPage"));
+const AIVoiceHome = lazy(() => import("./components/rider/AIVoiceHome"));
 const RiderRidesPage = lazy(() => import("./pages/rider/RiderRidesPage"));
 const RiderPaymentsPage = lazy(() => import("./pages/rider/RiderPaymentsPage"));
 const WalletTopupPage = lazy(() => import("./pages/rider/WalletTopupPage"));
@@ -294,9 +295,21 @@ const AppRoutes = () => {
               element={<Navigate to="/rider" replace />}
             />
 
-            {/* Main Rider Route - Go Page */}
+            {/* Main Rider Route - AI Voice Home (الشاشة الرئيسية الصوتية) */}
             <Route
               path="/rider"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="rider">
+                    <AIVoiceHome />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+
+            {/* Map Mode - Go Page (الخريطة التقليدية) */}
+            <Route
+              path="/rider/go"
               element={
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="rider">

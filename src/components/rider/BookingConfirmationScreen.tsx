@@ -173,13 +173,8 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
         className={`absolute left-0 right-0 z-40 px-4 pointer-events-auto ${!isOnline ? "top-20" : "top-4"}`}
       >
         <div className="flex items-center justify-between gap-2">
-          <button
-            onClick={() => onMenuChange(true)}
-            className="w-11 h-11 flex items-center justify-center rounded-md bg-card/90 backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0"
-            aria-label="القائمة"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          {/* Left spacer */}
+          <div className="w-11" />
 
           <div className="flex-1 flex items-center justify-center gap-2">
             <motion.div
@@ -204,7 +199,14 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
             </motion.div>
           </div>
 
-          <div className="w-11" />
+          {/* Menu button on the RIGHT for RTL */}
+          <button
+            onClick={() => onMenuChange(true)}
+            className="w-11 h-11 flex items-center justify-center rounded-md bg-card/90 backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0"
+            aria-label="القائمة"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
