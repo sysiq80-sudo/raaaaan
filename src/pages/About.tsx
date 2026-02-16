@@ -52,9 +52,9 @@ const About: React.FC = () => {
     ];
 
     const stats = [
-        { number: '+50K', label: 'راكب' },
-        { number: '+10K', label: 'سائق' },
-        { number: '+1M', label: 'رحلة' },
+        { number: '24/7', label: 'خدمة متواصلة' },
+        { number: '+40', label: 'كابتن' },
+        { number: 'AI', label: 'حجز ذكي' },
         { number: '4.9', label: 'تقييم' },
     ];
 
@@ -105,7 +105,7 @@ const About: React.FC = () => {
 
             {/* المحتوى */}
             <main className="px-4 -mt-12 relative z-20 pb-8">
-                {/* الوصف */}
+                {/* من نحن */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -113,12 +113,36 @@ const About: React.FC = () => {
                 >
                     <Card className="border-primary/20 mb-6">
                         <CardContent className="p-6">
-                            <h3 className="text-lg font-bold mb-3">رحلتنا</h3>
+                            <h3 className="text-lg font-bold mb-3">من نحن</h3>
+                            <p className="text-muted-foreground leading-relaxed mb-4">
+                                كادر برمجي تابع إلى <span className="text-primary font-semibold">مركز الرؤية للتدريب والتطوير</span> في مدينة الرمادي.
+                            </p>
+                            <p className="text-muted-foreground leading-relaxed mb-4">
+                                وجدنا مشكلة حقيقية في عشوائية عمل التاكسي بالمدينة — لا تنظيم، لا أسعار ثابتة، ولا أمان كافي. فقررنا نلاقي حل سهل وسريع يخدم أهل الأنبار.
+                            </p>
                             <p className="text-muted-foreground leading-relaxed">
-                                ران هو تطبيق تاكسي ذكي مصمم خصيصاً لمحافظة الأنبار في العراق.
-                                بدأنا رحلتنا بهدف توفير وسيلة نقل آمنة ومريحة وبأسعار عادلة
-                                لأهلنا في الأنبار. نحن نفهم طبيعة المنطقة ونعرف شوارعها
-                                ومعالمها، لذلك صممنا تطبيقاً يتحدث لغة الأنباريين.
+                                من هالفكرة وُلد <span className="text-primary font-bold">ران RAAN</span> — أول تطبيق تاكسي بالعالم يعمل بالذكاء الاصطناعي. فكرة استثنائية تحل مشاكل التطبيقات الأخرى وتقدم تجربة فريدة مصممة خصيصاً لشوارع ومعالم الأنبار.
+                            </p>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                {/* مركز الرؤية */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.15 }}
+                >
+                    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent mb-6">
+                        <CardContent className="p-6">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                                    <Star className="w-5 h-5 text-primary" />
+                                </div>
+                                <h3 className="text-lg font-bold">مركز الرؤية للتدريب والتطوير</h3>
+                            </div>
+                            <p className="text-muted-foreground leading-relaxed text-sm">
+                                مركز متخصص في التدريب التقني والبرمجي في مدينة الرمادي، يسعى لبناء كوادر عراقية قادرة على تطوير حلول تقنية محلية تلبي احتياجات المجتمع الأنباري.
                             </p>
                         </CardContent>
                     </Card>
@@ -282,7 +306,7 @@ const About: React.FC = () => {
                     </div>
 
                     <p className="text-center text-xs text-muted-foreground mt-6">
-                        © 2024 ران RAAN. جميع الحقوق محفوظة.
+                        © 2026 ران RAAN. جميع الحقوق محفوظة.
                     </p>
                 </motion.div>
             </main>

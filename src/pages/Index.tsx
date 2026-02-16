@@ -244,6 +244,7 @@ const Index = () => {
               { label: "الذكاء الاصطناعي", id: "ai-section" },
               { label: "المميزات", id: "features" },
               { label: "كن كابتن", id: "driver-cta" },
+              { label: "من نحن", id: "about-us" },
               { label: "تواصل معنا", id: "contact" },
             ].map((n) => (
               <button key={n.id} onClick={() => scrollTo(n.id)} className="text-muted-foreground hover:text-primary transition-colors font-medium">
@@ -268,7 +269,7 @@ const Index = () => {
         </div>
         {mobileMenu && (
           <div className="lg:hidden absolute top-full left-0 right-0 bg-background/95 backdrop-blur-xl border-b border-border/30 p-4 space-y-2">
-            {["hero:الرئيسية", "ai-section:الذكاء الاصطناعي", "features:المميزات", "driver-cta:كن كابتن", "contact:تواصل معنا"].map((s) => {
+            {["hero:الرئيسية", "ai-section:الذكاء الاصطناعي", "features:المميزات", "driver-cta:كن كابتن", "about-us:من نحن", "contact:تواصل معنا"].map((s) => {
               const [id, label] = s.split(":");
               return (
                 <button key={id} onClick={() => scrollTo(id)} className="block w-full text-right px-4 py-3 rounded-xl text-foreground hover:bg-primary/10 transition-colors">
@@ -615,6 +616,146 @@ const Index = () => {
             <StatCard icon={<Users className="w-6 h-6" />} number="+40" label="كابتن نشط" />
             <StatCard icon={<Star className="w-6 h-6" />} number="4.9" label="تقييم المستخدمين" />
             <StatCard icon={<Shield className="w-6 h-6" />} number="100%" label="سائقون معتمدون" />
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════ ABOUT US ═══════════ */}
+      <section id="about-us" className="py-20 md:py-28 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/3 to-transparent" />
+        <div className="absolute top-1/2 left-[10%] w-72 h-72 bg-primary/5 rounded-full blur-[100px] -translate-y-1/2" />
+        <div className="absolute top-1/3 right-[5%] w-56 h-56 bg-primary/8 rounded-full blur-[80px]" />
+
+        <div className="container relative">
+          <div className="text-center mb-16">
+            <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-bold mb-6 animate-fade-up opacity-0 fill-forwards">
+              <Users className="w-4 h-4" /> تعرّف علينا
+            </span>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4 animate-fade-up opacity-0 fill-forwards" style={{ animationDelay: '100ms' }}>
+              من نحن — <span className="text-gradient text-glow">قصة ران</span>
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg leading-relaxed animate-fade-up opacity-0 fill-forwards" style={{ animationDelay: '200ms' }}>
+              فكرة وُلدت من قلب الرمادي لحل مشكلة حقيقية
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Story Side */}
+            <div className="space-y-6">
+              <div className="p-6 bg-card rounded-3xl border border-border/50 hover:border-primary/30 transition-all animate-fade-up opacity-0 fill-forwards" style={{ animationDelay: '300ms' }}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <Star className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-foreground text-lg">مركز الرؤية للتدريب والتطوير</h3>
+                    <p className="text-sm text-primary">الرمادي، محافظة الأنبار</p>
+                  </div>
+                </div>
+                <p className="text-muted-foreground leading-relaxed">
+                  كادر برمجي تابع إلى <span className="text-primary font-semibold">مركز الرؤية للتدريب والتطوير</span> في مدينة الرمادي.
+                  وجدنا مشكلة حقيقية في عشوائية عمل التاكسي بالمدينة — لا تنظيم، لا أسعار ثابتة، ولا أمان كافي.
+                </p>
+              </div>
+
+              <div className="p-6 bg-card rounded-3xl border border-border/50 hover:border-primary/30 transition-all animate-fade-up opacity-0 fill-forwards" style={{ animationDelay: '450ms' }}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <Sparkles className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="font-bold text-foreground text-lg">الفكرة والحل</h3>
+                </div>
+                <p className="text-muted-foreground leading-relaxed">
+                  وجدنا حل سهل وسريع — ومن هذا الوصف تكوّنت الفكرة الأولى والاستثنائية.
+                  بدأنا نحل مشاكل التطبيقات الأخرى وخرجنا بفكرة <span className="text-primary font-bold">ران RAAN</span> —
+                  أول تطبيق تاكسي بالعالم يعمل بالذكاء الاصطناعي ومصمم خصيصاً لشوارع ومعالم الأنبار.
+                </p>
+              </div>
+
+              <div className="p-6 bg-primary/5 rounded-3xl border border-primary/30 hover:border-primary/50 transition-all animate-fade-up opacity-0 fill-forwards" style={{ animationDelay: '600ms' }}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-glow-sm">
+                    <Brain className="w-6 h-6 text-primary-foreground" />
+                  </div>
+                  <h3 className="font-bold text-foreground text-lg">ليش ران مختلف؟</h3>
+                </div>
+                <p className="text-muted-foreground leading-relaxed">
+                  لأننا لم نقلد أحد — بنينا من الصفر تطبيق يفهم اللهجة العراقية، يعرف معالم الرمادي،
+                  ويخلي الراكب يحجز بصوته بثوانٍ فقط. هذا شي ما سواه أحد بالعالم قبلنا.
+                </p>
+              </div>
+            </div>
+
+            {/* Visual Side */}
+            <div className="relative flex justify-center animate-scale-in opacity-0 fill-forwards" style={{ animationDelay: '400ms' }}>
+              <div className="relative">
+                <div className="absolute inset-0 bg-primary/15 blur-[60px] rounded-full scale-90" />
+                <div className="relative bg-card rounded-3xl border border-border/50 p-8 shadow-2xl max-w-sm">
+                  {/* Logo */}
+                  <div className="text-center mb-6">
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center p-2 animate-pulse-glow">
+                      <img src={logo} alt="RAAN" className="w-14 h-14" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-foreground">ران <span className="text-primary">RAAN</span></h3>
+                    <p className="text-sm text-muted-foreground">تاكسي الأنبار الذكي</p>
+                  </div>
+
+                  {/* Values */}
+                  <div className="space-y-3">
+                    {[
+                      { icon: <Shield className="w-4 h-4" />, text: "الأمان أولاً — سلامتك أولويتنا" },
+                      { icon: <CreditCard className="w-4 h-4" />, text: "شفافية — أسعار واضحة بدون مفاجآت" },
+                      { icon: <CheckCircle2 className="w-4 h-4" />, text: "جودة — نختار أفضل السائقين" },
+                      { icon: <MapPin className="w-4 h-4" />, text: "محلية — نفهم شوارع ومعالم الأنبار" },
+                      { icon: <Mic className="w-4 h-4" />, text: "ابتكار — حجز صوتي بالذكاء الاصطناعي" },
+                    ].map((v, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-background border border-border/30 hover:border-primary/30 transition-colors">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">{v.icon}</div>
+                        <span className="text-sm text-foreground">{v.text}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Badge */}
+                  <div className="mt-6 text-center">
+                    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold">
+                      <Sparkles className="w-3 h-3" /> صُنع بفخر في الرمادي 🇮🇶
+                    </span>
+                  </div>
+                </div>
+
+                {/* Floating badges */}
+                <div className="absolute -right-4 top-10 animate-float-slow">
+                  <div className="bg-card px-4 py-2 rounded-2xl shadow-xl border border-border/50 gradient-border">
+                    <p className="text-sm font-bold text-primary">🎯 فكرة أنبارية</p>
+                    <p className="text-[10px] text-muted-foreground">محلية 100%</p>
+                  </div>
+                </div>
+                <div className="absolute -left-6 bottom-20 animate-float animate-float-delay-1s">
+                  <div className="bg-card px-4 py-2 rounded-2xl shadow-xl border border-border/50 gradient-border">
+                    <p className="text-sm font-bold text-primary">🤖 ذكاء اصطناعي</p>
+                    <p className="text-[10px] text-muted-foreground">الأول عالمياً</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Team Bar */}
+          <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-up opacity-0 fill-forwards" style={{ animationDelay: '700ms' }}>
+            {[
+              { icon: <Users className="w-6 h-6" />, title: "فريق التطوير", desc: "مبرمجون ومصممون من الأنبار يبنون المستقبل" },
+              { icon: <HeartHandshake className="w-6 h-6" />, title: "فريق العمليات", desc: "إدارة السائقين والتحقق والدعم التشغيلي" },
+              { icon: <Phone className="w-6 h-6" />, title: "خدمة العملاء", desc: "دعم الركاب والسائقين على مدار الساعة" },
+            ].map((t, i) => (
+              <div key={i} className="flex items-start gap-4 p-5 bg-card rounded-2xl border border-border/30 hover:border-primary/30 transition-all">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">{t.icon}</div>
+                <div>
+                  <h4 className="font-bold text-foreground mb-1">{t.title}</h4>
+                  <p className="text-sm text-muted-foreground">{t.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
