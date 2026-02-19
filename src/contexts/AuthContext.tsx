@@ -37,8 +37,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Safety-net timeout: if onAuthStateChange never fires, stop loading after 10s
-const SAFETY_TIMEOUT = 10000;
+// Safety-net timeout: if onAuthStateChange never fires, stop loading after 4s
+// 10 ثواني كانت طويلة جداً على الجوال — المستخدم يظن التطبيق معلق
+const SAFETY_TIMEOUT = 4000;
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { toast } = useToast();
@@ -220,14 +221,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // 2) Fallback: getSession() in case INITIAL_SESSION doesn't fire
-    // This handles edge cases (corrupted storage, slow network, etc.)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!isMounted || authResolved) return; // onAuthStateChange already handled it
-      console.log("[AuthContext] getSession fallback resolving");
+    // 2) Fallback: getSession() مع timeout خاص — لمنع التعليق على شبكة بطيئة
+    const getSessionWithTimeout = () => {
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), 3000); // 3 ثواني كحد أقصى
+      });
+      const sessionPromise = supabase.auth.getSession()
+        .then(({ data: { session } }) => session)
+        .catch(() => null);
+
+      return Promise.race([sessionPromise, timeoutPromise]);
+    };
+
+    getSessionWithTimeout().then((session) => {
+      if (!isMounted || authResolved) return;
+      console.log("[AuthContext] getSession fallback resolving", session ? 'with user' : 'no user');
       authResolved = true;
       clearTimeout(safetyTimer);
-      processSession(session, "getSession");
+      processSession(session ? { user: (session as any).user || session } : null, "getSession");
     }).catch((err) => {
       console.error("[AuthContext] getSession error:", err);
       if (isMounted && !authResolved) {

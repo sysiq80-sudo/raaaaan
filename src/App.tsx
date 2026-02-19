@@ -8,6 +8,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import SplashScreen from "@/components/SplashScreen";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
 
 // ØµÙØ­Ø§Øª Ø£Ø³Ø§Ø³ÙŠØ© (Ù…Ø­Ù…Ù„Ø© Ù…Ø¨Ø§Ø´Ø±Ø© - ÙŠØ­ØªØ§Ø¬Ù‡Ø§ Ø§Ù„Ø¬Ù…ÙŠØ¹)
 import Index from "./pages/Index";
@@ -106,6 +107,7 @@ const App = () => (
         <TooltipProvider>
           <Sonner />
           <ConnectionStatus />
+          <PWAInstallPrompt />
           <BrowserRouter
             future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
           >
@@ -123,10 +125,10 @@ const App = () => (
 const AppRoutes = () => {
   const { user, userRole, isLoading, isOnboardingComplete } = useAuth();
 
-  // Minimum splash screen display (3 seconds)
+  // Minimum splash screen display (1.2 seconds — سريع على الجوال)
   const [minSplashDone, setMinSplashDone] = useState(false);
   useEffect(() => {
-    const timer = setTimeout(() => setMinSplashDone(true), 3000);
+    const timer = setTimeout(() => setMinSplashDone(true), 1200);
     return () => clearTimeout(timer);
   }, []);
 

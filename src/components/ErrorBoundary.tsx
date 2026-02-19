@@ -23,13 +23,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-// Sentry integration (if available)
-let Sentry: any = null;
-try {
-  Sentry = require("@sentry/react");
-} catch (e) {
-  // Sentry not installed, continue without it
-}
+// Sentry integration (disabled - not installed)
+const Sentry: any = null;
 
 interface Props {
   children: ReactNode;

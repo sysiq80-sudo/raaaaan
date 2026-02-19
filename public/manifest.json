@@ -2,7 +2,7 @@
   "name": "ران - RAAN Taxi",
   "short_name": "ران",
   "description": "تطبيق ران لطلب التاكسي في العراق",
-  "start_url": "/rider",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#10b981",

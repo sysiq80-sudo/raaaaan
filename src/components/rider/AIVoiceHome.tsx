@@ -6,12 +6,13 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, MapPin, Shield, Sparkles, Volume2, ArrowLeft, Check, X, Map as MapIcon, Navigation } from "lucide-react";
+import { Mic, MicOff, MapPin, Shield, Sparkles, Volume2, ArrowLeft, Check, X, Map as MapIcon, Navigation, Send, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useVoiceRecording, type VoiceResult, type VoiceState } from "@/hooks/useVoiceRecording";
 import useRiderStore from "@/stores/riderStore";
 import { useToast } from "@/hooks/use-toast";
 import { reverseGeocodeCoordinates } from "@/lib/googleMapService";
+import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
 
 // ========================
@@ -167,7 +168,7 @@ const AIProcessingAnimation: React.FC = () => (
         animate={{ opacity: [0.5, 1, 0.5] }}
         transition={{ duration: 2, repeat: Infinity }}
       >
-        الذكاء الاصطناعي يحلل طلبك...
+        نحلل طلبك...
       </motion.p>
       <p className="text-sm text-white/50">
         نبحث عن أفضل مسار لرحلتك
@@ -306,6 +307,74 @@ const AIVoiceHome: React.FC = () => {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isPressing, setIsPressing] = useState(false);
 
+  // === وضع الكتابة (بديل المايكروفون) ===
+  const [isTextMode, setIsTextMode] = useState(false);
+  const [textInput, setTextInput] = useState('');
+  const [isSubmittingText, setIsSubmittingText] = useState(false);
+  const textInputRef = useRef<HTMLInputElement>(null);
+
+  // التحقق إذا المايكروفون متاح (يتطلب HTTPS أو localhost)
+  const isMicAvailable = typeof navigator !== 'undefined' 
+    && !!navigator.mediaDevices 
+    && typeof navigator.mediaDevices.getUserMedia === 'function';
+
+  // === إرسال النص للذكاء الاصطناعي (بدل الصوت) ===
+  const handleTextSubmit = useCallback(async () => {
+    const trimmed = textInput.trim();
+    if (!trimmed || trimmed.length < 2 || isSubmittingText) return;
+
+    setIsSubmittingText(true);
+    try {
+      console.log(`[AIVoiceHome] Sending text to AI: "${trimmed}"`);
+      const { data, error: fnError } = await supabase.functions.invoke('voice-booking-ai', {
+        body: JSON.stringify({ text: trimmed }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (fnError) {
+        let errorDetails = fnError.message;
+        if (fnError.context) {
+          try {
+            const errorBody = await fnError.context.json();
+            errorDetails = errorBody?.error || errorDetails;
+          } catch { /* ignore */ }
+        }
+        throw new Error(errorDetails);
+      }
+
+      if (data?.error) throw new Error(data.error);
+
+      console.log('[AIVoiceHome] Text AI response:', JSON.stringify(data));
+
+      // تحديث النتيجة — نستعمل نفس الآلية كالصوت
+      const textResultData: VoiceResult = {
+        transcript: data.transcript || trimmed,
+        origin: data.origin || null,
+        destination: data.destination || null,
+        vehicleType: data.vehicleType || 'economy',
+      };
+
+      // عرض مودال التأكيد
+      setTextResult(textResultData);
+      setShowConfirmation(true);
+    } catch (err: any) {
+      console.error('Text processing error:', err);
+      toast({
+        title: "خطأ في المعالجة",
+        description: err.message || "حدث خطأ أثناء معالجة النص. حاول مرة أخرى.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingText(false);
+    }
+  }, [textInput, isSubmittingText, toast]);
+
+  // نتيجة النص (منفصلة عن نتيجة الصوت)
+  const [textResult, setTextResult] = useState<VoiceResult | null>(null);
+
+  // النتيجة الحالية (صوت أو نص)
+  const activeResult = textResult || result;
+
   // === حالة موقع الانطلاق المكتشف تلقائياً ===
   const [pickupAddress, setPickupAddress] = useState<string | null>(null);
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -378,7 +447,7 @@ const AIVoiceHome: React.FC = () => {
     }
   }, [voiceState, result]);
 
-  // عرض الأخطاء
+  // عرض الأخطاء — والتحويل تلقائياً لوضع الكتابة عند فشل المايكروفون
   useEffect(() => {
     if (error) {
       toast({
@@ -386,8 +455,14 @@ const AIVoiceHome: React.FC = () => {
         description: error,
         variant: "destructive",
       });
+      // تحويل تلقائي لوضع الكتابة بعد ثانية
+      const timer = setTimeout(() => {
+        setIsTextMode(true);
+        resetVoice();
+      }, 1200);
+      return () => clearTimeout(timer);
     }
-  }, [error, toast]);
+  }, [error, toast, resetVoice]);
 
   // بدء الضغط المستمر على الزر
   const handlePressStart = useCallback(() => {
@@ -405,10 +480,10 @@ const AIVoiceHome: React.FC = () => {
 
   // تأكيد المسار → الانتقال للخريطة
   const handleConfirm = useCallback(() => {
-    if (!result) return;
+    if (!activeResult) return;
 
     // استخدام الموقع المكتشف تلقائياً إذا لم يحدد المستخدم نقطة انطلاق
-    const origin = result.origin || (pickupCoords && pickupAddress ? {
+    const origin = activeResult.origin || (pickupCoords && pickupAddress ? {
       lat: pickupCoords.lat,
       lng: pickupCoords.lng,
       name: pickupAddress,
@@ -422,16 +497,16 @@ const AIVoiceHome: React.FC = () => {
       });
     }
 
-    if (result.destination) {
+    if (activeResult.destination) {
       setDropoffLocation({
-        lat: result.destination.lat,
-        lng: result.destination.lng,
-        address: result.destination.name,
+        lat: activeResult.destination.lat,
+        lng: activeResult.destination.lng,
+        address: activeResult.destination.name,
       });
     }
 
-    if (result.vehicleType) {
-      setVehicle(result.vehicleType);
+    if (activeResult.vehicleType) {
+      setVehicle(activeResult.vehicleType);
     }
 
     setShowConfirmation(false);
@@ -441,20 +516,22 @@ const AIVoiceHome: React.FC = () => {
       state: {
         fromVoice: true,
         origin: origin,
-        destination: result.destination,
+        destination: activeResult.destination,
       },
     });
-  }, [result, pickupCoords, pickupAddress, navigate, setPickupLocation, setDropoffLocation, setVehicle]);
+  }, [activeResult, pickupCoords, pickupAddress, navigate, setPickupLocation, setDropoffLocation, setVehicle]);
 
   // إعادة المحاولة
   const handleRetry = useCallback(() => {
     setShowConfirmation(false);
+    setTextResult(null);
     resetVoice();
   }, [resetVoice]);
 
   // إلغاء
   const handleCancel = useCallback(() => {
     setShowConfirmation(false);
+    setTextResult(null);
     resetVoice();
   }, [resetVoice]);
 
@@ -520,12 +597,110 @@ const AIVoiceHome: React.FC = () => {
         <PickupHeader address={pickupAddress} isLoading={isLoadingPickup} />
       </motion.div>
 
-      {/* === الجزء الأوسط: زر المايكروفون === */}
+      {/* === الجزء الأوسط: زر المايكروفون أو حقل الكتابة === */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center -mt-8">
         <AnimatePresence mode="wait">
-          {voiceState === 'processing' ? (
+          {voiceState === 'processing' || isSubmittingText ? (
             <AIProcessingAnimation key="processing" />
+          ) : isTextMode || !isMicAvailable ? (
+            /* === وضع الكتابة === */
+            <motion.div
+              key="text-area"
+              className="flex flex-col items-center gap-6 w-full px-6"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+            >
+              {/* العنوان */}
+              <div className="text-center space-y-3 px-8">
+                <motion.h1
+                  className="text-3xl font-black text-white leading-snug"
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  وين تحب تروح؟
+                </motion.h1>
+                <motion.p
+                  className="text-base text-white/40 leading-relaxed max-w-xs mx-auto"
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  اكتب وجهتك والذكاء الاصطناعي يحجز لك
+                </motion.p>
+              </div>
+
+              {/* حقل الإدخال */}
+              <motion.div
+                className="w-full max-w-sm"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                <div className="relative flex items-center bg-white/10 border-2 border-primary/30 rounded-2xl overflow-hidden focus-within:border-primary/60 transition-colors">
+                  <input
+                    ref={textInputRef}
+                    type="text"
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleTextSubmit();
+                    }}
+                    placeholder="مثال: لجامعة الأنبار..."
+                    className="flex-1 bg-transparent text-white text-base px-5 py-4 placeholder:text-white/25 outline-none text-right"
+                    dir="rtl"
+                    autoFocus
+                    disabled={isSubmittingText}
+                  />
+                  <button
+                    onClick={handleTextSubmit}
+                    disabled={!textInput.trim() || textInput.trim().length < 2 || isSubmittingText}
+                    className="ml-2 mr-3 p-3 rounded-xl bg-primary hover:bg-primary/80 disabled:bg-white/10 disabled:opacity-40 transition-all"
+                  >
+                    <Send className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+              </motion.div>
+
+              {/* أمثلة سريعة */}
+              <motion.div
+                className="flex flex-wrap justify-center gap-2 max-w-sm"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                {['جامعة الأنبار', 'شارع المستودع', 'مستشفى الرمادي', 'حي التأميم'].map((place) => (
+                  <button
+                    key={place}
+                    onClick={() => {
+                      setTextInput(place);
+                      // تركيز حقل الإدخال
+                      textInputRef.current?.focus();
+                    }}
+                    className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white/50 text-sm hover:bg-primary/20 hover:border-primary/30 hover:text-white/80 transition-all"
+                  >
+                    {place}
+                  </button>
+                ))}
+              </motion.div>
+
+              {/* زر التبديل للمايكروفون (فقط إذا المايكروفون متاح) */}
+              {isMicAvailable && (
+                <motion.button
+                  onClick={() => { setIsTextMode(false); setTextInput(''); }}
+                  className="flex items-center gap-2 text-sm text-primary/50 hover:text-primary/80 transition-colors mt-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <Mic className="w-4 h-4" />
+                  <span>استخدم الصوت بدلاً من الكتابة</span>
+                </motion.button>
+              )}
+            </motion.div>
           ) : (
+            /* === وضع الصوت (الأصلي) === */
             <motion.div
               key="mic-area"
               className="flex flex-col items-center gap-8"
@@ -549,7 +724,7 @@ const AIVoiceHome: React.FC = () => {
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.35 }}
                 >
-                  تكلم بحرية، الذكاء الاصطناعي يسمعك ويحجز لك.
+                  سولف براحتك.. وإحنا نفهمك ونحجزلك 🚕
                 </motion.p>
               </div>
 
@@ -622,6 +797,18 @@ const AIVoiceHome: React.FC = () => {
                 {/* التلميحات الصوتية الدوارة */}
                 <RotatingHints isPaused={voiceState === 'recording' || voiceState === 'processing'} />
               </div>
+
+              {/* زر التبديل للكتابة */}
+              <motion.button
+                onClick={() => setIsTextMode(true)}
+                className="flex items-center gap-2 text-sm text-primary/40 hover:text-primary/70 transition-colors"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+              >
+                <Keyboard className="w-4 h-4" />
+                <span>أو اكتب وجهتك</span>
+              </motion.button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -637,7 +824,11 @@ const AIVoiceHome: React.FC = () => {
         {/* شارة الخصوصية */}
         <div className="flex items-center justify-center gap-2 py-2">
           <Shield className="w-3.5 h-3.5 text-primary/40" />
-          <span className="text-[11px] text-white/25">صوتك يُعالج بالذكاء الاصطناعي فقط — لا يُخزَّن</span>
+          <span className="text-[11px] text-white/25">
+            {isTextMode || !isMicAvailable
+              ? 'خصوصيتك بأمان 🔒 — يتم معالجة النص فورياً ولا يُخزَّن.'
+              : 'خصوصيتك بأمان 🔒 — يتم معالجة الصوت فورياً ولا يُخزَّن.'}
+          </span>
         </div>
 
         {/* زر الخريطة البديل */}
@@ -653,9 +844,9 @@ const AIVoiceHome: React.FC = () => {
 
       {/* === مودال التأكيد === */}
       <AnimatePresence>
-        {showConfirmation && result && (
+        {showConfirmation && activeResult && (
           <ConfirmationModal
-            result={result}
+            result={activeResult}
             onConfirm={handleConfirm}
             onRetry={handleRetry}
             onCancel={handleCancel}

@@ -26,43 +26,33 @@ console.warn = (...args: any[]) => {
   _origWarn.apply(console, args);
 };
 
+// ═══════════════════════════════════════════════════════════════
+// ⚡ إزالة Service Worker القديم فوراً لمنع الشاشة البيضاء/السوداء
+// يجب تنفيذه قبل أي شيء آخر — يمسح الكاش التالف
+// ═══════════════════════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(async (registrations) => {
+    for (const registration of registrations) {
+      await registration.unregister();
+      console.log('🧹 Unregistered old Service Worker');
+    }
+    // امسح جميع الكاشات القديمة
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      for (const name of cacheNames) {
+        await caches.delete(name);
+        console.log('🧹 Deleted cache:', name);
+      }
+    }
+  }).catch((err) => console.error('SW cleanup error:', err));
+}
+
 // Google Maps API will be loaded by @react-google-maps/api wrapper
 // RTL support is natively handled by Google Maps for Arabic text
 
+// ⚠️ Service Worker معطل مؤقتاً — لحين حل مشكلة الكاش التالف على الجوال
+// TODO: إعادة تفعيله بعد التأكد من استقرار التطبيق
 // Register Service Worker only after auth session is validated
-let serviceWorkerRegistered = false;
-
-if ("serviceWorker" in navigator && !serviceWorkerRegistered) {
-  window.addEventListener("load", async () => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session && !serviceWorkerRegistered) {
-        const registration = await registerServiceWorker();
-        if (registration) {
-          serviceWorkerRegistered = true;
-          console.log("✅ Service Worker registered successfully");
-        }
-      } else {
-        console.log("⏳ Service Worker deferred - no active session");
-      }
-    } catch (error) {
-      console.error("SW registration check failed:", error);
-    }
-  });
-
-  // Also register when user signs in later (only once)
-  supabase.auth.onAuthStateChange((event) => {
-    if (event === "SIGNED_IN" && !serviceWorkerRegistered) {
-      registerServiceWorker().then((registration) => {
-        if (registration) {
-          serviceWorkerRegistered = true;
-          console.log("✅ Service Worker registered after sign-in");
-        }
-      });
-    }
-  });
-}
+// let serviceWorkerRegistered = false;
 
 createRoot(document.getElementById("root")!).render(<App />);

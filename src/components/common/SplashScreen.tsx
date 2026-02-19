@@ -38,7 +38,7 @@ const SplashScreen = () => {
           className="relative"
         >
           <img 
-            src="https://c.top4top.io/p_3697mxirb1.png" 
+            src="/logo.png" 
             alt="RAAN Logo" 
             className="w-40 md:w-48 h-auto object-contain drop-shadow-2xl"
           />

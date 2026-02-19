@@ -1,7 +1,7 @@
 // Service Worker for RAAN - Push Notifications + Advanced Caching
-// v3 - Enhanced with multi-strategy caching for static assets and API data
+// v4 - Fixed stale cache issues that caused white screen on mobile after deployments
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const STATIC_CACHE = `raan-static-${CACHE_VERSION}`;
 const API_CACHE = `raan-api-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `raan-runtime-${CACHE_VERSION}`;
@@ -9,9 +9,9 @@ const OFFLINE_URL = '/';
 const DB_NAME = 'raan-notifications';
 const STORE_NAME = 'pending-notifications';
 
-// Static assets to pre-cache during install
+// ⚠️ لا نخزّن '/' (HTML) مسبقاً — Vite يولّد أسماء ملفات مختلفة مع كل بناء
+// تخزين HTML القديم يسبب شاشة بيضاء لأنه يشير لملفات JS محذوفة
 const STATIC_ASSETS = [
-  '/',
   '/favicon.ico',
   '/logo.png',
   '/manifest.json'
@@ -729,22 +729,30 @@ async function handleMapboxRequest(event, request) {
   }
 }
 
-// Handle static assets - cache first, update in background
+// Handle static assets - network first for hashed JS/CSS, cache fallback for offline
 async function handleStaticAsset(request) {
+  const url = request.url;
   const cache = await caches.open(STATIC_CACHE);
-  const cachedResponse = await cache.match(request);
 
-  if (cachedResponse) {
-    // Update cache in background (stale-while-revalidate)
-    fetch(request).then(response => {
-      if (response.ok) {
-        cache.put(request, response.clone());
-      }
-    }).catch(() => {});
-    
-    return cachedResponse;
+  // Vite hashed assets (مثل index-BMDhVPbd.js) — آمنة للتخزين لأن الاسم يتغير مع كل بناء
+  const isHashedAsset = /\/assets\/[^/]+-[a-zA-Z0-9]{8}\.(js|css)$/.test(url);
+
+  if (isHashedAsset) {
+    // Cache-first للملفات المهشّرة (اسمها فريد)
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) return cachedResponse;
+
+    try {
+      const response = await fetch(request);
+      if (response.ok) cache.put(request, response.clone());
+      return response;
+    } catch (error) {
+      console.log('[SW] Hashed asset fetch failed:', url);
+      throw error;
+    }
   }
 
+  // Non-hashed assets (logo, favicon) — network first, cache fallback
   try {
     const response = await fetch(request);
     if (response.ok) {
@@ -752,33 +760,25 @@ async function handleStaticAsset(request) {
     }
     return response;
   } catch (error) {
-    console.log('[SW] Static asset fetch failed:', request.url);
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) return cachedResponse;
+    console.log('[SW] Static asset fetch failed:', url);
     throw error;
   }
 }
 
-// Handle navigation requests - network first with offline fallback
+// Handle navigation requests — ALWAYS network (never serve stale HTML)
 async function handleNavigationRequest(request) {
   try {
     const response = await fetch(request);
-    
-    // Cache successful HTML responses
-    if (response.ok && response.headers.get('content-type')?.includes('text/html')) {
-      const cache = await caches.open(STATIC_CACHE);
-      cache.put(request, response.clone());
-    }
-    
+    // ⚠️ لا نخزّن HTML في الكاش — لتجنب شاشة بيضاء بعد كل deployment
     return response;
   } catch (error) {
-    const cache = await caches.open(STATIC_CACHE);
-    const cachedResponse = await cache.match(request);
-    
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-    
-    // Return offline page for navigation requests
-    return cache.match(OFFLINE_URL);
+    // فقط عند عدم الاتصال: نعيد صفحة بسيطة
+    return new Response(
+      '<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ران</title><style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#0f172a;color:#fff;text-align:center}button{padding:12px 24px;background:#10b981;border:none;border-radius:8px;color:#fff;font-size:16px;cursor:pointer;margin-top:16px}</style></head><body><div><h2>⚠️ لا يوجد اتصال بالإنترنت</h2><p>يرجى التحقق من اتصالك وإعادة المحاولة</p><button onclick="location.reload()">إعادة المحاولة</button></div></body></html>',
+      { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+    );
   }
 }
 

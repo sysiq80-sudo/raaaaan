@@ -202,35 +202,56 @@ serve(async (req) => {
 
     console.log(`[voice-booking-ai] API key available: ${OPENAI_API_KEY.substring(0, 7)}...${OPENAI_API_KEY.substring(OPENAI_API_KEY.length - 4)}`);
 
-    // استخراج الصوت من الطلب (FormData أو JSON)
-    let audioBytes: Uint8Array;
-    let mimeType: string;
-    try {
-      const extracted = await extractAudioFromRequest(req);
-      audioBytes = extracted.audioBytes;
-      mimeType = extracted.mimeType;
-    } catch (parseErr: any) {
-      console.error("[voice-booking-ai] Failed to parse request body:", parseErr.message);
-      return new Response(
-        JSON.stringify({ error: parseErr.message || "فشل في قراءة الطلب" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // ============================
+    // التحقق من نوع الإدخال: نص مباشر أو صوت
+    // ============================
+    let transcript = "";
+    const contentType = req.headers.get("content-type") || "";
+
+    // محاولة قراءة نص مباشر من JSON (وضع الكتابة — بديل المايكروفون)
+    let isTextInput = false;
+    if (contentType.includes("application/json")) {
+      try {
+        const body = await req.clone().json();
+        if (body.text && typeof body.text === "string" && body.text.trim().length >= 2) {
+          transcript = body.text.trim();
+          isTextInput = true;
+          console.log(`[voice-booking-ai] ✅ Text input mode: "${transcript}"`);
+        }
+      } catch { /* not JSON or no text field — fall through to audio */ }
     }
 
-    console.log(`[voice-booking-ai] Audio ready: ${audioBytes.length} bytes, mime: ${mimeType}`);
+    // إذا لم يكن نص مباشر → استخراج الصوت ومعالجته عبر Whisper
+    if (!isTextInput) {
+      // استخراج الصوت من الطلب (FormData أو JSON)
+      let audioBytes: Uint8Array;
+      let mimeType: string;
+      try {
+        const extracted = await extractAudioFromRequest(req);
+        audioBytes = extracted.audioBytes;
+        mimeType = extracted.mimeType;
+      } catch (parseErr: any) {
+        console.error("[voice-booking-ai] Failed to parse request body:", parseErr.message);
+        return new Response(
+          JSON.stringify({ error: parseErr.message || "فشل في قراءة الطلب" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
-    // الخطوة 1: تحويل الصوت لنص
-    console.log("[voice-booking-ai] Step 1: Transcribing audio via Whisper...");
-    let transcript: string;
-    try {
-      transcript = await transcribeAudio(audioBytes, mimeType);
-      console.log(`[voice-booking-ai] Transcript: "${transcript}"`);
-    } catch (whisperErr: any) {
-      console.error("[voice-booking-ai] Whisper API FAILED:", whisperErr.message);
-      return new Response(
-        JSON.stringify({ error: "فشل في تحويل الصوت لنص: " + whisperErr.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.log(`[voice-booking-ai] Audio ready: ${audioBytes.length} bytes, mime: ${mimeType}`);
+
+      // الخطوة 1: تحويل الصوت لنص
+      console.log("[voice-booking-ai] Step 1: Transcribing audio via Whisper...");
+      try {
+        transcript = await transcribeAudio(audioBytes, mimeType);
+        console.log(`[voice-booking-ai] Transcript: "${transcript}"`);
+      } catch (whisperErr: any) {
+        console.error("[voice-booking-ai] Whisper API FAILED:", whisperErr.message);
+        return new Response(
+          JSON.stringify({ error: "فشل في تحويل الصوت لنص: " + whisperErr.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     if (!transcript || transcript.trim().length < 3) {

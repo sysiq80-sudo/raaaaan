@@ -131,10 +131,16 @@ export const useVoiceRecording = () => {
           formData.append('file', audioBlob, 'recording.webm');
 
           console.log(`[VoiceRecording] Sending audio FormData to Edge Function, size: ${audioBlob.size} bytes`);
-          const { data, error: fnError } = await supabase.functions.invoke('voice-booking-ai', {
+
+          // مهلة 25 ثانية لمنع بقاء الشاشة عالقة للأبد
+          const invokePromise = supabase.functions.invoke('voice-booking-ai', {
             body: formData,
             // ملاحظة: لا تضع Content-Type يدوياً — المتصفح يضيف boundary تلقائياً
           });
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('انتهت المهلة — الاتصال بطيء. حاول مرة أخرى.')), 25000)
+          );
+          const { data, error: fnError } = await Promise.race([invokePromise, timeoutPromise]);
 
           if (fnError) {
             // محاولة قراءة تفاصيل الخطأ من الاستجابة
