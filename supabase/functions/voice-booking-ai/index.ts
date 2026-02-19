@@ -1,6 +1,11 @@
 /**
- * ران - Voice Booking AI Edge Function
- * يقبل ملف صوت → يحوله لنص (Whisper) → يستخرج المواقع (GPT-4o) → يرجع JSON
+ * ران - Voice Booking AI Edge Function v3
+ * يقبل صوت أو نص → Whisper → GPT-4o → مواقع JSON
+ * 
+ * يدعم 3 أنماط إدخال:
+ * 1. JSON { text: "..." } — وضع الكتابة
+ * 2. FormData مع ملف صوت — وضع التسجيل الأساسي
+ * 3. JSON { audio: "base64...", mimeType: "..." } — احتياطي للأجهزة التي لا تدعم FormData
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -18,13 +23,17 @@ const corsHeaders = {
 // ============================
 async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promise<string> {
   const ext = mimeType.includes("webm") ? "webm"
-    : mimeType.includes("mp4") || mimeType.includes("m4a") ? "mp4" : "webm";
+    : mimeType.includes("mp4") || mimeType.includes("m4a") ? "mp4"
+    : mimeType.includes("ogg") || mimeType.includes("oga") ? "ogg"
+    : "webm";
+
+  console.log(`[voice-booking-ai] Whisper: sending ${audioBytes.length} bytes as audio.${ext} (${mimeType})`);
 
   // إنشاء FormData مع اسم ملف صريح — ضروري لـ Whisper API
   const formData = new FormData();
   formData.append("file", new Blob([audioBytes], { type: mimeType }), `audio.${ext}`);
   formData.append("model", "whisper-1");
-  formData.append("language", "ar"); // العربية
+  formData.append("language", "ar");
   formData.append("prompt", "رحلة تاكسي في الرمادي، محافظة الأنبار، العراق. أماكن مثل جامعة الأنبار، مستشفى الرمادي التعليمي، شارع المستودع، حي التأميم، حي الحوز، تقاطع الزيوت، حي الملعب، البوعلوان، الشارع العام، حي العزيزية، السوق المركزي، خمسة كيلو، حي الضباط");
 
   const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
@@ -36,8 +45,13 @@ async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promis
   });
 
   if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Whisper API error: ${response.status} - ${err}`);
+    const errText = await response.text();
+    console.error(`[voice-booking-ai] Whisper ${response.status}: ${errText}`);
+    // رسالة واضحة للمستخدم بدل الخطأ التقني
+    if (response.status === 400) {
+      throw new Error("لم يتم التعرف على الصوت. تأكد من التحدث بوضوح وحاول مرة أخرى.");
+    }
+    throw new Error(`خطأ من خدمة التعرف على الصوت (${response.status})`);
   }
 
   const data = await response.json();
@@ -259,9 +273,9 @@ serve(async (req) => {
         transcript = await transcribeAudio(audioBytes, mimeType);
         console.log(`[voice-booking-ai] Transcript: "${transcript}"`);
       } catch (whisperErr: any) {
-        console.error("[voice-booking-ai] Whisper API FAILED:", whisperErr.message);
+        console.error("[voice-booking-ai] Whisper FAILED:", whisperErr.message);
         return new Response(
-          JSON.stringify({ error: "فشل في تحويل الصوت لنص: " + whisperErr.message }),
+          JSON.stringify({ error: whisperErr.message }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -287,7 +301,7 @@ serve(async (req) => {
       console.error("[voice-booking-ai] GPT-4o FAILED:", gptErr.message);
       return new Response(
         JSON.stringify({
-          error: "فشل في تحليل النص: " + gptErr.message,
+          error: "فشل في تحليل الوجهة. حاول مرة أخرى.",
           transcript,
         }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -312,7 +326,7 @@ serve(async (req) => {
     console.error("[voice-booking-ai] UNEXPECTED Error:", error.message, error.stack);
     return new Response(
       JSON.stringify({
-        error: "حدث خطأ غير متوقع: " + error.message,
+        error: "حدث خطأ غير متوقع. حاول مرة أخرى.",
       }),
       {
         status: 500,

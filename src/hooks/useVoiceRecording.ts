@@ -1,6 +1,9 @@
 /**
- * ران - Voice Recording Hook
- * تسجيل الصوت وإرساله لـ Edge Function للتحويل والتحليل
+ * ران - Voice Recording Hook v3
+ * تسجيل الصوت وإرساله للتحليل بالذكاء الاصطناعي
+ * 
+ * استراتيجية مزدوجة: FormData أولاً → إذا فشل يحاول base64 JSON تلقائياً
+ * مهلة 20 ثانية لكل محاولة — لا يبقى عالقاً أبداً
  */
 
 import { useState, useRef, useCallback } from 'react';
@@ -13,6 +16,64 @@ export interface VoiceResult {
   origin: { lat: number; lng: number; name: string } | null;
   destination: { lat: number; lng: number; name: string } | null;
   vehicleType: 'economy' | 'comfort' | 'premium' | 'women_only';
+}
+
+// مهلة لكل محاولة (20 ثانية)
+const INVOKE_TIMEOUT_MS = 20_000;
+
+/**
+ * Helper: إرسال الطلب للـ Edge Function مع مهلة
+ * يرجع الـ data أو يرمي خطأ
+ */
+async function invokeVoiceAI(
+  body: FormData | string,
+  headers?: Record<string, string>,
+): Promise<Record<string, any>> {
+  const invokePromise = supabase.functions.invoke('voice-booking-ai', {
+    body,
+    ...(headers ? { headers } : {}),
+  });
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('TIMEOUT')), INVOKE_TIMEOUT_MS),
+  );
+
+  const { data, error: fnError } = await Promise.race([invokePromise, timeoutPromise]);
+
+  if (fnError) {
+    // استخراج رسالة الخطأ الحقيقية من استجابة الـ Edge Function
+    let errorMsg = fnError.message || 'Unknown error';
+    if (fnError.context) {
+      try {
+        const body = await fnError.context.json();
+        errorMsg = body?.error || errorMsg;
+      } catch { /* الاستجابة ليست JSON */ }
+    }
+    throw new Error(errorMsg);
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return data;
+}
+
+/**
+ * تحويل Blob إلى base64 string
+ */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      // إزالة data:...;base64, prefix
+      const base64 = result.split(',')[1];
+      if (!base64) return reject(new Error('Failed to convert blob to base64'));
+      resolve(base64);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
 }
 
 export const useVoiceRecording = () => {
@@ -39,7 +100,7 @@ export const useVoiceRecording = () => {
       sum += val * val;
     }
     const rms = Math.sqrt(sum / data.length);
-    setAmplitude(Math.min(rms * 3, 1)); // تطبيع بين 0 و 1
+    setAmplitude(Math.min(rms * 3, 1));
 
     animFrameRef.current = requestAnimationFrame(monitorAmplitude);
   }, []);
@@ -80,19 +141,22 @@ export const useVoiceRecording = () => {
       };
 
       mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start(100); // جمع البيانات كل 100ms
+      mediaRecorder.start(100);
       setVoiceState('recording');
 
       // بدء مراقبة مستوى الصوت
       monitorAmplitude();
     } catch (err) {
-      console.error('Voice recording error:', err);
+      console.error('[VoiceRecording] Mic access error:', err);
       setError('لم نتمكن من الوصول للمايكروفون. يرجى السماح بالوصول.');
       setVoiceState('error');
     }
   }, [monitorAmplitude]);
 
-  // إيقاف التسجيل والمعالجة
+  // ===================================================================
+  // إيقاف التسجيل → إرسال الصوت → تحليل بالذكاء الاصطناعي
+  // استراتيجية مزدوجة: FormData أولاً → base64 JSON كخطة بديلة
+  // ===================================================================
   const stopRecording = useCallback(async () => {
     return new Promise<VoiceResult | null>((resolve) => {
       if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
@@ -114,7 +178,7 @@ export const useVoiceRecording = () => {
 
         const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
 
-        // التحقق من الحد الأدنى لحجم الملف
+        // التحقق من الحد الأدنى لحجم الملف (< 1KB = تسجيل فارغ)
         if (audioBlob.size < 1000) {
           setError('التسجيل قصير جداً. حاول مرة أخرى.');
           setVoiceState('error');
@@ -123,45 +187,52 @@ export const useVoiceRecording = () => {
         }
 
         setVoiceState('processing');
+        const sizeKB = Math.round(audioBlob.size / 1024);
+        console.log(`[VoiceRecording] Audio ready: ${sizeKB}KB, type: ${audioBlob.type}`);
 
         try {
-          // إرسال FormData مباشرة — أكثر موثوقية من base64
-          const formData = new FormData();
-          // CRITICAL: اسم الملف ضروري لـ Whisper API
-          formData.append('file', audioBlob, 'recording.webm');
+          let data: Record<string, any> | null = null;
 
-          console.log(`[VoiceRecording] Sending audio FormData to Edge Function, size: ${audioBlob.size} bytes`);
+          // ═══════════════════════════════════════════
+          // المحاولة 1: FormData (الأسرع والأصغر حجماً)
+          // ═══════════════════════════════════════════
+          try {
+            const formData = new FormData();
+            formData.append('file', audioBlob, 'recording.webm');
+            console.log('[VoiceRecording] Strategy 1: FormData upload...');
+            data = await invokeVoiceAI(formData);
+            console.log('[VoiceRecording] ✅ FormData succeeded');
+          } catch (formErr: any) {
+            console.warn(`[VoiceRecording] ❌ FormData failed: ${formErr.message}`);
 
-          // مهلة 25 ثانية لمنع بقاء الشاشة عالقة للأبد
-          const invokePromise = supabase.functions.invoke('voice-booking-ai', {
-            body: formData,
-            // ملاحظة: لا تضع Content-Type يدوياً — المتصفح يضيف boundary تلقائياً
-          });
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('انتهت المهلة — الاتصال بطيء. حاول مرة أخرى.')), 25000)
-          );
-          const { data, error: fnError } = await Promise.race([invokePromise, timeoutPromise]);
-
-          if (fnError) {
-            // محاولة قراءة تفاصيل الخطأ من الاستجابة
-            let errorDetails = fnError.message;
-            if (fnError.context) {
+            // ═══════════════════════════════════════════
+            // المحاولة 2: base64 JSON (أكثر توافقاً)
+            // بعض البيئات/الـ proxies لا تمرر FormData بشكل صحيح
+            // ═══════════════════════════════════════════
+            if (formErr.message !== 'TIMEOUT') {
               try {
-                const errorBody = await fnError.context.json();
-                errorDetails = errorBody?.error || errorDetails;
-                console.error('[VoiceRecording] Function error body:', errorBody);
-              } catch { /* ignore parse error */ }
+                console.log('[VoiceRecording] Strategy 2: base64 JSON fallback...');
+                const base64Audio = await blobToBase64(audioBlob);
+                const jsonBody = JSON.stringify({
+                  audio: base64Audio,
+                  mimeType: audioBlob.type || 'audio/webm',
+                });
+                data = await invokeVoiceAI(jsonBody, { 'Content-Type': 'application/json' });
+                console.log('[VoiceRecording] ✅ base64 JSON succeeded');
+              } catch (b64Err: any) {
+                console.error(`[VoiceRecording] ❌ base64 also failed: ${b64Err.message}`);
+                throw b64Err; // كلا الطريقتين فشلتا
+              }
+            } else {
+              throw formErr; // مهلة — لا فائدة من إعادة المحاولة
             }
-            console.error('[VoiceRecording] Function error:', errorDetails);
-            throw new Error(errorDetails);
           }
 
-          if (data?.error) {
-            console.warn('[VoiceRecording] Function returned error in data:', data.error);
-            throw new Error(data.error);
+          if (!data) {
+            throw new Error('لا استجابة من الخادم');
           }
 
-          console.log('[VoiceRecording] Function response:', JSON.stringify(data));
+          console.log('[VoiceRecording] Result:', JSON.stringify(data));
 
           const voiceResult: VoiceResult = {
             transcript: data.transcript || '',
@@ -170,12 +241,30 @@ export const useVoiceRecording = () => {
             vehicleType: data.vehicleType || 'economy',
           };
 
+          // التحقق من وجود نتيجة مفيدة
+          if (!voiceResult.transcript && !voiceResult.destination) {
+            throw new Error('لم نتمكن من فهم الكلام. حاول مرة أخرى بصوت أوضح.');
+          }
+
           setResult(voiceResult);
           setVoiceState('success');
           resolve(voiceResult);
-        } catch (err) {
-          console.error('Voice processing error:', err);
-          setError('حدث خطأ أثناء معالجة الصوت. حاول مرة أخرى.');
+        } catch (err: any) {
+          console.error('[VoiceRecording] Final error:', err.message);
+
+          // رسائل خطأ واضحة بالعربية حسب نوع الخطأ
+          let userMessage: string;
+          if (err.message === 'TIMEOUT') {
+            userMessage = 'الاتصال بطيء جداً. تأكد من اتصال الإنترنت وحاول مرة أخرى.';
+          } else if (err.message.includes('Whisper') || err.message.includes('تحويل الصوت')) {
+            userMessage = 'لم يتم التعرف على الصوت. تأكد من التحدث بوضوح وحاول مرة أخرى.';
+          } else if (err.message.includes('فهم الكلام')) {
+            userMessage = err.message;
+          } else {
+            userMessage = 'حدث خطأ أثناء معالجة الصوت. حاول مرة أخرى.';
+          }
+
+          setError(userMessage);
           setVoiceState('error');
           resolve(null);
         }
