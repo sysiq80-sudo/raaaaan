@@ -96,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from("drivers")
         .select("status")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
 
       if (driver) {
         setCanSwitchToDriver(driver.status === "approved");

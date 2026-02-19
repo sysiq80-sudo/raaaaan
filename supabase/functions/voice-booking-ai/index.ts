@@ -69,8 +69,10 @@ async function extractAudioFromRequest(req: Request): Promise<{ audioBytes: Uint
   }
 
   // 🔄 محاولة 2: JSON مع base64 (للتوافق مع الأسلوب القديم)
+  // نستخدم clone() هنا أيضاً لحماية الـ body الأصلي
   try {
-    const body = await req.json();
+    const cloned2 = req.clone();
+    const body = await cloned2.json();
     if (body.audio) {
       const mimeType = body.mimeType || "audio/webm";
       const binaryString = atob(body.audio);
@@ -86,7 +88,18 @@ async function extractAudioFromRequest(req: Request): Promise<{ audioBytes: Uint
     console.log("[voice-booking-ai] JSON parse also failed:", (jsonErr as Error).message);
   }
 
-  throw new Error("لم يتم إرسال ملف صوتي — لا FormData ولا JSON");
+  // 🔄 محاولة 3: قراءة raw bytes مباشرة (Supabase relay قد يزيل content-type)
+  try {
+    const rawBytes = new Uint8Array(await req.arrayBuffer());
+    if (rawBytes.length > 500) {
+      console.log(`[voice-booking-ai] ✅ Raw binary fallback: ${rawBytes.length} bytes`);
+      return { audioBytes: rawBytes, mimeType: "audio/webm" };
+    }
+  } catch (rawErr) {
+    console.log("[voice-booking-ai] Raw read also failed:", (rawErr as Error).message);
+  }
+
+  throw new Error("لم يتم إرسال ملف صوتي — لا FormData ولا JSON ولا raw");
 }
 
 // ============================
