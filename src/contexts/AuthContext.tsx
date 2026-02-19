@@ -31,7 +31,7 @@ interface AuthContextType {
   
   // Rider-to-Driver switching
   canSwitchToDriver: boolean;
-  switchToDriver: () => Promise<void>;
+  switchToDriver: () => Promise<boolean>;
   switchToRider: () => void;
 }
 
@@ -287,18 +287,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [deviceId, toast]);
 
-  // Switch to driver mode
-  const switchToDriver = useCallback(async () => {
+  // Switch to driver mode — returns true if succeeded, false if not
+  const switchToDriver = useCallback(async (): Promise<boolean> => {
     if (!canSwitchToDriver) {
       toast({
-        title: "لم تتم الموافقة عليك كسائق",
+        title: "لم تتم الموافقة عليك كسائق بعد",
+        description: "يمكنك التسجيل كسائق أولاً",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     setUserRole("driver");
     localStorage.setItem("raan_current_role", "driver");
+    return true;
   }, [canSwitchToDriver, toast]);
 
   // Switch to rider mode

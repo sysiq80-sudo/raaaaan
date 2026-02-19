@@ -209,8 +209,15 @@ const RiderSideMenu = ({
               className="w-full justify-start gap-3 border-[#00E676]/40 text-[#00E676] hover:bg-[#00E676]/10 h-12 text-base font-bold rounded-xl"
               onClick={async () => {
                 try {
-                  await switchToDriver();
-                  navigate('/driver');
+                  const success = await switchToDriver();
+                  if (success) {
+                    handleClose();
+                    navigate('/driver');
+                  } else {
+                    // المستخدم غير مسجل كسائق — نوجهه للتسجيل
+                    handleClose();
+                    navigate('/driver/register');
+                  }
                 } catch (err) {
                   console.error('Failed to switch to driver:', err);
                 }
