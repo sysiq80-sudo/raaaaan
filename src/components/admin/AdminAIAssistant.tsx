@@ -152,7 +152,7 @@ export const AdminAIAssistant: React.FC = () => {
         .from('drivers')
         .select('rating, total_rides')
         .eq('user_id', ticket.user_id)
-        .single();
+        .maybeSingle();
 
       // بناء السياق للذكاء الاصطناعي
       const context = `

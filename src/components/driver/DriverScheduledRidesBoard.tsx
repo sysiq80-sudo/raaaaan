@@ -61,7 +61,7 @@ export default function DriverScheduledRidesBoard() {
         .from('drivers')
         .select('id')
         .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
-        .single();
+        .maybeSingle();
 
       if (!driverData) return [];
 

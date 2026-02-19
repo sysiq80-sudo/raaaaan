@@ -288,7 +288,7 @@ export const RideWaitingScreen = ({
         "id, full_name, phone, profile_image_url, vehicle_model, vehicle_plate, vehicle_color, vehicle_type, rating",
       )
       .eq("id", driverId)
-      .single();
+      .maybeSingle();
     if (!error && data) {
       console.log("[RideWaiting] ✅ Driver info received");
       setAcceptedDriver(data as Driver);

@@ -49,7 +49,7 @@ const DriverIncentives = () => {
       .from("drivers")
       .select("id")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
     if (driver) {
       setDriverId(driver.id);

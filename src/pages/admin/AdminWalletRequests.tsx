@@ -101,7 +101,7 @@ export default function AdminWalletRequests() {
               .from("drivers")
               .select("full_name, phone")
               .eq("user_id", request.user_id)
-              .single();
+              .maybeSingle();
             if (driver) {
               userName = driver.full_name || "غير معروف";
               userPhone = driver.phone || "";

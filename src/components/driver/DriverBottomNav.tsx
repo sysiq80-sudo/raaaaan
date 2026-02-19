@@ -92,7 +92,7 @@ const DriverBottomNav = () => {
               <motion.div
                 className="absolute top-0 bottom-0 rounded-xl overflow-hidden"
                 animate={{
-                  right: `${(activeIndex / navItems.length) * 100}%`,
+                  left: `${(activeIndex / navItems.length) * 100}%`,
                   width: `${100 / navItems.length}%`,
                 }}
                 transition={{ type: "spring", stiffness: 380, damping: 28 }}

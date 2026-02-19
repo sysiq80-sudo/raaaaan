@@ -28,7 +28,8 @@ import {
   Save,
   MapPin,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Shield
 } from "lucide-react";
 
 // Local storage keys for notification preferences
@@ -230,15 +231,11 @@ const DriverSettings = () => {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
+      // فقط الحقول المسموح للسائق بتعديلها (ليس الاسم أو بيانات السيارة)
       const { error } = await supabase
         .from("drivers")
         .update({
-          full_name: driverProfile.full_name,
-          phone: driverProfile.phone,
           email: driverProfile.email,
-          vehicle_model: driverProfile.vehicle_model,
-          vehicle_color: driverProfile.vehicle_color,
-          vehicle_plate: driverProfile.vehicle_plate,
           max_pickup_radius: driverProfile.max_pickup_radius,
         })
         .eq("user_id", user!.id);
@@ -463,17 +460,17 @@ const DriverSettings = () => {
                 <Label>الاسم الكامل</Label>
                 <Input
                   value={driverProfile.full_name}
-                  onChange={(e) => setDriverProfile({ ...driverProfile, full_name: e.target.value })}
-                  placeholder="اسمك الكامل"
+                  disabled
+                  className="bg-muted/50 cursor-not-allowed"
                 />
               </div>
               <div>
                 <Label>رقم الهاتف</Label>
                 <Input
                   value={driverProfile.phone}
-                  onChange={(e) => setDriverProfile({ ...driverProfile, phone: e.target.value })}
-                  placeholder="07XXXXXXXXX"
+                  disabled
                   dir="ltr"
+                  className="bg-muted/50 cursor-not-allowed"
                 />
               </div>
               <div>
@@ -486,6 +483,10 @@ const DriverSettings = () => {
                   dir="ltr"
                 />
               </div>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Shield className="w-3 h-3" />
+                لتعديل الاسم أو الهاتف، أرسل طلب من صفحة الملف الشخصي
+              </p>
             </CardContent>
           </Card>
 
@@ -502,27 +503,31 @@ const DriverSettings = () => {
                 <Label>موديل السيارة</Label>
                 <Input
                   value={driverProfile.vehicle_model}
-                  onChange={(e) => setDriverProfile({ ...driverProfile, vehicle_model: e.target.value })}
-                  placeholder="مثال: تويوتا كورولا 2020"
+                  disabled
+                  className="bg-muted/50 cursor-not-allowed"
                 />
               </div>
               <div>
                 <Label>لون السيارة</Label>
                 <Input
                   value={driverProfile.vehicle_color}
-                  onChange={(e) => setDriverProfile({ ...driverProfile, vehicle_color: e.target.value })}
-                  placeholder="مثال: أبيض"
+                  disabled
+                  className="bg-muted/50 cursor-not-allowed"
                 />
               </div>
               <div>
                 <Label>رقم اللوحة</Label>
                 <Input
                   value={driverProfile.vehicle_plate}
-                  onChange={(e) => setDriverProfile({ ...driverProfile, vehicle_plate: e.target.value })}
-                  placeholder="رقم لوحة السيارة"
+                  disabled
                   dir="ltr"
+                  className="bg-muted/50 cursor-not-allowed"
                 />
               </div>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Shield className="w-3 h-3" />
+                بيانات السيارة لا تُعدّل إلا من الإدارة. أرسل طلب من الملف الشخصي.
+              </p>
             </CardContent>
           </Card>
 

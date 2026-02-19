@@ -164,7 +164,7 @@ export default function DriverFinance() {
         .from('drivers')
         .select('wallet_balance, commission_balance')
         .eq('id', driverId)
-        .single();
+        .maybeSingle();
 
       // Fetch completed rides
       const { data: completedRides } = await supabase

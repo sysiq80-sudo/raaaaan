@@ -124,7 +124,7 @@ export const DriverWalletDashboard = () => {
         .from("drivers")
         .select("id")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (!driverData) throw new Error("السائق غير موجود");
 
@@ -212,7 +212,7 @@ export const DriverWalletDashboard = () => {
         .from("drivers")
         .select("id")
         .eq("user_id", user!.id)
-        .single();
+        .maybeSingle();
 
       const { error } = await supabase.from("withdrawal_requests").insert({
         driver_id: driverData!.id,

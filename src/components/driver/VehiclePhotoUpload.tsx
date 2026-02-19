@@ -48,7 +48,7 @@ export const VehiclePhotoUpload = () => {
         .from("drivers")
         .select("id")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (!driverData) return;
 
@@ -92,7 +92,7 @@ export const VehiclePhotoUpload = () => {
         .from("drivers")
         .select("id")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (!driverData) throw new Error("السائق غير موجود");
 

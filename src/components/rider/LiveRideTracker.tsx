@@ -244,7 +244,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         .from("drivers")
         .select("*")
         .eq("id", ride.driver_id)
-        .single();
+        .maybeSingle();
 
       if (!error && data) {
         const driverData = data as any;
@@ -570,7 +570,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           .from("drivers")
           .select("current_location")
           .eq("id", ride.driver_id)
-          .single();
+          .maybeSingle();
 
         if (!error && data?.current_location) {
           const newLocation = data.current_location as {

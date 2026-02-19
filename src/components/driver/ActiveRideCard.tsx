@@ -67,6 +67,7 @@ interface ActiveRideCardProps {
   driverLocation?: { lat: number; lng: number } | null;
   onMinimize?: () => void;
   onNavigationClick?: (lat: number, lng: number, label: string) => void;
+  refreshTrigger?: number;
 }
 
 const getLocationString = (location: unknown): string => {
@@ -127,6 +128,7 @@ export const ActiveRideCard = ({
   driverLocation,
   onMinimize,
   onNavigationClick,
+  refreshTrigger,
 }: ActiveRideCardProps) => {
   const { toast } = useToast();
   const [activeRide, setActiveRide] = useState<ActiveRide | null>(null);
@@ -337,6 +339,24 @@ export const ActiveRideCard = ({
       clearInterval(pollInterval);
     };
   }, [driverId, fetchActiveRide]);
+
+  // ✅ إعادة جلب الرحلة عند قبول طلب جديد (من RideRequestCard)
+  useEffect(() => {
+    if (!refreshTrigger || refreshTrigger <= 0) return;
+    // تأخير بسيط لضمان اكتمال كتابة قاعدة البيانات
+    const timer = setTimeout(() => {
+      logger.info("ActiveRideCard", "🔄 refreshTrigger fired — re-fetching active ride");
+      fetchActiveRide();
+    }, 500);
+    // محاولة ثانية بعد 1.5 ثانية لضمان الاستجابة
+    const retryTimer = setTimeout(() => {
+      fetchActiveRide();
+    }, 1500);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(retryTimer);
+    };
+  }, [refreshTrigger, fetchActiveRide]);
 
   useEffect(() => {
     if (!activeRide) return;

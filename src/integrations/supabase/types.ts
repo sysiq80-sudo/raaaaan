@@ -4619,6 +4619,7 @@ export type Database = {
         | "nas_wallet"
         | "nass"
       ride_status:
+        | "draft"
         | "pending"
         | "accepted"
         | "arrived"
@@ -4765,6 +4766,7 @@ export const Constants = {
         "nass",
       ],
       ride_status: [
+        "draft",
         "pending",
         "accepted",
         "arrived",

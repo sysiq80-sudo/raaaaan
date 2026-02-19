@@ -56,7 +56,7 @@ const DriverCompleteRegistration = () => {
         .from('drivers')
         .select('*')
         .eq('user_id', session.user.id)
-        .single();
+        .maybeSingle();
 
       if (error || !driverData) {
         toast.error('لم يتم العثور على بيانات السائق، يرجى التسجيل أولاً');

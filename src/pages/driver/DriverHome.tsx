@@ -69,6 +69,7 @@ const DriverHome = () => {
   const [hasActiveRide, setHasActiveRide] = useState(false);
   const [showNewRideAlert, setShowNewRideAlert] = useState(false);
   const [newRideData, setNewRideData] = useState<any>(null);
+  const [rideAcceptedTrigger, setRideAcceptedTrigger] = useState(0);
   const watchIdRef = useRef<number | null>(null);
   const locationUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [rating, setRating] = useState(5.0);
@@ -742,6 +743,7 @@ const DriverHome = () => {
                     <ActiveRideCard
                       driverId={driverId}
                       driverLocation={currentLocation}
+                      refreshTrigger={rideAcceptedTrigger}
                       onMinimize={() => setIsMinimized(true)}
                       onNavigationClick={(lat, lng, label) => {
                         setNavigationDestination({ lat, lng });
@@ -761,8 +763,9 @@ const DriverHome = () => {
                       maxPickupRadius={maxPickupRadius}
                       onRideAccepted={() => {
                         console.log(
-                          "[DriverHome] Ride accepted, ActiveRideCard will update via subscription"
+                          "[DriverHome] Ride accepted — triggering ActiveRideCard refresh"
                         );
+                        setRideAcceptedTrigger(prev => prev + 1);
                       }}
                     />
                   )}

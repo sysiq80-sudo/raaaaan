@@ -715,7 +715,7 @@ async function findOrCreateTelegramUser(
 
 // ════════════════════════════════════════
 // إدارة الحالة: البحث عن session معلّقة
-// (pending ride بدون dropoff_address = ينتظر الوجهة)
+// (draft ride بدون dropoff_address = ينتظر الوجهة)
 // ════════════════════════════════════════
 interface PendingSession {
   ride_id: string;
@@ -732,7 +732,7 @@ async function findPendingSession(
     .from("rides")
     .select("id, pickup_location, pickup_address, dropoff_address")
     .eq("rider_id", riderId)
-    .eq("status", "pending")
+    .eq("status", "draft")
     .eq("trip_type", "telegram")
     .is("dropoff_address", null)
     .order("created_at", { ascending: false })
@@ -753,7 +753,7 @@ async function findPendingSession(
 }
 
 // ════════════════════════════════════════
-// إنشاء session جديدة (رحلة pending بالموقع فقط)
+// إنشاء session جديدة (رحلة draft بالموقع فقط — غير مرئية للسائقين)
 // ════════════════════════════════════════
 async function createPickupSession(
   supabase: ReturnType<typeof createClient>,
@@ -762,21 +762,21 @@ async function createPickupSession(
   lng: number,
   address: string
 ): Promise<string> {
-  // حذف sessions قديمة غير مكتملة
+  // حذف sessions قديمة غير مكتملة (draft فقط)
   await supabase
     .from("rides")
     .delete()
     .eq("rider_id", riderId)
-    .eq("status", "pending")
+    .eq("status", "draft")
     .eq("trip_type", "telegram")
     .is("dropoff_address", null);
 
-  // إنشاء session جديدة
+  // إنشاء session جديدة بحالة draft (لا تظهر للسائقين حتى التأكيد)
   const { data, error } = await supabase
     .from("rides")
     .insert({
       rider_id: riderId,
-      status: "pending",
+      status: "draft",
       pickup_location: { lat, lng },
       pickup_address: address,
       dropoff_location: { lat: 0, lng: 0 },
@@ -953,7 +953,7 @@ serve(async (req) => {
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
       try {
-        // التحقق من أن الرحلة لا تزال pending
+        // التحقق من أن الرحلة لا تزال draft (بانتظار تأكيد الراكب)
         const { data: ride } = await supabase
           .from("rides")
           .select("id, status, dropoff_address")
@@ -965,13 +965,28 @@ serve(async (req) => {
           return new Response("OK", { status: 200, headers: corsHeaders });
         }
 
-        if (ride.status !== "pending" || !ride.dropoff_address) {
+        if (ride.status !== "draft" || !ride.dropoff_address) {
           await answerCallbackQuery(cbQuery.id, "⚠️ هذه الرحلة تم معالجتها مسبقاً.");
           await editMessageRemoveButtons(cbChatId, cbMessageId, "⚠️ هذه الرحلة تم معالجتها مسبقاً.");
           return new Response("OK", { status: 200, headers: corsHeaders });
         }
 
-        // استدعاء match-ride لإيجاد سائق
+        // ✅ تغيير الحالة من draft إلى pending — الآن فقط يراها السائقون
+        const { error: statusError } = await supabase
+          .from("rides")
+          .update({ status: "pending" })
+          .eq("id", rideId)
+          .eq("status", "draft");
+
+        if (statusError) {
+          console.error(`[telegram] Failed to update ride status to pending:`, statusError);
+          await answerCallbackQuery(cbQuery.id, "⚠️ حدث خطأ تقني.");
+          return new Response("OK", { status: 200, headers: corsHeaders });
+        }
+
+        console.log(`[telegram] Ride ${rideId} status changed: draft → pending`);
+
+        // استدعاء match-ride لإيجاد سائق (الآن بعد أن أصبحت pending)
         try {
           await supabase.functions.invoke("match-ride", {
             body: { ride_id: rideId },
@@ -1005,7 +1020,7 @@ serve(async (req) => {
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
       try {
-        // تحديث حالة الرحلة إلى cancelled
+        // تحديث حالة الرحلة إلى cancelled (تعمل مع draft و pending)
         const { error: cancelError } = await supabase
           .from("rides")
           .update({
@@ -1013,7 +1028,7 @@ serve(async (req) => {
             cancellation_reason: "ألغيت من قبل الراكب قبل التأكيد (تيليغرام)",
           })
           .eq("id", rideId)
-          .eq("status", "pending");
+          .in("status", ["draft", "pending"]);
 
         if (cancelError) {
           console.error("[telegram] Cancel ride DB error:", cancelError);
@@ -1029,6 +1044,14 @@ serve(async (req) => {
         await answerCallbackQuery(cbQuery.id, "⚠️ حدث خطأ تقني.");
       }
 
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // 🔕 تجاهل (من أزرار "استمر بالبحث")
+    // ═══════════════════════════════════
+    if (cbData === "ignore_action") {
+      await answerCallbackQuery(cbQuery.id, "👌");
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
@@ -1057,6 +1080,61 @@ serve(async (req) => {
       console.log("[telegram] /start → sending location keyboard");
       await sendWithLocationKeyboard(chatId, MESSAGES.welcome);
       return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // 🧠 ذاكرة الرحلة النشطة — هل المستخدم في رحلة؟
+    // ═══════════════════════════════════
+    {
+      const telegramRef = `tg_${telegramUser?.id || chatId}`;
+      const telegramEmail = `tg_${telegramUser?.id || chatId}@telegram.raan.app`;
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .or(`phone.eq.${telegramRef},email.eq.${telegramEmail}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingProfile?.user_id) {
+        const { data: activeRide } = await supabase
+          .from("rides")
+          .select("id, status, driver_id, pickup_address, dropoff_address")
+          .eq("rider_id", existingProfile.user_id)
+          .in("status", ["pending", "accepted", "arrived", "in_progress"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (activeRide) {
+          console.log(`[telegram] Active ride detected: ${activeRide.id} (${activeRide.status})`);
+
+          if (activeRide.status === "pending") {
+            // رحلة منتظرة — عرض خيار الإلغاء
+            await sendInlineKeyboard(
+              chatId,
+              "⏳ أنت في رحلة حالياً (جاري البحث عن كابتن).\n\n" +
+              `📍 من: ${activeRide.pickup_address || "موقعك"}\n` +
+              `🏁 إلى: ${activeRide.dropoff_address || "الوجهة"}\n\n` +
+              "هل تريد إلغاء الرحلة؟",
+              [
+                [
+                  { text: "❌ إلغاء الرحلة", callback_data: `cancel_ride_${activeRide.id}` },
+                  { text: "🔄 استمر بالبحث", callback_data: "ignore_action" },
+                ],
+              ]
+            );
+          } else {
+            // رحلة نشطة مع سائق
+            await directSend(
+              chatId,
+              "🚕 لديك رحلة نشطة حالياً مع الكابتن. الرجاء إتمامها أولاً.\n" +
+              `📍 الحالة: ${activeRide.status === "accepted" ? "الكابتن في الطريق إليك" : activeRide.status === "arrived" ? "الكابتن وصل" : "الرحلة جارية"}`
+            );
+          }
+
+          return new Response("OK", { status: 200, headers: corsHeaders });
+        }
+      }
     }
 
     // ═══════════════════════════════════

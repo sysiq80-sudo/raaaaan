@@ -90,7 +90,7 @@ const AdminDriverApplication = () => {
         .from('drivers')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       setDriver(data);
