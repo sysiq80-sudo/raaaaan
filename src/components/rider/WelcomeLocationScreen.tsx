@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getGeocoder } from "@/lib/googleMapService";
 import { Search, MapPin, Star, Clock, Home, Briefcase, ChevronDown, Loader2, X, Building2, Menu, Gift, Crown, MapPinned, Coffee, LandmarkIcon, GraduationCap, Sparkles, ChevronLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -127,13 +128,17 @@ const WelcomeLocationScreen = ({
         // Reverse geocode using Google Maps Geocoding API
         try {
           if (window.google?.maps) {
-            const geocoder = new google.maps.Geocoder();
+            const geocoder = await getGeocoder();
+            if (geocoder) {
             const result = await geocoder.geocode({ 
               location: loc,
               language: 'ar'
             });
             const address = result.results?.[0]?.formatted_address || 'الرمادي، الأنبار';
             setCurrentAddress(address);
+            } else {
+              setCurrentAddress('الرمادي، الأنبار');
+            }
           } else {
             setCurrentAddress('الرمادي، الأنبار');
           }

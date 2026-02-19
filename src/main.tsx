@@ -11,6 +11,21 @@ declare global {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// إسكات التحذيرات غير المؤثرة (تنظيف الكونسول)
+// ═══════════════════════════════════════════════════════════════
+const _origWarn = console.warn;
+const SUPPRESSED_WARNINGS = [
+  'RealtimeChannel REST fallback',         // تحذير سوبابيس الداخلي
+  'google.maps.Marker is deprecated',      // تحذير جوجل المستقبلي
+  'Non-serializable values were found',    // تحذير React Navigation
+];
+console.warn = (...args: any[]) => {
+  const msg = typeof args[0] === 'string' ? args[0] : '';
+  if (SUPPRESSED_WARNINGS.some((s) => msg.includes(s))) return;
+  _origWarn.apply(console, args);
+};
+
 // Google Maps API will be loaded by @react-google-maps/api wrapper
 // RTL support is natively handled by Google Maps for Arabic text
 

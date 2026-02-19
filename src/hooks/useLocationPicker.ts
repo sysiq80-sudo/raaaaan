@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useGoogleMapsApiKey } from "./useGoogleMapsApiKey";
 import { useToast } from "./use-toast";
 import { getMapStyle, watchThemeChanges } from "@/utils/mapStyles";
+import { getGeocoder } from "@/lib/googleMapService";
 
 interface LocationType {
   lat: number;
@@ -104,7 +105,11 @@ export const useLocationPicker = (
       }
 
       try {
-        const geocoder = new window.google.maps.Geocoder();
+        const geocoder = await getGeocoder();
+        if (!geocoder) {
+          console.warn("Geocoder not available");
+          return;
+        }
 
         const IRAQ_POI_TYPES = [
           'mosque', 'church',

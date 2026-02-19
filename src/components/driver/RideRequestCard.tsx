@@ -86,9 +86,45 @@ export const RideRequestCard = ({
   const [timeLeft, setTimeLeft] = useState(30);
   const previousRideIdRef = useRef<string | null>(null);
 
+  // ✨ Cooldown: الرحلات المتخطاة تختفي 60 ثانية
+  const skippedRidesRef = useRef<Record<string, number>>({});
+
   // Track active ride to search from dropoff location
   const [activeRideDropoff, setActiveRideDropoff] = useState<{ lat: number; lng: number } | null>(null);
   const [searchFromDropoff, setSearchFromDropoff] = useState(false);
+
+  // Ref لـ fetchPendingRides — يمنع إعادة الاشتراك في Realtime مع كل تغيير موقع
+  const fetchPendingRidesRef = useRef<() => void>(() => {});
+
+  // تنظيف الرحلات المتخطاة المنتهية الصلاحية كل 30 ثانية
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      const skipped = skippedRidesRef.current;
+      let changed = false;
+      for (const rideId of Object.keys(skipped)) {
+        if (now - skipped[rideId] >= 60000) {
+          delete skipped[rideId];
+          changed = true;
+        }
+      }
+      if (changed) {
+        logger.debug("RideRequestCard", "تنظيف cooldown الرحلات المتخطاة");
+      }
+    }, 30000);
+    return () => clearInterval(cleanupInterval);
+  }, []);
+
+  // دالة فحص: هل الرحلة مرئية؟ (ليست في cooldown)
+  const isRideVisible = useCallback((rideId: string): boolean => {
+    const skippedTime = skippedRidesRef.current[rideId];
+    if (!skippedTime) return true;
+    if (Date.now() - skippedTime >= 60000) {
+      delete skippedRidesRef.current[rideId];
+      return true;
+    }
+    return false;
+  }, []);
 
   const canDriverServeRide = useCallback(
     (driverType: string | null, rideType: string): boolean => {
@@ -118,7 +154,7 @@ export const RideRequestCard = ({
           .select('status, dropoff_location')
           .eq('driver_id', driverId)
           .in('status', ['accepted', 'arrived', 'in_progress'])
-          .single();
+          .maybeSingle();
 
         if (activeRide && activeRide.dropoff_location) {
           const dropoff = activeRide.dropoff_location as { lat: number; lng: number };
@@ -185,6 +221,13 @@ export const RideRequestCard = ({
             rider_id: ride.rider_id || "",
           };
           
+          // تخطي الرحلات في cooldown
+          if (!isRideVisible(newRide.id)) {
+            logger.debug("RideRequestCard", `⛔ Ride ${newRide.id.substring(0, 8)} in cooldown, skipping`);
+            setPendingRide(null);
+            return;
+          }
+
           // Play sound only for NEW rides
           if (previousRideIdRef.current !== newRide.id) {
             playNotificationSound();
@@ -228,6 +271,13 @@ export const RideRequestCard = ({
             created_at: ride.created_at,
             rider_id: ride.rider_id || "",
           };
+
+          // تخطي الرحلات في cooldown
+          if (!isRideVisible(newRide.id)) {
+            logger.debug("RideRequestCard", `⛔ Fallback ride ${newRide.id.substring(0, 8)} in cooldown, skipping`);
+            setPendingRide(null);
+            return;
+          }
           
           // Play sound only for NEW rides
           if (previousRideIdRef.current !== newRide.id) {
@@ -249,13 +299,18 @@ export const RideRequestCard = ({
       logger.error("RideRequestCard", "Error fetching rides", error);
       setPendingRide(null);
     }
-  }, [isOnline, isPaused, vehicleType, driverLocation, maxPickupRadius, canDriverServeRide, searchFromDropoff, activeRideDropoff]);
+  }, [isOnline, isPaused, vehicleType, driverLocation, maxPickupRadius, canDriverServeRide, searchFromDropoff, activeRideDropoff, isRideVisible]);
 
-  // Subscribe to realtime ride insertions
+  // الـ Ref يتابع دائماً آخر نسخة من fetchPendingRides بدون إعادة الاشتراك
+  useEffect(() => {
+    fetchPendingRidesRef.current = fetchPendingRides;
+  }, [fetchPendingRides]);
+
+  // Subscribe to realtime ride insertions — ONCE (لا يعتمد على الموقع)
   useEffect(() => {
     if (!isOnline || !driverId || isPaused) return;
 
-    logger.debug("RideRequestCard", "Setting up realtime subscription");
+    logger.debug("RideRequestCard", "Setting up realtime subscription (stable)");
     
     const channel = supabase
       .channel(`ride-requests-${driverId}`)
@@ -269,56 +324,85 @@ export const RideRequestCard = ({
         },
         (payload) => {
           logger.debug("RideRequestCard", "New ride inserted", payload.new?.id);
-          // Immediately fetch to update UI
-          fetchPendingRides();
+          // يستدعي الـ ref بدلاً من الدالة مباشرة — لا يُعيد الاشتراك
+          fetchPendingRidesRef.current();
         }
       )
       .subscribe();
 
     return () => {
+      logger.debug("RideRequestCard", "Cleaning up realtime subscription");
       supabase.removeChannel(channel);
     };
-  }, [isOnline, driverId, fetchPendingRides]);
+  }, [isOnline, driverId, isPaused]); // ← بدون fetchPendingRides
 
-  // Initial fetch and polling
+  // Initial fetch and polling — يعتمد على isOnline/isPaused فقط
   useEffect(() => {
-    if (!isOnline) {
+    if (!isOnline || isPaused) {
       setPendingRide(null);
       return;
     }
 
-    fetchPendingRides();
-    const pollInterval = setInterval(fetchPendingRides, 5000);
+    // Fetch فوري
+    fetchPendingRidesRef.current();
+
+    // Polling كل 5 ثواني عبر الـ ref
+    const pollInterval = setInterval(() => {
+      fetchPendingRidesRef.current();
+    }, 5000);
+
     return () => clearInterval(pollInterval);
-  }, [isOnline, fetchPendingRides]);
+  }, [isOnline, isPaused]); // ← deps ثابتة
 
   // Countdown timer effect
   useEffect(() => {
     if (!pendingRide) return;
+    const currentRideId = pendingRide.id;
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
+          // انتهى الوقت — أضف للـ cooldown حتى لا تعود فوراً
+          skippedRidesRef.current[currentRideId] = Date.now();
+          console.log(`⏰ Ride ${currentRideId.substring(0, 8)} timed out, cooldown 60s`);
           setPendingRide(null);
           previousRideIdRef.current = null;
-          fetchPendingRides();
+          fetchPendingRidesRef.current();
           return 30;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [pendingRide, fetchPendingRides]);
+  }, [pendingRide]);
 
   const handleAccept = async () => {
-    if (!pendingRide) return;
+    if (!pendingRide || loading) return; // منع الضغط المزدوج
     setLoading(true);
     setActionType("accept");
     try {
+      // المحاولة 1: RPC الآمن
       const { error } = await supabase.rpc("accept_ride_safely", {
         p_ride_id: pendingRide.id,
         p_driver_id: driverId,
       });
-      if (error) throw error;
+
+      if (error) {
+        // Fallback: تحديث مباشر عبر REST إذا فشل الـ RPC
+        console.warn("accept_ride_safely RPC failed, falling back to direct update:", error.message);
+        const { error: directError } = await supabase
+          .from('rides')
+          .update({
+            status: 'accepted',
+            driver_id: driverId,
+            matched_at: new Date().toISOString(),
+          })
+          .eq('id', pendingRide.id)
+          .eq('status', 'pending') // حماية: فقط إذا لا تزال pending
+          .is('driver_id', null);  // حماية: لم يقبلها سائق آخر
+
+        if (directError) throw directError;
+      }
+
       toast({ title: "✅ تم القبول", description: "تم قبول الطلب بنجاح" });
       onRideAccepted?.();
       setPendingRide(null);
@@ -329,7 +413,7 @@ export const RideRequestCard = ({
         description: e?.message || "تم قبول الطلب من سائق آخر",
         variant: "destructive",
       });
-      fetchPendingRides();
+      fetchPendingRidesRef.current();
     } finally {
       setLoading(false);
       setActionType(null);
@@ -337,22 +421,32 @@ export const RideRequestCard = ({
   };
 
   const handleReject = async () => {
-    if (!pendingRide) return;
+    if (!pendingRide || loading) return; // منع الضغط المزدوج
     setLoading(true);
     setActionType("reject");
+
+    // تخطي محلي + cooldown 60 ثانية
+    const rejectedRideId = pendingRide.id;
+    skippedRidesRef.current[rejectedRideId] = Date.now();
+    console.log(`⛔ Skipping ride ${rejectedRideId.substring(0, 8)} for 60 seconds`);
+
+    setPendingRide(null);
+    previousRideIdRef.current = null;
+
     try {
       await supabase.rpc("update_driver_response", {
-        p_ride_id: pendingRide.id,
+        p_ride_id: rejectedRideId,
         p_driver_id: driverId,
         p_response: "rejected",
       });
-    } catch {}
-    setPendingRide(null);
-    previousRideIdRef.current = null;
+    } catch {
+      // فشل التسجيل — غير مؤثر، الرفض محلي
+    }
+
     toast({ title: "تم التخطي", description: "سيتم عرض الطلب التالي" });
     setLoading(false);
     setActionType(null);
-    fetchPendingRides();
+    fetchPendingRidesRef.current();
   };
 
   // Empty state - searching for rides

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { User } from "@supabase/supabase-js";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -83,6 +83,8 @@ const DriverSideMenu = ({
   rating,
   driverId
 }: DriverSideMenuProps) => {
+  const navigate = useNavigate();
+  const { switchToRider } = useAuth();
   const [stats, setStats] = useState<Stats>({
     todayEarnings: 0,
     todayRides: 0,
@@ -197,8 +199,6 @@ const DriverSideMenu = ({
         return { label: 'غير معروف', color: 'bg-muted' };
     }
   };
-
-  const { switchToRider } = useAuth();
 
   const handleSwitchToRider = () => {
     try {

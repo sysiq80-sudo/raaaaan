@@ -770,7 +770,7 @@ export const ActiveRideCard = ({
   };
 
   const handleArrived = async () => {
-    if (!activeRide) return;
+    if (!activeRide || loading) return;
     setLoading(true);
 
     try {
@@ -809,23 +809,22 @@ export const ActiveRideCard = ({
         return;
       }
 
-      // ⚡ INSTANT: Send broadcast FIRST for immediate rider notification
-      console.log("[Driver] ⚡ Sending instant arrived broadcast");
-      await notifyRider("driver_arrived", "السائق وصل لموقعك!", {
-        riderName: riderInfo?.full_name,
-      });
-
       // Play confirmation sound immediately
       playSound("confirm");
       vibrate([200, 100, 200]);
 
-      // Then update database
+      // ✅ DB Update FIRST (reliable REST) — الأولوية لتحديث قاعدة البيانات
       const { error } = await supabase
         .from("rides")
         .update({ status: "arrived" })
         .eq("id", activeRide.id);
 
       if (error) throw error;
+
+      // ⚡ THEN broadcast (best-effort — لا يمنع الاستمرار)
+      notifyRider("driver_arrived", "السائق وصل لموقعك!", {
+        riderName: riderInfo?.full_name,
+      }).catch(() => {});
 
       toast({
         title: "تم تأكيد الوصول ✅",
@@ -843,7 +842,7 @@ export const ActiveRideCard = ({
   };
 
   const handleStartRide = async () => {
-    if (!activeRide) return;
+    if (!activeRide || loading) return;
 
     // Confirmation dialog
     const confirmed = window.confirm("هل تأكدت من ركوب العميل في السيارة؟");
@@ -852,18 +851,11 @@ export const ActiveRideCard = ({
     setLoading(true);
 
     try {
-      // ⚡ INSTANT: Send broadcast FIRST for immediate rider notification
-      console.log("[Driver] ⚡ Sending instant ride_started broadcast");
-      await notifyRider("ride_started", "الرحلة بدأت!", {
-        riderName: riderInfo?.full_name,
-        dropoffAddress: activeRide.dropoff_address,
-      });
-
       // Play sound immediately
       playSound("inProgress");
       vibrate(VibrationPatterns.inProgress);
 
-      // Then update database
+      // ✅ DB Update FIRST (reliable REST)
       const { error } = await supabase
         .from("rides")
         .update({
@@ -873,6 +865,12 @@ export const ActiveRideCard = ({
         .eq("id", activeRide.id);
 
       if (error) throw error;
+
+      // ⚡ THEN broadcast (best-effort)
+      notifyRider("ride_started", "الرحلة بدأت!", {
+        riderName: riderInfo?.full_name,
+        dropoffAddress: activeRide.dropoff_address,
+      }).catch(() => {});
 
       toast({
         title: "✅ العميل ركب - بدأت الرحلة!",
@@ -911,7 +909,7 @@ export const ActiveRideCard = ({
   };
 
   const handleCompleteRide = async () => {
-    if (!activeRide) return;
+    if (!activeRide || loading) return;
     setLoading(true);
 
     try {
@@ -968,13 +966,7 @@ export const ActiveRideCard = ({
             )
           : 0;
 
-      // ⚡ INSTANT: Send broadcast FIRST for immediate rider notification
       const estimatedFare = activeRide.estimated_fare || 0;
-      console.log("[Driver] ⚡ Sending instant ride_completed broadcast");
-      await notifyRider("ride_completed", "الحمد لله على السلامة!", {
-        finalFare: estimatedFare,
-        riderName: riderInfo?.full_name,
-      });
 
       // Play completion sound immediately
       playSound("completed");
@@ -1021,16 +1013,22 @@ export const ActiveRideCard = ({
           description: completionResult.adjustment_message,
         });
 
-        // إشعار الراكب بالتعديل عبر البث
-        await notifyRider("fare_adjusted", completionResult.adjustment_message, {
+        // إشعار الراكب بالتعديل عبر البث (best-effort)
+        notifyRider("fare_adjusted", completionResult.adjustment_message, {
           oldFare: estimatedFare,
           newFare: finalFare,
-        });
+        }).catch(() => {});
       }
 
       // تنظيف نقاط التتبع
       trackingPointsRef.current = [];
       lastTrackingTimeRef.current = 0;
+
+      // ⚡ Broadcast to rider (best-effort — بعد نجاح التحديث)
+      notifyRider("ride_completed", "الحمد لله على السلامة!", {
+        finalFare,
+        riderName: riderInfo?.full_name,
+      }).catch(() => {});
 
       // Show completed screen with rating
       setCompletedRideData({
@@ -1054,16 +1052,14 @@ export const ActiveRideCard = ({
   };
 
   const handleCancelRide = async () => {
-    if (!activeRide) return;
+    if (!activeRide || loading) return;
     setLoading(true);
 
     try {
-      // Notify rider immediately before database update
-      await notifyRider("ride_cancelled_by_driver", "ألغى السائق الرحلة");
-
       playSound("cancelled");
       vibrate(VibrationPatterns.cancelled);
 
+      // ✅ DB Update FIRST (reliable REST)
       const { error } = await supabase
         .from("rides")
         .update({
@@ -1074,6 +1070,9 @@ export const ActiveRideCard = ({
         .eq("id", activeRide.id);
 
       if (error) throw error;
+
+      // ⚡ THEN broadcast (best-effort)
+      notifyRider("ride_cancelled_by_driver", "ألغى السائق الرحلة").catch(() => {});
 
       toast({
         title: "تم إلغاء الرحلة",

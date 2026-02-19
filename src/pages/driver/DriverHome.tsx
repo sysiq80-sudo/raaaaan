@@ -20,7 +20,6 @@ import DutyToggle from "@/components/driver/DutyToggle";
 import { NewRideAlert } from "@/components/driver/NewRideAlert";
 import { FloatingTripBubble } from "@/components/driver/FloatingTripBubble";
 import { ExternalNavigationModal } from "@/components/driver/ExternalNavigationModal";
-import DriverScheduledRidesBoard from "@/components/driver/DriverScheduledRidesBoard";
 import DriverSideMenu from "@/components/driver/DriverSideMenu";
 import { initAudioContext, cleanupAudioContext } from "@/lib/audioContext";
 import logo from "@/assets/logo.png";
@@ -76,7 +75,6 @@ const DriverHome = () => {
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [adminActivated, setAdminActivated] = useState(true);
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'scheduled'>('dashboard');
 
   // Enable real-time notifications for new rides
   // إيقاف الإشعارات عند وضع الإيقاف المؤقت
@@ -141,20 +139,8 @@ const DriverHome = () => {
 
           if (error) throw error;
           console.log("📍 Location updated (Real-time):", { lat: preciseLat, lng: preciseLng });
-          
-          // Broadcast location update to rider immediately
-          if (hasActiveRide) {
-            const broadcastChannel = supabase.channel("driver-updates");
-            broadcastChannel.send({
-              type: "broadcast",
-              event: "driver_location_update",
-              payload: {
-                location: { lat: preciseLat, lng: preciseLng },
-                driverId,
-                timestamp: Date.now(),
-              },
-            });
-          }
+          // ⚡ البث للراكب يتم عبر ActiveRideCard (قناة مشتركة subscribed)
+          // لا نبث هنا لأنه ينتج قناة غير مشتركة وتسبب تحذير REST fallback
           return;
         } catch (error) {
           console.error(
@@ -181,6 +167,9 @@ const DriverHome = () => {
     }
 
     // Get initial position and update immediately
+    // إعدادات GPS صارمة مع fallback لدقة أقل
+    const gpsOptions = { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 };
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
@@ -190,15 +179,30 @@ const DriverHome = () => {
         updateDriverLocation(latitude, longitude);
       },
       (error) => {
-        console.error("Geolocation error:", error);
-        toast({
-          title: "⚠️ خطأ GPS",
-          description: "تفعيل الموقع مطلوب",
-          variant: "locationError" as any,
-          duration: 3000,
-        });
+        console.error("Geolocation error (high accuracy):", error);
+        // إذا فشل الـ GPS الدقيق، نحاول بدقة أقل لضمان عمل التطبيق
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            const newLocation = { lat: latitude, lng: longitude };
+            setCurrentLocation(newLocation);
+            latestLocationRef.current = newLocation;
+            updateDriverLocation(latitude, longitude);
+            console.log('GPS fallback (low accuracy) succeeded');
+          },
+          (fallbackError) => {
+            console.error("Geolocation fallback also failed:", fallbackError);
+            toast({
+              title: "⚠️ خطأ GPS",
+              description: "تفعيل الموقع مطلوب",
+              variant: "locationError" as any,
+              duration: 3000,
+            });
+          },
+          { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
+        );
       },
-      { enableHighAccuracy: true }
+      gpsOptions
     );
 
     // Watch position changes with throttle (تحديث كل 10 ثوان كحد أدنى)
@@ -221,7 +225,7 @@ const DriverHome = () => {
         }
       },
       (error) => console.error("Watch position error:", error),
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000, distanceFilter: 10 }
     );
 
     watchIdRef.current = watchId;
@@ -686,37 +690,9 @@ const DriverHome = () => {
       <main className="flex-1 relative overflow-hidden">
         {driverId && adminActivated && driverStatus === "approved" && (
           <>
-            {/* Tab Navigation */}
-            <div className="absolute top-16 left-0 right-0 z-40 bg-background/80 backdrop-blur-sm border-b border-border">
-              <div className="flex">
-                <button
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                    activeTab === 'dashboard'
-                      ? 'text-primary border-b-2 border-primary'
-                      : 'text-muted-foreground'
-                  }`}
-                >
-                  📍 الخريطة
-                </button>
-                <button
-                  onClick={() => setActiveTab('scheduled')}
-                  className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                    activeTab === 'scheduled'
-                      ? 'text-primary border-b-2 border-primary'
-                      : 'text-muted-foreground'
-                  }`}
-                >
-                  📅 الرحلات المجدولة
-                </button>
-              </div>
-            </div>
-
-            {/* Dashboard Tab */}
-            {activeTab === 'dashboard' && (
-              <>
+            {/* Dashboard — Map + Controls (always visible) */}
             {/* Full Screen Map - Absolute background */}
-            <div className="absolute inset-0 top-20">
+            <div className="absolute inset-0 top-14">
               <DriverMap
                 driverLocation={currentLocation}
                 isOnline={isOnline}
@@ -840,15 +816,6 @@ const DriverHome = () => {
               }}
               destinationLabel="الوجهة"
             />
-            </>
-            )}
-
-            {/* Scheduled Rides Tab */}
-            {activeTab === 'scheduled' && (
-              <div className="absolute inset-0 top-20 overflow-y-auto bg-background">
-                <DriverScheduledRidesBoard />
-              </div>
-            )}
           </>
         )}
 

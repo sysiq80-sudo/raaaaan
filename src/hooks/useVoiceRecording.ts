@@ -125,26 +125,37 @@ export const useVoiceRecording = () => {
         setVoiceState('processing');
 
         try {
-          // تحويل إلى base64
-          const reader = new FileReader();
-          const base64Promise = new Promise<string>((res) => {
-            reader.onloadend = () => {
-              const base64 = (reader.result as string).split(',')[1];
-              res(base64);
-            };
-          });
-          reader.readAsDataURL(audioBlob);
-          const audioBase64 = await base64Promise;
+          // إرسال FormData مباشرة — أكثر موثوقية من base64
+          const formData = new FormData();
+          // CRITICAL: اسم الملف ضروري لـ Whisper API
+          formData.append('file', audioBlob, 'recording.webm');
 
-          // إرسال إلى Edge Function
+          console.log(`[VoiceRecording] Sending audio FormData to Edge Function, size: ${audioBlob.size} bytes`);
           const { data, error: fnError } = await supabase.functions.invoke('voice-booking-ai', {
-            body: {
-              audio: audioBase64,
-              mimeType: 'audio/webm',
-            },
+            body: formData,
+            // ملاحظة: لا تضع Content-Type يدوياً — المتصفح يضيف boundary تلقائياً
           });
 
-          if (fnError) throw fnError;
+          if (fnError) {
+            // محاولة قراءة تفاصيل الخطأ من الاستجابة
+            let errorDetails = fnError.message;
+            if (fnError.context) {
+              try {
+                const errorBody = await fnError.context.json();
+                errorDetails = errorBody?.error || errorDetails;
+                console.error('[VoiceRecording] Function error body:', errorBody);
+              } catch { /* ignore parse error */ }
+            }
+            console.error('[VoiceRecording] Function error:', errorDetails);
+            throw new Error(errorDetails);
+          }
+
+          if (data?.error) {
+            console.warn('[VoiceRecording] Function returned error in data:', data.error);
+            throw new Error(data.error);
+          }
+
+          console.log('[VoiceRecording] Function response:', JSON.stringify(data));
 
           const voiceResult: VoiceResult = {
             transcript: data.transcript || '',

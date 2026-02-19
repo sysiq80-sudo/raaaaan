@@ -3,6 +3,8 @@
  * يمنع الحجز خارج العراق مع رسائل عراقية طريفة
  */
 
+import { getGeocoder } from "@/lib/googleMapService";
+
 // حدود العراق التقريبية
 const IRAQ_BOUNDS = {
   minLat: 29.0, // جنوب العراق
@@ -82,7 +84,8 @@ export async function checkDestinationGeofence(
       throw new Error("Google Maps API غير محملة");
     }
 
-    const geocoder = new google.maps.Geocoder();
+    const geocoder = await getGeocoder();
+    if (!geocoder) throw new Error("Geocoder غير متاح");
     const result = await geocoder.geocode({ 
       location: { lat, lng },
       language: 'ar' 

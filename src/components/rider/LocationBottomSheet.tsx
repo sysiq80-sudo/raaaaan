@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import PopularPlaces from './PopularPlaces';
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { getGeocoder } from "@/lib/googleMapService";
 
 interface SearchResult {
   id: string;
@@ -267,13 +268,15 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
     try {
       let address = 'موقعي الحالي';
       if (window.google?.maps) {
-        const geocoder = new google.maps.Geocoder();
+        const geocoder = await getGeocoder();
+        if (geocoder) {
         const result = await geocoder.geocode({
           location: new google.maps.LatLng(userLocation.lat, userLocation.lng),
           language: 'ar'
         });
         if (result.results && result.results[0]) {
           address = result.results[0].formatted_address;
+        }
         }
       }
 

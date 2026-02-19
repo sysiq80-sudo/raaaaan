@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { roundFare } from "@/lib/constants";
 
 import { checkDestinationGeofence, type GeofenceResult } from "@/lib/geofencing";
+import { getGeocoder } from "@/lib/googleMapService";
 import {
   Dialog,
   DialogContent,
@@ -672,7 +673,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         try {
           if (window.google?.maps && map.current) {
             // Step 1: Get full address from Geocoding API first
-            const geocoder = new google.maps.Geocoder();
+            const geocoder = await getGeocoder();
+            if (!geocoder) throw new Error('Geocoder not available');
             const result = await geocoder.geocode({ 
               location: { lat: actualLat, lng: actualLng },
               language: 'ar'
@@ -1291,8 +1293,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         <div className="h-[45%] relative bg-gray-200">
           <div ref={bookingMapContainer} className="absolute inset-0 bg-gray-100" />
 
-          {/* Floating manual geolocate button for booking map (raised) */}
-          <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top pointer-events-auto">
+          {/* Floating manual geolocate button for booking map — يسار الشاشة (right في CSS = يسار في RTL) */}
+          <div className="absolute top-2 right-4 z-40 safe-area-top pointer-events-auto">
             <button
               onClick={manualGeolocateBooking}
               className="w-10 h-10 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
@@ -1609,18 +1611,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       opacity: 1
     }} className="absolute top-4 left-0 right-0 z-30 pointer-events-auto">
         <div className="flex items-center justify-between p-4">
-          {/* زر القائمة */}
-          <button onClick={() => setMenuOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-xl bg-card/95 backdrop-blur-xl shadow-lg hover:bg-card hover:scale-105 transition-all duration-200 active:scale-95 border border-border/30" aria-label="القائمة الرئيسية">
-            <Menu className="w-5 h-5" />
-          </button>
-
-          {/* الشعار في المنتصف */}
-          {/* Logo removed */}
-
-          {/* Notifications & Status Icons moved to side menu */}
-          <div className="w-10" />
-
-          {/* زر الرجوع - يظهر عند اختيار الوجهة للعودة لوضع الانطلاق */}
+          {/* زر الرجوع - يظهر عند اختيار الوجهة للعودة لوضع الانطلاق (يظهر على اليسار في RTL) */}
           {!isPickup ? (
             <button
               onClick={() => {
@@ -1635,6 +1626,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           ) : (
             <div className="w-10" />
           )}
+
+          {/* فراغ وسطي */}
+          <div className="flex-1" />
+
+          {/* زر القائمة - على اليمين في RTL (آخر عنصر في flex → CSS left → يمين في RTL) */}
+          <button onClick={() => setMenuOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-xl bg-card/95 backdrop-blur-xl shadow-lg hover:bg-card hover:scale-105 transition-all duration-200 active:scale-95 border border-border/30" aria-label="القائمة الرئيسية">
+            <Menu className="w-5 h-5" />
+          </button>
         </div>
       </motion.div>
 
@@ -1712,8 +1711,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           />
         )}
 
-        {/* Floating manual geolocate button for main map */}
-        <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top pointer-events-auto">
+        {/* Floating manual geolocate button — يسار الشاشة (right في CSS = يسار في RTL) */}
+        <div className="absolute top-20 right-4 z-40 safe-area-top pointer-events-auto">
           <button
             onClick={manualGeolocateMain}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
@@ -1724,14 +1723,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           </button>
         </div>
 
-        {/* Drag instruction - Top-left corner - Disappears after first drag */}
+        {/* Drag instruction — أسفل الهيدر على اليمين (left في CSS = يمين في RTL) */}
         <AnimatePresence>
           {!isDragging && centerAddress && !hasStartedDragging && <motion.div 
             initial={{ y: -8, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -8, opacity: 0 }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="absolute left-4 top-4 z-30 pointer-events-none"
+            className="absolute left-4 top-20 z-30 pointer-events-none"
           >
             <div className="bg-card/95 backdrop-blur-lg px-3 py-2 rounded-full shadow-lg border border-border/50 whitespace-nowrap">
               <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2">

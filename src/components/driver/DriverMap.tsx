@@ -16,25 +16,27 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
   const driverMarker = useRef<google.maps.Marker | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMapReady, setIsMapReady] = useState(false);
   const { apiKey, isLoading: isApiKeyLoading } = useGoogleMapsApiKey();
 
   // Initialize map
   useEffect(() => {
     if (!mapContainer.current || !apiKey || isApiKeyLoading) return;
 
-    const initMap = async () => {
+    const initMap = () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Load Google Maps script
-        const script = document.createElement("script");
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry`;
-        script.async = true;
-        script.defer = true;
+        // معالجة أخطاء Google Maps مثل RefererNotAllowedMapError
+        window.gm_authFailure = () => {
+          console.error("❌ Google Maps authentication failure (RefererNotAllowed)");
+          setError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API");
+          setLoading(false);
+        };
 
-        script.onload = () => {
-          if (!window.google) return;
+        const createMap = () => {
+          if (!window.google || !mapContainer.current) return;
 
           // Default to Ramadi center if no location
           const center = driverLocation || { lat: 33.4279, lng: 43.3070 };
@@ -50,6 +52,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
           });
 
           setLoading(false);
+          setIsMapReady(true);
 
           // Add driver marker
           if (driverLocation) {
@@ -57,14 +60,61 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
           }
         };
 
-        script.onerror = () => {
-          setError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API");
-          setLoading(false);
+        // تحقق من تحميل Google Maps مسبقاً لتجنب التحميل المتكرر
+        if (window.google?.maps?.Map) {
+          createMap();
+          return;
+        }
+
+        // تحقق من وجود سكربت محمل مسبقاً
+        const existingScript = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
+        if (existingScript) {
+          // السكربت محمل لكن Google Maps لم يجهز بعد - انتظر
+          const waitForGoogle = setInterval(() => {
+            if (window.google?.maps?.Map) {
+              clearInterval(waitForGoogle);
+              createMap();
+            }
+          }, 100);
+          // مهلة 10 ثواني
+          setTimeout(() => {
+            clearInterval(waitForGoogle);
+            if (!map.current) {
+              setError("انتهت المهلة في تحميل الخريطة");
+              setLoading(false);
+            }
+          }, 10000);
+          return;
+        }
+
+        // تحميل السكربت لأول مرة
+        const script = document.createElement("script");
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry`;
+        script.async = true;
+        script.defer = true;
+
+        script.onload = () => {
+          // انتظر حتى يكون Google Maps جاهزاً بالكامل
+          if (window.google?.maps?.Map) {
+            createMap();
+          } else {
+            const waitForMaps = setInterval(() => {
+              if (window.google?.maps?.Map) {
+                clearInterval(waitForMaps);
+                createMap();
+              }
+            }, 100);
+            setTimeout(() => {
+              clearInterval(waitForMaps);
+              if (!map.current) {
+                setError("انتهت المهلة في تحميل الخريطة");
+                setLoading(false);
+              }
+            }, 10000);
+          }
         };
 
-        // معالجة أخطاء Google Maps مثل RefererNotAllowedMapError
-        window.gm_authFailure = () => {
-          console.error("❌ Google Maps authentication failure (RefererNotAllowed)");
+        script.onerror = () => {
           setError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API");
           setLoading(false);
         };
@@ -83,40 +133,54 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
     return () => {
       if (map.current) {
         map.current = null;
+        setIsMapReady(false);
       }
     };
   }, [apiKey, isApiKeyLoading]);
 
-  // Update driver marker when location changes
+  // Update driver marker when location changes — SAFE: checks google.maps exists
   useEffect(() => {
-    if (!map.current || !driverLocation) return;
+    if (!isMapReady || !map.current || !driverLocation) return;
+    if (!window.google?.maps) return;
 
-    if (driverMarker.current) {
-      driverMarker.current.setPosition(new google.maps.LatLng(driverLocation.lat, driverLocation.lng));
-    } else {
-      addDriverMarker(driverLocation);
+    try {
+      if (driverMarker.current) {
+        driverMarker.current.setPosition(new google.maps.LatLng(driverLocation.lat, driverLocation.lng));
+      } else {
+        addDriverMarker(driverLocation);
+      }
+
+      // Center map on driver
+      map.current.panTo(new google.maps.LatLng(driverLocation.lat, driverLocation.lng));
+    } catch (err) {
+      console.error("DriverMap: marker update error", err);
     }
-
-    // Center map on driver
-    map.current.panTo(new google.maps.LatLng(driverLocation.lat, driverLocation.lng));
-  }, [driverLocation]);
+  }, [driverLocation, isMapReady]);
 
   const addDriverMarker = (location: { lat: number; lng: number }) => {
-    if (!map.current) return;
+    if (!map.current || !window.google?.maps) return;
 
-    driverMarker.current = new google.maps.Marker({
-      position: new google.maps.LatLng(location.lat, location.lng),
-      map: map.current,
-      title: "السائق",
-      icon: getMarkerIcon("driver"),
-    });
+    try {
+      driverMarker.current = new google.maps.Marker({
+        position: new google.maps.LatLng(location.lat, location.lng),
+        map: map.current,
+        title: "السائق",
+        icon: getMarkerIcon("driver"),
+      });
+    } catch (err) {
+      console.error("DriverMap: addDriverMarker error", err);
+    }
   };
 
   const handleCenterOnDriver = () => {
-    if (!map.current || !driverLocation) return;
+    if (!isMapReady || !map.current || !driverLocation || !window.google?.maps) return;
     
-    map.current.panTo(new google.maps.LatLng(driverLocation.lat, driverLocation.lng));
-    map.current.setZoom(15);
+    try {
+      map.current.panTo(new google.maps.LatLng(driverLocation.lat, driverLocation.lng));
+      map.current.setZoom(15);
+    } catch (err) {
+      console.error("DriverMap: centerOnDriver error", err);
+    }
   };
 
 

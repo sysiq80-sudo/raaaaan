@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -104,12 +105,19 @@ export const DriverEmergencyButton: React.FC<DriverEmergencyButtonProps> = ({
       // جلب معلومات الراكب
       const { data: rideData } = await supabase
         .from('rides')
-        .select('rider_id, profiles(full_name)')
+        .select('rider_id')
         .eq('id', rideId)
         .single();
 
-      if (rideData?.profiles) {
-        setRiderName((rideData.profiles as any).full_name || 'الراكب');
+      if (rideData?.rider_id) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', rideData.rider_id)
+          .single();
+        if (profileData?.full_name) {
+          setRiderName(profileData.full_name);
+        }
       }
 
       // تسجيل استخدام الطوارئ
@@ -236,6 +244,9 @@ export const DriverEmergencyButton: React.FC<DriverEmergencyButtonProps> = ({
               <AlertTriangle className="w-5 h-5" />
               طوارئ
             </DialogTitle>
+            <DialogDescription className="text-right text-sm text-muted-foreground">
+              خيارات الطوارئ والاتصال السريع
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
@@ -301,6 +312,9 @@ export const DriverEmergencyButton: React.FC<DriverEmergencyButtonProps> = ({
         <DialogContent className="max-w-sm" dir="rtl">
           <DialogHeader>
             <DialogTitle>جهات اتصال الطوارئ</DialogTitle>
+            <DialogDescription className="text-right text-sm text-muted-foreground">
+              إضافة وإدارة جهات اتصال الطوارئ
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">

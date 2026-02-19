@@ -1,9 +1,11 @@
 /**
  * ران - بوت تيليغرام للحجز الذكي بالصوت
- * RAAN AI Dispatcher Bot — Ramadi Edition
- * 
- * يستقبل رسائل تيليغرام الصوتية ← يحولها لنص (Whisper) ← يستخرج المواقع (GPT-4o)
- * ← يحدد الإحداثيات (Google Geocoding) ← يحسب الأجرة ← ينشئ رحلة في قاعدة البيانات
+ * RAAN AI Dispatcher Bot — Ramadi Edition (v2 — Location First)
+ *
+ * التدفق الجديد:
+ * 1. /start → يطلب من المستخدم مشاركة موقعه الحالي (GPS)
+ * 2. مشاركة الموقع → يحفظ الموقع كنقطة انطلاق ويطلب الوجهة (صوت أو نص)
+ * 3. صوت/نص → يستخرج الوجهة فقط (GPT-4o) → Geocoding → حساب الأجرة → إنشاء رحلة
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -30,58 +32,170 @@ const corsHeaders = {
 // الرسائل العربية الثابتة
 // ════════════════════════════════════════
 const MESSAGES = {
-  welcome: `هلا بيك بتطبيق ران 🚕
-احنا أول تكسي ذكي بالرمادي.
+  welcome: `هلا بيك عميلنا العزيز! 🚕\nعلمود نحسب لك السعر المضبوط، دز لنا موقعك الحالي بالضغط على الزر الموجود جوة هذه الرسالة 👇`,
 
-شلون تطلب؟
-بس دز بصمة صوتية 🎙️ وكول وين مكانك ووين رايح.
-مثال: "أني يم شارع المستودع وأريد أروح لجامعة الأنبار"`,
+  locationReceived: (address: string) =>
+    `✅ عاشت ايدك، حددنا مكانك: ${address}\nهسة تكدر دز بصمة صوتية 🎙️ وكول وين تريد تروح؟ وتكدر تكتب همات.`,
 
-  processing: "جاري تحليل الصوت... 🤖",
+  needLocationFirst: `عفواً، لازم تدز موقعك أول شي! 👇\nاضغط على زر "📍 مشاركة موقعي الحالي" الموجود بلوحة المفاتيح.`,
 
-  noVoice: "📢 ارسل رسالة صوتية 🎙️ وكول للبوت وين مكانك ووين تريد تروح.\n\nمثال: \"أني يم تقاطع الزيوت وأريد أروح للمستشفى التعليمي\"",
+  processing: "جاري تحليل طلبك... 🤖",
 
   noTranscript: "❌ ما كدرت أفهم الصوت. جرب مرة ثانية بصوت أوضح.",
 
-  noDestination: "❌ ما فهمت الوجهة. كول مثلاً: \"أريد أروح لجامعة الأنبار\"",
+  noDestination: `❌ ما فهمت الوجهة. كول مثلاً:\n"أريد أروح لجامعة الأنبار"\nأو اكتبها بالنص.`,
 
   geocodeFailed: (place: string) =>
     `❌ ما كدرت ألاقي "${place}" على الخريطة بالرمادي. جرب تكول اسم أوضح.`,
 
-  outsideRamadi: (place: string) =>
-    `⚠️ "${place}" يبين خارج الرمادي. التطبيق حالياً يخدم الرمادي فقط.`,
+  bookingConfirmed: (origin: string, destination: string, fare: number, rideId: string) =>
+    `✅ تم الحجز بنجاح!\n📍 من: ${origin}\n🏁 إلى: ${destination}\n💰 السعر التقديري: ${fare.toLocaleString()} د.ع\n🔖 رقم الرحلة: ${rideId.substring(0, 8)}\n\nجاري إبلاغ أقرب كابتن عليك... 🚗`,
 
-  bookingConfirmed: (origin: string, destination: string, fare: number) =>
-    `✅ تم الحجز!
-📍 من: ${origin}
-🏁 إلى: ${destination}
-💰 السعر التقديري: ${fare.toLocaleString()} د.ع
+  confirmationPrompt: (origin: string, destination: string, fare: number, distanceKm: number) =>
+    `🚕 <b>تأكيد الرحلة</b>\n\n📍 <b>من:</b> ${origin}\n🏁 <b>إلى:</b> ${destination}\n📏 <b>المسافة:</b> ${distanceKm.toFixed(1)} كم\n💰 <b>السعر التقديري:</b> ${fare.toLocaleString()} د.ع\n\nهل تريد تأكيد الرحلة؟ 👇`,
 
-جاري إبلاغ أقرب كابتن عليك... 🚗`,
+  rideConfirmed: `✅ <b>تم تأكيد الطلب!</b>\nجاري إبلاغ أقرب كابتن عليك... 🚗`,
 
-  error: "⚠️ صار خطأ، جرب مرة ثانية بعد شوية.",
+  rideCancelled: `🚫 <b>تم إلغاء الطلب.</b>\nتكدر تطلب رحلة جديدة بأي وقت! 🚕`,
+
+  newRide: `هل تريد رحلة جديدة؟ 🚕\nدز موقعك الحالي مرة ثانية 👇`,
 };
 
 // ════════════════════════════════════════
-// مساعد: إرسال رسالة عبر تيليغرام
+// مساعد: إرسال رسالة مع لوحة مفاتيح الموقع
 // ════════════════════════════════════════
-async function sendTelegramMessage(chatId: number, text: string) {
-  await fetch(`${TELEGRAM_API}/sendMessage`, {
+async function sendWithLocationKeyboard(chatId: number, text: string) {
+  const url = `${TELEGRAM_API}/sendMessage`;
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chatId,
       text,
-      parse_mode: "HTML",
+      reply_markup: {
+        keyboard: [
+          [{ text: "📍 مشاركة موقعي الحالي", request_location: true }],
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false,
+      },
     }),
   });
+  const result = await res.text();
+  console.log(`[telegram] sendWithLocationKeyboard (${res.status}): ${result.substring(0, 200)}`);
+}
+
+// ════════════════════════════════════════
+// مساعد: إرسال رسالة عادية
+// ════════════════════════════════════════
+async function directSend(chatId: number, text: string) {
+  const url = `${TELEGRAM_API}/sendMessage`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+    const result = await res.text();
+    console.log(`[telegram] directSend (${res.status}): ${result.substring(0, 200)}`);
+  } catch (e) {
+    console.error("[telegram] Failed to send message:", e);
+  }
+}
+
+// ════════════════════════════════════════
+// مساعد: إرسال رسالة مع إزالة لوحة المفاتيح
+// ════════════════════════════════════════
+async function sendAndRemoveKeyboard(chatId: number, text: string) {
+  const url = `${TELEGRAM_API}/sendMessage`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      reply_markup: { remove_keyboard: true },
+    }),
+  });
+  const result = await res.text();
+  console.log(`[telegram] sendAndRemoveKeyboard (${res.status}): ${result.substring(0, 200)}`);
+}
+
+// ════════════════════════════════════════
+// مساعد: الرد على Callback Query
+// ════════════════════════════════════════
+async function answerCallbackQuery(callbackQueryId: string, text: string) {
+  try {
+    await fetch(`${TELEGRAM_API}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        callback_query_id: callbackQueryId,
+        text,
+        show_alert: false,
+      }),
+    });
+  } catch (e) {
+    console.error("[telegram] answerCallbackQuery failed:", e);
+  }
+}
+
+// ════════════════════════════════════════
+// مساعد: تعديل رسالة وإزالة الأزرار
+// ════════════════════════════════════════
+async function editMessageRemoveButtons(chatId: number, messageId: number, newText: string) {
+  try {
+    const res = await fetch(`${TELEGRAM_API}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+        text: newText,
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: [] },
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      console.error("[telegram] editMessageText failed:", err);
+    }
+  } catch (e) {
+    console.error("[telegram] editMessageRemoveButtons failed:", e);
+  }
+}
+
+// ════════════════════════════════════════
+// مساعد: إرسال رسالة مع أزرار inline
+// ════════════════════════════════════════
+async function sendInlineKeyboard(
+  chatId: number,
+  text: string,
+  buttons: Array<Array<{ text: string; callback_data: string }>>
+) {
+  const url = `${TELEGRAM_API}/sendMessage`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: buttons },
+      }),
+    });
+    const result = await res.text();
+    console.log(`[telegram] sendInlineKeyboard (${res.status}): ${result.substring(0, 200)}`);
+  } catch (e) {
+    console.error("[telegram] sendInlineKeyboard failed:", e);
+  }
 }
 
 // ════════════════════════════════════════
 // مساعد: تحميل ملف الصوت من تيليغرام
 // ════════════════════════════════════════
 async function downloadTelegramFile(fileId: string): Promise<Uint8Array> {
-  // الخطوة 1: جلب مسار الملف
   const fileRes = await fetch(`${TELEGRAM_API}/getFile?file_id=${fileId}`);
   const fileData = await fileRes.json();
 
@@ -89,7 +203,6 @@ async function downloadTelegramFile(fileId: string): Promise<Uint8Array> {
     throw new Error("فشل جلب معلومات الملف من تيليغرام");
   }
 
-  // الخطوة 2: تحميل الملف
   const downloadUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${fileData.result.file_path}`;
   const audioRes = await fetch(downloadUrl);
 
@@ -101,7 +214,7 @@ async function downloadTelegramFile(fileId: string): Promise<Uint8Array> {
 }
 
 // ════════════════════════════════════════
-// الأذن: تحويل الصوت لنص عبر Whisper
+// Whisper: تحويل الصوت لنص
 // ════════════════════════════════════════
 async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promise<string> {
   const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "mp4" : "ogg";
@@ -111,10 +224,13 @@ async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promis
   formData.append("model", "whisper-1");
   formData.append("language", "ar");
   formData.append("prompt",
-    "لهجة عراقية من مدينة الرمادي، محافظة الأنبار. أماكن مثل جامعة الأنبار، مستشفى الرمادي التعليمي، " +
+    "لهجة عراقية من مدينة الرمادي، محافظة الأنبار. " +
+    "شوارع مرقمة: شارع 20، شارع 17، شارع 60، شارع 40، شارع 10، شارع 30. " +
+    "أماكن مثل جامعة الأنبار، مستشفى الرمادي التعليمي، " +
     "شارع المستودع، حي التأميم، حي الحوز، تقاطع الزيوت، حي الملعب، البوعلوان، الشارع العام، " +
     "حي العزيزية، السوق المركزي، خمسة كيلو، حي الضباط، حي الورار، حي الأندلس، حي المعلمين، " +
-    "الجسر الحديدي، مبنى المحافظة، حي القطانة، حي الثيلة، حي السفحة، حي البوذياب"
+    "الجسر الحديدي، مبنى المحافظة، حي القطانة، حي الثيلة، حي السفحة، حي البوذياب، " +
+    "حي العشرين، حي البكر، حي الروضة، حي الجزيرة، شارع فلسطين، حي السلام"
   );
 
   const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
@@ -133,43 +249,49 @@ async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promis
 }
 
 // ════════════════════════════════════════
-// الدماغ: استخراج النية من النص عبر GPT-4o
+// GPT-4o: استخراج الوجهة فقط (الموقع يأتي من GPS)
 // ════════════════════════════════════════
-interface ExtractedIntent {
-  origin_search_query: string | null;
-  destination_search_query: string | null;
+interface ExtractedDestination {
+  destination_search_query: string;
   vehicle_type: "economy" | "comfort" | "premium" | "women_only";
   notes: string | null;
 }
 
-async function extractIntent(transcript: string): Promise<ExtractedIntent> {
-  const systemPrompt = `You are an intelligent taxi dispatcher for the city of Ramadi, Al Anbar, Iraq.
-The user will speak in Iraqi Arabic dialect.
+async function extractDestination(transcript: string): Promise<ExtractedDestination> {
+  const systemPrompt = `You are an intelligent taxi dispatcher for the city of Ramadi (الرمادي), Al Anbar (الأنبار), Iraq.
+The user has ALREADY shared their GPS pickup location. Now they are telling you their DESTINATION only.
+The user speaks in Iraqi Arabic dialect.
+
+Your ONLY job: Extract the destination name EXACTLY as the user says it.
+
+⚠️ STRICT RULE — NUMBERED STREETS:
+If the user provides a numbered street (e.g., "شارع 20", "شارع 60", "شارع 17"), YOU MUST KEEP IT EXACTLY AS IS.
+DO NOT convert it to a famous landmark or a different street name.
+Examples:
+  Input: "شارع 20" → Output: "شارع 20" (NOT "شارع المستودع" or anything else)
+  Input: "شارع 17" → Output: "شارع 17"
+  Input: "شارع 60" → Output: "شارع 60"
+Only use famous landmark names if the user EXPLICITLY says them by name.
 
 Critical Rules:
-1. If the user mentions a landmark (e.g., 'الملعب', 'شارع 17', 'الحوز', 'الجامع الكبير', 'جامعة الأنبار'), you MUST assume they mean the location in Ramadi, NOT Baghdad or any other city.
-2. Extract the pickup location (origin) and dropoff location (destination) as search queries.
-3. If the user says "أني يم" or "أني عند" or "موقعي" → that's the origin.
-4. If the user says "أريد أروح" or "أبي أروح" or "وديني" or "لـ" → what follows is the destination.
-5. If only one location is mentioned, treat it as the destination. Set origin to null (GPS will be used).
-6. Always append "الرمادي" to every location name in your output for geocoding accuracy.
-7. If the user mentions vehicle preference (فخمة/فاخرة → premium, مريحة → comfort, نسائي/بنات → women_only), set vehicle_type.
-8. Extract any notes (مستعجل، قرب الصيدلية، etc).
+1. Every landmark mentioned is in RAMADI — never assume another city.
+2. Output the destination name as a clean Arabic search query — do NOT add "الرمادي" yourself, the geocoding system handles that.
+3. If the user says "أريد أروح" or "وديني" or "لـ" → what follows is the destination.
+4. If the user just says a place name, that IS the destination.
+5. Keep the name natural: "جامعة الأنبار" not "جامعة الأنبار، الرمادي، العراق".
+6. If the user mentions vehicle preference: فخمة/فاخرة → premium, مريحة → comfort, نسائي/بنات → women_only. Otherwise "economy".
+7. Extract any notes (مستعجل، قرب الصيدلية، etc).
+8. NEVER return an error message. ALWAYS try to extract a destination. Even partial names are useful.
+9. NEVER rename, translate, or "correct" the user's destination. Return their words verbatim.
 
-Well-known Ramadi landmarks:
-- جامعة الأنبار، مستشفى الرمادي التعليمي، دائرة صحة الأنبار
-- حي التأميم، حي الحوز، حي الملعب، حي الضباط، حي العزيزية
-- حي 5 كيلو، حي العشرين، حي البكر، حي الورار، حي السلام
-- تقاطع الزيوت، شارع المستودع، الشارع العام، السوق المركزي
-- البوعلوان، حي المعلمين، حي الأندلس، الجسر الحديدي
-- مبنى المحافظة، ملعب الرمادي، حي الثيلة، حي القطانة، حي السفحة، حي البوذياب
+Well-known Ramadi landmarks (for reference only — do NOT substitute user input with these):
+جامعة الأنبار، مستشفى الرمادي التعليمي، دائرة صحة الأنبار، حي التأميم، حي الحوز، حي الملعب، حي الضباط، حي العزيزية، حي 5 كيلو، حي العشرين، حي البكر، حي الورار، حي السلام، تقاطع الزيوت، شارع المستودع، الشارع العام، السوق المركزي، البوعلوان، حي المعلمين، حي الأندلس، الجسر الحديدي، مبنى المحافظة، ملعب الرمادي، حي الثيلة، حي القطانة، حي السفحة، حي البوذياب، شارع 60، شارع فلسطين، حي الروضة، حي الجزيرة
 
-Respond in JSON only:
+Respond in JSON ONLY:
 {
-  "origin_search_query": "اسم مكان الانطلاق، الرمادي" or null,
-  "destination_search_query": "اسم الوجهة، الرمادي",
+  "destination_search_query": "اسم الوجهة كما قالها المستخدم — حرفياً",
   "vehicle_type": "economy",
-  "notes": "ملاحظات" or null
+  "notes": null
 }`;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -186,7 +308,7 @@ Respond in JSON only:
       ],
       response_format: { type: "json_object" },
       temperature: 0.1,
-      max_tokens: 300,
+      max_tokens: 200,
     }),
   });
 
@@ -203,7 +325,7 @@ Respond in JSON only:
 }
 
 // ════════════════════════════════════════
-// الخريطة: Geocoding مقيد بالرمادي فقط
+// Geocoding: بحث متعدد الاستراتيجيات مقيد بالرمادي
 // ════════════════════════════════════════
 interface ResolvedLocation {
   lat: number;
@@ -211,56 +333,280 @@ interface ResolvedLocation {
   address: string;
 }
 
-async function resolveRamadiLocation(query: string): Promise<ResolvedLocation | null> {
-  // إلحاق "الرمادي، العراق" إذا لم تكن موجودة
-  const searchQuery = query.includes("الرمادي") ? query : `${query}، الرمادي، العراق`;
+// ── قاعدة بيانات أماكن الرمادي المعروفة (الاستراتيجية 0) ──
+const RAMADI_LANDMARKS: Record<string, { lat: number; lng: number; address: string; aliases: string[] }> = {
+  "جامعة الأنبار": { lat: 33.4350, lng: 43.2650, address: "جامعة الأنبار، الرمادي", aliases: ["جامعة الانبار", "الجامعة", "جامعة انبار", "university of anbar", "جامعة"] },
+  "مستشفى الرمادي التعليمي": { lat: 33.4280, lng: 43.3050, address: "مستشفى الرمادي التعليمي", aliases: ["المستشفى", "مستشفى الرمادي", "المستشفى التعليمي", "رمادي تعليمي"] },
+  "دائرة صحة الأنبار": { lat: 33.4260, lng: 43.3010, address: "دائرة صحة الأنبار، الرمادي", aliases: ["صحة الانبار", "دائرة الصحة", "صحة الأنبار"] },
+  "حي التأميم": { lat: 33.4350, lng: 43.3100, address: "حي التأميم، الرمادي", aliases: ["التأميم", "تأميم", "التاميم", "تاميم"] },
+  "حي الحوز": { lat: 33.4200, lng: 43.3150, address: "حي الحوز، الرمادي", aliases: ["الحوز", "حوز"] },
+  "حي الملعب": { lat: 33.4300, lng: 43.2900, address: "حي الملعب، الرمادي", aliases: ["الملعب", "ملعب الرمادي", "ملعب"] },
+  "حي الضباط": { lat: 33.4150, lng: 43.2850, address: "حي الضباط، الرمادي", aliases: ["الضباط", "ضباط"] },
+  "حي العزيزية": { lat: 33.4180, lng: 43.3200, address: "حي العزيزية، الرمادي", aliases: ["العزيزية", "عزيزية"] },
+  "حي 5 كيلو": { lat: 33.4100, lng: 43.2750, address: "حي خمسة كيلو، الرمادي", aliases: ["5 كيلو", "خمسة كيلو", "خمس كيلو", "٥ كيلو", "5كيلو", "خمسه كيلو"] },
+  "حي العشرين": { lat: 33.4220, lng: 43.2800, address: "حي العشرين، الرمادي", aliases: ["العشرين", "عشرين"] },
+  "حي البكر": { lat: 33.4280, lng: 43.2950, address: "حي البكر، الرمادي", aliases: ["البكر", "بكر"] },
+  "حي الورار": { lat: 33.4320, lng: 43.3200, address: "حي الورار، الرمادي", aliases: ["الورار", "ورار"] },
+  "حي السلام": { lat: 33.4250, lng: 43.2700, address: "حي السلام، الرمادي", aliases: ["السلام", "سلام"] },
+  "تقاطع الزيوت": { lat: 33.4240, lng: 43.3000, address: "تقاطع الزيوت، الرمادي", aliases: ["الزيوت", "زيوت", "تقاطع زيوت"] },
+  "شارع المستودع": { lat: 33.4200, lng: 43.2950, address: "شارع المستودع، الرمادي", aliases: ["المستودع", "مستودع"] },
+  "الشارع العام": { lat: 33.4230, lng: 43.3000, address: "الشارع العام، الرمادي", aliases: ["شارع عام"] },
+  "السوق المركزي": { lat: 33.4235, lng: 43.3020, address: "السوق المركزي، الرمادي", aliases: ["السوق", "سوق الرمادي", "سوق مركزي"] },
+  "البوعلوان": { lat: 33.4400, lng: 43.2800, address: "البوعلوان، الرمادي", aliases: ["بوعلوان", "بو علوان"] },
+  "حي المعلمين": { lat: 33.4150, lng: 43.3050, address: "حي المعلمين، الرمادي", aliases: ["المعلمين", "معلمين"] },
+  "حي الأندلس": { lat: 33.4100, lng: 43.3100, address: "حي الأندلس، الرمادي", aliases: ["الأندلس", "الاندلس", "أندلس", "اندلس"] },
+  "الجسر الحديدي": { lat: 33.4230, lng: 43.3080, address: "الجسر الحديدي، الرمادي", aliases: ["جسر حديدي", "الجسر"] },
+  "مبنى المحافظة": { lat: 33.4240, lng: 43.3040, address: "مبنى المحافظة، الرمادي", aliases: ["المحافظة", "محافظة الأنبار", "محافظة الانبار", "محافظة"] },
+  "حي الثيلة": { lat: 33.4300, lng: 43.3150, address: "حي الثيلة، الرمادي", aliases: ["الثيلة", "ثيلة"] },
+  "حي القطانة": { lat: 33.4270, lng: 43.3180, address: "حي القطانة، الرمادي", aliases: ["القطانة", "قطانة"] },
+  "حي السفحة": { lat: 33.4350, lng: 43.3050, address: "حي السفحة، الرمادي", aliases: ["السفحة", "سفحة"] },
+  "حي البوذياب": { lat: 33.4380, lng: 43.2900, address: "حي البوذياب، الرمادي", aliases: ["البوذياب", "بوذياب", "بو ذياب"] },
+  "شارع 60": { lat: 33.4200, lng: 43.2700, address: "شارع 60، الرمادي", aliases: ["شارع ستين", "ستين"] },
+  "شارع فلسطين": { lat: 33.4250, lng: 43.2950, address: "شارع فلسطين، الرمادي", aliases: ["فلسطين"] },
+  "حي الروضة": { lat: 33.4180, lng: 43.2900, address: "حي الروضة، الرمادي", aliases: ["الروضة", "روضة"] },
+  "حي الجزيرة": { lat: 33.4300, lng: 43.2800, address: "حي الجزيرة، الرمادي", aliases: ["الجزيرة", "جزيرة"] },
+  "مكتب الرؤية": { lat: 33.4230, lng: 43.3010, address: "مكتب الرؤية، الرمادي", aliases: ["الرؤية", "رؤية", "مكتب رؤية"] },
+  "حي التقدم": { lat: 33.4100, lng: 43.2650, address: "حي التقدم، الرمادي", aliases: ["التقدم", "تقدم"] },
+  "حي الطيران": { lat: 33.4050, lng: 43.2800, address: "حي الطيران، الرمادي", aliases: ["الطيران", "طيران"] },
+  "حي الصوفية": { lat: 33.4280, lng: 43.3100, address: "حي الصوفية، الرمادي", aliases: ["الصوفية", "صوفية"] },
+  "حي الجمهوري": { lat: 33.4210, lng: 43.3060, address: "حي الجمهوري، الرمادي", aliases: ["الجمهوري", "جمهوري"] },
+  "حي الشرطة": { lat: 33.4190, lng: 43.2980, address: "حي الشرطة، الرمادي", aliases: ["الشرطة", "شرطة"] },
+  "حي المعاضيد": { lat: 33.4330, lng: 43.2970, address: "حي المعاضيد، الرمادي", aliases: ["المعاضيد", "معاضيد"] },
+  "مجمع ران التجاري": { lat: 33.4225, lng: 43.2990, address: "مجمع ران التجاري، الرمادي", aliases: ["مجمع ران", "ران التجاري"] },
+  "قضاء الفلوجة": { lat: 33.3530, lng: 43.7830, address: "الفلوجة، الأنبار", aliases: ["الفلوجة", "فلوجة"] },
+  "قضاء هيت": { lat: 33.6390, lng: 42.8270, address: "هيت، الأنبار", aliases: ["هيت"] },
+  "قضاء حديثة": { lat: 34.1370, lng: 42.3790, address: "حديثة، الأنبار", aliases: ["حديثة"] },
+};
 
-  const params = new URLSearchParams({
-    address: searchQuery,
+function matchLocalLandmark(query: string): ResolvedLocation | null {
+  const q = query.trim().toLowerCase().replace(/[.,،\-_]/g, "");
+
+  // مطابقة مباشرة بالاسم
+  for (const [name, loc] of Object.entries(RAMADI_LANDMARKS)) {
+    if (q === name.toLowerCase() || q === name.toLowerCase().replace("حي ", "")) {
+      console.log(`[geocode] LOCAL MATCH (exact): "${query}" → ${name}`);
+      return { lat: loc.lat, lng: loc.lng, address: loc.address };
+    }
+  }
+
+  // مطابقة بـ aliases
+  for (const [name, loc] of Object.entries(RAMADI_LANDMARKS)) {
+    for (const alias of loc.aliases) {
+      if (q === alias.toLowerCase() || q.includes(alias.toLowerCase()) || alias.toLowerCase().includes(q)) {
+        console.log(`[geocode] LOCAL MATCH (alias "${alias}"): "${query}" → ${name}`);
+        return { lat: loc.lat, lng: loc.lng, address: loc.address };
+      }
+    }
+  }
+
+  // مطابقة جزئية — يحتوي الاسم على كلمات الاستعلام
+  const words = q.split(/\s+/).filter((w: string) => w.length > 2);
+  for (const [name, loc] of Object.entries(RAMADI_LANDMARKS)) {
+    const nameLower = name.toLowerCase();
+    const allAliases = [nameLower, ...loc.aliases.map((a: string) => a.toLowerCase())];
+    for (const target of allAliases) {
+      if (words.every((w: string) => target.includes(w))) {
+        console.log(`[geocode] LOCAL MATCH (partial): "${query}" → ${name}`);
+        return { lat: loc.lat, lng: loc.lng, address: loc.address };
+      }
+    }
+  }
+
+  return null;
+}
+
+// ── Nominatim (OpenStreetMap) — بديل مجاني بدون مفتاح ──
+async function nominatimGeocode(query: string): Promise<ResolvedLocation | null> {
+  try {
+    const searches = [
+      `${query}, الرمادي, العراق`,
+      `${query}, Ramadi, Iraq`,
+      query + " الرمادي",
+    ];
+
+    for (const searchText of searches) {
+      const params = new URLSearchParams({
+        q: searchText,
+        format: "json",
+        limit: "3",
+        countrycodes: "iq",
+        viewbox: "43.00,33.20,43.55,33.65",
+        bounded: "1",
+        "accept-language": "ar",
+      });
+
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+        headers: { "User-Agent": "RAAN-Taxi-App/1.0" },
+      });
+
+      if (!response.ok) {
+        console.log(`[nominatim] HTTP error: ${response.status}`);
+        continue;
+      }
+
+      const results = await response.json();
+      console.log(`[nominatim] "${searchText}": ${results.length} results`);
+
+      if (results.length > 0) {
+        const best = results[0];
+        const lat = parseFloat(best.lat);
+        const lng = parseFloat(best.lon);
+
+        // التحقق من القرب من الرمادي
+        const dist = haversineDistance(lat, lng, 33.4233, 43.2974);
+        if (dist <= 60) {
+          console.log(`[nominatim] MATCH: ${best.display_name} (${dist.toFixed(1)} km from center)`);
+          return {
+            lat,
+            lng,
+            address: best.display_name?.split(",").slice(0, 3).join("،") || query,
+          };
+        }
+        console.log(`[nominatim] Rejected — too far: ${dist.toFixed(1)} km`);
+      }
+    }
+  } catch (err) {
+    console.error("[nominatim] Error:", err);
+  }
+  return null;
+}
+
+async function resolveRamadiLocation(query: string): Promise<ResolvedLocation | null> {
+  const cleanQuery = query.replace(/[.,،]/g, "").trim();
+  console.log(`[geocode] Resolving: "${cleanQuery}"`);
+
+  // ── الاستراتيجية 0: قاعدة بيانات أماكن الرمادي المحلية (فوري)
+  const localMatch = matchLocalLandmark(cleanQuery);
+  if (localMatch) return localMatch;
+
+  // ── الاستراتيجية 1: Nominatim (OpenStreetMap - مجاني بدون مفتاح)
+  console.log("[geocode] No local match, trying Nominatim...");
+  const nominatimResult = await nominatimGeocode(cleanQuery);
+  if (nominatimResult) return nominatimResult;
+
+  // ── الاستراتيجية 2: Google Geocoding مباشرة
+  console.log("[geocode] Nominatim failed, trying Google Geocoding...");
+  let params = new URLSearchParams({
+    address: cleanQuery,
     key: GOOGLE_MAPS_KEY,
     language: "ar",
     components: "country:IQ",
-    // تحيز نحو مركز الرمادي (نطاق 10 كم)
-    bounds: "33.35,43.10|33.55,43.45",
+    bounds: "33.20,43.00|33.65,43.55",
   });
 
-  const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
-  const data = await response.json();
+  let response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
+  let data = await response.json();
+  console.log(`[geocode] Google direct: status=${data.status}, results=${data.results?.length || 0}`);
+  if (data.error_message) console.log(`[geocode] Google error: ${data.error_message}`);
 
+  // ── الاستراتيجية 3: Google + "الرمادي"
+  if (data.status !== "OK" || !data.results?.length) {
+    params.set("address", `${cleanQuery} الرمادي`);
+    response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
+    data = await response.json();
+    console.log(`[geocode] Google +الرمادي: status=${data.status}, results=${data.results?.length || 0}`);
+  }
+
+  // ── الاستراتيجية 4: Google + "الأنبار العراق"
+  if (data.status !== "OK" || !data.results?.length) {
+    params.set("address", `${cleanQuery} الأنبار العراق`);
+    response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
+    data = await response.json();
+    console.log(`[geocode] Google +الأنبار: status=${data.status}, results=${data.results?.length || 0}`);
+  }
+
+  // ── الاستراتيجية 5: Google Places Text Search
+  if (data.status !== "OK" || !data.results?.length) {
+    console.log("[geocode] Trying Places Text Search...");
+    const placesParams = new URLSearchParams({
+      query: `${cleanQuery} الرمادي العراق`,
+      key: GOOGLE_MAPS_KEY,
+      language: "ar",
+      location: "33.4233,43.2974",
+      radius: "50000",
+    });
+    response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${placesParams}`);
+    const placesData = await response.json();
+    console.log(`[geocode] Places: status=${placesData.status}, results=${placesData.results?.length || 0}`);
+
+    if (placesData.status === "OK" && placesData.results?.[0]) {
+      const place = placesData.results[0];
+      return {
+        lat: place.geometry.location.lat,
+        lng: place.geometry.location.lng,
+        address: place.formatted_address || place.name,
+      };
+    }
+  }
+
+  // ── فشل كل المحاولات
   if (data.status !== "OK" || !data.results?.[0]) {
-    console.log(`[geocode] No results for: "${searchQuery}"`);
+    console.error(`[geocode] ALL strategies failed for: "${query}"`);
     return null;
   }
 
-  // التحقق المزدوج: النتيجة فعلاً في محافظة الأنبار
-  const addressComponents = data.results[0].address_components;
-  const isAnbar = addressComponents.some((c: { long_name: string }) =>
-    c.long_name.includes("Anbar") ||
-    c.long_name.includes("الأنبار") ||
-    c.long_name.includes("الرمادي") ||
-    c.long_name.includes("Ramadi")
-  );
+  // ── التحقق: النتيجة في الأنبار/الرمادي أو قريبة جغرافياً
+  const result = data.results[0];
+  const addressComponents = result.address_components || [];
+  const formattedAddress = result.formatted_address || "";
+
+  const isAnbar = addressComponents.some(
+    (c: { long_name: string }) =>
+      c.long_name.includes("Anbar") ||
+      c.long_name.includes("الأنبار") ||
+      c.long_name.includes("الرمادي") ||
+      c.long_name.includes("Ramadi")
+  ) || formattedAddress.includes("الأنبار") || formattedAddress.includes("Anbar") || formattedAddress.includes("Ramadi");
 
   if (!isAnbar) {
-    console.log(`[geocode] Rejected — outside Ramadi: ${data.results[0].formatted_address}`);
-    return null;
+    // فحص المسافة: هل الإحداثيات قريبة من الرمادي (60 كم)؟
+    const distFromCenter = haversineDistance(
+      result.geometry.location.lat,
+      result.geometry.location.lng,
+      33.4233,
+      43.2974
+    );
+    if (distFromCenter > 60) {
+      console.log(`[geocode] Rejected — too far (${distFromCenter.toFixed(1)} km): ${formattedAddress}`);
+      return null;
+    }
+    console.log(`[geocode] Not labeled Anbar but within ${distFromCenter.toFixed(1)} km, accepting.`);
   }
 
   return {
-    lat: data.results[0].geometry.location.lat,
-    lng: data.results[0].geometry.location.lng,
-    address: data.results[0].formatted_address,
+    lat: result.geometry.location.lat,
+    lng: result.geometry.location.lng,
+    address: formattedAddress,
   };
 }
 
 // ════════════════════════════════════════
-// مساعد: حساب المسافة بالكيلومتر (Haversine)
+// Reverse Geocoding: إحداثيات → عنوان
 // ════════════════════════════════════════
-function haversineDistance(
-  lat1: number, lng1: number,
-  lat2: number, lng2: number
-): number {
-  const R = 6371; // نصف قطر الأرض بالكيلومتر
+async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  try {
+    const params = new URLSearchParams({
+      latlng: `${lat},${lng}`,
+      key: GOOGLE_MAPS_KEY,
+      language: "ar",
+    });
+    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
+    const data = await response.json();
+
+    if (data.status === "OK" && data.results?.[0]) {
+      return data.results[0].formatted_address;
+    }
+  } catch (e) {
+    console.error("[reverse-geocode] Error:", e);
+  }
+  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+
+// ════════════════════════════════════════
+// Haversine: حساب المسافة بالكيلومتر
+// ════════════════════════════════════════
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =
@@ -269,96 +615,195 @@ function haversineDistance(
       Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLng / 2) *
       Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
 // ════════════════════════════════════════
-// مساعد: حساب أجرة تقديرية بسيطة
+// حساب أجرة تقديرية
 // ════════════════════════════════════════
 function estimateFare(distanceKm: number): number {
-  const baseFare = 2000; // دينار عراقي
-  const perKmRate = 1000; // دينار لكل كم
+  const baseFare = 2000;
+  const perKmRate = 1000;
   const raw = baseFare + distanceKm * perKmRate;
-  // تقريب لأقرب 250
   return Math.ceil(raw / 250) * 250;
 }
 
 // ════════════════════════════════════════
-// مساعد: البحث عن أو إنشاء مستخدم ضيف من تيليغرام
+// البحث عن أو إنشاء مستخدم تيليغرام
 // ════════════════════════════════════════
 async function findOrCreateTelegramUser(
   supabase: ReturnType<typeof createClient>,
   telegramUser: { id: number; first_name?: string; last_name?: string; username?: string }
 ): Promise<string> {
-  // البحث عن مستخدم موجود بنفس telegram_id في phone field (مؤقت)
   const telegramRef = `tg_${telegramUser.id}`;
+  const email = `tg_${telegramUser.id}@telegram.raan.app`;
+  const displayName = [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(" ") || "راكب تيليغرام";
 
+  // ── 1. البحث في profiles بالـ phone أو email
   const { data: existing } = await supabase
     .from("profiles")
     .select("user_id")
-    .eq("phone", telegramRef)
+    .or(`phone.eq.${telegramRef},email.eq.${email}`)
+    .limit(1)
     .maybeSingle();
 
   if (existing?.user_id) {
-    console.log(`[auth] Found existing user: ${existing.user_id}`);
+    console.log(`[auth] Found existing user in profiles: ${existing.user_id}`);
     return existing.user_id;
   }
 
-  // إنشاء مستخدم جديد في Auth
-  const email = `tg_${telegramUser.id}@telegram.raan.app`;
-  const password = crypto.randomUUID(); // كلمة مرور عشوائية — المستخدم لن يستخدمها
-
+  // ── 2. محاولة إنشاء مستخدم جديد
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email,
-    password,
+    password: crypto.randomUUID(),
     email_confirm: true,
     user_metadata: {
-      full_name: [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(" ") || "راكب تيليغرام",
+      full_name: displayName,
       source: "telegram",
       telegram_id: telegramUser.id,
       telegram_username: telegramUser.username,
     },
   });
 
-  if (authError || !authData.user) {
-    throw new Error(`Failed to create auth user: ${authError?.message}`);
+  let userId: string;
+
+  if (authError) {
+    if (authError.message.includes("already been registered")) {
+      // ── المستخدم موجود في auth لكن مو بـ profiles — ابحث عنه بـ GoTrue Admin API
+      console.log(`[auth] User exists in auth, looking up via GoTrue filter...`);
+      const lookupRes = await fetch(
+        `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1&filter=${encodeURIComponent(email)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+          },
+        }
+      );
+      const lookupData = await lookupRes.json();
+      const foundUser = lookupData.users?.[0];
+
+      if (!foundUser?.id) {
+        console.error(`[auth] Could not find user by GoTrue filter. Response:`, JSON.stringify(lookupData));
+        throw new Error("User registered but not found in admin lookup");
+      }
+
+      userId = foundUser.id;
+      console.log(`[auth] Found via GoTrue: ${userId}`);
+    } else {
+      throw new Error(`Failed to create auth user: ${authError.message}`);
+    }
+  } else if (!authData?.user) {
+    throw new Error("Failed to create auth user: no user returned");
+  } else {
+    userId = authData.user.id;
+    console.log(`[auth] Created new auth user: ${userId}`);
   }
 
-  const userId = authData.user.id;
-
-  // إنشاء profile
-  const { error: profileError } = await supabase.from("profiles").upsert({
+  // ── إنشاء/تحديث profile
+  await supabase.from("profiles").upsert({
     user_id: userId,
-    full_name: [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(" ") || "راكب تيليغرام",
+    full_name: displayName,
     phone: telegramRef,
     email,
     status: "active",
   });
-
-  if (profileError) {
-    console.error("[auth] Profile creation error:", profileError);
-  }
 
   console.log(`[auth] Created new telegram user: ${userId}`);
   return userId;
 }
 
 // ════════════════════════════════════════
+// إدارة الحالة: البحث عن session معلّقة
+// (pending ride بدون dropoff_address = ينتظر الوجهة)
+// ════════════════════════════════════════
+interface PendingSession {
+  ride_id: string;
+  pickup_lat: number;
+  pickup_lng: number;
+  pickup_address: string;
+}
+
+async function findPendingSession(
+  supabase: ReturnType<typeof createClient>,
+  riderId: string
+): Promise<PendingSession | null> {
+  const { data } = await supabase
+    .from("rides")
+    .select("id, pickup_location, pickup_address, dropoff_address")
+    .eq("rider_id", riderId)
+    .eq("status", "pending")
+    .eq("trip_type", "telegram")
+    .is("dropoff_address", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!data) return null;
+
+  const pickup = data.pickup_location as { lat: number; lng: number } | null;
+  if (!pickup?.lat) return null;
+
+  return {
+    ride_id: data.id,
+    pickup_lat: pickup.lat,
+    pickup_lng: pickup.lng,
+    pickup_address: data.pickup_address || "موقعك",
+  };
+}
+
+// ════════════════════════════════════════
+// إنشاء session جديدة (رحلة pending بالموقع فقط)
+// ════════════════════════════════════════
+async function createPickupSession(
+  supabase: ReturnType<typeof createClient>,
+  riderId: string,
+  lat: number,
+  lng: number,
+  address: string
+): Promise<string> {
+  // حذف sessions قديمة غير مكتملة
+  await supabase
+    .from("rides")
+    .delete()
+    .eq("rider_id", riderId)
+    .eq("status", "pending")
+    .eq("trip_type", "telegram")
+    .is("dropoff_address", null);
+
+  // إنشاء session جديدة
+  const { data, error } = await supabase
+    .from("rides")
+    .insert({
+      rider_id: riderId,
+      status: "pending",
+      pickup_location: { lat, lng },
+      pickup_address: address,
+      dropoff_location: { lat: 0, lng: 0 },
+      dropoff_address: null,
+      vehicle_type: "economy",
+      payment_method: "cash",
+      trip_type: "telegram",
+    })
+    .select("id")
+    .single();
+
+  if (error) throw new Error(`Failed to create session: ${error.message}`);
+  return data.id;
+}
+
+// ════════════════════════════════════════
 // Handler الرئيسي
 // ════════════════════════════════════════
 serve(async (req) => {
-  // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // تيليغرام يرسل POST فقط
   if (req.method !== "POST") {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
 
-  // ── قراءة البيانات الواردة
   let update: any;
   try {
     update = await req.json();
@@ -369,10 +814,228 @@ serve(async (req) => {
 
   console.log("[telegram] ===== NEW UPDATE =====");
   console.log("[telegram] Update:", JSON.stringify(update).substring(0, 800));
-  console.log("[telegram] BOT_TOKEN available:", !!TELEGRAM_BOT_TOKEN);
-  console.log("[telegram] OPENAI_KEY available:", !!OPENAI_API_KEY);
-  console.log("[telegram] GOOGLE_KEY available:", !!GOOGLE_MAPS_KEY);
-  console.log("[telegram] SUPABASE_URL:", SUPABASE_URL || "NOT SET");
+
+  // ═══════════════════════════════════
+  // 🌟 معالجة Callback Query (تقييم الرحلة)
+  // ═══════════════════════════════════
+  if (update.callback_query) {
+    const cbQuery = update.callback_query;
+    const cbData = cbQuery.data || "";
+    const cbChatId = cbQuery.message?.chat?.id;
+    const cbMessageId = cbQuery.message?.message_id;
+
+    console.log(`[telegram] Callback query: data="${cbData}", chat=${cbChatId}`);
+
+    // rate_{ride_id}_{stars}
+    const rateMatch = cbData.match(/^rate_([a-f0-9\-]+)_([1-5])$/);
+    if (rateMatch && cbChatId) {
+      const rideId = rateMatch[1];
+      const stars = parseInt(rateMatch[2], 10);
+
+      console.log(`[telegram] Rating: ride=${rideId}, stars=${stars}`);
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      try {
+        // 1. جلب تفاصيل الرحلة
+        const { data: ride } = await supabase
+          .from("rides")
+          .select("rider_id, driver_id, status")
+          .eq("id", rideId)
+          .maybeSingle();
+
+        if (!ride || ride.status !== "completed") {
+          await answerCallbackQuery(cbQuery.id, "⚠️ الرحلة غير موجودة أو لم تكتمل بعد.");
+          return new Response("OK", { status: 200, headers: corsHeaders });
+        }
+
+        // 2. فحص تقييم سابق (بالـ ride_id فقط — unique constraint على ride_id)
+        const { data: existingRating } = await supabase
+          .from("ride_ratings")
+          .select("id, rider_id")
+          .eq("ride_id", rideId)
+          .maybeSingle();
+
+        if (existingRating) {
+          // إذا الراكب سبق وقيّم — لا تعيد التقييم
+          if (existingRating.rider_id === ride.rider_id) {
+            await answerCallbackQuery(cbQuery.id, "✅ سبق وقيّمت هذه الرحلة!");
+            await editMessageRemoveButtons(cbChatId, cbMessageId, "✅ سبق وقيّمت هذه الرحلة! شكراً لك 🌹");
+            return new Response("OK", { status: 200, headers: corsHeaders });
+          }
+
+          // تقييم موجود (من السائق) — حدّثه بتقييم الراكب
+          const { error: updateRatingError } = await supabase
+            .from("ride_ratings")
+            .update({
+              rating: stars,
+              rider_id: ride.rider_id,
+              comment: "Telegram Rating",
+            })
+            .eq("id", existingRating.id);
+
+          if (updateRatingError) {
+            console.error("[telegram] Failed to update existing rating:", updateRatingError);
+            await answerCallbackQuery(cbQuery.id, "⚠️ حدث خطأ، حاول مرة أخرى.");
+            return new Response("OK", { status: 200, headers: corsHeaders });
+          }
+
+          console.log(`[telegram] Updated existing rating for ride ${rideId}`);
+        } else {
+          // 3. لا يوجد تقييم سابق — أدرج جديد
+          const { error: ratingError } = await supabase
+            .from("ride_ratings")
+            .insert({
+              ride_id: rideId,
+              rider_id: ride.rider_id,
+              driver_id: ride.driver_id,
+              rating: stars,
+              comment: "Telegram Rating",
+            });
+
+          if (ratingError) {
+            console.error("[telegram] Failed to insert rating:", ratingError);
+            await answerCallbackQuery(cbQuery.id, "⚠️ حدث خطأ، حاول مرة أخرى.");
+            return new Response("OK", { status: 200, headers: corsHeaders });
+          }
+        }
+
+        // 4. تحديث driver_rating في rides
+        await supabase
+          .from("rides")
+          .update({ driver_rating: stars })
+          .eq("id", rideId);
+
+        // 5. تحديث متوسط تقييم السائق
+        if (ride.driver_id) {
+          const { data: allRatings } = await supabase
+            .from("ride_ratings")
+            .select("rating")
+            .eq("driver_id", ride.driver_id);
+
+          if (allRatings && allRatings.length > 0) {
+            const avg = allRatings.reduce((sum: number, r: any) => sum + r.rating, 0) / allRatings.length;
+            await supabase
+              .from("drivers")
+              .update({ rating: Math.round(avg * 100) / 100 })
+              .eq("id", ride.driver_id);
+            console.log(`[telegram] Updated driver ${ride.driver_id} avg rating: ${avg.toFixed(2)}`);
+          }
+        }
+
+        // 6. تعديل رسالة تيليغرام: إزالة الأزرار + رسالة شكر
+        const starsText = "⭐".repeat(stars);
+        await editMessageRemoveButtons(
+          cbChatId,
+          cbMessageId,
+          `✅ <b>شكراً لتقييمك!</b> ${starsText}\n\nتقييمك يساعدنا نطور الخدمة. نتمنى نشوفك قريباً! 🌹`
+        );
+
+        await answerCallbackQuery(cbQuery.id, `شكراً! تقييمك ${stars} ⭐`);
+        console.log(`[telegram] Rating saved: ride=${rideId}, stars=${stars}`);
+
+      } catch (ratingErr) {
+        console.error("[telegram] Rating error:", ratingErr);
+        await answerCallbackQuery(cbQuery.id, "⚠️ حدث خطأ تقني.");
+      }
+
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // ✅ تأكيد الرحلة
+    // ═══════════════════════════════════
+    const confirmMatch = cbData.match(/^confirm_ride_([a-f0-9\-]+)$/);
+    if (confirmMatch && cbChatId) {
+      const rideId = confirmMatch[1];
+      console.log(`[telegram] Confirm ride: ${rideId}`);
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      try {
+        // التحقق من أن الرحلة لا تزال pending
+        const { data: ride } = await supabase
+          .from("rides")
+          .select("id, status, dropoff_address")
+          .eq("id", rideId)
+          .maybeSingle();
+
+        if (!ride) {
+          await answerCallbackQuery(cbQuery.id, "⚠️ الرحلة غير موجودة.");
+          return new Response("OK", { status: 200, headers: corsHeaders });
+        }
+
+        if (ride.status !== "pending" || !ride.dropoff_address) {
+          await answerCallbackQuery(cbQuery.id, "⚠️ هذه الرحلة تم معالجتها مسبقاً.");
+          await editMessageRemoveButtons(cbChatId, cbMessageId, "⚠️ هذه الرحلة تم معالجتها مسبقاً.");
+          return new Response("OK", { status: 200, headers: corsHeaders });
+        }
+
+        // استدعاء match-ride لإيجاد سائق
+        try {
+          await supabase.functions.invoke("match-ride", {
+            body: { ride_id: rideId },
+          });
+          console.log(`[match] match-ride invoked for confirmed ride: ${rideId}`);
+        } catch (matchErr) {
+          console.warn("[match] match-ride failed (non-critical):", matchErr);
+        }
+
+        // تعديل الرسالة: إزالة الأزرار + رسالة تأكيد
+        await editMessageRemoveButtons(cbChatId, cbMessageId, MESSAGES.rideConfirmed);
+        await answerCallbackQuery(cbQuery.id, "✅ تم تأكيد الرحلة!");
+        console.log(`[telegram] Ride ${rideId} confirmed by rider`);
+
+      } catch (err) {
+        console.error("[telegram] Confirm ride error:", err);
+        await answerCallbackQuery(cbQuery.id, "⚠️ حدث خطأ تقني.");
+      }
+
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // ❌ إلغاء الرحلة
+    // ═══════════════════════════════════
+    const cancelMatch = cbData.match(/^cancel_ride_([a-f0-9\-]+)$/);
+    if (cancelMatch && cbChatId) {
+      const rideId = cancelMatch[1];
+      console.log(`[telegram] Cancel ride: ${rideId}`);
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      try {
+        // تحديث حالة الرحلة إلى cancelled
+        const { error: cancelError } = await supabase
+          .from("rides")
+          .update({
+            status: "cancelled",
+            cancellation_reason: "ألغيت من قبل الراكب قبل التأكيد (تيليغرام)",
+          })
+          .eq("id", rideId)
+          .eq("status", "pending");
+
+        if (cancelError) {
+          console.error("[telegram] Cancel ride DB error:", cancelError);
+        }
+
+        // تعديل الرسالة: إزالة الأزرار + رسالة إلغاء
+        await editMessageRemoveButtons(cbChatId, cbMessageId, MESSAGES.rideCancelled);
+        await answerCallbackQuery(cbQuery.id, "🚫 تم إلغاء الطلب");
+        console.log(`[telegram] Ride ${rideId} cancelled by rider before confirmation`);
+
+      } catch (err) {
+        console.error("[telegram] Cancel ride error:", err);
+        await answerCallbackQuery(cbQuery.id, "⚠️ حدث خطأ تقني.");
+      }
+
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // callback_query غير معروف
+    await answerCallbackQuery(cbQuery.id, "");
+    return new Response("OK", { status: 200, headers: corsHeaders });
+  }
 
   const message = update.message;
   if (!message) {
@@ -382,187 +1045,171 @@ serve(async (req) => {
 
   const chatId = message.chat.id;
   const telegramUser = message.from;
-  console.log(`[telegram] Chat ID: ${chatId}, User: ${telegramUser?.first_name} (${telegramUser?.id})`);
-  console.log(`[telegram] Message type: text="${message.text || ''}", voice=${!!message.voice}`);
+  console.log(`[telegram] Chat: ${chatId}, User: ${telegramUser?.first_name} (${telegramUser?.id})`);
 
-  // ═══════════ مساعد إرسال مباشر (fallback) ═══════════
-  async function directSend(text: string) {
-    const token = TELEGRAM_BOT_TOKEN;
-    if (!token) {
-      console.error("[telegram] TELEGRAM_BOT_TOKEN is empty! Cannot send message.");
-      return;
-    }
-    const url = `https://api.telegram.org/bot${token}/sendMessage`;
-    console.log(`[telegram] Sending to chat ${chatId}...`);
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text }),
-      });
-      const result = await res.text();
-      console.log(`[telegram] Send result (${res.status}): ${result.substring(0, 300)}`);
-    } catch (e) {
-      console.error("[telegram] Failed to send message:", e);
-    }
-  }
-
-  // ═══════════ /start command ═══════════
-  if (message.text === "/start") {
-    console.log("[telegram] Handling /start command");
-    await directSend(MESSAGES.welcome);
-    return new Response("OK", { status: 200, headers: corsHeaders });
-  }
-
-  // ═══════════ رسالة نصية عادية ═══════════
-  if (message.text && !message.voice) {
-    console.log("[telegram] Text message (no voice), sending instructions");
-    await directSend(MESSAGES.noVoice);
-    return new Response("OK", { status: 200, headers: corsHeaders });
-  }
-
-  // ═══════════ رسالة صوتية ═══════════
-  if (!message.voice) {
-    console.log("[telegram] Non-voice non-text message, sending instructions");
-    await directSend(MESSAGES.noVoice);
-    return new Response("OK", { status: 200, headers: corsHeaders });
-  }
-
-  // ═══════════ معالجة الصوت بالذكاء الاصطناعي ═══════════
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    // ── إرسال رسالة "جاري التحليل" فوراً
-    await directSend(MESSAGES.processing);
-
-    // ── الخطوة 1: تحميل الصوت من تيليغرام
-    console.log("[telegram] Downloading voice file:", message.voice.file_id);
-    const audioBytes = await downloadTelegramFile(message.voice.file_id);
-    console.log(`[telegram] Downloaded ${audioBytes.length} bytes`);
-
-    // ── الخطوة 2: تحويل الصوت لنص (Whisper)
-    console.log("[whisper] Transcribing...");
-    const mimeType = message.voice.mime_type || "audio/ogg";
-    const transcript = await transcribeAudio(audioBytes, mimeType);
-    console.log(`[whisper] Transcript: "${transcript}"`);
-
-    if (!transcript || transcript.trim().length < 3) {
-      await directSend(MESSAGES.noTranscript);
+    // ═══════════════════════════════════
+    // 1️⃣ /start → طلب مشاركة الموقع
+    // ═══════════════════════════════════
+    if (message.text === "/start") {
+      console.log("[telegram] /start → sending location keyboard");
+      await sendWithLocationKeyboard(chatId, MESSAGES.welcome);
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
-    // ── الخطوة 3: استخراج النية (GPT-4o)
-    console.log("[gpt4o] Extracting intent...");
-    const intent = await extractIntent(transcript);
-    console.log("[gpt4o] Intent:", JSON.stringify(intent));
+    // ═══════════════════════════════════
+    // 2️⃣ مشاركة الموقع (GPS) → حفظ نقطة الانطلاق
+    // ═══════════════════════════════════
+    if (message.location) {
+      const lat = message.location.latitude;
+      const lng = message.location.longitude;
+      console.log(`[telegram] Location received: ${lat}, ${lng}`);
 
-    if (!intent.destination_search_query) {
-      await directSend(MESSAGES.noDestination);
-      return new Response("OK", { status: 200, headers: corsHeaders });
-    }
-
-    // ── الخطوة 4: Geocoding مقيد بالرمادي
-    console.log("[geocode] Resolving locations...");
-
-    // نقطة الوصول (إلزامية)
-    const destination = await resolveRamadiLocation(intent.destination_search_query);
-    if (!destination) {
-      await directSend(MESSAGES.geocodeFailed(intent.destination_search_query));
-      return new Response("OK", { status: 200, headers: corsHeaders });
-    }
-    console.log(`[geocode] Destination: ${destination.address} (${destination.lat}, ${destination.lng})`);
-
-    // نقطة الانطلاق (اختيارية — إذا لم تُحدد يُستخدم مركز الرمادي كافتراضي)
-    let origin: ResolvedLocation;
-    if (intent.origin_search_query) {
-      const resolved = await resolveRamadiLocation(intent.origin_search_query);
-      if (!resolved) {
-        await directSend(MESSAGES.geocodeFailed(intent.origin_search_query));
+      // التحقق: هل الموقع ضمن الرمادي (60 كم)
+      const distFromCenter = haversineDistance(lat, lng, 33.4233, 43.2974);
+      if (distFromCenter > 60) {
+        await directSend(chatId, "⚠️ موقعك يبين بعيد عن الرمادي. التطبيق حالياً يخدم الرمادي فقط.");
+        await sendWithLocationKeyboard(chatId, "دز موقعك من داخل الرمادي 👇");
         return new Response("OK", { status: 200, headers: corsHeaders });
       }
-      origin = resolved;
-    } else {
-      // افتراضي: مركز الرمادي — السائق سيتواصل مع الراكب
-      origin = {
-        lat: 33.4233,
-        lng: 43.2974,
-        address: "موقعك الحالي (الرمادي)",
-      };
+
+      // Reverse geocode
+      const address = await reverseGeocode(lat, lng);
+      console.log(`[telegram] Reverse geocoded: ${address}`);
+
+      // إنشاء المستخدم + Session
+      const riderId = await findOrCreateTelegramUser(supabase, telegramUser);
+      const sessionId = await createPickupSession(supabase, riderId, lat, lng, address);
+      console.log(`[telegram] Pickup session created: ${sessionId}`);
+
+      // تأكيد + طلب الوجهة
+      await sendAndRemoveKeyboard(chatId, MESSAGES.locationReceived(address));
+      return new Response("OK", { status: 200, headers: corsHeaders });
     }
-    console.log(`[geocode] Origin: ${origin.address} (${origin.lat}, ${origin.lng})`);
 
-    // ── الخطوة 5: حساب المسافة والأجرة التقديرية
-    const distanceKm = haversineDistance(origin.lat, origin.lng, destination.lat, destination.lng);
-    const estimatedFare = estimateFare(distanceKm);
-    console.log(`[fare] Distance: ${distanceKm.toFixed(2)} km, Fare: ${estimatedFare} IQD`);
+    // ═══════════════════════════════════
+    // 3️⃣ صوت أو نص → استخراج الوجهة
+    // ═══════════════════════════════════
+    const hasVoice = !!message.voice;
+    const hasText = !!message.text && message.text !== "/start";
 
-    // ── الخطوة 6: إنشاء/البحث عن مستخدم تيليغرام
+    if (!hasVoice && !hasText) {
+      await sendWithLocationKeyboard(chatId, MESSAGES.needLocationFirst);
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ── هل المستخدم شارك موقعه أولاً؟
     const riderId = await findOrCreateTelegramUser(supabase, telegramUser);
+    const session = await findPendingSession(supabase, riderId);
 
-    // ── الخطوة 7: إنشاء الرحلة في قاعدة البيانات
-    const { data: ride, error: rideError } = await supabase
+    if (!session) {
+      console.log("[telegram] No pending session — asking for location first");
+      await sendWithLocationKeyboard(chatId, MESSAGES.needLocationFirst);
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    console.log(`[telegram] Found session: ${session.ride_id}, pickup: ${session.pickup_address}`);
+    await directSend(chatId, MESSAGES.processing);
+
+    // ── الحصول على نص الوجهة
+    let userText = "";
+
+    if (hasVoice) {
+      console.log("[telegram] Downloading voice...");
+      const audioBytes = await downloadTelegramFile(message.voice.file_id);
+      console.log(`[telegram] Downloaded ${audioBytes.length} bytes`);
+
+      const mimeType = message.voice.mime_type || "audio/ogg";
+      userText = await transcribeAudio(audioBytes, mimeType);
+      console.log(`[whisper] Transcript: "${userText}"`);
+
+      if (!userText || userText.trim().length < 2) {
+        await directSend(chatId, MESSAGES.noTranscript);
+        return new Response("OK", { status: 200, headers: corsHeaders });
+      }
+    } else {
+      userText = message.text!;
+      console.log(`[telegram] Text input: "${userText}"`);
+    }
+
+    // ── GPT-4o: استخراج الوجهة
+    console.log("[gpt4o] Extracting destination...");
+    const intent = await extractDestination(userText);
+    console.log("[gpt4o] Result:", JSON.stringify(intent));
+
+    if (!intent.destination_search_query || intent.destination_search_query.trim().length < 2) {
+      await directSend(chatId, MESSAGES.noDestination);
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ── Geocoding
+    console.log(`[geocode] Resolving: "${intent.destination_search_query}"`);
+    const destination = await resolveRamadiLocation(intent.destination_search_query);
+
+    if (!destination) {
+      await directSend(chatId, MESSAGES.geocodeFailed(intent.destination_search_query));
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+    console.log(`[geocode] Resolved: ${destination.address} (${destination.lat}, ${destination.lng})`);
+
+    // ── حساب المسافة والأجرة
+    const distanceKm = haversineDistance(session.pickup_lat, session.pickup_lng, destination.lat, destination.lng);
+    const fare = estimateFare(distanceKm);
+    console.log(`[fare] Distance: ${distanceKm.toFixed(2)} km, Fare: ${fare} IQD`);
+
+    // ── تحديث الرحلة بالوجهة
+    const { error: updateError } = await supabase
       .from("rides")
-      .insert({
-        rider_id: riderId,
-        status: "pending",
-        pickup_location: { lat: origin.lat, lng: origin.lng },
-        pickup_address: origin.address,
+      .update({
         dropoff_location: { lat: destination.lat, lng: destination.lng },
         dropoff_address: destination.address,
         vehicle_type: intent.vehicle_type || "economy",
         distance_km: Math.round(distanceKm * 100) / 100,
-        estimated_fare: estimatedFare,
-        payment_method: "cash",
-        trip_type: "telegram", // مصدر الحجز
-        cancellation_reason: intent.notes ? `[ملاحظة الراكب] ${intent.notes}` : null,
+        estimated_fare: fare,
+        cancellation_reason: intent.notes ? `[ملاحظة] ${intent.notes}` : null,
       })
-      .select("id")
-      .single();
+      .eq("id", session.ride_id);
 
-    if (rideError) {
-      console.error("[db] Ride insert error:", rideError);
-      throw new Error(`Failed to create ride: ${rideError.message}`);
+    if (updateError) {
+      console.error("[db] Failed to update ride:", updateError);
+      throw new Error(`Failed to update ride: ${updateError.message}`);
     }
 
-    console.log(`[db] Ride created: ${ride.id}`);
+    console.log(`[db] Ride ${session.ride_id} updated with destination`);
 
-    // ── الخطوة 8: محاولة مطابقة السائقين (اختيارية)
-    try {
-      await supabase.functions.invoke("match-ride", {
-        body: { ride_id: ride.id },
-      });
-      console.log("[match] Match-ride invoked for:", ride.id);
-    } catch (matchErr) {
-      console.warn("[match] match-ride failed (non-critical):", matchErr);
-    }
-
-    // ── الخطوة 9: إرسال رسالة التأكيد للراكب
-    await directSend(
-      MESSAGES.bookingConfirmed(origin.address, destination.address, estimatedFare)
+    // ── إرسال رسالة تأكيد مع أزرار (بدون مطابقة سائقين حتى يؤكد الراكب)
+    await sendInlineKeyboard(
+      chatId,
+      MESSAGES.confirmationPrompt(session.pickup_address, destination.address, fare, distanceKm),
+      [
+        [
+          { text: "✅ اعتمد الرحلة", callback_data: `confirm_ride_${session.ride_id}` },
+          { text: "❌ إلغاء", callback_data: `cancel_ride_${session.ride_id}` },
+        ],
+      ]
     );
 
-    // سجل معلومات الرحلة للتتبع
-    console.log(`[success] Ride ${ride.id} booked via Telegram by user ${telegramUser.id}`);
+    // ملاحظة: match-ride يُستدعى فقط بعد ضغط الراكب على "اعتمد الرحلة"
 
-    return new Response(JSON.stringify({ ok: true, ride_id: ride.id }), {
+    console.log(`[confirm] Waiting for rider confirmation on ride ${session.ride_id}`);
+    return new Response(JSON.stringify({ ok: true, ride_id: session.ride_id }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    console.error("[telegram-ai-booking] CRITICAL ERROR:", errMsg);
-    console.error("[telegram-ai-booking] Stack:", error instanceof Error ? error.stack : "N/A");
+    console.error("[telegram] CRITICAL ERROR:", errMsg);
+    console.error("[telegram] Stack:", error instanceof Error ? error.stack : "N/A");
 
-    // محاولة إرسال رسالة خطأ للمستخدم
     try {
-      await directSend("عذراً، حدث خطأ تقني. يرجى المحاولة مرة أخرى. ⚠️");
-    } catch (sendErr) {
-      console.error("[telegram] Failed to send error message to user:", sendErr);
-    }
+      await directSend(chatId, "عذراً، حدث خطأ تقني. يرجى المحاولة مرة أخرى. ⚠️");
+    } catch {}
 
     return new Response(JSON.stringify({ error: errMsg }), {
-      status: 200, // نرجع 200 حتى تيليغرام ما يعيد الإرسال
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

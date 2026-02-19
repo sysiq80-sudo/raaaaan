@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { getGeocoder } from "@/lib/googleMapService";
 import {
   ArrowRight,
   Navigation,
@@ -149,7 +150,8 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
     async (lat: number, lng: number) => {
       if (!window.google?.maps) return;
       try {
-        const geocoder = new google.maps.Geocoder();
+        const geocoder = await getGeocoder();
+        if (!geocoder) return;
         const result = await geocoder.geocode({
           location: new google.maps.LatLng(lat, lng),
           language: "ar",

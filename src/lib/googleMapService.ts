@@ -226,13 +226,29 @@ export const fitMapToBounds = (
 };
 
 /**
+ * Ensure geocoding library is loaded and return a Geocoder instance.
+ * Needed because the script loads with loading=async.
+ */
+export const getGeocoder = async (): Promise<google.maps.Geocoder | null> => {
+  if (!window.google?.maps) return null;
+  if (!google.maps.Geocoder) {
+    try {
+      await google.maps.importLibrary('geocoding');
+    } catch (e) {
+      console.warn('Failed to load geocoding library:', e);
+      return null;
+    }
+  }
+  return new google.maps.Geocoder();
+};
+
+/**
  * Geocode an address using Google Maps API
  * Biased to Ramadi, Al Anbar, Iraq
  */
 export const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
-  if (!window.google) return null;
-
-  const geocoder = new google.maps.Geocoder();
+  const geocoder = await getGeocoder();
+  if (!geocoder) return null;
 
   try {
     const result = await geocoder.geocode({
@@ -269,11 +285,12 @@ export const reverseGeocodeCoordinates = async (
   lng: number,
   map?: google.maps.Map
 ): Promise<string | null> => {
-  if (!window.google) return null;
+  if (!window.google?.maps) return null;
 
   try {
+    const geocoder = await getGeocoder();
+    if (!geocoder) return null;
     // Step 1: Get full address from Geocoding API
-    const geocoder = new google.maps.Geocoder();
     const result = await geocoder.geocode({
       location: { lat, lng },
       language: 'ar'
@@ -308,7 +325,7 @@ export const reverseGeocodeCoordinates = async (
           },
           includedTypes: POI_TYPES,
           maxResultCount: 5,
-          languageCode: 'ar',
+          language: 'ar',
         });
 
         if (places && places.length > 0) {
