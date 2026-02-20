@@ -24,18 +24,18 @@ const GOOGLE_MAPS_KEY = Deno.env.get("GOOGLE_MAPS_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const GRAPH_API = `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`;
+const GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/messages`;
 
 // ════════════════════════════════════════
 // الرسائل العربية الثابتة
 // ════════════════════════════════════════
 const MESSAGES = {
-  welcome: `هلا بيك في ران! 🚕\nعلمود نحسب لك السعر المضبوط، دز لنا موقعك الحالي:\n📍 اضغط على مشبك الملفات 📎 ثم اختر "الموقع" وشارك موقعك الحالي.`,
+  welcome: `هلا بيك عميلنا العزيز! 🚕\nعلمود نحسب لك السعر المضبوط، دز لنا موقعك الحالي بالضغط على الزر الموجود جوة هذه الرسالة 👇`,
 
   locationReceived: (address: string) =>
     `✅ عاشت ايدك، حددنا مكانك:\n${address}\n\nهسة دز رسالة صوتية 🎙️ وكول وين تريد تروح؟\nأو اكتب اسم الوجهة بالنص.`,
 
-  needLocationFirst: `عفواً، لازم تدز موقعك أول شي! 📍\nاضغط على 📎 ثم اختر "الموقع" وشارك موقعك الحالي.`,
+  needLocationFirst: `عفواً، لازم تدز موقعك أول شي! 📍\nاضغط على الزر أدناه لمشاركة موقعك 👇`,
 
   processing: "جاري تحليل طلبك... 🤖",
 
@@ -90,6 +90,36 @@ async function sendTextMessage(to: string, text: string) {
 }
 
 // ════════════════════════════════════════
+// WhatsApp Cloud API: طلب الموقع (زر إرسال الموقع الأصلي)
+// ════════════════════════════════════════
+async function sendLocationRequest(to: string, bodyText: string) {
+  try {
+    const res = await fetch(GRAPH_API, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to,
+        type: "interactive",
+        interactive: {
+          type: "location_request_message",
+          body: { text: bodyText },
+          action: { name: "send_location" },
+        },
+      }),
+    });
+    const result = await res.text();
+    console.log(`[wa] sendLocationRequest (${res.status}): ${result.substring(0, 300)}`);
+  } catch (e) {
+    console.error("[wa] sendLocationRequest failed:", e);
+  }
+}
+
+// ════════════════════════════════════════
 // WhatsApp Cloud API: إرسال رسالة مع أزرار (Interactive)
 // ════════════════════════════════════════
 async function sendInteractiveButtons(
@@ -132,7 +162,7 @@ async function sendInteractiveButtons(
 // ════════════════════════════════════════
 async function downloadWhatsAppMedia(mediaId: string): Promise<Uint8Array> {
   // الخطوة 1: جلب URL الملف
-  const metaRes = await fetch(`https://graph.facebook.com/v18.0/${mediaId}`, {
+  const metaRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
     headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
   });
 
@@ -827,7 +857,7 @@ serve(async (req) => {
 
     if (!hasAudio && !hasText) {
       // نوع غير مدعوم (صورة، فيديو، ملصق...)
-      await sendTextMessage(phoneNumber, MESSAGES.welcome);
+      await sendLocationRequest(phoneNumber, MESSAGES.welcome);
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
@@ -835,7 +865,7 @@ serve(async (req) => {
     if (hasText) {
       const txt = message.text.body.trim().toLowerCase();
       if (["ران", "raan", "start", "مرحبا", "مرحبه", "هلا", "هلو", "اهلا", "السلام عليكم", "hi", "hello"].includes(txt)) {
-        await sendTextMessage(phoneNumber, MESSAGES.welcome);
+        await sendLocationRequest(phoneNumber, MESSAGES.welcome);
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
     }
@@ -870,7 +900,7 @@ serve(async (req) => {
 
     if (!session) {
       // لا يوجد session — اطلب الموقع أولاً
-      await sendTextMessage(phoneNumber, MESSAGES.needLocationFirst);
+      await sendLocationRequest(phoneNumber, MESSAGES.needLocationFirst);
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
