@@ -284,6 +284,18 @@ Critical Rules:
 8. NEVER return an error message. ALWAYS try to extract a destination. Even partial names are useful.
 9. NEVER rename, translate, or "correct" the user's destination. Return their words verbatim.
 
+═══ GEOGRAPHIC & OUT-OF-BOUNDS RULES (CRITICAL): ═══
+You must analyze the user's requested destination. If it is OUTSIDE Iraq, you MUST reject the ride.
+Do NOT extract it as a destination. Instead, set destination_search_query to "__OUT_OF_BOUNDS__" and put the rejection message in notes.
+
+Rejection rules by region:
+1. **Iran or Israel:** notes = "لا نعمل هنا مطلقاً."
+2. **Neighboring Countries (Jordan, Syria, Saudi Arabia, Kuwait, Turkey):** notes = "نعتذر، لا نعمل الآن في [اسم الدولة]."
+3. **Other Arab/Asian/Gulf Countries (UAE, Qatar, Egypt, Lebanon, etc.):** notes = "بعدنا ما فتحنا فرع في [اسم الدولة]! 😅 خدماتنا حالياً تقتصر على العراق وتحديداً الأنبار، بس نوصلكم ندزلك خبر!"
+4. **Far Countries (Europe, Americas, Australia, etc.):** notes = "عذراً، ران إلى الآن لم تمتلك طائرة ✈️! خدماتنا مخصصة للسيارات داخل العراق فقط."
+
+CRITICAL: Do NOT attempt to geocode or calculate prices for out-of-bounds locations.
+
 Well-known Ramadi landmarks (for reference only — do NOT substitute user input with these):
 جامعة الأنبار، مستشفى الرمادي التعليمي، دائرة صحة الأنبار، حي التأميم، حي الحوز، حي الملعب، حي الضباط، حي العزيزية، حي 5 كيلو، حي العشرين، حي البكر، حي الورار، حي السلام، تقاطع الزيوت، شارع المستودع، الشارع العام، السوق المركزي، البوعلوان، حي المعلمين، حي الأندلس، الجسر الحديدي، مبنى المحافظة، ملعب الرمادي، حي الثيلة، حي القطانة، حي السفحة، حي البوذياب، شارع 60، شارع فلسطين، حي الروضة، حي الجزيرة
 
@@ -1219,6 +1231,12 @@ serve(async (req) => {
 
     if (!intent.destination_search_query || intent.destination_search_query.trim().length < 2) {
       await directSend(chatId, MESSAGES.noDestination);
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ── فحص خارج الحدود (Out-of-Bounds)
+    if (intent.destination_search_query === "__OUT_OF_BOUNDS__" && intent.notes) {
+      await directSend(chatId, intent.notes);
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
