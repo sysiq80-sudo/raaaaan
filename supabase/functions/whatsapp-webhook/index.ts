@@ -1055,9 +1055,20 @@ serve(async (req) => {
     }
 
     // ── إذا أرسل المستخدم تحية → قائمة ترحيب بأزرار ──
+    // كشف التحية بـ regex لتغطية الاختلافات (هلوووو، مرحبااا، السلام عليكم ورحمة الله...)
     if (hasText) {
-      const txt = message.text.body.trim().toLowerCase();
-      if (["ران", "raan", "start", "مرحبا", "مرحبه", "هلا", "هلو", "اهلا", "السلام عليكم", "hi", "hello", "شلونك", "هلوو", "اهلا وسهلا", "مرحباً"].includes(txt)) {
+      const txt = message.text.body.trim();
+      const txtLower = txt.toLowerCase();
+      const isGreeting =
+        // قائمة المطابقة الدقيقة
+        ["ران", "raan", "start"].includes(txtLower) ||
+        // أنماط التحية العربية (مع تكرار الحروف والتشكيل)
+        /^(هلو+|هلا+|مرحبا+[ً]?[ه]?|مرحبتين|اهلا+[ً]?|أهلا+[ً]?|اهلين|سلام+|السلام\s*عليكم.*|صباح\s*(الخير|النور)|مساء\s*(الخير|النور)|شلون[كم]?|كيف[كم]?|هاي+|الو+|شخبار[كم]?|منور[ين]?)[\s!.؟?]*$/i.test(txt) ||
+        // أنماط التحية الانجليزية
+        /^(hi+|hello+|hey+|good\s*(morning|evening)|assalam[u]?\s*alaikum.*)[\s!.?]*$/i.test(txtLower);
+
+      if (isGreeting) {
+        console.log(`[wa] Greeting detected: "${txt}" → sending welcome menu`);
         const userName = profileName || "عزيزي";
         await sendInteractiveButtons(
           phoneNumber,
