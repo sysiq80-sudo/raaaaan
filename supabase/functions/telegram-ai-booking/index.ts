@@ -257,8 +257,14 @@ interface ExtractedDestination {
   notes: string | null;
 }
 
-async function extractDestination(transcript: string): Promise<ExtractedDestination> {
-  const systemPrompt = `You are an intelligent taxi dispatcher for the city of Ramadi (الرمادي), Al Anbar (الأنبار), Iraq.
+async function extractDestination(transcript: string, userLat = 33.4233, userLng = 43.2974): Promise<ExtractedDestination> {
+  const systemPrompt = `You are an intelligent taxi dispatcher for Al Anbar Governorate (محافظة الأنبار), Iraq.
+
+Context for this session:
+- The user is currently located at coordinates: LAT ${userLat.toFixed(4)}, LNG ${userLng.toFixed(4)}.
+- The operational area is the ENTIRE Al Anbar Governorate (e.g., Ramadi, Fallujah, Hit, Haditha, etc.).
+- When the user asks to go to a named place (e.g., a restaurant, hospital, or market), you MUST assume they mean the branch or location NEAREST to their current coordinates. Do not assume Ramadi if they are starting from Fallujah.
+
 The user has ALREADY shared their GPS pickup location. Now they are telling you their DESTINATION only.
 The user speaks in Iraqi Arabic dialect.
 
@@ -428,12 +434,19 @@ function matchLocalLandmark(query: string): ResolvedLocation | null {
 }
 
 // ── Nominatim (OpenStreetMap) — بديل مجاني بدون مفتاح ──
-async function nominatimGeocode(query: string): Promise<ResolvedLocation | null> {
+async function nominatimGeocode(query: string, userLat = 33.4233, userLng = 43.2974): Promise<ResolvedLocation | null> {
   try {
+    // بناء viewbox ديناميكي حول موقع المستخدم (±0.35/0.25 درجة ≈ 25-35 كم)
+    const vbMinLng = (userLng - 0.35).toFixed(2);
+    const vbMinLat = (userLat - 0.25).toFixed(2);
+    const vbMaxLng = (userLng + 0.35).toFixed(2);
+    const vbMaxLat = (userLat + 0.25).toFixed(2);
+    const viewbox = `${vbMinLng},${vbMinLat},${vbMaxLng},${vbMaxLat}`;
+
     const searches = [
-      `${query}, الرمادي, العراق`,
-      `${query}, Ramadi, Iraq`,
-      query + " الرمادي",
+      `${query}, العراق`,
+      `${query}, الأنبار, العراق`,
+      `${query}, Anbar, Iraq`,
     ];
 
     for (const searchText of searches) {
@@ -442,8 +455,8 @@ async function nominatimGeocode(query: string): Promise<ResolvedLocation | null>
         format: "json",
         limit: "3",
         countrycodes: "iq",
-        viewbox: "43.00,33.20,43.55,33.65",
-        bounded: "1",
+        viewbox,
+        bounded: "0",
         "accept-language": "ar",
       });
 
@@ -464,9 +477,9 @@ async function nominatimGeocode(query: string): Promise<ResolvedLocation | null>
         const lat = parseFloat(best.lat);
         const lng = parseFloat(best.lon);
 
-        // التحقق من القرب من الرمادي
-        const dist = haversineDistance(lat, lng, 33.4233, 43.2974);
-        if (dist <= 60) {
+        // التحقق من القرب من موقع المستخدم
+        const dist = haversineDistance(lat, lng, userLat, userLng);
+        if (dist <= 80) {
           console.log(`[nominatim] MATCH: ${best.display_name} (${dist.toFixed(1)} km from center)`);
           return {
             lat,
@@ -483,18 +496,21 @@ async function nominatimGeocode(query: string): Promise<ResolvedLocation | null>
   return null;
 }
 
-async function resolveRamadiLocation(query: string): Promise<ResolvedLocation | null> {
+async function resolveRamadiLocation(query: string, userLat = 33.4233, userLng = 43.2974): Promise<ResolvedLocation | null> {
   const cleanQuery = query.replace(/[.,،]/g, "").trim();
-  console.log(`[geocode] Resolving: "${cleanQuery}"`);
+  console.log(`[geocode] Resolving: "${cleanQuery}" (user@${userLat.toFixed(4)},${userLng.toFixed(4)})`);
 
   // ── الاستراتيجية 0: قاعدة بيانات أماكن الرمادي المحلية (فوري)
   const localMatch = matchLocalLandmark(cleanQuery);
   if (localMatch) return localMatch;
 
-  // ── الاستراتيجية 1: Nominatim (OpenStreetMap - مجاني بدون مفتاح)
+  // ── الاستراتيجية 1: Nominatim (OpenStreetMap - مجاني مع location bias)
   console.log("[geocode] No local match, trying Nominatim...");
-  const nominatimResult = await nominatimGeocode(cleanQuery);
+  const nominatimResult = await nominatimGeocode(cleanQuery, userLat, userLng);
   if (nominatimResult) return nominatimResult;
+
+  // بناء bounds ديناميكي حول موقع المستخدم
+  const boundsStr = `${(userLat - 0.25).toFixed(2)},${(userLng - 0.35).toFixed(2)}|${(userLat + 0.25).toFixed(2)},${(userLng + 0.35).toFixed(2)}`;
 
   // ── الاستراتيجية 2: Google Geocoding مباشرة
   console.log("[geocode] Nominatim failed, trying Google Geocoding...");
@@ -503,7 +519,7 @@ async function resolveRamadiLocation(query: string): Promise<ResolvedLocation | 
     key: GOOGLE_MAPS_KEY,
     language: "ar",
     components: "country:IQ",
-    bounds: "33.20,43.00|33.65,43.55",
+    bounds: boundsStr,
   });
 
   let response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
@@ -511,12 +527,12 @@ async function resolveRamadiLocation(query: string): Promise<ResolvedLocation | 
   console.log(`[geocode] Google direct: status=${data.status}, results=${data.results?.length || 0}`);
   if (data.error_message) console.log(`[geocode] Google error: ${data.error_message}`);
 
-  // ── الاستراتيجية 3: Google + "الرمادي"
+  // ── الاستراتيجية 3: Google + "الأنبار"
   if (data.status !== "OK" || !data.results?.length) {
-    params.set("address", `${cleanQuery} الرمادي`);
+    params.set("address", `${cleanQuery} الأنبار`);
     response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
     data = await response.json();
-    console.log(`[geocode] Google +الرمادي: status=${data.status}, results=${data.results?.length || 0}`);
+    console.log(`[geocode] Google +الأنبار: status=${data.status}, results=${data.results?.length || 0}`);
   }
 
   // ── الاستراتيجية 4: Google + "الأنبار العراق"
@@ -531,10 +547,10 @@ async function resolveRamadiLocation(query: string): Promise<ResolvedLocation | 
   if (data.status !== "OK" || !data.results?.length) {
     console.log("[geocode] Trying Places Text Search...");
     const placesParams = new URLSearchParams({
-      query: `${cleanQuery} الرمادي العراق`,
+      query: `${cleanQuery} الأنبار العراق`,
       key: GOOGLE_MAPS_KEY,
       language: "ar",
-      location: "33.4233,43.2974",
+      location: `${userLat},${userLng}`,
       radius: "50000",
     });
     response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${placesParams}`);
@@ -571,14 +587,14 @@ async function resolveRamadiLocation(query: string): Promise<ResolvedLocation | 
   ) || formattedAddress.includes("الأنبار") || formattedAddress.includes("Anbar") || formattedAddress.includes("Ramadi");
 
   if (!isAnbar) {
-    // فحص المسافة: هل الإحداثيات قريبة من الرمادي (60 كم)؟
+    // فحص المسافة: هل الإحداثيات قريبة من موقع المستخدم (80 كم)؟
     const distFromCenter = haversineDistance(
       result.geometry.location.lat,
       result.geometry.location.lng,
-      33.4233,
-      43.2974
+      userLat,
+      userLng
     );
-    if (distFromCenter > 60) {
+    if (distFromCenter > 80) {
       console.log(`[geocode] Rejected — too far (${distFromCenter.toFixed(1)} km): ${formattedAddress}`);
       return null;
     }
@@ -1226,7 +1242,7 @@ serve(async (req) => {
 
     // ── GPT-4o: استخراج الوجهة
     console.log("[gpt4o] Extracting destination...");
-    const intent = await extractDestination(userText);
+    const intent = await extractDestination(userText, session.pickup_lat, session.pickup_lng);
     console.log("[gpt4o] Result:", JSON.stringify(intent));
 
     if (!intent.destination_search_query || intent.destination_search_query.trim().length < 2) {
@@ -1240,9 +1256,9 @@ serve(async (req) => {
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
-    // ── Geocoding
+    // ── Geocoding (مع location bias حول موقع المستخدم)
     console.log(`[geocode] Resolving: "${intent.destination_search_query}"`);
-    const destination = await resolveRamadiLocation(intent.destination_search_query);
+    const destination = await resolveRamadiLocation(intent.destination_search_query, session.pickup_lat, session.pickup_lng);
 
     if (!destination) {
       await directSend(chatId, MESSAGES.geocodeFailed(intent.destination_search_query));

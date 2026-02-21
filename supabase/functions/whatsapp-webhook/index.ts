@@ -248,9 +248,14 @@ interface ExtractedDestination {
   conversation_reply: string | null;
 }
 
-async function extractDestination(transcript: string, userName: string): Promise<ExtractedDestination> {
-  const systemPrompt = `You are 'Raan' (ران), a highly polite, cooperative, and smart Iraqi taxi dispatcher bot operating in Ramadi (الرمادي), Anbar (الأنبار), Iraq.
+async function extractDestination(transcript: string, userName: string, userLat = 33.4233, userLng = 43.2974): Promise<ExtractedDestination> {
+  const systemPrompt = `You are 'Raan' (ران), a highly polite, cooperative, and smart Iraqi taxi dispatcher bot operating in Al Anbar Governorate (محافظة الأنبار), Iraq.
 User Name: ${userName}
+
+Context for this session:
+- The user is currently located at coordinates: LAT ${userLat.toFixed(4)}, LNG ${userLng.toFixed(4)}.
+- The operational area is the ENTIRE Al Anbar Governorate (e.g., Ramadi, Fallujah, Hit, Haditha, etc.).
+- When the user asks to go to a named place (e.g., a restaurant, hospital, or market), you MUST assume they mean the branch or location NEAREST to their current coordinates. Do not assume Ramadi if they are starting from Fallujah.
 
 The user has ALREADY shared their GPS pickup location. Now they are expected to tell you their DESTINATION.
 
@@ -518,17 +523,24 @@ function matchLocalLandmark(query: string): ResolvedLocation | null {
   return null;
 }
 
-async function nominatimGeocode(query: string): Promise<ResolvedLocation | null> {
+async function nominatimGeocode(query: string, userLat = 33.4233, userLng = 43.2974): Promise<ResolvedLocation | null> {
   try {
+    // بناء viewbox ديناميكي حول موقع المستخدم (±0.25 درجة ≈ 25 كم)
+    const vbMinLng = (userLng - 0.35).toFixed(2);
+    const vbMinLat = (userLat - 0.25).toFixed(2);
+    const vbMaxLng = (userLng + 0.35).toFixed(2);
+    const vbMaxLat = (userLat + 0.25).toFixed(2);
+    const viewbox = `${vbMinLng},${vbMinLat},${vbMaxLng},${vbMaxLat}`;
+
     const searches = [
-      `${query}, الرمادي, العراق`,
-      `${query}, Ramadi, Iraq`,
-      query + " الرمادي",
+      `${query}, العراق`,
+      `${query}, الأنبار, العراق`,
+      `${query}, Anbar, Iraq`,
     ];
     for (const searchText of searches) {
       const params = new URLSearchParams({
         q: searchText, format: "json", limit: "3", countrycodes: "iq",
-        viewbox: "43.00,33.20,43.55,33.65", bounded: "1", "accept-language": "ar",
+        viewbox, bounded: "0", "accept-language": "ar",
       });
       const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
         headers: { "User-Agent": "RAAN-Taxi-App/1.0" },
@@ -539,8 +551,8 @@ async function nominatimGeocode(query: string): Promise<ResolvedLocation | null>
         const best = results[0];
         const lat = parseFloat(best.lat);
         const lng = parseFloat(best.lon);
-        const dist = haversineDistance(lat, lng, 33.4233, 43.2974);
-        if (dist <= 60) {
+        const dist = haversineDistance(lat, lng, userLat, userLng);
+        if (dist <= 80) {
           console.log(`[nominatim] MATCH: ${best.display_name} (${dist.toFixed(1)} km)`);
           return { lat, lng, address: best.display_name?.split(",").slice(0, 3).join("،") || query };
         }
@@ -552,29 +564,32 @@ async function nominatimGeocode(query: string): Promise<ResolvedLocation | null>
   return null;
 }
 
-async function resolveRamadiLocation(query: string): Promise<ResolvedLocation | null> {
+async function resolveRamadiLocation(query: string, userLat = 33.4233, userLng = 43.2974): Promise<ResolvedLocation | null> {
   const cleanQuery = query.replace(/[.,،]/g, "").trim();
-  console.log(`[geocode] Resolving: "${cleanQuery}"`);
+  console.log(`[geocode] Resolving: "${cleanQuery}" (user@${userLat.toFixed(4)},${userLng.toFixed(4)})`);
 
   // استراتيجية 0: محلي
   const localMatch = matchLocalLandmark(cleanQuery);
   if (localMatch) return localMatch;
 
-  // استراتيجية 1: Nominatim
-  const nominatimResult = await nominatimGeocode(cleanQuery);
+  // استراتيجية 1: Nominatim (مع location bias)
+  const nominatimResult = await nominatimGeocode(cleanQuery, userLat, userLng);
   if (nominatimResult) return nominatimResult;
+
+  // بناء bounds ديناميكي حول موقع المستخدم
+  const boundsStr = `${(userLat - 0.25).toFixed(2)},${(userLng - 0.35).toFixed(2)}|${(userLat + 0.25).toFixed(2)},${(userLng + 0.35).toFixed(2)}`;
 
   // استراتيجيات 2-4: Google Geocoding
   const strategies = [
     cleanQuery,
-    `${cleanQuery} الرمادي`,
+    `${cleanQuery} الأنبار`,
     `${cleanQuery} الأنبار العراق`,
   ];
 
   for (const addr of strategies) {
     const params = new URLSearchParams({
       address: addr, key: GOOGLE_MAPS_KEY, language: "ar",
-      components: "country:IQ", bounds: "33.20,43.00|33.65,43.55",
+      components: "country:IQ", bounds: boundsStr,
     });
     const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
     const data = await response.json();
@@ -582,18 +597,18 @@ async function resolveRamadiLocation(query: string): Promise<ResolvedLocation | 
       const result = data.results[0];
       const lat = result.geometry.location.lat;
       const lng = result.geometry.location.lng;
-      const dist = haversineDistance(lat, lng, 33.4233, 43.2974);
-      if (dist <= 60) {
+      const dist = haversineDistance(lat, lng, userLat, userLng);
+      if (dist <= 80) {
         return { lat, lng, address: result.formatted_address };
       }
     }
   }
 
-  // استراتيجية 5: Google Places Text Search
+  // استراتيجية 5: Google Places Text Search (مع location bias)
   try {
     const placesParams = new URLSearchParams({
-      query: `${cleanQuery} الرمادي العراق`, key: GOOGLE_MAPS_KEY,
-      language: "ar", location: "33.4233,43.2974", radius: "50000",
+      query: `${cleanQuery} الأنبار العراق`, key: GOOGLE_MAPS_KEY,
+      language: "ar", location: `${userLat},${userLng}`, radius: "50000",
     });
     const response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${placesParams}`);
     const data = await response.json();
@@ -1125,7 +1140,7 @@ serve(async (req) => {
     // ── GPT-4o: استخراج الوجهة (مع شخصية ران) ──
     const userName = profileName || "عزيزي";
     console.log("[gpt4o] Extracting destination...");
-    const intent = await extractDestination(userText, userName);
+    const intent = await extractDestination(userText, userName, session.pickup_lat, session.pickup_lng);
     console.log("[gpt4o] Result:", JSON.stringify(intent));
 
     // إذا كان النص ليس وجهة (استفسار/شكوى) — رد الذكاء الاصطناعي
@@ -1139,8 +1154,8 @@ serve(async (req) => {
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
-    // ── Geocoding ──
-    const destination = await resolveRamadiLocation(intent.destination_search_query);
+    // ── Geocoding (مع location bias حول موقع المستخدم) ──
+    const destination = await resolveRamadiLocation(intent.destination_search_query, session.pickup_lat, session.pickup_lng);
     if (!destination) {
       await sendTextMessage(phoneNumber, MESSAGES.geocodeFailed(intent.destination_search_query, userName));
       return new Response("EVENT_RECEIVED", { status: 200 });
