@@ -32,8 +32,17 @@ const GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/message
 const MESSAGES = {
   welcome: `هلا بيك عميلنا العزيز! 🚕\nعلمود نحسب لك السعر المضبوط، دز لنا موقعك الحالي بالضغط على الزر الموجود جوة هذه الرسالة 👇`,
 
-  locationReceived: (address: string) =>
-    `✅ عاشت ايدك، حددنا مكانك:\n${address}\n\nهسة دز رسالة صوتية 🎙️ وكول وين تريد تروح؟\nأو اكتب اسم الوجهة بالنص.`,
+  welcomeMenu: (name: string) =>
+    `أهلاً بك أستاذ ${name} في تكسي ران! 🚕\nشلون نكدر نخدمك اليوم؟`,
+
+  inquiryPrompt: (name: string) =>
+    `تفضل أستاذ ${name}، اسأل أي سؤال أو اكتب شكواك وإن شاء الله نساعدك 🙏`,
+
+  askForLocation: (name: string) =>
+    `على راسي أستاذ ${name}! 🚕\nعلمود نحسب لك السعر المضبوط، دز لنا موقعك الحالي بالضغط على الزر الموجود جوة هذه الرسالة 👇`,
+
+  locationReceived: (address: string, name?: string) =>
+    `✅ عاشت ايدك${name ? ` أستاذ ${name}` : ""}، حددنا مكانك:\n${address}\n\nهسة دز رسالة صوتية 🎙️ وكول وين تريد تروح؟\nأو اكتب اسم الوجهة بالنص.`,
 
   needLocationFirst: `عفواً، لازم تدز موقعك أول شي! 📍\nاضغط على الزر أدناه لمشاركة موقعك 👇`,
 
@@ -43,8 +52,8 @@ const MESSAGES = {
 
   noDestination: `❌ ما فهمت الوجهة. كول مثلاً:\n"أريد أروح لجامعة الأنبار"\nأو اكتبها بالنص.`,
 
-  geocodeFailed: (place: string) =>
-    `❌ ما كدرت ألاقي "${place}" على الخريطة بالرمادي. جرب تكول اسم أوضح.`,
+  geocodeFailed: (place: string, name?: string) =>
+    `على راسي${name ? ` أستاذ ${name}` : ""}، بس ما كدرت ألاقي "${place}" على الخريطة 🗺️\nيا ريت تنطيني أقرب نقطة دالة أو تضغط على زر إرسال الموقع حتى الكابتن يوصلك للباب بدون تأخير 🙏`,
 
   confirmationPrompt: (origin: string, destination: string, fare: number, distanceKm: number) =>
     `🚕 *تأكيد الرحلة*\n\n📍 *من:* ${origin}\n🏁 *إلى:* ${destination}\n📏 *المسافة:* ${distanceKm.toFixed(1)} كم\n💰 *السعر التقديري:* ${fare.toLocaleString()} د.ع\n\nهل تريد تأكيد الرحلة؟ 👇`,
@@ -235,14 +244,20 @@ interface ExtractedDestination {
   destination_search_query: string;
   vehicle_type: "economy" | "comfort" | "premium" | "women_only";
   notes: string | null;
+  is_destination: boolean;
+  conversation_reply: string | null;
 }
 
-async function extractDestination(transcript: string): Promise<ExtractedDestination> {
-  const systemPrompt = `You are an intelligent taxi dispatcher for the city of Ramadi (الرمادي), Al Anbar (الأنبار), Iraq.
-The user has ALREADY shared their GPS pickup location. Now they are telling you their DESTINATION only.
-The user speaks in Iraqi Arabic dialect.
+async function extractDestination(transcript: string, userName: string): Promise<ExtractedDestination> {
+  const systemPrompt = `You are 'Raan' (ران), a highly polite, cooperative, and smart Iraqi taxi dispatcher bot operating in Ramadi (الرمادي), Anbar (الأنبار), Iraq.
+User Name: ${userName}
 
-Your ONLY job: Extract the destination name EXACTLY as the user says it.
+The user has ALREADY shared their GPS pickup location. Now they are expected to tell you their DESTINATION.
+
+FIRST: Determine if the user's message is actually a destination/ride request, or something else (question, complaint, chat).
+
+═══ IF IT IS A DESTINATION (set "is_destination": true): ═══
+Extract the destination name EXACTLY as the user says it.
 
 ⚠️ STRICT RULE — NUMBERED STREETS:
 If the user provides a numbered street (e.g., "شارع 20", "شارع 60", "شارع 17"), YOU MUST KEEP IT EXACTLY AS IS.
@@ -259,11 +274,23 @@ Critical Rules:
 8. NEVER return an error message. ALWAYS try to extract a destination.
 9. NEVER rename, translate, or "correct" the user's destination. Return their words verbatim.
 
+═══ IF IT IS NOT A DESTINATION (set "is_destination": false): ═══
+The user may be asking a question, complaining, or chatting. Respond with empathy in Iraqi dialect.
+
+Behavioral Rules:
+1. **Politeness & Empathy:** If the user complains ("تأخرت", "وين الكابتن", "أسرعوا") → respond with immense politeness: "حقك علينا أستاذ ${userName}، ثواني وأستعجل الكابتن، تدلل وما يصير خاطرك إلا طيب 🙏"
+2. **Inquiries:** If asking about prices, how to use, service area → answer directly. Prices start at 2000 IQD + 1000 IQD/km. We serve Ramadi and surroundings.
+3. **Dialect:** Use warm Iraqi dialect (تدلل، على راسي، عيوني، كابتن، ما يخالف).
+4. **Never be defensive.** Always apologize and be helpful.
+5. Gently remind them they can send their destination whenever ready.
+
 Respond in JSON ONLY:
 {
-  "destination_search_query": "اسم الوجهة كما قالها المستخدم — حرفياً",
+  "destination_search_query": "اسم الوجهة أو فارغ",
   "vehicle_type": "economy",
-  "notes": null
+  "notes": null,
+  "is_destination": true,
+  "conversation_reply": null
 }`;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -279,8 +306,8 @@ Respond in JSON ONLY:
         { role: "user", content: transcript },
       ],
       response_format: { type: "json_object" },
-      temperature: 0.1,
-      max_tokens: 200,
+      temperature: 0.3,
+      max_tokens: 400,
     }),
   });
 
@@ -293,7 +320,94 @@ Respond in JSON ONLY:
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("No response from GPT-4o");
 
-  return JSON.parse(content);
+  const parsed = JSON.parse(content);
+  return {
+    destination_search_query: parsed.destination_search_query || "",
+    vehicle_type: parsed.vehicle_type || "economy",
+    notes: parsed.notes || null,
+    is_destination: parsed.is_destination !== false,
+    conversation_reply: parsed.conversation_reply || null,
+  };
+}
+
+// ════════════════════════════════════════
+// 🤖 تصنيف النية والرد الذكي (بدون session)
+// ════════════════════════════════════════
+async function classifyAndRespond(
+  userText: string,
+  userName: string
+): Promise<{
+  intent: "booking" | "inquiry" | "complaint" | "greeting" | "unknown";
+  reply: string;
+  destination_hint: string | null;
+}> {
+  const systemPrompt = `أنت "ران"، بوت تكسي عراقي ذكي ومهذب جداً يعمل في مدينة الرمادي، محافظة الأنبار، العراق.
+اسم المستخدم: ${userName}
+
+مهمتك: صنّف رسالة المستخدم وأجب عليها بلهجة عراقية دافئة ومحترمة.
+
+القواعد السلوكية:
+1. **الأدب والتعاطف**: إذا اشتكى المستخدم أو تضايق أو قال "تأخرت" أو "أسرعوا" أو "وين الكابتن" → رد بأدب شديد وتعاطف. مثال: "حقك علينا أستاذ ${userName}، ثواني وأستعجل الكابتن، تدلل وما يصير خاطرك إلا طيب 🙏"
+2. **الاستفسارات**: إذا سأل سؤال عام (أسعار، كيف أستخدم، وين تخدمون، شنو ران) → أجب مباشرة بأدب بدون بدء حجز. أسعارنا تبدأ من 2000 دينار عراقي + 1000 دينار لكل كيلومتر. نخدم الرمادي وضواحيها.
+3. **المواقع الغامضة**: إذا ذكر مكان غامض → اطلب نقطة دالة: "على راسي أستاذ، بس يا ريت تنطيني أقرب نقطة دالة أو تضغط على زر إرسال الموقع حتى الكابتن يوصلك للباب بدون تأخير"
+4. **اللهجة**: استخدم لهجة عراقية دافئة ومحترمة (تدلل، على راسي، عيوني، كابتن، ما يخالف، إن شاء الله).
+5. **الحجز**: إذا المستخدم يريد حجز رحلة أو ذكر وجهة → صنّفه كـ "booking" وكن ودوداً.
+6. **لا تكن دفاعياً أبداً**: دائماً اعتذر واطلب السماح.
+
+أنواع النوايا:
+- "booking": يريد حجز رحلة أو ذكر وجهة
+- "inquiry": سؤال عام عن الخدمة أو الأسعار أو التطبيق
+- "complaint": شكوى أو تذمر
+- "greeting": تحية عامة (مرحبا، هلو، السلام عليكم)
+- "unknown": غير واضح
+
+أجب بـ JSON فقط:
+{
+  "intent": "نوع النية",
+  "reply": "ردك بالعراقي — قصير ولطيف ومحترم",
+  "destination_hint": "اسم الوجهة إذا ذكرها، أو null"
+}`;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userText },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+        max_tokens: 300,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[classify] GPT-4o error: ${response.status}`);
+      return { intent: "unknown", reply: `أهلاً أستاذ ${userName}، شلون نكدر نساعدك اليوم؟ 🚕`, destination_hint: null };
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+      return { intent: "unknown", reply: `أهلاً أستاذ ${userName}، شلون نكدر نساعدك؟ 🚕`, destination_hint: null };
+    }
+
+    const parsed = JSON.parse(content);
+    return {
+      intent: parsed.intent || "unknown",
+      reply: parsed.reply || `تدلل أستاذ ${userName}، شلون نكدر نخدمك؟`,
+      destination_hint: parsed.destination_hint || null,
+    };
+  } catch (err) {
+    console.error("[classify] Error:", err);
+    return { intent: "unknown", reply: `عذراً أستاذ ${userName}، ممكن توضح طلبك أكثر؟ 🙏`, destination_hint: null };
+  }
 }
 
 // ════════════════════════════════════════
@@ -757,6 +871,20 @@ serve(async (req) => {
       const buttonId = buttonReply.id;
       console.log(`[wa] Button press: ${buttonId}`);
 
+      // ── قائمة الترحيب: حجز رحلة ──
+      if (buttonId === "action_book_ride") {
+        const userName = profileName || "عزيزي";
+        await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── قائمة الترحيب: استفسار أو شكوى ──
+      if (buttonId === "action_inquiry") {
+        const userName = profileName || "عزيزي";
+        await sendTextMessage(phoneNumber, MESSAGES.inquiryPrompt(userName));
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
       // ── تأكيد الرحلة ──
       const confirmMatch = buttonId.match(/^confirm_ride_([a-f0-9\-]+)$/);
       if (confirmMatch) {
@@ -845,7 +973,8 @@ serve(async (req) => {
       const sessionId = await createPickupSession(supabase, riderId, lat, lng, address);
       console.log(`[wa] Session created: ${sessionId}`);
 
-      await sendTextMessage(phoneNumber, MESSAGES.locationReceived(address));
+      const userName = profileName || "عزيزي";
+      await sendTextMessage(phoneNumber, MESSAGES.locationReceived(address, userName));
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
@@ -856,16 +985,32 @@ serve(async (req) => {
     const hasText = msgType === "text" && !!message.text?.body;
 
     if (!hasAudio && !hasText) {
-      // نوع غير مدعوم (صورة، فيديو، ملصق...)
-      await sendLocationRequest(phoneNumber, MESSAGES.welcome);
+      // نوع غير مدعوم (صورة، فيديو، ملصق...) — أرسل قائمة الترحيب
+      const userName = profileName || "عزيزي";
+      await sendInteractiveButtons(
+        phoneNumber,
+        MESSAGES.welcomeMenu(userName),
+        [
+          { id: "action_book_ride", title: "🚕 حجز رحلة" },
+          { id: "action_inquiry", title: "💬 استفسار أو شكوى" },
+        ]
+      );
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
-    // ── إذا أرسل المستخدم "ران" أو أي تحية → رسالة ترحيب ──
+    // ── إذا أرسل المستخدم تحية → قائمة ترحيب بأزرار ──
     if (hasText) {
       const txt = message.text.body.trim().toLowerCase();
-      if (["ران", "raan", "start", "مرحبا", "مرحبه", "هلا", "هلو", "اهلا", "السلام عليكم", "hi", "hello"].includes(txt)) {
-        await sendLocationRequest(phoneNumber, MESSAGES.welcome);
+      if (["ران", "raan", "start", "مرحبا", "مرحبه", "هلا", "هلو", "اهلا", "السلام عليكم", "hi", "hello", "شلونك", "هلوو", "اهلا وسهلا", "مرحباً"].includes(txt)) {
+        const userName = profileName || "عزيزي";
+        await sendInteractiveButtons(
+          phoneNumber,
+          MESSAGES.welcomeMenu(userName),
+          [
+            { id: "action_book_ride", title: "🚕 حجز رحلة" },
+            { id: "action_inquiry", title: "💬 استفسار أو شكوى" },
+          ]
+        );
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
     }
@@ -899,8 +1044,37 @@ serve(async (req) => {
     const session = await findPendingSession(supabase, riderId);
 
     if (!session) {
-      // لا يوجد session — اطلب الموقع أولاً
-      await sendLocationRequest(phoneNumber, MESSAGES.needLocationFirst);
+      // لا يوجد session — استخدم الذكاء الاصطناعي لتصنيف النية
+      const userName = profileName || "عزيزي";
+
+      if (hasText) {
+        const userMsgText = message.text.body;
+        console.log(`[wa] No session, classifying: "${userMsgText}"`);
+        const aiResponse = await classifyAndRespond(userMsgText, userName);
+        console.log(`[wa] AI intent: ${aiResponse.intent}`);
+
+        if (aiResponse.intent === "booking") {
+          // يريد حجز — اطلب الموقع
+          await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
+        } else if (aiResponse.intent === "greeting") {
+          // تحية — قائمة ترحيب
+          await sendInteractiveButtons(
+            phoneNumber,
+            MESSAGES.welcomeMenu(userName),
+            [
+              { id: "action_book_ride", title: "🚕 حجز رحلة" },
+              { id: "action_inquiry", title: "💬 استفسار أو شكوى" },
+            ]
+          );
+        } else {
+          // استفسار / شكوى / غير واضح — رد الذكاء الاصطناعي
+          await sendTextMessage(phoneNumber, aiResponse.reply);
+        }
+      } else {
+        // صوت بدون session — اطلب الموقع
+        await sendLocationRequest(phoneNumber, MESSAGES.needLocationFirst);
+      }
+
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
@@ -930,10 +1104,17 @@ serve(async (req) => {
       console.log(`[wa] Text: "${userText}"`);
     }
 
-    // ── GPT-4o: استخراج الوجهة ──
+    // ── GPT-4o: استخراج الوجهة (مع شخصية ران) ──
+    const userName = profileName || "عزيزي";
     console.log("[gpt4o] Extracting destination...");
-    const intent = await extractDestination(userText);
+    const intent = await extractDestination(userText, userName);
     console.log("[gpt4o] Result:", JSON.stringify(intent));
+
+    // إذا كان النص ليس وجهة (استفسار/شكوى) — رد الذكاء الاصطناعي
+    if (!intent.is_destination && intent.conversation_reply) {
+      await sendTextMessage(phoneNumber, intent.conversation_reply);
+      return new Response("EVENT_RECEIVED", { status: 200 });
+    }
 
     if (!intent.destination_search_query || intent.destination_search_query.trim().length < 2) {
       await sendTextMessage(phoneNumber, MESSAGES.noDestination);
@@ -943,7 +1124,7 @@ serve(async (req) => {
     // ── Geocoding ──
     const destination = await resolveRamadiLocation(intent.destination_search_query);
     if (!destination) {
-      await sendTextMessage(phoneNumber, MESSAGES.geocodeFailed(intent.destination_search_query));
+      await sendTextMessage(phoneNumber, MESSAGES.geocodeFailed(intent.destination_search_query, userName));
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
     console.log(`[geocode] Resolved: ${destination.address} (${destination.lat}, ${destination.lng})`);
