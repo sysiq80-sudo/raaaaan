@@ -1100,10 +1100,32 @@ serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  // ═══════════════════════════════════
+  // 📊 تسجيل العميل في قاعدة التسويق (صامت)
+  // ═══════════════════════════════════
   try {
-    // ═══════════════════════════════════
-    // 1️⃣ /start → طلب مشاركة الموقع
-    // ═══════════════════════════════════
+    const tgName = [telegramUser?.first_name, telegramUser?.last_name].filter(Boolean).join(" ") || "Telegram User";
+    await supabase.from("bot_customers").upsert({
+      platform: "telegram",
+      platform_id: String(telegramUser?.id || chatId),
+      full_name: tgName,
+      username: telegramUser?.username || null,
+      last_active: new Date().toISOString(),
+      interaction_count: 1,
+    }, {
+      onConflict: "platform,platform_id",
+    });
+    // تحديث عدد التفاعلات
+    await supabase.rpc("increment_bot_customer_interactions", {
+      p_platform: "telegram",
+      p_platform_id: String(telegramUser?.id || chatId),
+    }).then(() => {}).catch(() => {}); // صامت
+  } catch (e) {
+    console.warn("[tg] bot_customers upsert failed (non-critical):", e);
+  }
+
+  try {
+    // 1️⃣ /start
     if (message.text === "/start") {
       console.log("[telegram] /start → sending location keyboard");
       await sendWithLocationKeyboard(chatId, MESSAGES.welcome);

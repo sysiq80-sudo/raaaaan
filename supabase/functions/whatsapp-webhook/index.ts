@@ -891,6 +891,29 @@ serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  // ═══════════════════════════════════
+  // 📊 تسجيل العميل في قاعدة التسويق (صامت)
+  // ═══════════════════════════════════
+  try {
+    await supabase.from("bot_customers").upsert({
+      platform: "whatsapp",
+      platform_id: phoneNumber,
+      full_name: profileName || "WhatsApp User",
+      phone_number: phoneNumber,
+      last_active: new Date().toISOString(),
+      interaction_count: 1,
+    }, {
+      onConflict: "platform,platform_id",
+    });
+    // تحديث عدد التفاعلات
+    await supabase.rpc("increment_bot_customer_interactions", {
+      p_platform: "whatsapp",
+      p_platform_id: phoneNumber,
+    }).then(() => {}).catch(() => {}); // صامت — إذا الدالة غير موجودة لا يأثر
+  } catch (e) {
+    console.warn("[wa] bot_customers upsert failed (non-critical):", e);
+  }
+
   try {
     // ═══════════════════════════════════
     // 🔘 Interactive Button Reply (تأكيد / إلغاء)
