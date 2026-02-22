@@ -35,7 +35,7 @@ const MESSAGES = {
   welcome: `هلا بيك عميلنا العزيز! 🚕\nعلمود نحسب لك السعر المضبوط، دز لنا موقعك الحالي بالضغط على الزر الموجود جوة هذه الرسالة 👇`,
 
   locationReceived: (address: string) =>
-    `✅ عاشت ايدك، حددنا مكانك: ${address}\nهسة تكدر دز بصمة صوتية 🎙️ وكول وين تريد تروح؟ وتكدر تكتب همات.`,
+    `✅ عاشت ايدك، حددنا مكانك في: 📍 ${address}\nهسة تكدر دز بصمة صوتية 🎙️ وكول وين تريد تروح؟ وتكدر تكتب همات.`,
 
   needLocationFirst: `عفواً، لازم تدز موقعك أول شي! 👇\nاضغط على زر "📍 مشاركة موقعي الحالي" الموجود بلوحة المفاتيح.`,
 
@@ -343,6 +343,94 @@ Respond in JSON ONLY:
 }
 
 // ════════════════════════════════════════
+// 🕒 GPT-4o: استخراج تفاصيل الحجز المجدول
+// ════════════════════════════════════════
+interface ScheduledRideDetails {
+  pickup_query: string;
+  dropoff_query: string;
+  scheduled_time: string | null;
+  vehicle_type: "economy" | "comfort" | "premium" | "women_only";
+  notes: string | null;
+  is_valid: boolean;
+  error_reply: string | null;
+}
+
+async function extractScheduledRideDetails(userText: string, userName: string): Promise<ScheduledRideDetails> {
+  const now = new Date().toISOString();
+  const systemPrompt = `You are 'Raan' (ران), a polite Iraqi taxi dispatcher bot in Ramadi, Al Anbar, Iraq.
+User Name: ${userName}
+Current Time: ${now}
+
+The user wants to schedule a future ride. Extract:
+1. **pickup_query**: Where they want to be picked up (Arabic place name). If they say "بيتي" or "من عندي", return "موقع المستخدم".
+2. **dropoff_query**: Where they want to go (Arabic place name).
+3. **scheduled_time**: The EXACT date+time in ISO 8601 format (Baghdad timezone UTC+3). Parse relative times:
+   - "غداً الساعة 8 صباحاً" → tomorrow at 05:00 UTC (08:00 Baghdad)
+   - "بعد ساعتين" → current time + 2 hours
+   - "الخميس 3 العصر" → next Thursday at 12:00 UTC (15:00 Baghdad)
+   If no time is given, set to null.
+4. **vehicle_type**: فخمة/فاخرة → premium, مريحة → comfort, نسائي → women_only, otherwise "economy".
+5. **notes**: Any extra info.
+6. **is_valid**: true if both pickup and dropoff are extractable. false if message is too vague.
+7. **error_reply**: If is_valid is false, provide a polite Iraqi dialect error asking for clarification.
+
+Respond in JSON ONLY:
+{
+  "pickup_query": "",
+  "dropoff_query": "",
+  "scheduled_time": null,
+  "vehicle_type": "economy",
+  "notes": null,
+  "is_valid": true,
+  "error_reply": null
+}`;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userText },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+        max_tokens: 400,
+      }),
+    });
+
+    if (!response.ok) {
+      return { pickup_query: "", dropoff_query: "", scheduled_time: null, vehicle_type: "economy", notes: null, is_valid: false, error_reply: `عذراً أستاذ ${userName}، ما فهمت طلبك. جرب مرة ثانية 🙏` };
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+      return { pickup_query: "", dropoff_query: "", scheduled_time: null, vehicle_type: "economy", notes: null, is_valid: false, error_reply: `عذراً أستاذ ${userName}، ما فهمت طلبك. جرب مرة ثانية 🙏` };
+    }
+
+    const parsed = JSON.parse(content);
+    return {
+      pickup_query: parsed.pickup_query || "",
+      dropoff_query: parsed.dropoff_query || "",
+      scheduled_time: parsed.scheduled_time || null,
+      vehicle_type: parsed.vehicle_type || "economy",
+      notes: parsed.notes || null,
+      is_valid: parsed.is_valid !== false,
+      error_reply: parsed.error_reply || null,
+    };
+  } catch (err) {
+    console.error("[schedule] Error:", err);
+    return { pickup_query: "", dropoff_query: "", scheduled_time: null, vehicle_type: "economy", notes: null, is_valid: false, error_reply: `عذراً أستاذ ${userName}، حدث خطأ تقني. حاول مرة ثانية ⚠️` };
+  }
+}
+
+// ════════════════════════════════════════
 // Geocoding: بحث متعدد الاستراتيجيات مقيد بالرمادي
 // ════════════════════════════════════════
 interface ResolvedLocation {
@@ -609,24 +697,108 @@ async function resolveRamadiLocation(query: string, userLat = 33.4233, userLng =
 }
 
 // ════════════════════════════════════════
-// Reverse Geocoding: إحداثيات → عنوان
+// Reverse Geocoding محسّن: إحداثيات → عنوان مختصر
 // ════════════════════════════════════════
+
+/**
+ * استخراج عنوان مختصر (حي + مدينة) من نتائج Google Geocoding
+ * يرجع عنوان مثل: "حي التأميم، الرمادي" أو "شارع المستودع، الرمادي"
+ */
+function extractConciseAddress(results: any[]): string | null {
+  try {
+    const result = results[0];
+    const components = result.address_components || [];
+
+    let neighborhood = "";
+    let route = "";
+    let sublocality = "";
+    let locality = "";
+    let adminArea = "";
+
+    for (const comp of components) {
+      const types = comp.types || [];
+      if (types.includes("neighborhood")) neighborhood = comp.long_name;
+      if (types.includes("route")) route = comp.long_name;
+      if (types.includes("sublocality") || types.includes("sublocality_level_1")) sublocality = comp.long_name;
+      if (types.includes("locality")) locality = comp.long_name;
+      if (types.includes("administrative_area_level_1")) adminArea = comp.long_name;
+    }
+
+    const city = locality || adminArea || "الرمادي";
+    const area = neighborhood || route || sublocality;
+
+    if (area && city) return `${area}، ${city}`;
+    if (area) return area;
+    if (city) return city;
+
+    const shortest = results
+      .map((r: any) => r.formatted_address)
+      .filter(Boolean)
+      .sort((a: string, b: string) => a.length - b.length)[0];
+    return shortest || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reverse Geocode محسّن:
+ * 1. Google Maps Geocoding API (عنوان مختصر)
+ * 2. Nominatim/OpenStreetMap كاحتياط مجاني
+ * 3. إحداثيات خام كملاذ أخير
+ */
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  // ── المحاولة 1: Google Maps Geocoding API ──
   try {
     const params = new URLSearchParams({
       latlng: `${lat},${lng}`,
       key: GOOGLE_MAPS_KEY,
       language: "ar",
+      result_type: "street_address|neighborhood|sublocality|locality",
     });
     const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
     const data = await response.json();
-
-    if (data.status === "OK" && data.results?.[0]) {
+    if (data.status === "OK" && data.results?.length > 0) {
+      const concise = extractConciseAddress(data.results);
+      if (concise) {
+        console.log(`[reverse-geocode] Google concise: ${concise}`);
+        return concise;
+      }
       return data.results[0].formatted_address;
     }
+    console.warn(`[reverse-geocode] Google status: ${data.status}`, data.error_message || "");
   } catch (e) {
-    console.error("[reverse-geocode] Error:", e);
+    console.error("[reverse-geocode] Google error:", e);
   }
+
+  // ── المحاولة 2: Nominatim (OpenStreetMap) مجاني ──
+  try {
+    const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ar&zoom=18`;
+    const response = await fetch(nominatimUrl, {
+      headers: { "User-Agent": "RaanTaxiBot/1.0" },
+    });
+    const data = await response.json();
+    if (data && data.address) {
+      const addr = data.address;
+      const area = addr.neighbourhood || addr.suburb || addr.road || addr.quarter || "";
+      const city = addr.city || addr.town || addr.state || "الرمادي";
+      if (area && city) {
+        console.log(`[reverse-geocode] Nominatim: ${area}، ${city}`);
+        return `${area}، ${city}`;
+      }
+      if (data.display_name) {
+        const parts = data.display_name.split(",").map((s: string) => s.trim()).filter(Boolean);
+        const short = parts.slice(0, 2).join("، ");
+        console.log(`[reverse-geocode] Nominatim display: ${short}`);
+        return short;
+      }
+    }
+  } catch (e) {
+    console.error("[reverse-geocode] Nominatim error:", e);
+  }
+
+  // ── الملاذ الأخير: إحداثيات خام ──
+  console.warn(`[reverse-geocode] All strategies failed, returning raw coords`);
   return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 }
 
@@ -1076,7 +1248,145 @@ serve(async (req) => {
     }
 
     // ═══════════════════════════════════
-    // 🔕 تجاهل (من أزرار "استمر بالبحث")
+    // � حجز رحلة (من قائمة الترحيب)
+    // ═══════════════════════════════════
+    if (cbData === "action_book_ride" && cbChatId) {
+      await answerCallbackQuery(cbQuery.id, "🚕");
+      await sendWithLocationKeyboard(cbChatId, MESSAGES.welcome);
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // 💬 استفسار (من قائمة الترحيب)
+    // ═══════════════════════════════════
+    if (cbData === "action_inquiry" && cbChatId) {
+      await answerCallbackQuery(cbQuery.id, "💬");
+      const tgName = cbQuery.from?.first_name || "عزيزي";
+      await directSend(cbChatId, `تفضل أستاذ ${tgName}، اسأل أي سؤال أو اكتب شكواك وإن شاء الله نساعدك 🙏`);
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // 💰 رصيدي (My Balance)
+    // ═══════════════════════════════════
+    if (cbData === "action_my_balance" && cbChatId) {
+      await answerCallbackQuery(cbQuery.id, "💰");
+      const tgName = cbQuery.from?.first_name || "عزيزي";
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      try {
+        const riderId = await findOrCreateTelegramUser(supabase, cbQuery.from || { id: cbChatId });
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("wallet_balance")
+          .eq("id", riderId)
+          .maybeSingle();
+
+        const balance = profile?.wallet_balance ?? 0;
+        await directSend(cbChatId, `رصيدك الحالي في محفظة ران هو: ${balance.toLocaleString()} دينار عراقي 💰`);
+      } catch (e) {
+        console.error("[telegram] action_my_balance error:", e);
+        await directSend(cbChatId, "عذراً، حدث خطأ تقني. حاول مرة أخرى ⚠️");
+      }
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // 👤 معلوماتي (My Info)
+    // ═══════════════════════════════════
+    if (cbData === "action_my_info" && cbChatId) {
+      await answerCallbackQuery(cbQuery.id, "👤");
+      const tgName = cbQuery.from?.first_name || "عزيزي";
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      try {
+        const riderId = await findOrCreateTelegramUser(supabase, cbQuery.from || { id: cbChatId });
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, phone, created_at")
+          .eq("id", riderId)
+          .maybeSingle();
+
+        const { count: ridesCount } = await supabase
+          .from("rides")
+          .select("id", { count: "exact", head: true })
+          .eq("rider_id", riderId)
+          .eq("status", "completed");
+
+        if (profile) {
+          await directSend(cbChatId,
+            `ملفك الشخصي 👤:\n\n` +
+            `الاسم: ${profile.full_name || tgName}\n` +
+            `رقم الهاتف: ${profile.phone || "غير محدد"}\n` +
+            `إجمالي رحلاتك: ${ridesCount ?? 0} رحلة 🚕`
+          );
+        } else {
+          await directSend(cbChatId, `أستاذ ${tgName}، ما كدرنا نجيب معلوماتك حالياً. حاول مرة ثانية ⚠️`);
+        }
+      } catch (e) {
+        console.error("[telegram] action_my_info error:", e);
+        await directSend(cbChatId, "عذراً، حدث خطأ تقني. حاول مرة أخرى ⚠️");
+      }
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // 🚕 رحلاتي السابقة (My Rides)
+    // ═══════════════════════════════════
+    if (cbData === "action_my_rides" && cbChatId) {
+      await answerCallbackQuery(cbQuery.id, "🚕");
+      const tgName = cbQuery.from?.first_name || "عزيزي";
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      try {
+        const riderId = await findOrCreateTelegramUser(supabase, cbQuery.from || { id: cbChatId });
+        const { data: rides } = await supabase
+          .from("rides")
+          .select("id, pickup_address, dropoff_address, status, estimated_fare, created_at")
+          .eq("rider_id", riderId)
+          .eq("status", "completed")
+          .order("created_at", { ascending: false })
+          .limit(3);
+
+        if (!rides || rides.length === 0) {
+          await directSend(cbChatId, `لم تقم بأي رحلة معنا حتى الآن! 🚕`);
+        } else {
+          let msg = `🚕 آخر رحلاتك يا أستاذ ${tgName}:\n\n`;
+          rides.forEach((r: any, i: number) => {
+            msg += `${i + 1}. من ${r.pickup_address || "—"} إلى ${r.dropoff_address || "—"} | السعر: ${r.estimated_fare?.toLocaleString() || "—"} د.ع ✅\n\n`;
+          });
+          await directSend(cbChatId, msg);
+        }
+      } catch (e) {
+        console.error("[telegram] action_my_rides error:", e);
+        await directSend(cbChatId, "عذراً، حدث خطأ تقني. حاول مرة أخرى ⚠️");
+      }
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // 🗓️ حجز مجدول (Scheduled Ride)
+    // ═══════════════════════════════════
+    if (cbData === "action_scheduled_ride" && cbChatId) {
+      await answerCallbackQuery(cbQuery.id, "🗓️");
+      const tgName = cbQuery.from?.first_name || "عزيزي";
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      // حفظ حالة المستخدم كـ awaiting_schedule
+      try {
+        await supabase.from("bot_customers").update({
+          last_intent: "awaiting_schedule",
+        }).eq("platform", "telegram").eq("platform_id", String(cbQuery.from?.id || cbChatId));
+      } catch {} // صامت
+
+      await directSend(cbChatId,
+        `ممتاز أستاذ ${tgName}! 🕒\n\nأرسل لي موقعك والوجهة والوقت والتاريخ الذي تريد فيه السيارة.\n\nمثال: غداً الساعة 8 صباحاً من بيتي لجامعة الأنبار\n\nأو دز موقعك أول شي ثم اكتب الوجهة والوقت 📍`
+      );
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // �🔕 تجاهل (من أزرار "استمر بالبحث")
     // ═══════════════════════════════════
     if (cbData === "ignore_action") {
       await answerCallbackQuery(cbQuery.id, "👌");
@@ -1125,10 +1435,26 @@ serve(async (req) => {
   }
 
   try {
-    // 1️⃣ /start
+    // 1️⃣ /start — قائمة ترحيب بأزرار inline
     if (message.text === "/start") {
-      console.log("[telegram] /start → sending location keyboard");
-      await sendWithLocationKeyboard(chatId, MESSAGES.welcome);
+      console.log("[telegram] /start → sending welcome menu");
+      const tgName = telegramUser?.first_name || "عزيزي";
+      await sendInlineKeyboard(
+        chatId,
+        `أهلاً بك أستاذ ${tgName} في تكسي ران! 🚕\nشلون نكدر نخدمك اليوم؟`,
+        [
+          [{ text: "🚕 حجز رحلة الان", callback_data: "action_book_ride" }],
+          [{ text: "💬 استفسار سريع", callback_data: "action_inquiry" }],
+          [
+            { text: "🗓️ حجز مجدول", callback_data: "action_scheduled_ride" },
+            { text: "🚕 رحلاتي", callback_data: "action_my_rides" },
+          ],
+          [
+            { text: "💰 رصيدي", callback_data: "action_my_balance" },
+            { text: "👤 معلوماتي", callback_data: "action_my_info" },
+          ],
+        ]
+      );
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
@@ -1233,6 +1559,110 @@ serve(async (req) => {
     const session = await findPendingSession(supabase, riderId);
 
     if (!session) {
+      // ── 🕒 فحص إذا المستخدم ينتظر إدخال تفاصيل حجز مجدول ──
+      if (hasText) {
+        const tgPlatformId = String(telegramUser?.id || chatId);
+        const { data: botCustomer } = await supabase
+          .from("bot_customers")
+          .select("last_intent")
+          .eq("platform", "telegram")
+          .eq("platform_id", tgPlatformId)
+          .maybeSingle();
+
+        if (botCustomer?.last_intent === "awaiting_schedule") {
+          console.log("[telegram] Awaiting schedule — processing scheduled ride request");
+          const userMsgText = message.text;
+          const tgName = telegramUser?.first_name || "عزيزي";
+
+          // مسح الـ intent
+          await supabase.from("bot_customers").update({ last_intent: null })
+            .eq("platform", "telegram").eq("platform_id", tgPlatformId);
+
+          const scheduleDetails = await extractScheduledRideDetails(userMsgText, tgName);
+
+          if (!scheduleDetails.is_valid) {
+            await directSend(chatId, scheduleDetails.error_reply || `عذراً أستاذ ${tgName}، ما فهمت طلبك. جرب كتابة الوجهة والوقت بشكل واضح 🙏`);
+            await supabase.from("bot_customers").update({ last_intent: "awaiting_schedule" })
+              .eq("platform", "telegram").eq("platform_id", tgPlatformId);
+            return new Response("OK", { status: 200, headers: corsHeaders });
+          }
+
+          if (!scheduleDetails.scheduled_time) {
+            await directSend(chatId, `أستاذ ${tgName}، لازم تحدد الوقت والتاريخ! مثال: "غداً الساعة 8 صباحاً من بيتي لجامعة الأنبار" 🕒`);
+            await supabase.from("bot_customers").update({ last_intent: "awaiting_schedule" })
+              .eq("platform", "telegram").eq("platform_id", tgPlatformId);
+            return new Response("OK", { status: 200, headers: corsHeaders });
+          }
+
+          // Geocode الوجهة
+          const dropoffResolved = await resolveRamadiLocation(scheduleDetails.dropoff_query);
+          if (!dropoffResolved) {
+            await directSend(chatId, MESSAGES.geocodeFailed(scheduleDetails.dropoff_query));
+            await supabase.from("bot_customers").update({ last_intent: "awaiting_schedule" })
+              .eq("platform", "telegram").eq("platform_id", tgPlatformId);
+            return new Response("OK", { status: 200, headers: corsHeaders });
+          }
+
+          // Geocode نقطة الانطلاق
+          let pickupLocation = { lat: 33.4233, lng: 43.2974 };
+          let pickupAddress = scheduleDetails.pickup_query || "موقع المستخدم";
+          if (scheduleDetails.pickup_query && scheduleDetails.pickup_query !== "موقع المستخدم") {
+            const pickupResolved = await resolveRamadiLocation(scheduleDetails.pickup_query);
+            if (pickupResolved) {
+              pickupLocation = { lat: pickupResolved.lat, lng: pickupResolved.lng };
+              pickupAddress = pickupResolved.address;
+            }
+          }
+
+          // حساب المسافة والأجرة
+          const distanceKm = haversineDistance(pickupLocation.lat, pickupLocation.lng, dropoffResolved.lat, dropoffResolved.lng);
+          const fare = estimateFare(distanceKm);
+
+          // إنشاء الحجز المجدول
+          const { data: scheduledRide, error: schedError } = await supabase
+            .from("scheduled_rides")
+            .insert({
+              rider_id: riderId,
+              pickup_location: pickupLocation,
+              pickup_address: pickupAddress,
+              dropoff_location: { lat: dropoffResolved.lat, lng: dropoffResolved.lng },
+              dropoff_address: dropoffResolved.address,
+              scheduled_at: scheduleDetails.scheduled_time,
+              vehicle_type: scheduleDetails.vehicle_type,
+              estimated_fare: fare,
+              status: "scheduled",
+              notes: scheduleDetails.notes,
+              trip_type: "telegram",
+            })
+            .select()
+            .single();
+
+          if (schedError) {
+            console.error("[telegram] Failed to create scheduled ride:", schedError);
+            await directSend(chatId, `عذراً أستاذ ${tgName}، حدث خطأ تقني. حاول مرة ثانية ⚠️`);
+            return new Response("OK", { status: 200, headers: corsHeaders });
+          }
+
+          const scheduledDate = new Date(scheduleDetails.scheduled_time);
+          const dateStr = scheduledDate.toLocaleDateString("ar-IQ", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+          const timeStr = scheduledDate.toLocaleTimeString("ar-IQ", { hour: "2-digit", minute: "2-digit" });
+
+          await directSend(chatId,
+            `✅ تم حجز رحلتك المجدولة بنجاح!\n\n` +
+            `📍 من: ${pickupAddress}\n` +
+            `🏁 إلى: ${dropoffResolved.address}\n` +
+            `📅 التاريخ: ${dateStr}\n` +
+            `🕐 الوقت: ${timeStr}\n` +
+            `💰 السعر التقديري: ${fare.toLocaleString()} د.ع\n` +
+            `🔖 رقم الحجز: ${scheduledRide.id.substring(0, 8)}\n\n` +
+            `سنرسل لك تذكير قبل الموعد وننطلق بالبحث عن كابتن قبل 15-30 دقيقة من الموعد إن شاء الله 🚕`
+          );
+
+          console.log(`[telegram] Scheduled ride created: ${scheduledRide.id}`);
+          return new Response("OK", { status: 200, headers: corsHeaders });
+        }
+      }
+
       console.log("[telegram] No pending session — asking for location first");
       await sendWithLocationKeyboard(chatId, MESSAGES.needLocationFirst);
       return new Response("OK", { status: 200, headers: corsHeaders });

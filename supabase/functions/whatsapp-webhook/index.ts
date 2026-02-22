@@ -43,7 +43,7 @@ const MESSAGES = {
     `على راسي أستاذ ${name}! 🚕\nعلمود نحسب لك السعر المضبوط، دز لنا موقعك الحالي بالضغط على الزر الموجود جوة هذه الرسالة 👇`,
 
   locationReceived: (address: string, name?: string) =>
-    `✅ عاشت ايدك${name ? ` أستاذ ${name}` : ""}، حددنا مكانك:\n${address}\n\nهسة دز رسالة صوتية 🎙️ وكول وين تريد تروح؟\nأو اكتب اسم الوجهة بالنص.`,
+    `✅ عاشت ايدك${name ? ` أستاذ ${name}` : ""}، حددنا مكانك في: 📍 ${address}\n\nهسة دز رسالة صوتية 🎙️ وكول وين تريد تروح؟\nأو اكتب اسم الوجهة بالنص.`,
 
   needLocationFirst: `عفواً، لازم تدز موقعك أول شي! 📍\nاضغط على الزر أدناه لمشاركة موقعك 👇`,
 
@@ -749,15 +749,105 @@ async function resolveRamadiLocation(query: string, userLat = 33.4233, userLng =
   return null;
 }
 
-async function reverseGeocode(lat: number, lng: number): Promise<string> {
+/**
+ * استخراج عنوان مختصر (حي + مدينة) من نتائج Google Geocoding
+ * يرجع عنوان مثل: "حي التأميم، الرمادي" أو "شارع المستودع، الرمادي"
+ */
+function extractConciseAddress(results: any[]): string | null {
   try {
-    const params = new URLSearchParams({ latlng: `${lat},${lng}`, key: GOOGLE_MAPS_KEY, language: "ar" });
+    const result = results[0];
+    const components = result.address_components || [];
+
+    // استخراج أجزاء العنوان حسب الأولوية
+    let neighborhood = "";
+    let route = "";
+    let sublocality = "";
+    let locality = "";
+    let adminArea = "";
+
+    for (const comp of components) {
+      const types = comp.types || [];
+      if (types.includes("neighborhood")) neighborhood = comp.long_name;
+      if (types.includes("route")) route = comp.long_name;
+      if (types.includes("sublocality") || types.includes("sublocality_level_1")) sublocality = comp.long_name;
+      if (types.includes("locality")) locality = comp.long_name;
+      if (types.includes("administrative_area_level_1")) adminArea = comp.long_name;
+    }
+
+    const city = locality || adminArea || "الرمادي";
+    // اختيار أفضل وصف للمنطقة: الحي > الشارع > المنطقة الفرعية
+    const area = neighborhood || route || sublocality;
+
+    if (area && city) return `${area}، ${city}`;
+    if (area) return area;
+    if (city) return city;
+
+    // إذا ما لقينا أجزاء مناسبة، نرجع أقصر نتيجة من Google
+    const shortest = results
+      .map((r: any) => r.formatted_address)
+      .filter(Boolean)
+      .sort((a: string, b: string) => a.length - b.length)[0];
+    return shortest || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reverse Geocode محسّن:
+ * 1. Google Maps Geocoding API (عنوان مختصر)
+ * 2. Nominatim/OpenStreetMap كاحتياط مجاني
+ * 3. إحداثيات خام كملاذ أخير
+ */
+async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  // ── المحاولة 1: Google Maps Geocoding API ──
+  try {
+    const params = new URLSearchParams({ latlng: `${lat},${lng}`, key: GOOGLE_MAPS_KEY, language: "ar", result_type: "street_address|neighborhood|sublocality|locality" });
     const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
     const data = await response.json();
-    if (data.status === "OK" && data.results?.[0]) return data.results[0].formatted_address;
+    if (data.status === "OK" && data.results?.length > 0) {
+      const concise = extractConciseAddress(data.results);
+      if (concise) {
+        console.log(`[reverse-geocode] Google concise: ${concise}`);
+        return concise;
+      }
+      // fallback للعنوان الكامل من Google
+      return data.results[0].formatted_address;
+    }
+    console.warn(`[reverse-geocode] Google status: ${data.status}`, data.error_message || "");
   } catch (e) {
-    console.error("[reverse-geocode] Error:", e);
+    console.error("[reverse-geocode] Google error:", e);
   }
+
+  // ── المحاولة 2: Nominatim (OpenStreetMap) مجاني ──
+  try {
+    const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ar&zoom=18`;
+    const response = await fetch(nominatimUrl, {
+      headers: { "User-Agent": "RaanTaxiBot/1.0" },
+    });
+    const data = await response.json();
+    if (data && data.address) {
+      const addr = data.address;
+      const area = addr.neighbourhood || addr.suburb || addr.road || addr.quarter || "";
+      const city = addr.city || addr.town || addr.state || "الرمادي";
+      if (area && city) {
+        console.log(`[reverse-geocode] Nominatim: ${area}، ${city}`);
+        return `${area}، ${city}`;
+      }
+      if (data.display_name) {
+        // أخذ أول جزئين من العنوان
+        const parts = data.display_name.split(",").map((s: string) => s.trim()).filter(Boolean);
+        const short = parts.slice(0, 2).join("، ");
+        console.log(`[reverse-geocode] Nominatim display: ${short}`);
+        return short;
+      }
+    }
+  } catch (e) {
+    console.error("[reverse-geocode] Nominatim error:", e);
+  }
+
+  // ── الملاذ الأخير: إحداثيات خام ──
+  console.warn(`[reverse-geocode] All strategies failed, returning raw coords`);
   return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 }
 
