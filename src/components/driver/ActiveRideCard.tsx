@@ -8,6 +8,7 @@ import { DriverRideCompleted } from "./DriverRideCompleted";
 import { ChatButton } from "@/components/ride/RideChat";
 import { DriverEmergencyButton } from "./DriverEmergencyButton";
 import { logger } from "@/lib/logger";
+import { useDriverLocationSync } from "@/hooks/useDriverLocationSync";
 import { roundFare } from "@/lib/constants";
 import FareBreakdownCard from "@/components/driver/FareBreakdownCard";
 import {
@@ -159,6 +160,14 @@ export const ActiveRideCard = ({
 
   // Broadcast channel for driver-rider communication
   const broadcastChannel = useRef<any>(null);
+
+  // ═══ مزامنة الموقع المباشر لصفحة التتبع العامة ═══
+  useDriverLocationSync({
+    rideId: activeRide?.id ?? null,
+    driverId,
+    driverLocation: driverLocation ?? null,
+    isActive: !!activeRide && ['accepted', 'arrived', 'in_progress'].includes(activeRide.status),
+  });
 
   // ═══ GPS Tracking for Hybrid Pricing ═══
   const trackingPointsRef = useRef<Array<{ lat: number; lng: number; recorded_at: string; speed?: number; heading?: number; accuracy?: number }>>([]);

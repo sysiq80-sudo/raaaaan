@@ -23,6 +23,7 @@ const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const GOOGLE_MAPS_KEY = Deno.env.get("GOOGLE_MAPS_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SITE_URL = Deno.env.get("SITE_URL") || "https://rfrfrde.netlify.app";
 
 const GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/messages`;
 
@@ -163,6 +164,43 @@ async function sendInteractiveButtons(
     console.log(`[wa] sendButtons (${res.status}): ${result.substring(0, 300)}`);
   } catch (e) {
     console.error("[wa] sendInteractiveButtons failed:", e);
+  }
+}
+
+// ════════════════════════════════════════
+// WhatsApp Cloud API: إرسال قائمة تفاعلية (List Message)
+// ════════════════════════════════════════
+async function sendListMessage(
+  to: string,
+  bodyText: string,
+  buttonText: string,
+  sections: Array<{ title: string; rows: Array<{ id: string; title: string; description?: string }> }>
+) {
+  try {
+    const res = await fetch(GRAPH_API, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "interactive",
+        interactive: {
+          type: "list",
+          body: { text: bodyText },
+          action: {
+            button: buttonText,
+            sections,
+          },
+        },
+      }),
+    });
+    const result = await res.text();
+    console.log(`[wa] sendListMessage (${res.status}): ${result.substring(0, 300)}`);
+  } catch (e) {
+    console.error("[wa] sendListMessage failed:", e);
   }
 }
 
@@ -430,6 +468,95 @@ async function classifyAndRespond(
   } catch (err) {
     console.error("[classify] Error:", err);
     return { intent: "unknown", reply: `عذراً أستاذ ${userName}، ممكن توضح طلبك أكثر؟ 🙏`, destination_hint: null };
+  }
+}
+
+// ════════════════════════════════════════
+// 🕒 GPT-4o: استخراج تفاصيل الحجز المجدول
+// ════════════════════════════════════════
+interface ScheduledRideDetails {
+  pickup_query: string;
+  dropoff_query: string;
+  scheduled_time: string | null; // ISO format
+  vehicle_type: "economy" | "comfort" | "premium" | "women_only";
+  notes: string | null;
+  is_valid: boolean;
+  error_reply: string | null;
+}
+
+async function extractScheduledRideDetails(userText: string, userName: string): Promise<ScheduledRideDetails> {
+  const now = new Date().toISOString();
+  const systemPrompt = `You are 'Raan' (ران), a polite Iraqi taxi dispatcher bot in Ramadi, Al Anbar, Iraq.
+User Name: ${userName}
+Current Time: ${now}
+
+The user wants to schedule a future ride. Extract:
+1. **pickup_query**: Where they want to be picked up (Arabic place name). If they say "بيتي" or "من عندي", return "موقع المستخدم" — they will share GPS later.
+2. **dropoff_query**: Where they want to go (Arabic place name).
+3. **scheduled_time**: The EXACT date+time in ISO 8601 format (Baghdad timezone UTC+3). Parse relative times:
+   - "غداً الساعة 8 صباحاً" → tomorrow at 05:00 UTC (08:00 Baghdad)
+   - "بعد ساعتين" → current time + 2 hours
+   - "الخميس 3 العصر" → next Thursday at 12:00 UTC (15:00 Baghdad)
+   If no time is given, set to null.
+4. **vehicle_type**: فخمة/فاخرة → premium, مريحة → comfort, نسائي → women_only, otherwise "economy".
+5. **notes**: Any extra info.
+6. **is_valid**: true if both pickup and dropoff are extractable. false if message is too vague.
+7. **error_reply**: If is_valid is false, provide a polite Iraqi dialect error asking for clarification.
+
+Respond in JSON ONLY:
+{
+  "pickup_query": "",
+  "dropoff_query": "",
+  "scheduled_time": null,
+  "vehicle_type": "economy",
+  "notes": null,
+  "is_valid": true,
+  "error_reply": null
+}`;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userText },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+        max_tokens: 400,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[schedule] GPT-4o error: ${response.status}`);
+      return { pickup_query: "", dropoff_query: "", scheduled_time: null, vehicle_type: "economy", notes: null, is_valid: false, error_reply: `عذراً أستاذ ${userName}، ما فهمت طلبك. جرب مرة ثانية 🙏` };
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+      return { pickup_query: "", dropoff_query: "", scheduled_time: null, vehicle_type: "economy", notes: null, is_valid: false, error_reply: `عذراً أستاذ ${userName}، ما فهمت طلبك. جرب مرة ثانية 🙏` };
+    }
+
+    const parsed = JSON.parse(content);
+    return {
+      pickup_query: parsed.pickup_query || "",
+      dropoff_query: parsed.dropoff_query || "",
+      scheduled_time: parsed.scheduled_time || null,
+      vehicle_type: parsed.vehicle_type || "economy",
+      notes: parsed.notes || null,
+      is_valid: parsed.is_valid !== false,
+      error_reply: parsed.error_reply || null,
+    };
+  } catch (err) {
+    console.error("[schedule] Error:", err);
+    return { pickup_query: "", dropoff_query: "", scheduled_time: null, vehicle_type: "economy", notes: null, is_valid: false, error_reply: `عذراً أستاذ ${userName}، حدث خطأ تقني. حاول مرة ثانية ⚠️` };
   }
 }
 
@@ -920,12 +1047,14 @@ serve(async (req) => {
     // ═══════════════════════════════════
     if (msgType === "interactive") {
       const buttonReply = message.interactive?.button_reply;
-      if (!buttonReply) {
+      const listReply = message.interactive?.list_reply;
+
+      if (!buttonReply && !listReply) {
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
-      const buttonId = buttonReply.id;
-      console.log(`[wa] Button press: ${buttonId}`);
+      const buttonId = buttonReply?.id || listReply?.id;
+      console.log(`[wa] Interactive reply: ${buttonId}`);
 
       // ── قائمة الترحيب: حجز رحلة ──
       if (buttonId === "action_book_ride") {
@@ -938,6 +1067,111 @@ serve(async (req) => {
       if (buttonId === "action_inquiry") {
         const userName = profileName || "عزيزي";
         await sendTextMessage(phoneNumber, MESSAGES.inquiryPrompt(userName));
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── قائمة الترحيب: خيارات أخرى (قائمة تفاعلية) ──
+      if (buttonId === "action_other_options") {
+        const userName = profileName || "عزيزي";
+        await sendListMessage(
+          phoneNumber,
+          `أستاذ ${userName}، اختر من القائمة 👇`,
+          "📋 عرض الخيارات",
+          [
+            {
+              title: "خدمات إضافية",
+              rows: [
+                { id: "action_scheduled_ride", title: "🗓️ حجز مجدول", description: "احجز رحلة بوقت محدد" },
+                { id: "action_my_rides", title: "🚕 رحلاتي السابقة", description: "عرض سجل رحلاتك" },
+                { id: "action_my_balance", title: "💰 رصيدي", description: "معرفة رصيدك الحالي" },
+                { id: "action_my_info", title: "👤 معلوماتي", description: "عرض وتعديل بياناتك" },
+              ],
+            },
+          ]
+        );
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── قائمة الخيارات: حجز مجدول ──
+      if (buttonId === "action_scheduled_ride") {
+        const userName = profileName || "عزيزي";
+        // حفظ حالة المستخدم كـ awaiting_schedule
+        await supabase.from("bot_customers").update({
+          last_intent: "awaiting_schedule",
+        }).eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+
+        await sendTextMessage(phoneNumber,
+          `ممتاز أستاذ ${userName}! 🕒\n\nأرسل لي موقعك والوجهة والوقت والتاريخ الذي تريد فيه السيارة.\n\n*مثال:* غداً الساعة 8 صباحاً من بيتي لجامعة الأنبار\n\nأو دز موقعك أول شي ثم اكتب الوجهة والوقت 📍`
+        );
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── قائمة الخيارات: رحلاتي السابقة ──
+      if (buttonId === "action_my_rides") {
+        const userName = profileName || "عزيزي";
+        const riderId = await findOrCreateWhatsAppUser(supabase, phoneNumber, profileName);
+        const { data: rides } = await supabase
+          .from("rides")
+          .select("id, pickup_address, dropoff_address, status, estimated_fare, created_at")
+          .eq("rider_id", riderId)
+          .eq("status", "completed")
+          .order("created_at", { ascending: false })
+          .limit(3);
+
+        if (!rides || rides.length === 0) {
+          await sendTextMessage(phoneNumber, `لم تقم بأي رحلة معنا حتى الآن! 🚕`);
+        } else {
+          let msg = `🚕 *آخر رحلاتك يا أستاذ ${userName}:*\n\n`;
+          rides.forEach((r, i) => {
+            msg += `${i + 1}. من ${r.pickup_address || "—"} إلى ${r.dropoff_address || "—"} | السعر: ${r.estimated_fare?.toLocaleString() || "—"} د.ع ✅\n\n`;
+          });
+          await sendTextMessage(phoneNumber, msg);
+        }
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── قائمة الخيارات: رصيدي ──
+      if (buttonId === "action_my_balance") {
+        const userName = profileName || "عزيزي";
+        const riderId = await findOrCreateWhatsAppUser(supabase, phoneNumber, profileName);
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("wallet_balance")
+          .eq("id", riderId)
+          .maybeSingle();
+
+        const balance = profile?.wallet_balance ?? 0;
+        await sendTextMessage(phoneNumber, `رصيدك الحالي في محفظة ران هو: *${balance.toLocaleString()} دينار عراقي* 💰`);
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── قائمة الخيارات: معلوماتي ──
+      if (buttonId === "action_my_info") {
+        const userName = profileName || "عزيزي";
+        const riderId = await findOrCreateWhatsAppUser(supabase, phoneNumber, profileName);
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, phone, created_at")
+          .eq("id", riderId)
+          .maybeSingle();
+
+        // عدد الرحلات المكتملة
+        const { count: ridesCount } = await supabase
+          .from("rides")
+          .select("id", { count: "exact", head: true })
+          .eq("rider_id", riderId)
+          .eq("status", "completed");
+
+        if (profile) {
+          await sendTextMessage(phoneNumber,
+            `ملفك الشخصي 👤:\n\n` +
+            `الاسم: ${profile.full_name || profileName || "غير محدد"}\n` +
+            `رقم الهاتف: ${profile.phone || phoneNumber}\n` +
+            `إجمالي رحلاتك: ${ridesCount ?? 0} رحلة 🚕`
+          );
+        } else {
+          await sendTextMessage(phoneNumber, `أستاذ ${userName}، ما كدرنا نجيب معلوماتك حالياً. حاول مرة ثانية ⚠️`);
+        }
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
@@ -1047,8 +1281,9 @@ serve(async (req) => {
         phoneNumber,
         MESSAGES.welcomeMenu(userName),
         [
-          { id: "action_book_ride", title: "🚕 حجز رحلة" },
-          { id: "action_inquiry", title: "💬 استفسار أو شكوى" },
+          { id: "action_book_ride", title: "🚕 حجز رحلة الان" },
+          { id: "action_inquiry", title: "💬 استفسار سريع" },
+          { id: "action_other_options", title: "📋 المزيد" },
         ]
       );
       return new Response("EVENT_RECEIVED", { status: 200 });
@@ -1074,8 +1309,9 @@ serve(async (req) => {
           phoneNumber,
           MESSAGES.welcomeMenu(userName),
           [
-            { id: "action_book_ride", title: "🚕 حجز رحلة" },
-            { id: "action_inquiry", title: "💬 استفسار أو شكوى" },
+            { id: "action_book_ride", title: "🚕 حجز رحلة الان" },
+            { id: "action_inquiry", title: "💬 استفسار سريع" },
+            { id: "action_other_options", title: "📋 المزيد" },
           ]
         );
         return new Response("EVENT_RECEIVED", { status: 200 });
@@ -1102,7 +1338,20 @@ serve(async (req) => {
       } else {
         const statusText = activeRide.status === "accepted" ? "الكابتن في الطريق إليك" :
                           activeRide.status === "arrived" ? "الكابتن وصل" : "الرحلة جارية";
-        await sendTextMessage(phoneNumber, MESSAGES.activeRideWithDriver(statusText));
+        
+        // إنشاء رابط تتبع مباشر للرحلة النشطة
+        let trackingLine = "";
+        try {
+          const { data: token } = await supabase
+            .rpc("generate_ride_tracking_token", { p_ride_id: activeRide.id });
+          if (token) {
+            trackingLine = `\n\n📍 تتبع الكابتن مباشرة:\n${SITE_URL}/track/${token}`;
+          }
+        } catch (e) {
+          console.warn("[wa] Failed to generate tracking link:", e);
+        }
+        
+        await sendTextMessage(phoneNumber, MESSAGES.activeRideWithDriver(statusText) + trackingLine);
       }
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
@@ -1111,9 +1360,113 @@ serve(async (req) => {
     const session = await findPendingSession(supabase, riderId);
 
     if (!session) {
-      // لا يوجد session — استخدم الذكاء الاصطناعي لتصنيف النية
+      // لا يوجد session — تحقق من intent حجز مجدول أو صنف النية
       const userName = profileName || "عزيزي";
 
+      // ── 🕒 فحص إذا المستخدم ينتظر إدخال تفاصيل حجز مجدول ──
+      if (hasText) {
+        const { data: botCustomer } = await supabase
+          .from("bot_customers")
+          .select("last_intent")
+          .eq("platform", "whatsapp")
+          .eq("platform_id", phoneNumber)
+          .maybeSingle();
+
+        if (botCustomer?.last_intent === "awaiting_schedule") {
+          console.log("[wa] Awaiting schedule — processing scheduled ride request");
+          const userMsgText = message.text.body;
+
+          // مسح الـ intent
+          await supabase.from("bot_customers").update({ last_intent: null })
+            .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+
+          const scheduleDetails = await extractScheduledRideDetails(userMsgText, userName);
+
+          if (!scheduleDetails.is_valid) {
+            await sendTextMessage(phoneNumber, scheduleDetails.error_reply || `عذراً أستاذ ${userName}، ما فهمت طلبك. جرب كتابة الوجهة والوقت بشكل واضح 🙏`);
+            // أعد الـ intent
+            await supabase.from("bot_customers").update({ last_intent: "awaiting_schedule" })
+              .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+            return new Response("EVENT_RECEIVED", { status: 200 });
+          }
+
+          if (!scheduleDetails.scheduled_time) {
+            await sendTextMessage(phoneNumber, `أستاذ ${userName}، لازم تحدد الوقت والتاريخ! مثال: "غداً الساعة 8 صباحاً من بيتي لجامعة الأنبار" 🕒`);
+            await supabase.from("bot_customers").update({ last_intent: "awaiting_schedule" })
+              .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+            return new Response("EVENT_RECEIVED", { status: 200 });
+          }
+
+          // Geocode الوجهة
+          const dropoffResolved = await resolveRamadiLocation(scheduleDetails.dropoff_query);
+          if (!dropoffResolved) {
+            await sendTextMessage(phoneNumber, MESSAGES.geocodeFailed(scheduleDetails.dropoff_query, userName));
+            await supabase.from("bot_customers").update({ last_intent: "awaiting_schedule" })
+              .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+            return new Response("EVENT_RECEIVED", { status: 200 });
+          }
+
+          // Geocode نقطة الانطلاق (إذا موجودة)
+          let pickupLocation = { lat: 33.4233, lng: 43.2974 }; // وسط الرمادي كافتراضي
+          let pickupAddress = scheduleDetails.pickup_query || "موقع المستخدم";
+          if (scheduleDetails.pickup_query && scheduleDetails.pickup_query !== "موقع المستخدم") {
+            const pickupResolved = await resolveRamadiLocation(scheduleDetails.pickup_query);
+            if (pickupResolved) {
+              pickupLocation = { lat: pickupResolved.lat, lng: pickupResolved.lng };
+              pickupAddress = pickupResolved.address;
+            }
+          }
+
+          // حساب المسافة والأجرة
+          const distanceKm = haversineDistance(pickupLocation.lat, pickupLocation.lng, dropoffResolved.lat, dropoffResolved.lng);
+          const fare = estimateFare(distanceKm);
+
+          // إنشاء الحجز المجدول
+          const { data: scheduledRide, error: schedError } = await supabase
+            .from("scheduled_rides")
+            .insert({
+              rider_id: riderId,
+              pickup_location: pickupLocation,
+              pickup_address: pickupAddress,
+              dropoff_location: { lat: dropoffResolved.lat, lng: dropoffResolved.lng },
+              dropoff_address: dropoffResolved.address,
+              scheduled_at: scheduleDetails.scheduled_time,
+              vehicle_type: scheduleDetails.vehicle_type,
+              estimated_fare: fare,
+              status: "scheduled",
+              notes: scheduleDetails.notes,
+              trip_type: "whatsapp",
+            })
+            .select()
+            .single();
+
+          if (schedError) {
+            console.error("[wa] Failed to create scheduled ride:", schedError);
+            await sendTextMessage(phoneNumber, `عذراً أستاذ ${userName}، حدث خطأ تقني. حاول مرة ثانية ⚠️`);
+            return new Response("EVENT_RECEIVED", { status: 200 });
+          }
+
+          const scheduledDate = new Date(scheduleDetails.scheduled_time);
+          const dateStr = scheduledDate.toLocaleDateString("ar-IQ", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+          const timeStr = scheduledDate.toLocaleTimeString("ar-IQ", { hour: "2-digit", minute: "2-digit" });
+
+          await sendTextMessage(phoneNumber,
+            `✅ *تم حجز رحلتك المجدولة بنجاح!*\n\n` +
+            `📍 *من:* ${pickupAddress}\n` +
+            `🏁 *إلى:* ${dropoffResolved.address}\n` +
+            `📅 *التاريخ:* ${dateStr}\n` +
+            `🕐 *الوقت:* ${timeStr}\n` +
+            `💰 *السعر التقديري:* ${fare.toLocaleString()} د.ع\n` +
+            `🔖 *رقم الحجز:* ${scheduledRide.id.substring(0, 8)}\n\n` +
+            `سنرسل لك تذكير قبل الموعد وننطلق بالبحث عن كابتن قبل 15-30 دقيقة من الموعد إن شاء الله 🚕`
+          );
+
+          console.log(`[wa] Scheduled ride created: ${scheduledRide.id}`);
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+      }
+
+      // ── لا يوجد session ولا awaiting_schedule — استخدم الذكاء الاصطناعي لتصنيف النية ──
       if (hasText) {
         const userMsgText = message.text.body;
         console.log(`[wa] No session, classifying: "${userMsgText}"`);
@@ -1129,8 +1482,9 @@ serve(async (req) => {
             phoneNumber,
             MESSAGES.welcomeMenu(userName),
             [
-              { id: "action_book_ride", title: "🚕 حجز رحلة" },
-              { id: "action_inquiry", title: "💬 استفسار أو شكوى" },
+              { id: "action_book_ride", title: "🚕 حجز رحلة الان" },
+              { id: "action_inquiry", title: "💬 استفسار سريع" },
+              { id: "action_other_options", title: "📋 المزيد" },
             ]
           );
         } else {

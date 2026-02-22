@@ -19,6 +19,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SITE_URL = Deno.env.get("SITE_URL") || "https://rfrfrde.netlify.app";
 
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
 
@@ -129,11 +130,24 @@ serve(async (req: Request) => {
     }
 
     // ══════════════════════════════════
-    // 1️⃣ accepted — تم قبول الطلب
+    // 1️⃣ accepted — تم قبول الطلب + رابط التتبع المباشر
     // ══════════════════════════════════
     if (new_status === "accepted" && driver_id) {
       const driver = await fetchDriverDetails(supabase, driver_id);
       const eta = driver?.eta ?? 5;
+
+      // إنشاء رابط التتبع المباشر
+      let trackingLine = "";
+      try {
+        const { data: token } = await supabase
+          .rpc("generate_ride_tracking_token", { p_ride_id: ride_id });
+        if (token) {
+          const trackingUrl = `${SITE_URL}/track/${token}`;
+          trackingLine = `\n\n📍 <b>تتبع الرحلة مباشرة:</b>\n${trackingUrl}`;
+        }
+      } catch (e) {
+        console.warn("[RideUpdates] Failed to generate tracking link:", e);
+      }
 
       await sendMessage(
         chatId,
@@ -141,7 +155,8 @@ serve(async (req: Request) => {
           `👤 الكابتن: <b>${driver?.full_name ?? "غير معروف"}</b>\n` +
           `🚗 السيارة: ${driver?.vehicle_model ?? "—"} - ${driver?.vehicle_color ?? "—"} (${driver?.vehicle_plate ?? "—"})\n\n` +
           `⏳ وقت الوصول: خلال <b>${eta} دقائق</b> تقريباً.\n` +
-          `خليك جاهز.. الكابتن بالطريق!`
+          `خليك جاهز.. الكابتن بالطريق!` +
+          trackingLine
       );
 
       return jsonOk({ sent: "accepted" });

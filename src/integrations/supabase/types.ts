@@ -481,6 +481,47 @@ export type Database = {
           },
         ]
       }
+      driver_live_locations: {
+        Row: {
+          id: string
+          ride_id: string
+          driver_id: string
+          location: { lat: number; lng: number }
+          heading: number | null
+          speed: number | null
+          updated_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          ride_id: string
+          driver_id: string
+          location: { lat: number; lng: number }
+          heading?: number | null
+          speed?: number | null
+          updated_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          ride_id?: string
+          driver_id?: string
+          location?: { lat: number; lng: number }
+          heading?: number | null
+          speed?: number | null
+          updated_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_live_locations_ride_id_fkey"
+            columns: ["ride_id"]
+            isOneToOne: true
+            referencedRelation: "rides"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       driver_edit_requests: {
         Row: {
           admin_notes: string | null
