@@ -3,7 +3,7 @@
 # ران RAAN - الوثيقة المرجعية الشاملة
 
 **آخر تحديث:** 2026-02-23  
-**الإصدار:** 1.3.0  
+**الإصدار:** 1.4.0  
 **المُنشئ:** نظام التطوير الذكي
 
 ---
@@ -467,6 +467,19 @@ stateDiagram-v2
 ---
 
 ## 12. سجل التغييرات
+
+### 2026-02-23 (v1.4.0) — Ride Acceptance Notification & In-Ride Relay Chat
+
+| النوع | التغيير | السبب |
+|-------|---------|-------|
+| **ميزة** | **إشعار قبول الرحلة الفوري (DB Trigger → Edge Function)** | **عند تغيير حالة الرحلة من `pending` → `accepted`، يُرسل إشعار تلقائي للراكب عبر واتساب/تيليغرام بتفاصيل الكابتن + رابط التتبع** |
+| **ميزة** | **نظام ترحيل الدردشة (In-Ride Relay Chat)** | **الراكب يرسل رسالة نصية/صوتية عبر البوت ← تُدخل في `ride_messages` ← تظهر في تطبيق السائق عبر Realtime** |
+| **ميزة** | **ترحيل رسائل السائق للراكب** | **السائق يرد من التطبيق ← DB Trigger على `ride_messages` ← Edge Function `relay-chat-message` ← يُرسل للراكب عبر واتساب/تيليغرام** |
+| **ميزة** | **Edge Function `relay-chat-message`** | **وظيفة جديدة لترحيل رسائل السائق من التطبيق للراكب على واتساب/تيليغرام** |
+| **ميزة** | **DB Trigger `relay_ride_message_trigger`** | **يستمع لـ INSERT على `ride_messages` ويُفعّل الترحيل عندما يكون `sender_type='driver'` والرحلة من بوت** |
+| **تحسين** | **تحديث WhatsApp webhook — دعم الدردشة أثناء الرحلة** | **عند وجود رحلة نشطة (accepted/arrived/in_progress) الرسائل تُرحّل للسائق بدل الذهاب لـ AI** |
+| **تحسين** | **تحديث Telegram webhook — دعم الدردشة أثناء الرحلة** | **نفس المنطق: رسائل نصية/صوتية تُرحّل مباشرة للسائق عبر `ride_messages`** |
+| **تحسين** | **نشر وتفعيل 5 Edge Functions** | **relay-chat-message, whatsapp-webhook, telegram-ai-booking, whatsapp-ride-updates, telegram-ride-updates** |
 
 ### 2026-02-23 (v1.3.0) — Performance & Admin Fix
 

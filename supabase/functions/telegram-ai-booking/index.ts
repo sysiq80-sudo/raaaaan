@@ -1459,7 +1459,7 @@ serve(async (req) => {
     }
 
     // ═══════════════════════════════════
-    // 🧠 ذاكرة الرحلة النشطة — هل المستخدم في رحلة؟
+    // 🧠 ذاكرة الرحلة النشطة + ترحيل الدردشة
     // ═══════════════════════════════════
     {
       const telegramRef = `tg_${telegramUser?.id || chatId}`;
@@ -1500,12 +1500,52 @@ serve(async (req) => {
               ]
             );
           } else {
-            // رحلة نشطة مع سائق
-            await directSend(
-              chatId,
-              "🚕 لديك رحلة نشطة حالياً مع الكابتن. الرجاء إتمامها أولاً.\n" +
-              `📍 الحالة: ${activeRide.status === "accepted" ? "الكابتن في الطريق إليك" : activeRide.status === "arrived" ? "الكابتن وصل" : "الرحلة جارية"}`
-            );
+            // ═══════════════════════════════════════════════════════
+            // 💬 ترحيل الدردشة — الراكب يرسل رسالة للسائق عبر البوت
+            // الحالات: accepted / arrived / in_progress
+            // ═══════════════════════════════════════════════════════
+            let userMessageText = "";
+
+            // استخراج النص (نص عادي أو صوت مُحوّل)
+            if (message.text && message.text !== "/start") {
+              userMessageText = message.text;
+            } else if (message.voice) {
+              try {
+                const audioBytes = await downloadTelegramFile(message.voice.file_id);
+                const mimeType = message.voice.mime_type || "audio/ogg";
+                userMessageText = await transcribeAudio(audioBytes, mimeType);
+              } catch (e) {
+                console.warn("[telegram] Audio transcription failed for relay:", e);
+              }
+            }
+
+            if (userMessageText && userMessageText.trim().length > 0) {
+              // إدراج الرسالة في ride_messages (service_role يتجاوز RLS)
+              const { error: msgError } = await supabase
+                .from("ride_messages")
+                .insert({
+                  ride_id: activeRide.id,
+                  sender_id: existingProfile.user_id,
+                  sender_type: "rider",
+                  message: userMessageText.trim(),
+                });
+
+              if (msgError) {
+                console.error("[telegram] Failed to insert ride_message:", msgError.message);
+                await directSend(chatId, "⚠️ عذراً، لم نتمكن من إرسال رسالتك للكابتن. حاول مرة أخرى.");
+              } else {
+                console.log(`[telegram] Relay message inserted for ride ${activeRide.id}`);
+                await directSend(chatId, "✅ تم إرسال رسالتك للكابتن.");
+              }
+            } else {
+              // لم يتم استخراج نص — عرض حالة الرحلة
+              await directSend(
+                chatId,
+                "🚕 لديك رحلة نشطة حالياً مع الكابتن.\n" +
+                `📍 الحالة: ${activeRide.status === "accepted" ? "الكابتن في الطريق إليك" : activeRide.status === "arrived" ? "الكابتن وصل" : "الرحلة جارية"}\n\n` +
+                "💬 يمكنك إرسال رسالة نصية أو صوتية للكابتن مباشرة من هنا."
+              );
+            }
           }
 
           return new Response("OK", { status: 200, headers: corsHeaders });

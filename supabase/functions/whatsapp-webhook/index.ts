@@ -1411,12 +1411,13 @@ serve(async (req) => {
     // ── فحص إذا المستخدم موجود ──
     const riderId = await findOrCreateWhatsAppUser(supabase, phoneNumber, profileName);
 
-    // ── 🧠 ذاكرة الرحلة النشطة ──
+    // ── 🧠 ذاكرة الرحلة النشطة + ترحيل الدردشة ──
     const activeRide = await checkActiveRide(supabase, riderId);
     if (activeRide) {
       console.log(`[wa] Active ride: ${activeRide.id} (${activeRide.status})`);
 
       if (activeRide.status === "pending") {
+        // رحلة منتظرة — عرض خيار الإلغاء
         await sendInteractiveButtons(
           phoneNumber,
           MESSAGES.activeRidePending(activeRide.pickup_address || "موقعك", activeRide.dropoff_address || "الوجهة"),
@@ -1426,22 +1427,62 @@ serve(async (req) => {
           ]
         );
       } else {
-        const statusText = activeRide.status === "accepted" ? "الكابتن في الطريق إليك" :
-                          activeRide.status === "arrived" ? "الكابتن وصل" : "الرحلة جارية";
-        
-        // إنشاء رابط تتبع مباشر للرحلة النشطة
-        let trackingLine = "";
-        try {
-          const { data: token } = await supabase
-            .rpc("generate_ride_tracking_token", { p_ride_id: activeRide.id });
-          if (token) {
-            trackingLine = `\n\n📍 تتبع الكابتن مباشرة:\n${SITE_URL}/track/${token}`;
+        // ═══════════════════════════════════════════════════════
+        // 💬 ترحيل الدردشة — الراكب يرسل رسالة للسائق عبر البوت
+        // الحالات: accepted / arrived / in_progress
+        // ═══════════════════════════════════════════════════════
+        let userMessageText = "";
+
+        // استخراج النص (نص عادي أو صوت مُحوّل)
+        if (hasText) {
+          userMessageText = message.text.body;
+        } else if (hasAudio) {
+          try {
+            const mediaUrl = await downloadWhatsAppMedia(message.audio?.id || message.voice?.id);
+            if (mediaUrl) {
+              userMessageText = await transcribeAudio(mediaUrl);
+            }
+          } catch (e) {
+            console.warn("[wa] Audio transcription failed for relay:", e);
           }
-        } catch (e) {
-          console.warn("[wa] Failed to generate tracking link:", e);
         }
-        
-        await sendTextMessage(phoneNumber, MESSAGES.activeRideWithDriver(statusText) + trackingLine);
+
+        if (userMessageText && userMessageText.trim().length > 0) {
+          // إدراج الرسالة في ride_messages (service_role يتجاوز RLS)
+          const { error: msgError } = await supabase
+            .from("ride_messages")
+            .insert({
+              ride_id: activeRide.id,
+              sender_id: riderId,
+              sender_type: "rider",
+              message: userMessageText.trim(),
+            });
+
+          if (msgError) {
+            console.error("[wa] Failed to insert ride_message:", msgError.message);
+            await sendTextMessage(phoneNumber, "⚠️ عذراً، لم نتمكن من إرسال رسالتك للكابتن. حاول مرة أخرى.");
+          } else {
+            console.log(`[wa] Relay message inserted for ride ${activeRide.id}`);
+            await sendTextMessage(phoneNumber, "✅ تم إرسال رسالتك للكابتن.");
+          }
+        } else {
+          // لم يتم استخراج نص — عرض حالة الرحلة كالمعتاد
+          const statusText = activeRide.status === "accepted" ? "الكابتن في الطريق إليك" :
+                            activeRide.status === "arrived" ? "الكابتن وصل" : "الرحلة جارية";
+
+          let trackingLine = "";
+          try {
+            const { data: token } = await supabase
+              .rpc("generate_ride_tracking_token", { p_ride_id: activeRide.id });
+            if (token) {
+              trackingLine = `\n\n📍 تتبع الكابتن مباشرة:\n${SITE_URL}/track/${token}`;
+            }
+          } catch (e) {
+            console.warn("[wa] Failed to generate tracking link:", e);
+          }
+
+          await sendTextMessage(phoneNumber, MESSAGES.activeRideWithDriver(statusText) + trackingLine);
+        }
       }
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
