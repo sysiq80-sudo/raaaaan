@@ -2,8 +2,8 @@
 
 # ران RAAN - الوثيقة المرجعية الشاملة
 
-**آخر تحديث:** 2026-02-23  
-**الإصدار:** 1.5.0  
+**آخر تحديث:** 2026-02-24  
+**الإصدار:** 1.5.1  
 **المُنشئ:** نظام التطوير الذكي
 
 ---
@@ -467,6 +467,15 @@ stateDiagram-v2
 ---
 
 ## 12. سجل التغييرات
+
+### 2026-02-24 (v1.5.1) — Secrets Auto-Migration (ENV → DB)
+
+| النوع | التغيير | السبب |
+|-------|---------|-------|
+| **ميزة** | **Edge Function `migrate-secrets-to-db` — ترحيل تلقائي للأسرار** | **وظيفة مؤقتة تقرأ جميع مفاتيح API من `Deno.env.get()` وتكتبها في جدول `system_configs` عبر UPSERT — نُفذت مرة واحدة لتعبئة لوحة "ران المطور"** |
+| **ترحيل** | **16 مفتاح نُسخت تلقائياً من ENV إلى DB** | **WhatsApp (3)، Telegram (1)، OpenAI (1)، Google Maps (1)، Mapbox (1)، Supabase Core (3)، DeepSeek (1)، Captain Bot (1)، OTP/SMS (1)، Nass Payment (3)** |
+| **تحسين** | **تعبئة SITE_URL و GOOGLE_MAPS_API_KEY يدوياً** | **SITE_URL = `https://rfrfrde.netlify.app`، GOOGLE_MAPS_API_KEY نُسخ من GOOGLE_MAPS_KEY — المجموع النهائي: 18 مفتاح معبأ من 27** |
+| **ملاحظة** | **9 مفاتيح فارغة (منصات غير مفعلة بعد)** | **Instagram (2)، Messenger (2)، TikTok (2)، X/Twitter (3) — ستُعبأ عند تفعيل هذه المنصات** |
 
 ### 2026-02-23 (v1.5.0) — Raan Developer Hub: Card/Grid UI & Total Secrets Migration
 
