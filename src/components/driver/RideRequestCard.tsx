@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { logger } from "@/lib/logger";
 import { roundFare } from "@/lib/constants";
 import { playNotificationSound } from "@/lib/audioContext";
+import { stopRideAlert } from "@/lib/loudAlerts";
 import {
   MapPin,
   Clock,
@@ -593,35 +594,35 @@ export const RideRequestCard = ({
               </div>
             </div>
 
-            {/* Action buttons */}
-            <div className="flex gap-2 mt-3 pt-2 border-t border-white/20">
+            {/* Action buttons — أزرار كبيرة للمس */}
+            <div className="flex gap-3 mt-3 pt-3 border-t border-white/20">
               <Button
                 variant="ghost"
-                className="flex-1 h-8 text-xs bg-red-400 hover:bg-red-500 text-white rounded-lg"
-                onClick={handleReject}
+                className="flex-1 h-14 text-base font-bold bg-red-500/90 hover:bg-red-600 active:bg-red-700 text-white rounded-xl min-w-[120px] touch-manipulation"
+                onClick={() => { stopRideAlert(); handleReject(); }}
                 disabled={loading}
               >
                 {loading && actionType === "reject" ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    <X className="w-3 h-3 mr-1" />
+                    <X className="w-5 h-5 ml-2" />
                     تخطي
                   </>
                 )}
               </Button>
 
               <Button
-                className="flex-1 h-8 text-xs bg-white text-primary hover:bg-white/90 rounded-lg font-bold"
-                onClick={handleAccept}
+                className="flex-[2] h-14 text-base font-bold bg-white text-primary hover:bg-white/90 active:bg-white/80 rounded-xl min-w-[160px] touch-manipulation shadow-lg"
+                onClick={() => { stopRideAlert(); handleAccept(); }}
                 disabled={loading}
               >
                 {loading && actionType === "accept" ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    <Check className="w-3 h-3 mr-1" />
-                    قبول
+                    <Check className="w-5 h-5 ml-2" />
+                    قبول الرحلة
                   </>
                 )}
               </Button>

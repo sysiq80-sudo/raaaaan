@@ -22,6 +22,8 @@ import { FloatingTripBubble } from "@/components/driver/FloatingTripBubble";
 import { ExternalNavigationModal } from "@/components/driver/ExternalNavigationModal";
 import DriverSideMenu from "@/components/driver/DriverSideMenu";
 import { initAudioContext, cleanupAudioContext } from "@/lib/audioContext";
+import { useWakeLock } from "@/hooks/useWakeLock";
+import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
 import logo from "@/assets/logo.png";
 import {
   Menu,
@@ -29,6 +31,9 @@ import {
   LogOut,
   Gift,
   Bell,
+  Smartphone,
+  Lock,
+  LockOpen,
 } from "lucide-react";
 
 const DriverHome = () => {
@@ -76,6 +81,9 @@ const DriverHome = () => {
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [adminActivated, setAdminActivated] = useState(true);
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
+
+  // 🔒 قفل الشاشة — يمنع إطفاء الشاشة أثناء القيادة
+  const { isWakeLockActive, requestWakeLock, releaseWakeLock } = useWakeLock();
 
   // Enable real-time notifications for new rides
   // إيقاف الإشعارات عند وضع الإيقاف المؤقت
@@ -440,9 +448,12 @@ const DriverHome = () => {
     setOnlineToggleLoading(true);
 
     try {
-      // تهيئة AudioContext عند الاتصال (تفاعل مستخدم حقيقي)
+      // تهيئة AudioContext + Wake Lock عند الاتصال (تفاعل مستخدم حقيقي)
       if (online) {
         initAudioContext();
+        requestWakeLock();
+      } else {
+        releaseWakeLock();
       }
 
       const { error } = await supabase
@@ -640,10 +651,16 @@ const DriverHome = () => {
             )}
           </button>
 
-          {/* Logo */}
+          {/* Logo + Wake Lock indicator */}
           <div className="flex items-center gap-2">
             <img src={logo} alt="RAAN" className="w-8 h-8 rounded-lg" />
             <span className="font-bold text-white">ران</span>
+            {/* مؤشر قفل الشاشة */}
+            {isOnline && (
+              <span className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full ${isWakeLockActive ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                {isWakeLockActive ? <Lock className="w-2.5 h-2.5" /> : <LockOpen className="w-2.5 h-2.5" />}
+              </span>
+            )}
           </div>
 
           {/* ═══ Dual Notification Icons ═══ */}

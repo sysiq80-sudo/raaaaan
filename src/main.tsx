@@ -3,6 +3,10 @@ import App from "./App.tsx";
 import "./index.css";
 import { registerServiceWorker } from "./utils/serviceWorker";
 import { supabase } from "./integrations/supabase/client";
+import { initCapacitorPlugins, isNativePlatform } from "./lib/capacitorBridge";
+
+// تهيئة إضافات Capacitor (إذا كنا داخل التطبيق الأصلي)
+initCapacitorPlugins();
 
 // Load Google Maps JavaScript API at runtime
 declare global {

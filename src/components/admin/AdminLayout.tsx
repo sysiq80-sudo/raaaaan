@@ -33,6 +33,11 @@ import {
   FileText,
   MessageCircle,
   Code,
+  Wallet,
+  Phone,
+  MessageSquareWarning,
+  CircleStop,
+  ShieldAlert,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdminNotificationsBell } from "./AdminNotificationsBell";
@@ -173,6 +178,11 @@ const AdminLayout = ({
     },
     { icon: Layers, label: "صفحات الراكب", href: "/admin/rider-pages" },
     { icon: BarChart3, label: "إحصائيات API", href: "/admin/api-stats" },
+    { icon: Phone, label: "سجلات SMS", href: "/admin/sms-logs" },
+    { icon: Wallet, label: "طلبات المحفظة", href: "/admin/wallet-requests" },
+    { icon: MessageSquareWarning, label: "الشكاوى", href: "/admin/complaints" },
+    { icon: CircleStop, label: "الرحلات المتوقفة", href: "/admin/stopped-rides" },
+    { icon: ShieldAlert, label: "إعدادات الطوارئ", href: "/admin/emergency-settings" },
     { icon: MessageCircle, label: "عملاء البوت", href: "/admin/bot-customers" },
     { icon: Code, label: "ران المطور", href: "/admin/developer-settings" },
     { icon: Settings, label: "الإعدادات", href: "/admin/settings" },

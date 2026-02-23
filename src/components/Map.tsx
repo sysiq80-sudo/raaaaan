@@ -7,7 +7,8 @@ import React, {
   useImperativeHandle,
   useMemo,
 } from "react";
-import { useGoogleMapsApiKey } from \"@/hooks/useGoogleMapsApiKey\";\nimport { loadGoogleMaps } from \"@/lib/googleMapsLoader\";
+import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import {
   calculateLocalDistance,
   interpolateDriverPosition,

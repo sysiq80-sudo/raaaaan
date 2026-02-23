@@ -757,3 +757,54 @@
   margin: 0 !important;
   overflow: hidden !important;
 }
+
+/* ══════════════════════════════════════════════════════════
+   تحسينات صفحة السائق للموبايل — Mobile Driver Optimizations
+   ══════════════════════════════════════════════════════════ */
+
+/* منع التحديد النصي غير المقصود أثناء اللمس */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* دعم المناطق الآمنة (الشقوق / الكاميرا المثقوبة) — Safe Area Insets */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .driver-safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .driver-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* أزرار كبيرة قابلة للمس على الشاشات الصغيرة */
+@media (max-width: 480px) {
+  /* تكبير أزرار التحكم بالرحلة */
+  .ride-action-btn {
+    min-height: 56px !important;
+    font-size: 1.1rem !important;
+    border-radius: 16px !important;
+  }
+}
+
+/* إخفاء أشرطة التمرير على الموبايل */
+@media (pointer: coarse) {
+  * {
+    scrollbar-width: thin;
+  }
+  *::-webkit-scrollbar {
+    width: 4px;
+  }
+}
+
+/* تحسين الأداء على الأجهزة البطيئة */
+@media (prefers-reduced-motion: reduce) {
+  .animate-ping,
+  .animate-pulse,
+  .animate-bounce {
+    animation: none !important;
+  }
+}

@@ -1,6 +1,8 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
+import { playNotificationSound } from "@/lib/audioContext";
 
 interface NewRide {
   id: string;
@@ -123,8 +125,11 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     const dropoffAddress = (ride.dropoff_address as string) || '';
     const distance = (ride.distance_km as number) || 0;
 
-    // Play notification sound
-    createNotificationSound();
+    // 🔊 تشغيل تنبيه صوتي قوي ومتكرر (Loud Alert System)
+    startRideAlert();
+    
+    // تشغيل الصوت المركزي كإضافة
+    playNotificationSound();
     
     // Vibrate device
     vibrateDevice();

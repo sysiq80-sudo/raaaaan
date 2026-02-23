@@ -29,12 +29,12 @@ const RideActionButtons = ({
                 <Button
                     onClick={onArrived}
                     disabled={loading}
-                    className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700"
+                    className="w-full h-16 text-lg font-bold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl touch-manipulation shadow-lg"
                 >
                     {loading ? (
-                        <Loader2 className="w-5 h-5 animate-spin ml-2" />
+                        <Loader2 className="w-6 h-6 animate-spin ml-2" />
                     ) : (
-                        <CheckCircle className="w-5 h-5 ml-2" />
+                        <CheckCircle className="w-6 h-6 ml-2" />
                     )}
                     وصلت لموقع العميل
                 </Button>
@@ -45,12 +45,12 @@ const RideActionButtons = ({
                 <Button
                     onClick={onStartRide}
                     disabled={loading}
-                    className="w-full h-14 text-lg bg-amber-600 hover:bg-amber-700"
+                    className="w-full h-16 text-lg font-bold bg-amber-600 hover:bg-amber-700 active:bg-amber-800 rounded-xl touch-manipulation shadow-lg"
                 >
                     {loading ? (
-                        <Loader2 className="w-5 h-5 animate-spin ml-2" />
+                        <Loader2 className="w-6 h-6 animate-spin ml-2" />
                     ) : (
-                        <CheckCircle className="w-5 h-5 ml-2" />
+                        <CheckCircle className="w-6 h-6 ml-2" />
                     )}
                     العميل ركب - ابدأ الرحلة
                 </Button>
@@ -61,12 +61,12 @@ const RideActionButtons = ({
                 <Button
                     onClick={onCompleteRide}
                     disabled={loading}
-                    className="w-full h-14 text-lg bg-green-600 hover:bg-green-700"
+                    className="w-full h-16 text-lg font-bold bg-green-600 hover:bg-green-700 active:bg-green-800 rounded-xl touch-manipulation shadow-lg"
                 >
                     {loading ? (
-                        <Loader2 className="w-5 h-5 animate-spin ml-2" />
+                        <Loader2 className="w-6 h-6 animate-spin ml-2" />
                     ) : (
-                        <Flag className="w-5 h-5 ml-2" />
+                        <Flag className="w-6 h-6 ml-2" />
                     )}
                     تم الوصول - إنهاء الرحلة
                 </Button>
@@ -77,9 +77,9 @@ const RideActionButtons = ({
                 variant="outline"
                 onClick={onCancelRide}
                 disabled={loading}
-                className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+                className="w-full h-12 text-base text-destructive border-destructive/30 hover:bg-destructive/10 active:bg-destructive/20 rounded-xl touch-manipulation"
             >
-                <X className="w-4 h-4 ml-2" />
+                <X className="w-5 h-5 ml-2" />
                 إلغاء الرحلة
             </Button>
         </div>
