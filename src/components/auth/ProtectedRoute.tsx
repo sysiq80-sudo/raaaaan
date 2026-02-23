@@ -57,7 +57,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       return <Navigate to="/admin" replace />;
     }
     if (requiredRole === "admin" && userRole !== "admin") {
-      return <Navigate to="/admin/login" replace />;
+      // توجيه المستخدم غير المدير لصفحته الرئيسية بدلاً من /admin/login لمنع حلقة إعادة التوجيه
+      const redirectPath = userRole === "driver" ? "/driver" : "/rider";
+      return <Navigate to={redirectPath} replace />;
     }
   }
 

@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useGoogleMapsApiKey } from "./useGoogleMapsApiKey";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { useToast } from "./use-toast";
 import { getMapStyle, watchThemeChanges } from "@/utils/mapStyles";
 import { getGeocoder } from "@/lib/googleMapService";
@@ -342,18 +343,13 @@ export const useLocationPicker = (
       return;
     }
 
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places,geocoding&language=ar&region=IQ&loading=async`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      console.log("✅ Google Maps API script loaded");
-    };
-    script.onerror = () => {
-      console.error("❌ Failed to load Google Maps API script");
+    loadGoogleMaps(googleMapsApiKey).then(() => {
+      console.log("✅ Google Maps API loaded via centralized loader");
+    }).catch((err) => {
+      console.error("❌ Failed to load Google Maps API:", err);
       setMapError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API");
       setIsLoading(false);
-    };
+    });
 
     // معالجة أخطاء المصادقة مثل RefererNotAllowedMapError
     window.gm_authFailure = () => {
@@ -361,8 +357,6 @@ export const useLocationPicker = (
       setMapError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API");
       setIsLoading(false);
     };
-
-    document.head.appendChild(script);
 
     return () => {
       // Don't remove the script as it may be used by other components

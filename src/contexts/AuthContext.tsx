@@ -88,10 +88,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkLocation();
   }, [user]);
 
-  // Detect user role (rider or driver)
+  // Detect user role (admin, rider, or driver)
   const detectUserRole = useCallback(async (userId: string): Promise<UserRole> => {
     try {
-      // Check if user is driver
+      // 1. تحقق من صلاحية المدير أولاً عبر جدول user_roles
+      const { data: adminRole } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      if (adminRole) {
+        return "admin";
+      }
+
+      // 2. تحقق إذا كان المستخدم سائق
       const { data: driver } = await supabase
         .from("drivers")
         .select("status")
@@ -100,12 +112,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (driver) {
         setCanSwitchToDriver(driver.status === "approved");
-        return "rider"; // Default role is rider
+        return "rider"; // الدور الافتراضي راكب مع إمكانية التبديل للسائق
       }
-
-      // Check if user is admin - skip for now to avoid type issues
-      // const { data: admin } = await supabase
-      //   .rpc("has_role", { _user_id: userId, _role: "admin" });
 
       return "rider"; // Default
     } catch (error) {
@@ -170,14 +178,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         console.log(`[AuthContext] Session found via ${source}:`, session.user.id);
         setUser(session.user);
-        setIsLoading(false);
 
-        // Detect role in background (non-blocking for initial render)
+        // كشف الدور قبل إنهاء التحميل لمنع حلقات إعادة التوجيه
         try {
           const role = await detectUserRole(session.user.id);
           if (isMounted) {
             setUserRole(role);
-            // Restore saved role from localStorage if available
+            // استعادة الدور المحفوظ في localStorage إذا متاح
             const savedRole = localStorage.getItem("raan_current_role");
             if (savedRole === "driver" && role === "rider") {
               setUserRole("driver");
@@ -187,6 +194,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error("[AuthContext] Role detection error:", roleError);
           if (isMounted) setUserRole("rider");
         }
+
+        // إنهاء التحميل بعد تحديد الدور
+        if (isMounted) setIsLoading(false);
 
         // Monitor device sessions (non-blocking)
         monitorDeviceSessions(session.user.id).catch(() => {});

@@ -7,6 +7,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useToast } from "./use-toast";
 import { getDirections, drawPolyline, ROUTE_STYLES } from "@/lib/googleMapService";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { useGoogleMapsApiKey } from "./useGoogleMapsApiKey";
 import type { PaymentMethod } from "@/types/savedCards";
 
@@ -102,14 +103,9 @@ export const useBookingFlow = (apiKey: string | null) => {
 
       // Load Google Maps if not already loaded
       if (!window.google) {
-        const script = document.createElement("script");
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${googleApiKey}&libraries=places,directions&language=ar`;
-        script.async = true;
-        script.defer = true;
-        script.onload = () => {
+        loadGoogleMaps(googleApiKey).then(() => {
           initializeBookingMap(pickupLocation, dropoffLocation);
-        };
-        document.head.appendChild(script);
+        }).catch(err => console.error("Booking map load error:", err));
         return;
       }
 

@@ -296,7 +296,7 @@ export default function DriverApplicationStatus() {
             <Button 
               variant="outline" 
               className="w-full gap-2"
-              onClick={() => window.open("tel:+9647700000000", "_blank")}
+              onClick={() => window.open("tel:+9647884669922", "_blank")}
             >
               <Phone className="h-4 w-4" />
               التواصل مع الدعم

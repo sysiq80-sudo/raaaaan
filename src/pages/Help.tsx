@@ -81,7 +81,7 @@ const Help = () => {
                 {/* Contact Cards */}
                 <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <motion.a
-                        href="tel:+9647844446633"
+                        href="tel:+9647884669922"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
@@ -97,7 +97,7 @@ const Help = () => {
                     </motion.a>
 
                     <motion.a
-                        href="https://wa.me/9647844446633"
+                        href="https://wa.me/9647884669922"
                         target="_blank"
                         rel="noopener noreferrer"
                         initial={{ opacity: 0, y: 20 }}

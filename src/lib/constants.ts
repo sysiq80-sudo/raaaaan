@@ -11,7 +11,7 @@ export const APP_INFO = {
     description: 'تطبيق تاكسي ذكي مصمم خصيصاً لمحافظة الأنبار',
     website: 'https://raan.app',
     email: 'info@raan.app',
-    phone: '+964 7734446636',
+    phone: '+964 7884669922',
 } as const;
 
 // إحداثيات المناطق
@@ -207,7 +207,7 @@ export const MESSAGES = {
 // أرقام الطوارئ
 export const EMERGENCY_CONTACTS = {
     emergency: '911', // رقم الطوارئ الموحد
-    appSupport: '+964 7734446636',
+    appSupport: '+964 7884669922',
 } as const;
 
 // دالة تقريب الأسعار لأقرب 250 دينار

@@ -856,7 +856,7 @@ const Index = () => {
                 <span className="text-2xl font-bold text-foreground">ران <span className="text-primary">RAAN</span></span>
               </div>
               <p className="text-muted-foreground max-w-md mb-4 leading-relaxed">
-                أول تطبيق تاكسي بالعالم يعمل بالذكاء الاصطناعي. نفهم شوارع الأنبار ونوفر لك تجربة تنقل آمنة ومريحة. احجز بصوتك أو عبر تيليغرام!
+                أول تطبيق تاكسي بالعالم يعمل بالذكاء الاصطناعي. نفهم شوارع الأنبار ونوفر لك تجربة تنقل آمنة ومريحة. احجز بصوتك أو عبر واتساب وتيليغرام!
               </p>
               <div className="flex items-center gap-2 mb-6">
                 <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold"><Brain className="w-3 h-3" /> Powered by AI</span>
@@ -864,14 +864,17 @@ const Index = () => {
               </div>
               <div className="flex gap-3">
                 {[
-                  { icon: <Facebook className="w-5 h-5" />, href: "#" },
-                  { icon: <Twitter className="w-5 h-5" />, href: "#" },
-                  { icon: <Instagram className="w-5 h-5" />, href: "#" },
+                  { icon: <Facebook className="w-5 h-5" />, href: "https://facebook.com/raan.app", color: "hover:bg-blue-600 hover:border-blue-600" },
+                  { icon: <Instagram className="w-5 h-5" />, href: "https://instagram.com/raan.app", color: "hover:bg-gradient-to-br hover:from-purple-500 hover:via-pink-500 hover:to-orange-500 hover:border-pink-500" },
+                  { icon: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.75a8.18 8.18 0 0 0 4.76 1.52V6.84a4.84 4.84 0 0 1-1-.15z"/></svg>, href: "https://tiktok.com/@raan.app", color: "hover:bg-black hover:border-black" },
                 ].map((s, i) => (
-                  <a key={i} href={s.href} className="w-10 h-10 rounded-xl bg-card border border-border/50 hover:bg-primary hover:border-primary transition-all flex items-center justify-center group">
-                    <span className="text-muted-foreground group-hover:text-primary-foreground">{s.icon}</span>
+                  <a key={i} href={s.href} target="_blank" rel="noopener noreferrer" className={`w-10 h-10 rounded-xl bg-card border border-border/50 ${s.color} transition-all flex items-center justify-center group`}>
+                    <span className="text-muted-foreground group-hover:text-white">{s.icon}</span>
                   </a>
                 ))}
+                <a href="https://wa.me/9647884669922" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-card border border-border/50 hover:bg-green-500 hover:border-green-500 transition-all flex items-center justify-center group">
+                  <MessageCircle className="w-5 h-5 text-muted-foreground group-hover:text-white" />
+                </a>
                 <a href="https://t.me/raan_1_bot" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-card border border-border/50 hover:bg-blue-500 hover:border-blue-500 transition-all flex items-center justify-center group">
                   <Send className="w-5 h-5 text-muted-foreground group-hover:text-white" />
                 </a>
@@ -892,7 +895,8 @@ const Index = () => {
             <div>
               <h4 className="font-bold text-foreground mb-4">تواصل معنا</h4>
               <ul className="space-y-3 text-muted-foreground">
-                <li className="flex items-center gap-2"><Phone className="w-4 h-4 text-primary" /><span dir="ltr">+964 7734446636</span></li>
+                <li className="flex items-center gap-2"><Phone className="w-4 h-4 text-primary" /><span dir="ltr">+964 788 466 9922</span></li>
+                <li className="flex items-center gap-2"><MessageCircle className="w-4 h-4 text-green-500" /><a href="https://wa.me/9647884669922" target="_blank" rel="noopener noreferrer" className="hover:text-green-500 transition-colors">واتساب ران</a></li>
                 <li className="flex items-center gap-2"><Mail className="w-4 h-4 text-primary" /><span>info@raan.app</span></li>
                 <li className="flex items-center gap-2"><Send className="w-4 h-4 text-blue-500" /><a href="https://t.me/raan_1_bot" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">@raan_1_bot</a></li>
               </ul>

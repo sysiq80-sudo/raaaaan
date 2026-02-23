@@ -213,9 +213,9 @@ const DriverSideMenu = ({
   const statusBadge = getStatusBadge();
 
   return (
-    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm" onClick={onClose}>
       <div 
-        className="absolute top-0 right-0 h-full w-72 bg-card shadow-xl p-6 animate-slide-in-right overflow-y-auto"
+        className="absolute top-0 right-0 h-full w-72 bg-card shadow-xl p-6 animate-slide-in-right overflow-y-auto pb-24"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Profile Header */}

@@ -99,9 +99,9 @@ const ContactUs = () => {
     ];
 
     const socialLinks = [
-        { icon: Facebook, href: "#", label: "فيسبوك", color: "bg-blue-600" },
-        { icon: Instagram, href: "#", label: "انستغرام", color: "bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500" },
-        { icon: MessageSquare, href: "#", label: "تيليجرام", color: "bg-sky-500" }
+        { icon: Facebook, href: "https://facebook.com/raan.app", label: "فيسبوك", color: "bg-blue-600" },
+        { icon: Instagram, href: "https://instagram.com/raan.app", label: "انستغرام", color: "bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500" },
+        { icon: MessageSquare, href: "https://t.me/raan_1_bot", label: "تيليجرام", color: "bg-sky-500" }
     ];
 
     return (

@@ -7,7 +7,7 @@ import React, {
   useImperativeHandle,
   useMemo,
 } from "react";
-import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { useGoogleMapsApiKey } from \"@/hooks/useGoogleMapsApiKey\";\nimport { loadGoogleMaps } from \"@/lib/googleMapsLoader\";
 import {
   calculateLocalDistance,
   interpolateDriverPosition,
@@ -263,14 +263,9 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
   useEffect(() => {
     if (!mapContainer.current || !apiKey || isApiKeyLoading) return;
 
-    // Load Google Maps script
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,visualization`;
-    script.async = true;
-    script.defer = true;
-
-    script.onload = () => {
-      if (!window.google) return;
+    // Load Google Maps via centralized loader
+    loadGoogleMaps(apiKey).then(() => {
+      if (!window.google || !mapContainer.current) return;
 
       map.current = new google.maps.Map(mapContainer.current!, {
         center: new google.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng),
@@ -299,18 +294,13 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
       }
 
       setIsLoading(false);
-    };
-
-    script.onerror = () => {
+    }).catch((err) => {
+      console.error("Map load error:", err);
       setError("Failed to load Google Maps");
       setIsLoading(false);
-    };
+    });
 
-    document.head.appendChild(script);
-
-    return () => {
-      script.remove();
-    };
+    return () => {};
   }, [apiKey, isApiKeyLoading, isDragging, userLocation]);
 
   // Handle user location

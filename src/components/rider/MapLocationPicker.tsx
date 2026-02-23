@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { getGeocoder } from "@/lib/googleMapService";
 import {
   ArrowRight,
@@ -118,14 +119,9 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
     if (typeof window === "undefined" || window.google) return;
     if (!googleMapsApiKey) return;
 
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places,geocoding&language=ar`;
-    script.async = true;
-    script.defer = true;
-    script.onerror = () => {
-      console.error("❌ Failed to load Google Maps API script");
-    };
-    document.head.appendChild(script);
+    loadGoogleMaps(googleMapsApiKey).catch((err) => {
+      console.error("❌ Failed to load Google Maps API:", err);
+    });
   }, [isOpen, googleMapsApiKey]);
 
   // Check service area

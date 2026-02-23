@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { getMarkerIcon, getDarkMapStyle } from "@/lib/googleMapService";
 import { MapPin, Loader2, AlertCircle, RefreshCw, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -117,60 +118,14 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
           return;
         }
 
-        // تحقق من وجود سكربت محمل مسبقاً
-        const existingScript = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
-        if (existingScript) {
-          // السكربت محمل لكن Google Maps لم يجهز بعد - انتظر
-          const waitForGoogle = setInterval(() => {
-            if (window.google?.maps?.Map) {
-              clearInterval(waitForGoogle);
-              createMap();
-            }
-          }, 100);
-          // مهلة 10 ثواني
-          setTimeout(() => {
-            clearInterval(waitForGoogle);
-            if (!map.current) {
-              setError("انتهت المهلة في تحميل الخريطة");
-              setLoading(false);
-            }
-          }, 10000);
-          return;
-        }
-
-        // تحميل السكربت لأول مرة
-        const script = document.createElement("script");
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry`;
-        script.async = true;
-        script.defer = true;
-
-        script.onload = () => {
-          // انتظر حتى يكون Google Maps جاهزاً بالكامل
-          if (window.google?.maps?.Map) {
-            createMap();
-          } else {
-            const waitForMaps = setInterval(() => {
-              if (window.google?.maps?.Map) {
-                clearInterval(waitForMaps);
-                createMap();
-              }
-            }, 100);
-            setTimeout(() => {
-              clearInterval(waitForMaps);
-              if (!map.current) {
-                setError("انتهت المهلة في تحميل الخريطة");
-                setLoading(false);
-              }
-            }, 10000);
-          }
-        };
-
-        script.onerror = () => {
+        // تحميل عبر المحمّل المركزي
+        loadGoogleMaps(apiKey).then(() => {
+          createMap();
+        }).catch((err) => {
+          console.error("DriverMap: load error", err);
           setError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API");
           setLoading(false);
-        };
-
-        document.head.appendChild(script);
+        });
 
       } catch (err: any) {
         console.error("Map init error:", err);

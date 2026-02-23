@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -228,11 +229,9 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     if (typeof window === "undefined" || window.google?.maps) return;
     if (!googleMapsApiKey) return;
 
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places,geocoding,directions&language=ar`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
+    loadGoogleMaps(googleMapsApiKey).catch(err => {
+      console.error("LiveRideTracker: Google Maps load error", err);
+    });
   }, [googleMapsApiKey]);
 
   // Fetch driver info

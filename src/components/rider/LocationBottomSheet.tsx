@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import PopularPlaces from './PopularPlaces';
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { getGeocoder } from "@/lib/googleMapService";
 
 interface SearchResult {
@@ -101,12 +102,9 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
     };
 
     if (!window.google) {
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places,geocoding&language=ar`;
-      script.async = true;
-      script.defer = true;
-      script.onload = () => initPlacesApi();
-      document.head.appendChild(script);
+      loadGoogleMaps(googleMapsApiKey).then(() => initPlacesApi()).catch(err => {
+        console.error("LocationBottomSheet: Google Maps load error", err);
+      });
       return;
     }
 

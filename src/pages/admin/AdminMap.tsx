@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { 
   Car, 
   Users, 
@@ -162,15 +163,10 @@ const AdminMap = () => {
     if (!googleMapsApiKey || !isAdmin) return;
     if (window.google?.maps) return;
     
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=marker&v=weekly`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
+    loadGoogleMaps(googleMapsApiKey).then(() => {
       // Trigger map initialization
       setIsLoading(prev => prev); // force re-render
-    };
-    document.head.appendChild(script);
+    }).catch(err => console.error("AdminMap: load error", err));
   }, [googleMapsApiKey, isAdmin]);
 
   // Initialize map

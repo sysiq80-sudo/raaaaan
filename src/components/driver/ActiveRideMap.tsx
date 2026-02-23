@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { getMarkerIcon, getDirections, getDarkMapStyle } from "@/lib/googleMapService";
 import { Loader2, AlertCircle, Navigation, Clock } from "lucide-react";
 
@@ -43,13 +44,8 @@ export const ActiveRideMap = ({
         setLoading(true);
         setError(null);
 
-        const script = document.createElement("script");
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry`;
-        script.async = true;
-        script.defer = true;
-
-        script.onload = () => {
-          if (!window.google) return;
+        loadGoogleMaps(apiKey).then(() => {
+          if (!window.google || !mapContainer.current) return;
 
           const center = driverLocation || pickupLocation;
 
@@ -68,14 +64,11 @@ export const ActiveRideMap = ({
           if (driverLocation) {
             fetchAndDrawRoute();
           }
-        };
-
-        script.onerror = () => {
+        }).catch((err) => {
+          console.error("Map load error:", err);
           setError("فشل في تحميل الخريطة");
           setLoading(false);
-        };
-
-        document.head.appendChild(script);
+        });
       } catch (err: any) {
         console.error("Map init error:", err);
         setError(err.message || "فشل في تحميل الخريطة");
