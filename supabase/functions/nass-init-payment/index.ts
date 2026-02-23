@@ -1,5 +1,29 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
+
+let nassBaseUrl = "";
+let nassUsername = "";
+let nassPassword = "";
+let _configLoaded = false;
+
+async function loadDynamicConfig() {
+  if (_configLoaded) return;
+  try {
+    const svc = createServiceClient();
+    const cfg = await getConfigBatch(svc, ["NASS_BASE_URL", "NASS_USERNAME", "NASS_PASSWORD"]);
+    nassBaseUrl = cfg["NASS_BASE_URL"] || Deno.env.get('NASS_BASE_URL') || "";
+    nassUsername = cfg["NASS_USERNAME"] || Deno.env.get('NASS_USERNAME') || "";
+    nassPassword = cfg["NASS_PASSWORD"] || Deno.env.get('NASS_PASSWORD') || "";
+    _configLoaded = true;
+    console.log("[nass-init-payment] ✅ Dynamic config loaded");
+  } catch (e) {
+    console.warn("[nass-init-payment] ⚠️ Config load failed, using env fallbacks:", e);
+    nassBaseUrl = Deno.env.get('NASS_BASE_URL') || "";
+    nassUsername = Deno.env.get('NASS_USERNAME') || "";
+    nassPassword = Deno.env.get('NASS_PASSWORD') || "";
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,15 +58,12 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  await loadDynamicConfig();
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get NASS credentials
-    const nassBaseUrl = Deno.env.get('NASS_BASE_URL');
-    const nassUsername = Deno.env.get('NASS_USERNAME');
-    const nassPassword = Deno.env.get('NASS_PASSWORD');
 
     if (!nassBaseUrl || !nassUsername || !nassPassword) {
       console.error('Missing NASS credentials');

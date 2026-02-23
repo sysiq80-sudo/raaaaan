@@ -32,6 +32,7 @@ import {
   Megaphone,
   FileText,
   MessageCircle,
+  Code,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdminNotificationsBell } from "./AdminNotificationsBell";
@@ -173,6 +174,7 @@ const AdminLayout = ({
     { icon: Layers, label: "صفحات الراكب", href: "/admin/rider-pages" },
     { icon: BarChart3, label: "إحصائيات API", href: "/admin/api-stats" },
     { icon: MessageCircle, label: "عملاء البوت", href: "/admin/bot-customers" },
+    { icon: Code, label: "ران المطور", href: "/admin/developer-settings" },
     { icon: Settings, label: "الإعدادات", href: "/admin/settings" },
   ];
 

@@ -9,8 +9,23 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
 
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+let OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
+let _configLoaded = false;
+
+async function loadDynamicConfig() {
+  if (_configLoaded) return;
+  try {
+    const svc = createServiceClient();
+    const cfg = await getConfigBatch(svc, ["OPENAI_API_KEY"]);
+    OPENAI_API_KEY = cfg["OPENAI_API_KEY"] || OPENAI_API_KEY;
+    _configLoaded = true;
+    console.log("[voice-booking-ai] ✅ Dynamic config loaded");
+  } catch (e) {
+    console.warn("[voice-booking-ai] ⚠️ Config load failed, using env fallback:", e);
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -216,6 +231,8 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  await loadDynamicConfig();
 
   try {
     // التحقق من وجود مفتاح API

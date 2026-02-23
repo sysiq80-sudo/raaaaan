@@ -12,20 +12,57 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
 
 // ════════════════════════════════════════
-// المتغيرات البيئية
+// المتغيرات — تُحمّل ديناميكياً من system_configs
+// (مع احتياط من متغيرات البيئة عبر config helper)
 // ════════════════════════════════════════
-const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN")!;
-const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN")!;
-const WHATSAPP_PHONE_ID = Deno.env.get("WHATSAPP_PHONE_ID")!;
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
-const GOOGLE_MAPS_KEY = Deno.env.get("GOOGLE_MAPS_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const SITE_URL = Deno.env.get("SITE_URL") || "https://rfrfrde.netlify.app";
 
-const GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/messages`;
+let VERIFY_TOKEN = "";
+let WHATSAPP_ACCESS_TOKEN = "";
+let WHATSAPP_PHONE_ID = "";
+let OPENAI_API_KEY = "";
+let GOOGLE_MAPS_KEY = "";
+let SITE_URL = "https://rfrfrde.netlify.app";
+let GRAPH_API = "";
+let _configLoaded = false;
+
+async function loadDynamicConfig() {
+  if (_configLoaded) return;
+  try {
+    const svc = createServiceClient();
+    const cfg = await getConfigBatch(svc, [
+      "WHATSAPP_VERIFY_TOKEN",
+      "WHATSAPP_ACCESS_TOKEN",
+      "WHATSAPP_PHONE_ID",
+      "OPENAI_API_KEY",
+      "GOOGLE_MAPS_KEY",
+      "SITE_URL",
+    ]);
+    VERIFY_TOKEN = cfg["WHATSAPP_VERIFY_TOKEN"] || VERIFY_TOKEN;
+    WHATSAPP_ACCESS_TOKEN = cfg["WHATSAPP_ACCESS_TOKEN"] || WHATSAPP_ACCESS_TOKEN;
+    WHATSAPP_PHONE_ID = cfg["WHATSAPP_PHONE_ID"] || WHATSAPP_PHONE_ID;
+    OPENAI_API_KEY = cfg["OPENAI_API_KEY"] || OPENAI_API_KEY;
+    GOOGLE_MAPS_KEY = cfg["GOOGLE_MAPS_KEY"] || GOOGLE_MAPS_KEY;
+    SITE_URL = cfg["SITE_URL"] || SITE_URL;
+    GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/messages`;
+    _configLoaded = true;
+    console.log("[wa] ✅ Dynamic config loaded from system_configs");
+  } catch (e) {
+    console.warn("[wa] ⚠️ Config load failed, using env fallbacks:", e);
+    // احتياط: متغيرات البيئة
+    VERIFY_TOKEN = VERIFY_TOKEN || Deno.env.get("WHATSAPP_VERIFY_TOKEN") || "";
+    WHATSAPP_ACCESS_TOKEN = WHATSAPP_ACCESS_TOKEN || Deno.env.get("WHATSAPP_ACCESS_TOKEN") || "";
+    WHATSAPP_PHONE_ID = WHATSAPP_PHONE_ID || Deno.env.get("WHATSAPP_PHONE_ID") || "";
+    OPENAI_API_KEY = OPENAI_API_KEY || Deno.env.get("OPENAI_API_KEY") || "";
+    GOOGLE_MAPS_KEY = GOOGLE_MAPS_KEY || Deno.env.get("GOOGLE_MAPS_KEY") || "";
+    SITE_URL = SITE_URL || Deno.env.get("SITE_URL") || "https://rfrfrde.netlify.app";
+    GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/messages`;
+  }
+}
 
 // ════════════════════════════════════════
 // الرسائل العربية الثابتة
@@ -1047,6 +1084,9 @@ async function checkActiveRide(
 // ════════════════════════════════════════
 // ════════════════════════════════════════
 serve(async (req) => {
+  // تحميل الإعدادات الديناميكية من system_configs
+  await loadDynamicConfig();
+
   const url = new URL(req.url);
 
   // ════════════════════════════════

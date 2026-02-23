@@ -15,14 +15,40 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
 
-const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN")!;
-const WHATSAPP_PHONE_ID = Deno.env.get("WHATSAPP_PHONE_ID")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const SITE_URL = Deno.env.get("SITE_URL") || "https://rfrfrde.netlify.app";
 
-const GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/messages`;
+let WHATSAPP_ACCESS_TOKEN = "";
+let WHATSAPP_PHONE_ID = "";
+let SITE_URL = "https://rfrfrde.netlify.app";
+let GRAPH_API = "";
+let _configLoaded = false;
+
+async function loadDynamicConfig() {
+  if (_configLoaded) return;
+  try {
+    const svc = createServiceClient();
+    const cfg = await getConfigBatch(svc, [
+      "WHATSAPP_ACCESS_TOKEN",
+      "WHATSAPP_PHONE_ID",
+      "SITE_URL",
+    ]);
+    WHATSAPP_ACCESS_TOKEN = cfg["WHATSAPP_ACCESS_TOKEN"] || WHATSAPP_ACCESS_TOKEN;
+    WHATSAPP_PHONE_ID = cfg["WHATSAPP_PHONE_ID"] || WHATSAPP_PHONE_ID;
+    SITE_URL = cfg["SITE_URL"] || SITE_URL;
+    GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/messages`;
+    _configLoaded = true;
+    console.log("[whatsapp-ride-updates] ✅ Dynamic config loaded");
+  } catch (e) {
+    console.warn("[whatsapp-ride-updates] ⚠️ Config load failed, using env fallbacks:", e);
+    WHATSAPP_ACCESS_TOKEN = WHATSAPP_ACCESS_TOKEN || Deno.env.get("WHATSAPP_ACCESS_TOKEN") || "";
+    WHATSAPP_PHONE_ID = WHATSAPP_PHONE_ID || Deno.env.get("WHATSAPP_PHONE_ID") || "";
+    SITE_URL = SITE_URL || Deno.env.get("SITE_URL") || "https://rfrfrde.netlify.app";
+    GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/messages`;
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -68,6 +94,8 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  await loadDynamicConfig();
 
   try {
     const payload = await req.json();

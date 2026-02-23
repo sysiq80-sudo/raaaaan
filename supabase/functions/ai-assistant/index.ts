@@ -3,11 +3,27 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
-const DEEPSEEK_API_KEY = Deno.env.get("DEEPSEEK_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+let DEEPSEEK_API_KEY = Deno.env.get("DEEPSEEK_API_KEY") || "";
+let _configLoaded = false;
+
+async function loadDynamicConfig() {
+  if (_configLoaded) return;
+  try {
+    const svc = createServiceClient();
+    const cfg = await getConfigBatch(svc, ["DEEPSEEK_API_KEY"]);
+    DEEPSEEK_API_KEY = cfg["DEEPSEEK_API_KEY"] || DEEPSEEK_API_KEY;
+    _configLoaded = true;
+    console.log("[ai-assistant] ✅ Dynamic config loaded");
+  } catch (e) {
+    console.warn("[ai-assistant] ⚠️ Config load failed, using env fallback:", e);
+  }
+}
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -45,6 +61,8 @@ serve(async (req) => {
     if (req.method === "OPTIONS") {
         return new Response(null, { headers: corsHeaders });
     }
+
+    await loadDynamicConfig();
 
     try {
         // Verify authentication

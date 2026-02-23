@@ -6,12 +6,36 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
 
-const CAPTAIN_BOT_TOKEN = Deno.env.get("CAPTAIN_BOT_TOKEN")!;
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const TELEGRAM_API = `https://api.telegram.org/bot${CAPTAIN_BOT_TOKEN}`;
+
+let CAPTAIN_BOT_TOKEN = "";
+let OPENAI_API_KEY = "";
+let TELEGRAM_API = "";
+let _configLoaded = false;
+
+async function loadDynamicConfig() {
+  if (_configLoaded) return;
+  try {
+    const svc = createServiceClient();
+    const cfg = await getConfigBatch(svc, [
+      "CAPTAIN_BOT_TOKEN",
+      "OPENAI_API_KEY",
+    ]);
+    CAPTAIN_BOT_TOKEN = cfg["CAPTAIN_BOT_TOKEN"] || CAPTAIN_BOT_TOKEN;
+    OPENAI_API_KEY = cfg["OPENAI_API_KEY"] || OPENAI_API_KEY;
+    TELEGRAM_API = `https://api.telegram.org/bot${CAPTAIN_BOT_TOKEN}`;
+    _configLoaded = true;
+    console.log("[captain-support-bot] ✅ Dynamic config loaded");
+  } catch (e) {
+    console.warn("[captain-support-bot] ⚠️ Config load failed, using env fallbacks:", e);
+    CAPTAIN_BOT_TOKEN = CAPTAIN_BOT_TOKEN || Deno.env.get("CAPTAIN_BOT_TOKEN") || "";
+    OPENAI_API_KEY = OPENAI_API_KEY || Deno.env.get("OPENAI_API_KEY") || "";
+    TELEGRAM_API = `https://api.telegram.org/bot${CAPTAIN_BOT_TOKEN}`;
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -62,6 +86,8 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  await loadDynamicConfig();
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);

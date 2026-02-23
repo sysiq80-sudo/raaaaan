@@ -4077,6 +4077,39 @@ export type Database = {
           },
         ]
       }
+      system_configs: {
+        Row: {
+          id: string
+          category: string
+          key_name: string
+          key_value: string
+          is_secret: boolean
+          description: string | null
+          updated_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          category: string
+          key_name: string
+          key_value?: string
+          is_secret?: boolean
+          description?: string | null
+          updated_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          category?: string
+          key_name?: string
+          key_value?: string
+          is_secret?: boolean
+          description?: string | null
+          updated_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       withdrawal_requests: {
         Row: {
           account_details: Json

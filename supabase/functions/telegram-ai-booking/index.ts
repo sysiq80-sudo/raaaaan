@@ -10,17 +10,43 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
 
 // ════════════════════════════════════════
-// المتغيرات البيئية
+// المتغيرات — تُحمّل ديناميكياً من system_configs
 // ════════════════════════════════════════
-const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
-const GOOGLE_MAPS_KEY = Deno.env.get("GOOGLE_MAPS_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
+let TELEGRAM_BOT_TOKEN = "";
+let OPENAI_API_KEY = "";
+let GOOGLE_MAPS_KEY = "";
+let TELEGRAM_API = "";
+let _configLoaded = false;
+
+async function loadDynamicConfig() {
+  if (_configLoaded) return;
+  try {
+    const svc = createServiceClient();
+    const cfg = await getConfigBatch(svc, [
+      "TELEGRAM_BOT_TOKEN",
+      "OPENAI_API_KEY",
+      "GOOGLE_MAPS_KEY",
+    ]);
+    TELEGRAM_BOT_TOKEN = cfg["TELEGRAM_BOT_TOKEN"] || TELEGRAM_BOT_TOKEN;
+    OPENAI_API_KEY = cfg["OPENAI_API_KEY"] || OPENAI_API_KEY;
+    GOOGLE_MAPS_KEY = cfg["GOOGLE_MAPS_KEY"] || GOOGLE_MAPS_KEY;
+    TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
+    _configLoaded = true;
+    console.log("[telegram] ✅ Dynamic config loaded from system_configs");
+  } catch (e) {
+    console.warn("[telegram] ⚠️ Config load failed, using env fallbacks:", e);
+    TELEGRAM_BOT_TOKEN = TELEGRAM_BOT_TOKEN || Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
+    OPENAI_API_KEY = OPENAI_API_KEY || Deno.env.get("OPENAI_API_KEY") || "";
+    GOOGLE_MAPS_KEY = GOOGLE_MAPS_KEY || Deno.env.get("GOOGLE_MAPS_KEY") || "";
+    TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -996,6 +1022,9 @@ async function createPickupSession(
 // Handler الرئيسي
 // ════════════════════════════════════════
 serve(async (req) => {
+  // تحميل الإعدادات الديناميكية من system_configs
+  await loadDynamicConfig();
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

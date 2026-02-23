@@ -3,7 +3,7 @@
 # ران RAAN - الوثيقة المرجعية الشاملة
 
 **آخر تحديث:** 2026-02-23  
-**الإصدار:** 1.4.0  
+**الإصدار:** 1.5.0  
 **المُنشئ:** نظام التطوير الذكي
 
 ---
@@ -467,6 +467,18 @@ stateDiagram-v2
 ---
 
 ## 12. سجل التغييرات
+
+### 2026-02-23 (v1.5.0) — Raan Developer Hub: Card/Grid UI & Total Secrets Migration
+
+| النوع | التغيير | السبب |
+|-------|---------|-------|
+| **ميزة** | **واجهة "ران المطور" بتصميم Card/Grid** | **إعادة تصميم كاملة لصفحة إدارة الإعدادات من تخطيط جدول إلى نظام بطاقات مرتبة بشبكة CSS مع 15 فئة ملونة وأيقونات مميزة لكل مجموعة** |
+| **ميزة** | **جدول `system_configs` — 27 مفتاح ديناميكي** | **قاعدة بيانات مركزية لكل المفاتيح السرية والإعدادات — يمكن للأدمن تعديلها من لوحة التحكم بدون إعادة نشر، مع كاش 5 دقائق وتشفير القيم الحساسة** |
+| **ميزة** | **`_shared/config.ts` — مساعد الإعدادات الديناميكية** | **مكتبة مشتركة لكل Edge Functions: `getConfig()` و `getConfigBatch()` و `createServiceClient()` — تقرأ من DB أولاً ثم تتراجع لـ `Deno.env.get()` كاحتياط** |
+| **ترحيل** | **ترحيل 18 Edge Function إلى الإعدادات الديناميكية** | **كل الـ Edge Functions تقرأ الآن مفاتيح API من `system_configs` (DB) بدلاً من متغيرات البيئة الثابتة — يشمل: whatsapp-webhook, telegram-ai-booking, relay-chat-message, whatsapp-ride-updates, telegram-ride-updates, voice-booking-ai, cron-cancel-stale-rides, generate-tracking-link, captain-support-bot, captain-guardian-alerts, ai-assistant, google-maps-proxy, mapbox-proxy, search-places, send-otp, send-sms, nass-init-payment, nass-check-status** |
+| **تحسين** | **5 فئات جديدة في لوحة المطور** | **إضافة فئات: DeepSeek AI، Mapbox، SMS/OTP، بوت الكابتن، مدفوعات ناس — مع أيقونات وألوان مميزة لكل فئة** |
+| **تحسين** | **شريط إحصائيات ذكي** | **يعرض: العدد الكلي للمفاتيح، المفاتيح المعبأة، الفارغة، والسرية — في أعلى صفحة المطور** |
+| **تحسين** | **نشر 15 Edge Function محدّثة** | **جميع الوظائف المُعاد هيكلتها نُشرت بنجاح على Supabase** |
 
 ### 2026-02-23 (v1.4.0) — Ride Acceptance Notification & In-Ride Relay Chat
 

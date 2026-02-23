@@ -1,5 +1,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
+
+let OTPIQ_API_KEY = "";
+let _configLoaded = false;
+
+async function loadDynamicConfig() {
+  if (_configLoaded) return;
+  try {
+    const svc = createServiceClient();
+    const cfg = await getConfigBatch(svc, ["OTPIQ_API_KEY"]);
+    OTPIQ_API_KEY = cfg["OTPIQ_API_KEY"] || Deno.env.get('OTPIQ_API_KEY') || "";
+    _configLoaded = true;
+    console.log("[send-sms] ✅ Dynamic config loaded");
+  } catch (e) {
+    console.warn("[send-sms] ⚠️ Config load failed, using env fallback:", e);
+    OTPIQ_API_KEY = Deno.env.get('OTPIQ_API_KEY') || "";
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,8 +57,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  await loadDynamicConfig();
+
   try {
-    const OTPIQ_API_KEY = Deno.env.get('OTPIQ_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
