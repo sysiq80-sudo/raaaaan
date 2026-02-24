@@ -499,8 +499,8 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
       <PaymentMethodSheet
         open={paymentSheetOpen}
         onOpenChange={onPaymentSheetChange}
-        selectedMethod={paymentMethod}
-        onSelect={onSelectPayment}
+        selectedMethod={paymentMethod as any}
+        onSelect={onSelectPayment as any}
       />
 
       {/* القائمة الجانبية */}

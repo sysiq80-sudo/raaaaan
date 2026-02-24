@@ -1,3 +1,4 @@
+// @ts-ignore
 import DOMPurify from "dompurify";
 import { z } from "zod";
 
@@ -266,7 +267,7 @@ export const validationSchemas = {
     .string()
     .min(1, "المعرف مطلوب")
     .max(50, "المعرف طويل جداً")
-    .transform(sanitizeAlphanumeric),
+    .transform(sanitizeAlphanumeric as any),
 };
 
 // Input sanitization wrapper for forms

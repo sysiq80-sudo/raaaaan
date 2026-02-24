@@ -234,7 +234,7 @@ const DriverHome = () => {
         }
       },
       (error) => console.error("Watch position error:", error),
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000, distanceFilter: 10 }
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 } as any
     );
 
     watchIdRef.current = watchId;

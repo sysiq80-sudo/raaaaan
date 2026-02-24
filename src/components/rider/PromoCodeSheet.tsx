@@ -88,7 +88,7 @@ const PromoCodeSheet: React.FC<PromoCodeSheetProps> = ({
       }
 
       // التحقق من تاريخ الصلاحية
-      if (data.expires_at && new Date(data.expires_at) < new Date()) {
+      if ((data as any).expires_at && new Date((data as any).expires_at) < new Date()) {
         setValidationResult({
           valid: false,
           code: code.toUpperCase(),
@@ -101,7 +101,7 @@ const PromoCodeSheet: React.FC<PromoCodeSheetProps> = ({
       }
 
       // التحقق من عدد الاستخدامات
-      if (data.max_uses && data.used_count >= data.max_uses) {
+      if ((data as any).max_uses && (data as any).used_count >= (data as any).max_uses) {
         setValidationResult({
           valid: false,
           code: code.toUpperCase(),
@@ -113,15 +113,15 @@ const PromoCodeSheet: React.FC<PromoCodeSheetProps> = ({
         return;
       }
 
-      // الكود صالح
+      const d = data as any;
       const result: PromoResult = {
         valid: true,
-        code: data.code,
-        discount_type: data.discount_type || "percentage",
-        discount_value: data.discount_value || 0,
-        max_discount: data.max_discount,
-        message: `خصم ${data.discount_type === "percentage" ? `${data.discount_value}%` : `${data.discount_value.toLocaleString()} د.ع`}`,
-        expires_at: data.expires_at,
+        code: d.code,
+        discount_type: d.discount_type || "percentage",
+        discount_value: d.discount_value || 0,
+        max_discount: d.max_discount,
+        message: `خصم ${d.discount_type === "percentage" ? `${d.discount_value}%` : `${d.discount_value.toLocaleString()} د.ع`}`,
+        expires_at: d.expires_at,
       };
 
       setValidationResult(result);

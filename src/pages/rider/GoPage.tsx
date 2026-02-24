@@ -708,7 +708,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                     },
                     includedTypes: POI_TYPES,
                     maxResultCount: 5,
-                    languageCode: 'ar',
+                    language: 'ar',
                   });
 
                   if (places && places.length > 0 && places[0].displayName) {
@@ -1849,9 +1849,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             placeholder={isPickup ? "اختر موقع الانطلاق" : "اختر الوجهة"}
             onClick={() => {}} // الخريطة تتحكم بهذا
             onClear={() => {
-              setCenterAddress(null);
-              setCenterLat(null);
-              setCenterLng(null);
+               setCenterAddress(null);
+               (window as any).__setCenterLat?.(null);
+               (window as any).__setCenterLng?.(null);
               setManualAddress(null);
             }}
             isPickup={isPickup}

@@ -160,7 +160,7 @@ export const useLocationPicker = (
               locationRestriction: { center: { lat, lng }, radius: 50 },
               includedTypes: IRAQ_POI_TYPES,
               maxResultCount: 5,
-              languageCode: 'ar',
+              language: 'ar',
             }).catch(() => ({ places: [] as any[] }))
           : Promise.resolve({ places: [] as any[] });
 
@@ -238,7 +238,7 @@ export const useLocationPicker = (
               locationRestriction: { center: { lat, lng }, radius: 150 },
               includedTypes: IRAQ_POI_TYPES,
               maxResultCount: 5,
-              languageCode: 'ar',
+              language: 'ar',
             });
             poiName = pickBestPOI(nearbyResult150?.places || []);
             if (poiName) console.log("🔍 POI at 150m:", poiName);
