@@ -142,6 +142,57 @@ serve(async (req: Request) => {
     if (new_status === "accepted" && driver_id) {
       const driver = await fetchDriverDetails(supabase, driver_id);
 
+      // حساب ETA حقيقي من موقع السائق لنقطة الانطلاق
+      let etaText = "خلال *5 دقائق* تقريباً";
+      try {
+        if (driver_id && ride_id) {
+          // جلب موقع السائق الحالي
+          const { data: driverData } = await (supabase as any)
+            .from("drivers")
+            .select("current_location")
+            .eq("id", driver_id)
+            .maybeSingle();
+          
+          // جلب موقع الانطلاق
+          const { data: rideData } = await (supabase as any)
+            .from("rides")
+            .select("pickup_location")
+            .eq("id", ride_id)
+            .maybeSingle();
+
+          if (driverData?.current_location && rideData?.pickup_location) {
+            const dLoc = driverData.current_location;
+            const pLoc = rideData.pickup_location;
+            const dLat = typeof dLoc.lat === 'number' ? dLoc.lat : parseFloat(dLoc.lat);
+            const dLng = typeof dLoc.lng === 'number' ? dLoc.lng : parseFloat(dLoc.lng);
+            const pLat = typeof pLoc.lat === 'number' ? pLoc.lat : parseFloat(pLoc.lat);
+            const pLng = typeof pLoc.lng === 'number' ? pLoc.lng : parseFloat(pLoc.lng);
+            
+            // Haversine distance
+            const R = 6371;
+            const dLatR = ((pLat - dLat) * Math.PI) / 180;
+            const dLngR = ((pLng - dLng) * Math.PI) / 180;
+            const a = Math.sin(dLatR/2) * Math.sin(dLatR/2) +
+              Math.cos(dLat * Math.PI/180) * Math.cos(pLat * Math.PI/180) *
+              Math.sin(dLngR/2) * Math.sin(dLngR/2);
+            const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            
+            // تقدير الوقت: 30 كم/ساعة متوسط في المدينة
+            const etaMinutes = Math.max(1, Math.round(distKm / 30 * 60));
+            if (etaMinutes <= 1) {
+              etaText = "خلال *دقيقة واحدة*";
+            } else if (etaMinutes <= 3) {
+              etaText = `خلال *${etaMinutes} دقائق*`;
+            } else {
+              etaText = `خلال *${etaMinutes} دقيقة* تقريباً`;
+            }
+            console.log(`[WhatsAppRideUpdates] Real ETA: ${distKm.toFixed(1)}km → ${etaMinutes} min`);
+          }
+        }
+      } catch (etaErr) {
+        console.warn("[WhatsAppRideUpdates] ETA calculation failed, using default:", etaErr);
+      }
+
       // إنشاء رابط التتبع المباشر
       let trackingLine = "";
       try {
@@ -159,7 +210,7 @@ serve(async (req: Request) => {
         `🚕 *الكابتن ${driver?.full_name ?? "غير معروف"} في الطريق إليك!*\n\n` +
           `🚗 السيارة: ${driver?.vehicle_model ?? "—"} - ${driver?.vehicle_color ?? "—"}\n` +
           `🔢 اللوحة: ${driver?.vehicle_plate ?? "—"}\n\n` +
-          `⏳ وقت الوصول: خلال *5 دقائق* تقريباً.\n` +
+          `⏳ وقت الوصول: ${etaText}.\n` +
           `خليك جاهز!` +
           trackingLine
       );
