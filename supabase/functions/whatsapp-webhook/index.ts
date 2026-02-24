@@ -902,7 +902,37 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
-function estimateFare(distanceKm: number): number {
+async function calculateFareFromEdge(
+  supabase: any,
+  pickupLat: number,
+  pickupLng: number,
+  dropoffLat: number,
+  dropoffLng: number,
+  distanceKm: number,
+  vehicleType: string = "economy"
+): Promise<number> {
+  try {
+    const { data, error } = await supabase.functions.invoke("calculate-fare", {
+      body: {
+        pickup_lat: pickupLat,
+        pickup_lng: pickupLng,
+        dropoff_lat: dropoffLat,
+        dropoff_lng: dropoffLng,
+        distance_km: distanceKm,
+        vehicle_type: vehicleType,
+      },
+    });
+    if (error) throw error;
+    if (data?.total_fare) return Math.ceil(data.total_fare / 250) * 250;
+    // fallback
+    return estimateFareLocal(distanceKm);
+  } catch (e) {
+    console.warn("[fare] Edge function failed, using local fallback:", e);
+    return estimateFareLocal(distanceKm);
+  }
+}
+
+function estimateFareLocal(distanceKm: number): number {
   const baseFare = 2000;
   const perKmRate = 1000;
   const raw = baseFare + distanceKm * perKmRate;
@@ -1113,10 +1143,40 @@ serve(async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
+  // ── Webhook Signature Verification ──
+  const rawBody = await req.text();
+  const signature = req.headers.get("X-Hub-Signature-256");
+  if (signature) {
+    try {
+      const svc = createServiceClient();
+      const cfg = await getConfigBatch(svc, ["WHATSAPP_APP_SECRET"]);
+      const appSecret = cfg["WHATSAPP_APP_SECRET"];
+      if (appSecret) {
+        const encoder = new TextEncoder();
+        const key = await crypto.subtle.importKey(
+          "raw",
+          encoder.encode(appSecret),
+          { name: "HMAC", hash: "SHA-256" },
+          false,
+          ["sign"]
+        );
+        const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+        const expectedSig = "sha256=" + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+        if (expectedSig !== signature) {
+          console.error("[wa] ❌ Invalid webhook signature!");
+          return new Response("Forbidden", { status: 403 });
+        }
+        console.log("[wa] ✅ Webhook signature verified");
+      }
+    } catch (sigErr) {
+      console.warn("[wa] Signature verification skipped:", sigErr);
+    }
+  }
+
   // CRITICAL: Always return 200 fast to Meta
   let body: any;
   try {
-    body = await req.json();
+    body = JSON.parse(rawBody);
   } catch {
     return new Response("Bad Request", { status: 400 });
   }
@@ -1590,7 +1650,7 @@ serve(async (req) => {
 
           // حساب المسافة والأجرة
           const distanceKm = haversineDistance(pickupLocation.lat, pickupLocation.lng, dropoffResolved.lat, dropoffResolved.lng);
-          const fare = estimateFare(distanceKm);
+          const fare = await calculateFareFromEdge(supabase, pickupLocation.lat, pickupLocation.lng, dropoffResolved.lat, dropoffResolved.lng, distanceKm, scheduleDetails.vehicle_type);
 
           // إنشاء الحجز المجدول
           const { data: scheduledRide, error: schedError } = await supabase
@@ -1723,7 +1783,7 @@ serve(async (req) => {
 
     // ── حساب المسافة والأجرة ──
     const distanceKm = haversineDistance(session.pickup_lat, session.pickup_lng, destination.lat, destination.lng);
-    const fare = estimateFare(distanceKm);
+    const fare = await calculateFareFromEdge(supabase, session.pickup_lat, session.pickup_lng, destination.lat, destination.lng, distanceKm, intent.vehicle_type || "economy");
     console.log(`[fare] Distance: ${distanceKm.toFixed(2)} km, Fare: ${fare} IQD`);
 
     // ── تحديث الرحلة بالوجهة ──
