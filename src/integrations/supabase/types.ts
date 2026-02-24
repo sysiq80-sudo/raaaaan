@@ -4840,6 +4840,7 @@ export type Database = {
       }
       cleanup_old_push_tokens: { Args: never; Returns: number }
       cleanup_old_tracking_points: { Args: never; Returns: number }
+      cleanup_stale_draft_rides: { Args: never; Returns: number }
       confirm_scheduled_ride: {
         Args: { p_scheduled_ride_id: string }
         Returns: Json
