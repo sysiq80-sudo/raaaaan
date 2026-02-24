@@ -83,7 +83,7 @@ const DriverBottomNav = () => {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed bottom-0 left-0 right-0 z-50 mx-4 mb-4"
+            className="fixed bottom-0 left-0 right-0 z-50 mx-4" style={{ marginBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
             role="navigation"
             aria-label="القائمة الرئيسية للسائق"
           >

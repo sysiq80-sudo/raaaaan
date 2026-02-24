@@ -31,8 +31,13 @@ const config: CapacitorConfig = {
     allowNavigation: [
       'https://maps.googleapis.com',
       'https://maps.google.com',
+      'https://maps.gstatic.com',
       'https://wgolkcztdrwdphwjvqxt.supabase.co',
       'https://api.mapbox.com',
+      'https://tile.openstreetmap.org',
+      'http://localhost',
+      'https://localhost',
+      'capacitor://localhost',
     ],
   },
 
@@ -77,10 +82,11 @@ const config: CapacitorConfig = {
       showSpinner: false,
     },
 
-    // شريط الحالة
+    // شريط الحالة — شفاف مع وضع overlay لدعم Safe Area
     StatusBar: {
       style: 'DARK',
-      backgroundColor: '#0a0f14',
+      backgroundColor: '#00000000',
+      overlaysWebView: true,
     },
   },
 };

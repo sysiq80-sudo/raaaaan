@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
 import { playNotificationSound } from "@/lib/audioContext";
+import { isNativePlatform, onAppStateChange, showNativeNotification, nativeHaptic } from "@/lib/capacitorBridge";
 
 interface NewRide {
   id: string;
@@ -131,8 +132,12 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     // تشغيل الصوت المركزي كإضافة
     playNotificationSound();
     
-    // Vibrate device
-    vibrateDevice();
+    // Vibrate device — استخدام اهتزاز أصلي في Capacitor
+    if (isNativePlatform) {
+      nativeHaptic('heavy');
+    } else {
+      vibrateDevice();
+    }
 
     // Show enhanced toast notification
     toast({
@@ -141,8 +146,24 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
       duration: 20000,
     });
 
-    // Browser Push Notification
-    if ('Notification' in window && Notification.permission === 'granted') {
+    // إشعار أصلي عبر Capacitor (يعمل حتى لو التطبيق في الخلفية)
+    if (isNativePlatform) {
+      const notifBody = [
+        `💰 الأجرة: ${estimatedFare.toLocaleString()} د.ع`,
+        `📍 من: ${pickupAddress}`,
+        dropoffAddress ? `🎯 إلى: ${dropoffAddress}` : '',
+        distance > 0 ? `📏 المسافة: ${distance.toFixed(1)} كم` : ''
+      ].filter(Boolean).join('\n');
+      
+      showNativeNotification(
+        '🚗 طلب رحلة جديد!',
+        notifBody,
+        Math.floor(Date.now() / 1000)
+      );
+    }
+
+    // Browser Push Notification (للويب فقط)
+    if (!isNativePlatform && 'Notification' in window && Notification.permission === 'granted') {
       const notificationBody = [
         `💰 الأجرة: ${estimatedFare.toLocaleString()} د.ع`,
         `📍 من: ${pickupAddress}`,
@@ -223,37 +244,95 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     showPushNotification(ride);
   }, [vehicleType, showPushNotification, canDriverServeRide]);
 
-  // Subscribe to new rides with INSTANT realtime
+  // Subscribe to new rides with INSTANT realtime + Capacitor reconnection
   useEffect(() => {
     if (!driverId) return;
 
     console.log('🔴 Setting up INSTANT ride notifications for driver:', driverId);
+    let cleanupAppState: (() => void) | null = null;
 
-    const channel = supabase
-      .channel(`driver-new-rides-${driverId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'rides',
-          filter: 'status=eq.pending'
-        },
-        (payload) => {
-          console.log('⚡ INSTANT: New ride detected:', payload.new?.id);
-          handleNewRide(payload as { new: Record<string, unknown> });
-        }
-      )
-      .subscribe((status) => {
-        console.log('🔴 Notification subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ INSTANT notifications ready - driver will receive immediate alerts');
+    const channelName = `driver-new-rides-${driverId}`;
+    
+    const createChannel = () => {
+      // إزالة أي قناة قديمة بنفس الاسم قبل إعادة الإنشاء
+      const existingChannel = supabase.getChannels().find(ch => ch.topic === `realtime:${channelName}`);
+      if (existingChannel) {
+        supabase.removeChannel(existingChannel);
+      }
+      
+      const ch = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'rides',
+            filter: 'status=eq.pending'
+          },
+          (payload) => {
+            console.log('⚡ INSTANT: New ride detected:', payload.new?.id);
+            handleNewRide(payload as { new: Record<string, unknown> });
+          }
+        )
+        .subscribe((status) => {
+          console.log('🔴 Notification subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ INSTANT notifications ready - driver will receive immediate alerts');
+          }
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn('⚠️ Realtime channel error — will retry in 3s');
+            setTimeout(() => {
+              supabase.removeChannel(ch);
+              createChannel();
+            }, 3000);
+          }
+        });
+      
+      return ch;
+    };
+    
+    let channel = createChannel();
+
+    // 📱 Capacitor: إعادة اتصال Realtime عند عودة التطبيق من الخلفية
+    const setupAppStateListener = async () => {
+      cleanupAppState = await onAppStateChange((isActive) => {
+        if (isActive) {
+          console.log('📱 التطبيق عاد للمقدمة — إعادة اتصال Realtime...');
+          
+          // إعادة إنشاء القناة لضمان اتصال جديد
+          try {
+            supabase.removeChannel(channel);
+          } catch (e) {
+            // تجاهل خطأ إزالة القناة القديمة
+          }
+          channel = createChannel();
+          
+          // استئناف AudioContext المعلق (مطلوب في الأجهزة المحمولة)
+          try {
+            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioCtx) {
+              const tempCtx = new AudioCtx();
+              if (tempCtx.state === 'suspended') {
+                tempCtx.resume();
+              }
+              tempCtx.close();
+            }
+          } catch {
+            // تجاهل
+          }
+        } else {
+          console.log('📱 التطبيق ذهب للخلفية');
         }
       });
+    };
+    
+    setupAppStateListener();
 
     return () => {
       console.log('Cleaning up ride notification subscription');
       supabase.removeChannel(channel);
+      if (cleanupAppState) cleanupAppState();
     };
   }, [driverId, handleNewRide]);
 

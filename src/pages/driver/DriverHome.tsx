@@ -636,8 +636,8 @@ const DriverHome = () => {
 
   return (
     <div className="h-screen bg-background flex flex-col">
-      {/* ═══ Header — Glassmorphism floating bar ═══ */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-black/60 backdrop-blur-xl border-b border-white/5">
+      {/* ═══ Header — Glassmorphism floating bar + Safe Area for Capacitor ═══ */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-black/60 backdrop-blur-xl border-b border-white/5" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="container flex items-center justify-between h-14">
           {/* Menu Button */}
           <button
@@ -709,8 +709,8 @@ const DriverHome = () => {
         {driverId && adminActivated && driverStatus === "approved" && (
           <>
             {/* Dashboard — Map + Controls (always visible) */}
-            {/* Full Screen Map - Absolute background */}
-            <div className="absolute inset-0 top-14">
+            {/* Full Screen Map - Absolute background — top accounts for header + safe area */}
+            <div className="absolute inset-0" style={{ top: 'calc(56px + env(safe-area-inset-top, 0px))' }}>
               <DriverMap
                 driverLocation={currentLocation}
                 isOnline={isOnline}

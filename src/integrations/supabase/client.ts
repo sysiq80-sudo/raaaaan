@@ -30,10 +30,21 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
       return await fn();
     },
   },
+  // إعدادات Realtime محسّنة للعمل داخل Capacitor (WebSocket keepalive)
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+    heartbeatIntervalMs: 15000,   // نبضة كل 15 ثانية للحفاظ على الاتصال
+    reconnectAfterMs: (tries: number) => {
+      // إعادة الاتصال سريعاً: 0.5s, 1s, 2s, 4s, max 10s
+      return Math.min(500 * Math.pow(2, tries), 10000);
+    },
+  },
   // Add error handling and logging
   global: {
     headers: {
-      'X-Client-Info': 'raan-web-app',
+      'X-Client-Info': 'raan-captain-app',
     },
   },
 });

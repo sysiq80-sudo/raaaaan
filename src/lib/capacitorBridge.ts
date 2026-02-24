@@ -199,7 +199,7 @@ export const onAppStateChange = async (
 // ═══ شريط الحالة ═══
 
 /**
- * تخصيص شريط حالة Android
+ * تخصيص شريط حالة Android — شفاف مع overlay لدعم Safe Area
  */
 export const configureStatusBar = async (): Promise<void> => {
   if (!isNativePlatform) return;
@@ -207,7 +207,8 @@ export const configureStatusBar = async (): Promise<void> => {
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar');
     await StatusBar.setStyle({ style: Style.Dark });
-    await StatusBar.setBackgroundColor({ color: '#0a0f14' });
+    await StatusBar.setBackgroundColor({ color: '#00000000' }); // شفاف
+    await StatusBar.setOverlaysWebView({ overlay: true }); // تراكب فوق المحتوى
   } catch {
     // صامت
   }

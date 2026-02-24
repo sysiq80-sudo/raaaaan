@@ -3,7 +3,7 @@
 # ران RAAN - الوثيقة المرجعية الشاملة
 
 **آخر تحديث:** 2026-02-24  
-**الإصدار:** 2.0.0  
+**الإصدار:** 2.0.1  
 **المُنشئ:** نظام التطوير الذكي
 
 ---
@@ -467,6 +467,32 @@ stateDiagram-v2
 ---
 
 ## 12. سجل التغييرات
+
+### 2026-02-24 (v2.0.1) — إصلاح 4 أخطاء حرجة في تطبيق Capacitor Android
+
+| النوع | التغيير | السبب |
+|-------|---------|-------|
+| **إصلاح حرج** | **Bug 1: Safe Area — إصلاح تداخل شريط الحالة مع واجهة السائق** | **على أجهزة Android، كان الـ header يتداخل مع شريط الحالة — الحل: جعل شريط الحالة شفاف + overlay mode في StatusBar plugin + إضافة `paddingTop: env(safe-area-inset-top)` للـ header + حساب ارتفاع الخريطة مع Safe Area + هامش سفلي في BottomNav** |
+| **إصلاح حرج** | **Bug 2: Map CORS — إصلاح شاشة سوداء للخريطة في Capacitor** | **Capacitor يعمل من `https://localhost` داخلياً — أُضيفت أصول localhost و capacitor://localhost و maps.gstatic.com و tile.openstreetmap.org لـ `allowNavigation` في capacitor.config.ts — الـ viewport أُحدث لـ `viewport-fit=cover` لدعم edge-to-edge** |
+| **إصلاح حرج** | **Bug 3: Realtime — إصلاح إشعارات الرحلات في الخلفية/المقدمة** | **WebSocket كان يموت عند ذهاب التطبيق للخلفية — أُضيف: (1) Supabase Realtime heartbeat كل 15 ثانية + reconnect تدريجي، (2) مستمع `onAppStateChange` يعيد إنشاء القناة عند العودة للمقدمة، (3) إشعارات أصلية عبر Capacitor Local Notifications، (4) اهتزاز أصلي عبر Haptics، (5) معالجة خطأ CHANNEL_ERROR مع إعادة محاولة** |
+| **إصلاح حرج** | **Bug 4: App Icon — أيقونة ران وشاشة البداية** | **كان يظهر أيقونة الروبوت الافتراضية — استُخدم `@capacitor/assets generate` لتوليد 105 ملف: أيقونات adaptive (foreground + background خلفية خضراء #10b981) بكل الأحجام (ldpi→xxxhdpi) + أيقونات دائرية + splash screens (portrait + landscape + dark mode)** |
+| **تحسين** | **Supabase Client — إعدادات Realtime محسّنة** | **أُضيف `heartbeatIntervalMs: 15000` و `reconnectAfterMs` تصاعدي (500ms→10s) و `eventsPerSecond: 10` — لتحسين استقرار WebSocket في بيئة Capacitor** |
+| **تحسين** | **إشعارات أصلية عبر Capacitor** | **`showPushNotification` يستخدم الآن `showNativeNotification()` + `nativeHaptic('heavy')` في بيئة Capacitor بدلاً من Web Notification API و `navigator.vibrate()`** |
+| **بنية تحتية** | **مجلد `resources/` — ملفات مصدر الأيقونات** | **icon.png + icon-foreground.png + splash.png — مصدر `@capacitor/assets generate`** |
+
+#### الملفات المُعدلة (v2.0.1):
+| الملف | التعديل |
+|-------|---------|
+| `android/app/src/main/res/values/styles.xml` | شريط حالة + تنقل شفاف لعرض edge-to-edge |
+| `src/pages/driver/DriverHome.tsx` | paddingTop safe-area في header + حساب top الخريطة |
+| `capacitor.config.ts` | StatusBar overlay + transparent + allowNavigation origins |
+| `src/lib/capacitorBridge.ts` | configureStatusBar() شفاف + overlay |
+| `src/components/driver/DriverBottomNav.tsx` | هامش سفلي safe-area-inset-bottom |
+| `index.html` | viewport-fit=cover + maximum-scale=1.0 |
+| `src/integrations/supabase/client.ts` | Realtime heartbeat + reconnectAfterMs + X-Client-Info |
+| `src/hooks/useDriverNotifications.ts` | onAppStateChange reconnect + native notifications + CHANNEL_ERROR retry |
+| `android/app/src/main/res/mipmap-*/` | أيقونات ران الجديدة (كل الأحجام) |
+| `android/app/src/main/res/drawable-*/` | splash screens (portrait + landscape + dark) |
 
 ### 2026-02-24 (v2.0.0) — Capacitor/PWA استراتيجية التغليف لتطبيق السائق Android
 
