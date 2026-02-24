@@ -1,4 +1,10 @@
 {
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
+    }
+  ],
   "compilerOptions": {
     "allowJs": true,
     "noImplicitAny": false,
@@ -15,8 +21,5 @@
       "./node_modules/@types",
       "./src/types"
     ]
-  },
-  "files": [
-    "./src/types/google-maps.d.ts"
-  ]
+  }
 }
