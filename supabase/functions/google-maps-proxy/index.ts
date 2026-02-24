@@ -71,6 +71,14 @@ serve(async (req) => {
       );
     }
 
+    // Return API key to client
+    if (action === 'get-api-key') {
+      return new Response(
+        JSON.stringify({ apiKey: GOOGLE_MAPS_API_KEY }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Get directions between two points
     if (action === 'directions') {
       const origin = url.searchParams.get('origin');
