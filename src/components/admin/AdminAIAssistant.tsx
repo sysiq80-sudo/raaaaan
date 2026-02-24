@@ -122,16 +122,7 @@ export const AdminAIAssistant: React.FC = () => {
       console.error('Error loading support tickets:', error);
       setError('فشل في تحميل تذاكر الدعم');
     }
-  };
-        .limit(20);
-
-      if (error) throw error;
-      setTickets(data || []);
-    } catch (err) {
-      console.error('Error loading tickets:', err);
-      setError('فشل في تحميل التذاكر');
-    }
-  };
+   };
 
   const generateAISuggestion = async (ticket: SupportTicket) => {
     if (!ticket) return;
@@ -240,7 +231,7 @@ export const AdminAIAssistant: React.FC = () => {
       });
 
       // تحديث حالة التذكرة
-      await supabase
+      await (supabase as any)
         .from('support_tickets')
         .update({
           status: 'in_progress',

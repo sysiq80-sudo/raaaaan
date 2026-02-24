@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase";
+import type { Database } from "@/integrations/supabase/types";
 
 type Ride = Database["public"]["Tables"]["rides"]["Row"];
 
@@ -117,7 +117,7 @@ export const useOptimizedRealtime = (
               setPendingUpdates((prev) => new Map(prev).set(rideId, update));
             },
           )
-          .on("status", (status) => {
+          .on("system" as any, {} as any, (status: string) => {
             setIsConnected(status === "SUBSCRIBED");
             if (status === "SUBSCRIBED") {
               console.log(`[Realtime] Connected to ride ${rideId}`);

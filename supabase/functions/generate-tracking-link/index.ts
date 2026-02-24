@@ -16,7 +16,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 // رابط الموقع الرئيسي — يُحمّل ديناميكياً من system_configs
-let SITE_URL = "https://rfrfrde.netlify.app";
+let SITE_URL = "https://raanai.lovable.app";
 let _configLoaded = false;
 
 async function loadDynamicConfig() {
@@ -29,7 +29,7 @@ async function loadDynamicConfig() {
     console.log("[generate-tracking-link] ✅ Dynamic config loaded");
   } catch (e) {
     console.warn("[generate-tracking-link] ⚠️ Config load failed, using env fallback:", e);
-    SITE_URL = SITE_URL || Deno.env.get("SITE_URL") || "https://rfrfrde.netlify.app";
+    SITE_URL = SITE_URL || Deno.env.get("SITE_URL") || "https://raanai.lovable.app";
   }
 }
 

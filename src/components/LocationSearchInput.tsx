@@ -16,8 +16,11 @@ import {
   X,
   CheckCircle2,
   AlertTriangle,
-
   Heart,
+  Home,
+  Briefcase,
+  Star,
+  Clock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -303,7 +306,7 @@ const LocationSearchInput = forwardRef<
           data?.length || 0,
           "places"
         );
-        setSavedPlaces(data || []);
+        setSavedPlaces((data || []) as any);
       } catch (error) {
         console.error("fetchSavedPlaces: Error:", error);
         toast({
@@ -443,6 +446,13 @@ const LocationSearchInput = forwardRef<
       }
     };
 
+    // Check if a place is already saved
+    const isPlaceSaved = (result: SearchResult): boolean => {
+      return savedPlaces.some(
+        (p) => p.lat === result.lat && p.lng === result.lng
+      );
+    };
+
     // Get icon for result type
     const getIconForType = (resultType: string) => {
       switch (resultType) {
@@ -573,110 +583,6 @@ const LocationSearchInput = forwardRef<
                 exit={{ opacity: 0, y: 20 }}
                 className="fixed top-20 left-4 right-4 bottom-20 md:left-1/4 md:right-1/4 bg-card/98 backdrop-blur-xl border-2 border-border rounded-3xl shadow-2xl overflow-hidden z-[101]"
               >
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Navigation className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">موقعي الحالي</p>
-                  <p className="text-xs text-muted-foreground">استخدم GPS</p>
-                </div>
-              </button>
-            )}
-
-            {!query && results.length === 0 && (
-              <div className="px-4 py-6 text-center">
-                <Search className="w-8 h-8 text-muted-foreground/50 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  ابحث عن موقع، منطقة، أو معلم
-                </p>
-              </div>
-            )}
-
-            {isLoading && query && (
-              <div className="px-4 py-6 text-center">
-                <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">جاري البحث...</p>
-              </div>
-            )}
-
-            {!isLoading &&
-              results.map((result) => (
-                <div
-                  key={result.id}
-                  className={`w-full flex items-center gap-2 px-4 py-3 hover:bg-accent transition-colors border-b border-border/50 last:border-0 ${
-                    result.in_service === false ? "opacity-70" : ""
-                  }`}
-                >
-                  <button
-                    onClick={() => handleSelectResult(result)}
-                    className="flex-1 flex items-center gap-3 text-right"
-                  >
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        result.type === "landmark"
-                          ? "bg-primary/10"
-                          : result.type === "region"
-                          ? "bg-secondary"
-                          : "bg-muted"
-                      }`}
-                    >
-                      <span className="text-lg">{result.icon}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-foreground truncate">
-                          {result.name}
-                        </p>
-                        {result.in_service !== undefined &&
-                          (result.in_service ? (
-                            <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                          ) : (
-                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-                          ))}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span
-                          className={`px-1.5 py-0.5 rounded ${
-                            result.type === "landmark"
-                              ? "bg-primary/10 text-primary"
-                              : result.type === "region"
-                              ? "bg-secondary text-secondary-foreground"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {result.category}
-                        </span>
-                        {result.distance_km !== undefined && (
-                          <span>{result.distance_km} كم</span>
-                        )}
-                        {result.in_service === false && (
-                          <span className="text-amber-500">خارج الخدمة</span>
-                        )}
-                        {result.in_service && result.region_name && (
-                          <span className="text-primary">
-                            {result.region_name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {getTypeIcon(result.type)}
-                  </button>
-                  
-                  {/* Heart button to save place */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // TODO: Implement save to favorites functionality
-                      console.log('Save to favorites:', result);
-                    }}
-                    className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors group"
-                    title="حفظ في المفضلة"
-                  >
-                    <Heart className="w-5 h-5 text-muted-foreground group-hover:text-red-500 group-hover:fill-red-500 transition-all" />
-                  </button>
-                </div>
-              ))}
-
                 {/* Scrollable content */}
                 <div className="h-full overflow-y-auto pt-16 pb-6">
                   {/* Current Location Button */}

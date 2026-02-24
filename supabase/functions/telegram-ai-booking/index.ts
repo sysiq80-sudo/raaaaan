@@ -246,7 +246,7 @@ async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promis
   const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "mp4" : "ogg";
 
   const formData = new FormData();
-  formData.append("file", new Blob([audioBytes], { type: mimeType }), `voice.${ext}`);
+  formData.append("file", new Blob([audioBytes.buffer as ArrayBuffer], { type: mimeType }), `voice.${ext}`);
   formData.append("model", "whisper-1");
   formData.append("language", "ar");
   formData.append("prompt",
@@ -1458,7 +1458,7 @@ serve(async (req) => {
     await supabase.rpc("increment_bot_customer_interactions", {
       p_platform: "telegram",
       p_platform_id: String(telegramUser?.id || chatId),
-    }).then(() => {}).catch(() => {}); // صامت
+    }).then(() => {}).catch((e: any) => { console.warn("[tg] increment failed:", e); }); // صامت
   } catch (e) {
     console.warn("[tg] bot_customers upsert failed (non-critical):", e);
   }

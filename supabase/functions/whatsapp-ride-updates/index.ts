@@ -22,7 +22,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 let WHATSAPP_ACCESS_TOKEN = "";
 let WHATSAPP_PHONE_ID = "";
-let SITE_URL = "https://rfrfrde.netlify.app";
+let SITE_URL = "https://raanai.lovable.app";
 let GRAPH_API = "";
 let _configLoaded = false;
 
@@ -45,7 +45,7 @@ async function loadDynamicConfig() {
     console.warn("[whatsapp-ride-updates] ⚠️ Config load failed, using env fallbacks:", e);
     WHATSAPP_ACCESS_TOKEN = WHATSAPP_ACCESS_TOKEN || Deno.env.get("WHATSAPP_ACCESS_TOKEN") || "";
     WHATSAPP_PHONE_ID = WHATSAPP_PHONE_ID || Deno.env.get("WHATSAPP_PHONE_ID") || "";
-    SITE_URL = SITE_URL || Deno.env.get("SITE_URL") || "https://rfrfrde.netlify.app";
+    SITE_URL = SITE_URL || Deno.env.get("SITE_URL") || "https://raanai.lovable.app";
     GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/messages`;
   }
 }

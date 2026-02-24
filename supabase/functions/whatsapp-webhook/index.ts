@@ -26,7 +26,7 @@ let WHATSAPP_ACCESS_TOKEN = "";
 let WHATSAPP_PHONE_ID = "";
 let OPENAI_API_KEY = "";
 let GOOGLE_MAPS_KEY = "";
-let SITE_URL = "https://rfrfrde.netlify.app";
+let SITE_URL = "https://raanai.lovable.app";
 let GRAPH_API = "";
 let _configLoaded = false;
 
@@ -59,7 +59,7 @@ async function loadDynamicConfig() {
     WHATSAPP_PHONE_ID = WHATSAPP_PHONE_ID || Deno.env.get("WHATSAPP_PHONE_ID") || "";
     OPENAI_API_KEY = OPENAI_API_KEY || Deno.env.get("OPENAI_API_KEY") || "";
     GOOGLE_MAPS_KEY = GOOGLE_MAPS_KEY || Deno.env.get("GOOGLE_MAPS_KEY") || "";
-    SITE_URL = SITE_URL || Deno.env.get("SITE_URL") || "https://rfrfrde.netlify.app";
+    SITE_URL = SITE_URL || Deno.env.get("SITE_URL") || "https://raanai.lovable.app";
     GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/messages`;
   }
 }

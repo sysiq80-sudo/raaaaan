@@ -21,7 +21,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 let TELEGRAM_BOT_TOKEN = "";
-let SITE_URL = "https://rfrfrde.netlify.app";
+let SITE_URL = "https://raanai.lovable.app";
 let TELEGRAM_API = "";
 let _configLoaded = false;
 
@@ -41,7 +41,7 @@ async function loadDynamicConfig() {
   } catch (e) {
     console.warn("[telegram-ride-updates] ⚠️ Config load failed, using env fallbacks:", e);
     TELEGRAM_BOT_TOKEN = TELEGRAM_BOT_TOKEN || Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
-    SITE_URL = SITE_URL || Deno.env.get("SITE_URL") || "https://rfrfrde.netlify.app";
+    SITE_URL = SITE_URL || Deno.env.get("SITE_URL") || "https://raanai.lovable.app";
     TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
   }
 }

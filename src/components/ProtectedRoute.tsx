@@ -17,7 +17,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   redirectTo = "/auth",
 }) => {
-  const { user, loading } = useAuth();
+  const { user, loading } = useAuth() as any;
   const location = useLocation();
 
   // عرض شاشة التحميل أثناء التحقق من حالة المصادقة

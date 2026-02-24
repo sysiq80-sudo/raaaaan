@@ -125,7 +125,7 @@ async function sendTelegramMessage(chatId: number | string, text: string) {
 // ════════════════════════════════════════════════════════════
 
 async function resolveWhatsAppPhone(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   riderId: string
 ): Promise<string | null> {
   if (!riderId) return null;
@@ -165,7 +165,7 @@ async function resolveWhatsAppPhone(
 // ════════════════════════════════════════════════════════════
 
 async function resolveTelegramChatId(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   riderId: string
 ): Promise<number | null> {
   if (!riderId) return null;
@@ -199,7 +199,7 @@ async function resolveTelegramChatId(
 // ════════════════════════════════════════════════════════════
 
 async function getDriverName(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   rideId: string
 ): Promise<string> {
   const { data } = await supabase
