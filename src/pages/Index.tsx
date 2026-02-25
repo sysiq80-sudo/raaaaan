@@ -919,6 +919,7 @@ const Index = () => {
               <Link to="/privacy" className="hover:text-primary transition-colors">سياسة الخصوصية</Link>
               <Link to="/terms" className="hover:text-primary transition-colors">الشروط والأحكام</Link>
               <Link to="/contact" className="hover:text-primary transition-colors">تواصل معنا</Link>
+              <Link to="/admin/login" className="hover:text-primary transition-colors">لوحة التحكم</Link>
             </div>
           </div>
         </div>
