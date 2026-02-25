@@ -228,13 +228,13 @@ serve(async (req: Request) => {
       let etaText = "خلال *5 دقائق* تقريباً";
       try {
         if (driver_id && ride_id) {
-          const { data: driverData } = await (supabase as any)
+          const { data: driverData } = await supabase
             .from("drivers")
             .select("current_location")
             .eq("id", driver_id)
             .maybeSingle();
 
-          const { data: rideData } = await (supabase as any)
+          const { data: rideData } = await supabase
             .from("rides")
             .select("pickup_location")
             .eq("id", ride_id)
@@ -337,7 +337,7 @@ serve(async (req: Request) => {
               wa_buttons_sent: true,
               wa_accepted_at: new Date().toISOString(),
             },
-          } as any)
+          })
           .eq("id", ride_id);
       } catch (e) {
         console.warn("[WhatsAppRideUpdates] Failed to save ride metadata:", e);
@@ -463,7 +463,7 @@ serve(async (req: Request) => {
 // ════════════════════════════════════════════════════════════
 
 async function resolveRiderPhone(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   riderId: string
 ): Promise<string | null> {
   if (!riderId) return null;
@@ -627,7 +627,7 @@ interface DriverDetails {
 }
 
 async function fetchDriverDetails(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   driverId: string
 ): Promise<DriverDetails | null> {
   const { data, error } = await supabase

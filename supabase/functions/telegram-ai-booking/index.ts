@@ -1574,7 +1574,7 @@ serve(async (req) => {
     await supabase.rpc("increment_bot_customer_interactions", {
       p_platform: "telegram",
       p_platform_id: String(telegramUser?.id || chatId),
-    }).then(() => { }).catch?.((e: any) => { console.warn("[tg] increment failed:", e); }); // صامت
+    }).then(() => { }).catch((e: any) => { console.warn("[tg] increment failed:", e); }); // صامت
   } catch (e) {
     console.warn("[tg] bot_customers upsert failed (non-critical):", e);
   }

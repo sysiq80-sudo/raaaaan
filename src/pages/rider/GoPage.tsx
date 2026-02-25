@@ -468,7 +468,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     }
   }, [scheduleMode, pickupLocation, dropoffLocation]);
 
-  // 🔄 استبدال Polling بـ Supabase Realtime لمراقبة الرحلة النشطة
+  // 🔄 فحص الرحلة النشطة عند التحميل + عند العودة للتطبيق
+  // ✅ FIX: تمت إزالة الاشتراك المكرر في Realtime - useActiveRide يتولى ذلك
   useEffect(() => {
     if (!userId) return;
 
@@ -491,29 +492,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
     checkRide();
 
-    // اشتراك Realtime بدل Polling كل 3 ثوان
-    const rideChannel = supabase
-      .channel(`rider-rides-${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'rides',
-          filter: `rider_id=eq.${userId}`,
-        },
-        (payload) => {
-          const updatedRide = payload.new as any;
-          if (updatedRide && ['cancelled', 'completed'].includes(updatedRide.status)) {
-            // الرحلة انتهت - أخفِ الشاشات
-            setShowWaitingScreen(false);
-            setShowLiveTracker(false);
-          }
-        }
-      )
-      .subscribe();
-
-    // فحص عند العودة للـ tab فقط (بدون interval)
+    // فحص عند العودة للـ tab فقط (بدون interval أو Realtime مكرر)
     const handleVisibilityChange = () => {
       if (!document.hidden) checkRide();
     };
@@ -521,7 +500,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      supabase.removeChannel(rideChannel);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [userId, setShowWaitingScreen, setShowLiveTracker]);
@@ -1165,25 +1143,25 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   //     </Suspense>;
   // }
 
-  // Show rating screen first when ride completes
-  if (showRatingScreen && completedRide) {
+  // ✅ FIX: عرض شاشة التقييم أولاً عند إكمال الرحلة (ربط showRatingScreen بشكل صحيح)
+  if (showCompletedScreen && completedRide && !showRatingScreen) {
+    // عرض شاشة التقييم أولاً
     return <Suspense fallback={<ScreenSkeleton />}>
       <RideRatingScreen
         rideId={completedRide.id}
         driverId={completedRide.driver_id}
-        driverName={"السائق"}
+        driverName={completedRide.driver_name || "السائق"}
         fare={completedRide.final_fare || completedRide.estimated_fare || 0}
         onClose={() => {
-          setShowRatingScreen(false);
-          // Show completed screen after rating
-          setShowCompletedScreen(true);
+          // بعد التقييم → عرض الملخص
+          setShowRatingScreen(true);
         }}
       />
     </Suspense>;
   }
 
-  // Show completed screen for summary
-  if (showCompletedScreen && completedRide) {
+  // عرض شاشة الملخص بعد التقييم
+  if (showRatingScreen && showCompletedScreen && completedRide) {
     return <Suspense fallback={<ScreenSkeleton />}>
         <RideCompletedScreen ride={{
         id: completedRide.id,
@@ -1194,7 +1172,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         distance_km: completedRide.distance_km,
         duration_minutes: completedRide.duration_minutes,
         driver_id: completedRide.driver_id
-      }} driverName={"السائق"} onClose={() => {
+      }} driverName={completedRide.driver_name || "السائق"} onClose={() => {
         console.log('🎉 [RideCompleted] onClose -> clearing completed ride and resetting booking/map');
         setShowRatingScreen(false);
         setShowCompletedScreen(false);

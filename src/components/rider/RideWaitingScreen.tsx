@@ -87,6 +87,7 @@ export const RideWaitingScreen = ({
   const [lastTappedDhikr, setLastTappedDhikr] = useState<string | null>(null);
   const { toast } = useToast();
   const driverFoundTimeoutRef = useRef<number | null>(null);
+  const mountedRef = useRef(true); // ✅ FIX: تتبع حالة المكون
   const driverFoundInProgress = showDriverCard || showDriverFoundTransition;
 
   // Use settings from database or defaults
@@ -98,6 +99,39 @@ export const RideWaitingScreen = ({
   const autoCancelMessage =
     waitSettings?.auto_cancel_message ||
     "لم يتم العثور على سائق متاح خلال الوقت المحدد";
+
+  // ✅ FIX: تحميل عداد الأذكار من localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('raan_dhikr_counts');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const savedDate = parsed._date;
+        const today = new Date().toDateString();
+        if (savedDate === today) {
+          setDhikrCounts({ istighfar: parsed.istighfar || 0, tasbih: parsed.tasbih || 0, tahmid: parsed.tahmid || 0 });
+        }
+      }
+    } catch {}
+  }, []);
+
+  // ✅ FIX: حفظ عداد الأذكار عند التغيير
+  useEffect(() => {
+    if (dhikrCounts.istighfar || dhikrCounts.tasbih || dhikrCounts.tahmid) {
+      try {
+        localStorage.setItem('raan_dhikr_counts', JSON.stringify({
+          ...dhikrCounts,
+          _date: new Date().toDateString()
+        }));
+      } catch {}
+    }
+  }, [dhikrCounts]);
+
+  // ✅ FIX: تنظيف mountedRef عند إزالة المكون
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   // Handle dhikr tap with haptic feedback
   const handleDhikrTap = (type: "istighfar" | "tasbih" | "tahmid") => {
@@ -263,13 +297,34 @@ export const RideWaitingScreen = ({
       }
     };
     const fetchNearbyDrivers = async () => {
+      // ✅ FIX: جلب موقع الرحلة لفلترة السائقين القريبين فعلاً
+      const { data: rideInfo } = await supabase
+        .from("rides")
+        .select("pickup_location")
+        .eq("id", rideId)
+        .single();
+      const pickupLoc = rideInfo?.pickup_location as { lat: number; lng: number } | null;
+
       const { data, error } = await supabase
         .from("drivers")
-        .select("id")
+        .select("id, current_location")
         .eq("is_online", true)
         .eq("is_available", true)
         .eq("status", "approved");
-      if (!error && data) {
+      if (!error && data && pickupLoc) {
+        // فلترة بالمسافة (5 كم) باستخدام haversine مبسط
+        const nearby = data.filter((d: any) => {
+          const loc = d.current_location as { lat: number; lng: number } | null;
+          if (!loc?.lat || !loc?.lng) return false;
+          const R = 6371;
+          const dLat = (loc.lat - pickupLoc.lat) * Math.PI / 180;
+          const dLng = (loc.lng - pickupLoc.lng) * Math.PI / 180;
+          const a = Math.sin(dLat/2)**2 + Math.cos(pickupLoc.lat * Math.PI/180) * Math.cos(loc.lat * Math.PI/180) * Math.sin(dLng/2)**2;
+          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          return dist <= 5; // 5 كم
+        });
+        setNearbyDrivers(nearby.length);
+      } else if (!error && data) {
         setNearbyDrivers(data.length);
       }
     };
@@ -306,12 +361,16 @@ export const RideWaitingScreen = ({
     // Fetch driver info first
     const hasDriver = await fetchDriverInfo(driverId);
 
+    // ✅ FIX: فحص إذا المكون لا يزال موجوداً بعد الانتظار
+    if (!mountedRef.current) return;
+
     if (hasDriver) {
       setShowDriverFoundTransition(true);
       if (driverFoundTimeoutRef.current) {
         window.clearTimeout(driverFoundTimeoutRef.current);
       }
       driverFoundTimeoutRef.current = window.setTimeout(() => {
+        if (!mountedRef.current) return; // ✅ FIX: فحص داخل المؤقت
         setShowDriverFoundTransition(false);
         setShowDriverCard(true);
       }, 1200);
@@ -392,41 +451,15 @@ export const RideWaitingScreen = ({
   // Listen for ride updates - fallback with slower polling when Realtime unavailable
   useEffect(() => {
     console.log(
-      "[RideWaiting] Setting up fallback subscriptions for ride:",
+      "[RideWaiting] Fallback subscriptions: useActiveRide handles polling, skipping redundant interval",
       rideId,
     );
 
-    // Fallback polling (أبطأ عندما يكون Realtime متصل)
-    const pollInterval = setInterval(async () => {
-      if (driverFoundInProgress || isConnected) return; // Skip if found or Realtime connected
+    // ✅ FIX: تمت إزالة Polling المكرر كل 2 ثانية
+    // useOptimizedRealtime (أعلاه) + useActiveRide (في GoPage) يتوليان التتبع
+    // لا حاجة لطبقة ثالثة من الاستعلامات
 
-      try {
-        const { data } = await supabase
-          .from("rides")
-          .select("status, driver_id, reassignment_count")
-          .eq("id", rideId)
-          .single();
-
-        if (
-          data?.status === "accepted" &&
-          data?.driver_id &&
-          !driverFoundInProgress
-        ) {
-          console.log(
-            "[RideWaiting] ✅ Poll detected driver acceptance (fallback)",
-          );
-          handleDriverFound(data.driver_id);
-        }
-        if (data?.status === "cancelled") {
-          onCancel();
-        }
-      } catch (err) {
-        console.error("[RideWaiting] Poll error:", err);
-      }
-    }, 2000);
-    return () => {
-      clearInterval(pollInterval);
-    };
+    return () => {};
   }, [rideId, driverFoundInProgress, toast, onCancel]);
 
   // Handle cancel button click - show dialog

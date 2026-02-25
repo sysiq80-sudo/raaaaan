@@ -24,6 +24,7 @@ export interface ActiveRide {
   created_at: string;
   completed_at: string | null;
   driver_rating?: number | null;
+  driver_name?: string | null;
 }
 
 export const useActiveRide = (userId: string | null) => {
@@ -35,6 +36,7 @@ export const useActiveRide = (userId: string | null) => {
   const [completedRide, setCompletedRide] = useState<ActiveRide | null>(null);
   const [showCompletedScreen, setShowCompletedScreen] = useState(false);
   const previousStatusRef = useRef<string | null>(null);
+  const activeRideIdRef = useRef<string | null>(null);
   // When true, skip polling/checking to avoid race with booking flow
   const ignorePollingRef = useRef(false);
   const setIgnorePolling = useCallback((v: boolean) => {
@@ -83,12 +85,26 @@ export const useActiveRide = (userId: string | null) => {
           
           if (isEmergency) {
             console.log("🚨 Emergency completed - skipping rating screen");
-            // عدم عرض شاشة التقييم للرحلات المنتهية بالطوارئ
             setCompletedRide(null);
             setShowCompletedScreen(false);
           } else {
-            // ✅ FIX: تعيين الرحلة المكتملة أولاً قبل مسح الحالة
             console.log("✅ Setting completed ride data for rating screen");
+            
+            // ✅ FIX: جلب اسم السائق الحقيقي
+            if (updatedRide.driver_id) {
+              supabase
+                .from("drivers")
+                .select("full_name")
+                .eq("id", updatedRide.driver_id)
+                .maybeSingle()
+                .then(({ data: driverData }) => {
+                  if (driverData?.full_name) {
+                    setCompletedRide({ ...completedRideData, driver_name: driverData.full_name });
+                  }
+                })
+                .catch(() => {});
+            }
+            
             setCompletedRide(completedRideData);
             
             // ✅ FIX: تأخير بسيط لضمان عرض شاشة التقييم
@@ -254,6 +270,11 @@ export const useActiveRide = (userId: string | null) => {
     }
   }, [userId, parseRideData]);
 
+  // ✅ FIX: تحديث ref بدون إعادة إنشاء الاشتراك
+  useEffect(() => {
+    activeRideIdRef.current = activeRide?.id ?? null;
+  }, [activeRide?.id]);
+
   useEffect(() => {
     if (!userId) {
       // لا يوجد مستخدم - لا تشترك في التحديثات ولا تنشئ polling
@@ -313,19 +334,19 @@ export const useActiveRide = (userId: string | null) => {
     // Fallback polling - smart interval:
     // 15s when no active ride (just checking for new ones)
     // 3s when tracking an active ride (need fast status updates)
-    const getPollingInterval = () => activeRide ? 3000 : 15000;
+    const getPollingInterval = () => activeRideIdRef.current ? 3000 : 15000;
     let pollTimer: ReturnType<typeof setTimeout>;
 
     const schedulePoll = () => {
       pollTimer = setTimeout(async () => {
-        if (!activeRide) {
+        if (!activeRideIdRef.current) {
           // لا توجد رحلة نشطة - فحص خفيف كل 15 ثانية
           checkActiveRide();
         } else {
           const { data } = await supabase
             .from("rides")
             .select("status, driver_id, emergency_completed")
-            .eq("id", activeRide.id)
+            .eq("id", activeRideIdRef.current)
             .single();
 
           if (data && data.status !== previousStatusRef.current) {
@@ -354,7 +375,6 @@ export const useActiveRide = (userId: string | null) => {
     checkActiveRide,
     handleStatusChange,
     parseRideData,
-    activeRide?.id,
   ]);
 
   const clearActiveRide = useCallback(() => {

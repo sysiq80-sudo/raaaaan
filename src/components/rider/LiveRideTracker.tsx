@@ -264,7 +264,16 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   useEffect(() => {
     if (!mapContainer.current || !googleMapsApiKey) return;
 
+    const MAX_ATTEMPTS = 50; // ✅ FIX: حد أقصى 5 ثواني (50 * 100ms)
+    let attempts = 0;
     const checkGoogleMaps = setInterval(() => {
+      attempts++;
+      if (attempts >= MAX_ATTEMPTS) {
+        clearInterval(checkGoogleMaps);
+        console.error("[LiveRideTracker] ❌ Google Maps failed to load after 5s");
+        setIsLoading(false);
+        return;
+      }
       if (window.google?.maps) {
         clearInterval(checkGoogleMaps);
         if (!mapContainer.current || map.current) return;

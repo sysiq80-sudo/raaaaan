@@ -296,7 +296,7 @@ async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promis
   const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "mp4" : mimeType.includes("opus") ? "ogg" : "ogg";
 
   const formData = new FormData();
-  formData.append("file", new Blob([audioBytes], { type: mimeType }), `voice.${ext}`);
+  formData.append("file", new Blob([audioBytes.buffer as ArrayBuffer], { type: mimeType }), `voice.${ext}`);
   formData.append("model", "whisper-1");
   formData.append("language", "ar");
   formData.append("prompt",
@@ -955,7 +955,7 @@ function estimateFareLocal(distanceKm: number): number {
 // البحث عن / إنشاء مستخدم واتساب
 // ════════════════════════════════════════
 async function findOrCreateWhatsAppUser(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   phoneNumber: string,
   profileName: string | null
 ): Promise<string> {
@@ -1039,7 +1039,7 @@ interface PendingSession {
 }
 
 async function findPendingSession(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   riderId: string
 ): Promise<PendingSession | null> {
   const { data } = await supabase
@@ -1066,7 +1066,7 @@ async function findPendingSession(
 }
 
 async function createPickupSession(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   riderId: string,
   lat: number,
   lng: number,
@@ -1125,7 +1125,7 @@ async function createPickupSession(
 // 🔍 فحص الرحلات النشطة
 // ════════════════════════════════════════
 async function checkActiveRide(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   riderId: string
 ): Promise<{ id: string; status: string; pickup_address: string | null; dropoff_address: string | null } | null> {
   const { data } = await supabase

@@ -177,6 +177,7 @@ export const useBookingFlow = () => {
         },
         zIndex: 100,
       });
+      markersRef.current.push(pickupMarker); // ✅ FIX: تتبع العلامة للتنظيف
       console.log("📍 Pickup marker added");
 
       // Add dropoff marker
@@ -194,6 +195,7 @@ export const useBookingFlow = () => {
         },
         zIndex: 101,
       });
+      markersRef.current.push(dropoffMarker); // ✅ FIX: تتبع العلامة للتنظيف
       console.log("📍 Dropoff marker added");
 
       // Fetch and draw the route after map is fully loaded
