@@ -1696,36 +1696,7 @@ serve(async (req) => {
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
-    // ── إذا أرسل المستخدم تحية → قائمة ترحيب بأزرار ──
-    // كشف التحية بـ regex لتغطية الاختلافات (هلوووو، مرحبااا، السلام عليكم ورحمة الله...)
-    if (hasText) {
-      const txt = message.text.body.trim();
-      const txtLower = txt.toLowerCase();
-      const isGreeting =
-        // قائمة المطابقة الدقيقة
-        ["ران", "raan", "start"].includes(txtLower) ||
-        // أنماط التحية العربية (مع تكرار الحروف والتشكيل)
-        /^(هلو+|هلا+|مرحبا+[ً]?[ه]?|مرحبتين|اهلا+[ً]?|أهلا+[ً]?|اهلين|سلام+|السلام\s*عليكم.*|صباح\s*(الخير|النور)|مساء\s*(الخير|النور)|شلون[كم]?|كيف[كم]?|هاي+|الو+|شخبار[كم]?|منور[ين]?)[\s!.؟?]*$/i.test(txt) ||
-        // أنماط التحية الانجليزية
-        /^(hi+|hello+|hey+|good\s*(morning|evening)|assalam[u]?\s*alaikum.*)[\s!.?]*$/i.test(txtLower);
-
-      if (isGreeting) {
-        console.log(`[wa] Greeting detected: "${txt}" → sending welcome menu`);
-        const userName = profileName || "عزيزي";
-        await sendInteractiveButtons(
-          phoneNumber,
-          MESSAGES.welcomeMenu(userName),
-          [
-            { id: "action_book_ride", title: "🚕 حجز رحلة الان" },
-            { id: "action_inquiry", title: "💬 استفسار سريع" },
-            { id: "action_other_options", title: "📋 المزيد" },
-          ]
-        );
-        return new Response("EVENT_RECEIVED", { status: 200 });
-      }
-    }
-
-    // ── فحص إذا المستخدم موجود ──
+    // ── فحص إذا المستخدم موجود (يجب أن يكون قبل فحص التحية لأن الدردشة والرحلات النشطة أولوية أعلى) ──
     const riderId = await findOrCreateWhatsAppUser(supabase, phoneNumber, profileName);
 
     // ══════════════════════════════════════════════════════════
@@ -1761,6 +1732,8 @@ serve(async (req) => {
             "إلغاء", "الغاء", "cancel",
             // أوامر قائمة
             "قائمة", "menu", "مساعدة", "help",
+            // أوامر إنهاء المحادثة
+            "خلص", "انتهيت", "done", "stop",
           ];
 
           const isBreakoutCommand = breakoutKeywords.some(kw =>
@@ -1909,6 +1882,36 @@ serve(async (req) => {
         }
       }
       return new Response("EVENT_RECEIVED", { status: 200 });
+    }
+
+    // ── إذا أرسل المستخدم تحية → قائمة ترحيب بأزرار ──
+    // ⚠️ مهم: هذا الفحص يأتي بعد فحص الدردشة والرحلة النشطة
+    // لأن الراكب قد يكتب "هلا" أو "مرحبا" كرسالة للسائق
+    if (hasText) {
+      const txt = message.text.body.trim();
+      const txtLower = txt.toLowerCase();
+      const isGreeting =
+        // قائمة المطابقة الدقيقة
+        ["ران", "raan", "start"].includes(txtLower) ||
+        // أنماط التحية العربية (مع تكرار الحروف والتشكيل)
+        /^(هلو+|هلا+|مرحبا+[ً]?[ه]?|مرحبتين|اهلا+[ً]?|أهلا+[ً]?|اهلين|سلام+|السلام\s*عليكم.*|صباح\s*(الخير|النور)|مساء\s*(الخير|النور)|شلون[كم]?|كيف[كم]?|هاي+|الو+|شخبار[كم]?|منور[ين]?)[\s!.؟?]*$/i.test(txt) ||
+        // أنماط التحية الانجليزية
+        /^(hi+|hello+|hey+|good\s*(morning|evening)|assalam[u]?\s*alaikum.*)[\s!.?]*$/i.test(txtLower);
+
+      if (isGreeting) {
+        console.log(`[wa] Greeting detected: "${txt}" → sending welcome menu`);
+        const userName = profileName || "عزيزي";
+        await sendInteractiveButtons(
+          phoneNumber,
+          MESSAGES.welcomeMenu(userName),
+          [
+            { id: "action_book_ride", title: "🚕 حجز رحلة الان" },
+            { id: "action_inquiry", title: "💬 استفسار سريع" },
+            { id: "action_other_options", title: "📋 المزيد" },
+          ]
+        );
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
     }
 
     // ── هل يوجد session (draft بدون وجهة)؟ ──
