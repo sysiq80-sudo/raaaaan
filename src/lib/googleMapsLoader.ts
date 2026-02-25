@@ -1,7 +1,7 @@
 /**
  * محمّل Google Maps المركزي — يضمن تحميل السكربت مرة واحدة فقط
  * مع loading=async لأفضل أداء (خاصة على Safari/iPhone)
- * 
+ *
  * الاستخدام:
  *   const google = await loadGoogleMaps(apiKey);
  *   // أو
@@ -10,7 +10,7 @@
  */
 
 // كل المكتبات المطلوبة في التطبيق — نحملها مرة واحدة
-const ALL_LIBRARIES = "places,geometry,geocoding,directions,visualization";
+const ALL_LIBRARIES = "places,geometry,geocoding,visualization";
 
 let loadPromise: Promise<typeof google> | null = null;
 let loadedApiKey: string | null = null;
@@ -40,7 +40,7 @@ export function loadGoogleMaps(apiKey: string): Promise<typeof google> {
 
   // تحقق إذا يوجد سكربت في DOM من تحميل سابق
   const existingScript = document.querySelector(
-    'script[src*="maps.googleapis.com/maps/api/js"]'
+    'script[src*="maps.googleapis.com/maps/api/js"]',
   ) as HTMLScriptElement | null;
 
   if (existingScript) {
@@ -88,7 +88,9 @@ export function loadGoogleMaps(apiKey: string): Promise<typeof google> {
         if (window.google?.maps?.Map) {
           resolve(window.google);
         } else {
-          reject(new Error("Google Maps API loaded but maps.Map not available"));
+          reject(
+            new Error("Google Maps API loaded but maps.Map not available"),
+          );
         }
       }, 15000);
     };
@@ -109,7 +111,7 @@ export function loadGoogleMaps(apiKey: string): Promise<typeof google> {
  * تحقق سريع: هل Google Maps جاهز للاستخدام؟
  */
 export function isGoogleMapsReady(): boolean {
-  return !!(window.google?.maps?.Map);
+  return !!window.google?.maps?.Map;
 }
 
 /**
