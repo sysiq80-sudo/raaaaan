@@ -858,7 +858,7 @@ function estimateFare(distanceKm: number): number {
 // البحث عن أو إنشاء مستخدم تيليغرام
 // ════════════════════════════════════════
 async function findOrCreateTelegramUser(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   telegramUser: { id: number; first_name?: string; last_name?: string; username?: string }
 ): Promise<string> {
   const telegramRef = `tg_${telegramUser.id}`;
@@ -951,7 +951,7 @@ interface PendingSession {
 }
 
 async function findPendingSession(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   riderId: string
 ): Promise<PendingSession | null> {
   const { data } = await supabase
@@ -982,7 +982,7 @@ async function findPendingSession(
 // إنشاء session جديدة (رحلة draft بالموقع فقط — غير مرئية للسائقين)
 // ════════════════════════════════════════
 async function createPickupSession(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   riderId: string,
   lat: number,
   lng: number,
@@ -1574,7 +1574,7 @@ serve(async (req) => {
     await supabase.rpc("increment_bot_customer_interactions", {
       p_platform: "telegram",
       p_platform_id: String(telegramUser?.id || chatId),
-    }).then(() => { }).catch((e: any) => { console.warn("[tg] increment failed:", e); }); // صامت
+    }).then(() => { }).catch?.((e: any) => { console.warn("[tg] increment failed:", e); }); // صامت
   } catch (e) {
     console.warn("[tg] bot_customers upsert failed (non-critical):", e);
   }
