@@ -31,6 +31,16 @@ interface DriverInfo {
     totalEarnings: number;
 }
 
+interface RideRequest {
+    id: string;
+    rideId: string;
+    pickupAddress: string | null;
+    dropoffAddress: string | null;
+    estimatedFare: number | null;
+    distanceKm: number | null;
+    receivedAt: string;
+}
+
 interface ActiveRide {
     id: string;
     status: RideStatus;
@@ -73,7 +83,10 @@ interface DriverState {
     todayStats: TodayStats;
 
     // طلبات الرحلات المعلقة
-    pendingRequests: any[];
+    pendingRequests: RideRequest[];
+
+    // تاريخ آخر إعادة ضبط يومي
+    lastStatsResetDate: string | null;
 
     // الإعدادات
     autoAccept: boolean;
@@ -111,9 +124,12 @@ interface DriverActions {
     resetDailyStats: () => void;
 
     // الطلبات
-    addPendingRequest: (request: any) => void;
+    addPendingRequest: (request: RideRequest) => void;
     removePendingRequest: (requestId: string) => void;
     clearPendingRequests: () => void;
+
+    // إعادة ضبط تلقائي عند منتصف الليل
+    checkAndResetDailyStats: () => void;
 
     // الإعدادات
     toggleAutoAccept: () => void;
@@ -140,6 +156,7 @@ const initialState: DriverState = {
         onlineHours: 0,
     },
     pendingRequests: [],
+    lastStatsResetDate: null,
     autoAccept: false,
     soundsEnabled: true,
     vibrationEnabled: true,
@@ -216,7 +233,21 @@ export const useDriverStore = create<DriverState & DriverActions>()(
 
             resetDailyStats: () => set({
                 todayStats: { rides: 0, earnings: 0, onlineHours: 0 },
+                lastStatsResetDate: new Date().toISOString().split('T')[0],
             }),
+
+            // إعادة ضبط تلقائي عند منتصف الليل
+            checkAndResetDailyStats: () => {
+                const today = new Date().toISOString().split('T')[0];
+                const { lastStatsResetDate } = get();
+                if (lastStatsResetDate !== today) {
+                    set({
+                        todayStats: { rides: 0, earnings: 0, onlineHours: 0 },
+                        lastStatsResetDate: today,
+                    });
+                    console.log('[DriverStore] Daily stats auto-reset for', today);
+                }
+            },
 
             // الطلبات
             addPendingRequest: (request) => set((state) => ({
@@ -256,6 +287,7 @@ export const useDriverStore = create<DriverState & DriverActions>()(
                 soundsEnabled: state.soundsEnabled,
                 vibrationEnabled: state.vibrationEnabled,
                 todayStats: state.todayStats,
+                lastStatsResetDate: state.lastStatsResetDate,
             }),
         }
     )
@@ -268,7 +300,10 @@ export const useDriverOnlineStatus = () => useDriverStore((state) => ({
     isOnline: state.isOnline,
     isAvailable: state.isAvailable,
 }));
-export const useActiveRideStore = () => useDriverStore((state) => state.activeRide);
+export const useDriverActiveRide = () => useDriverStore((state) => state.activeRide);
+
+/** @deprecated Use useDriverActiveRide instead — kept for backward compatibility */
+export const useActiveRideStore = useDriverActiveRide;
 export const useTodayStats = () => useDriverStore((state) => state.todayStats);
 export const useDriverSettings = () => useDriverStore((state) => ({
     autoAccept: state.autoAccept,

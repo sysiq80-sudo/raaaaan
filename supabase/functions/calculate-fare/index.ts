@@ -31,6 +31,19 @@ function isPointInPolygon(
   return inside;
 }
 
+// Haversine formula — المسافة الخطية بين نقطتين بالكيلومتر
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * 0.017453292519943295;
+  const dLng = (lng2 - lng1) * 0.017453292519943295;
+  const a =
+    Math.sin(dLat * 0.5) * Math.sin(dLat * 0.5) +
+    Math.cos(lat1 * 0.017453292519943295) *
+      Math.cos(lat2 * 0.017453292519943295) *
+      Math.sin(dLng * 0.5) * Math.sin(dLng * 0.5);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -52,6 +65,68 @@ serve(async (req) => {
       waiting_minutes = 0,
       driver_id = null, // Optional: for calculating with driver discounts
     } = await req.json();
+
+    // ═══ Input Validation ═══
+    // التحقق من أن الإحداثيات ضمن حدود العراق (lat ~29-37, lng ~38-49)
+    const IRAQ_BOUNDS = { minLat: 29.0, maxLat: 37.5, minLng: 38.0, maxLng: 49.0 };
+
+    if (
+      typeof pickup_lat !== "number" || typeof pickup_lng !== "number" ||
+      typeof dropoff_lat !== "number" || typeof dropoff_lng !== "number" ||
+      isNaN(pickup_lat) || isNaN(pickup_lng) || isNaN(dropoff_lat) || isNaN(dropoff_lng)
+    ) {
+      return new Response(
+        JSON.stringify({ error: "إحداثيات غير صالحة — يجب أن تكون أرقاماً" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (
+      pickup_lat < IRAQ_BOUNDS.minLat || pickup_lat > IRAQ_BOUNDS.maxLat ||
+      pickup_lng < IRAQ_BOUNDS.minLng || pickup_lng > IRAQ_BOUNDS.maxLng
+    ) {
+      return new Response(
+        JSON.stringify({ error: "نقطة الانطلاق خارج نطاق الخدمة" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (
+      dropoff_lat < IRAQ_BOUNDS.minLat || dropoff_lat > IRAQ_BOUNDS.maxLat ||
+      dropoff_lng < IRAQ_BOUNDS.minLng || dropoff_lng > IRAQ_BOUNDS.maxLng
+    ) {
+      return new Response(
+        JSON.stringify({ error: "نقطة الوصول خارج نطاق الخدمة" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // التحقق من المسافة — الحد الأقصى 500 كم (عبر العراق كاملاً)، الحد الأدنى 0.1 كم
+    if (typeof distance_km !== "number" || isNaN(distance_km) || distance_km < 0.1 || distance_km > 500) {
+      return new Response(
+        JSON.stringify({ error: "المسافة غير صالحة — يجب أن تكون بين 0.1 و 500 كم" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Server-side distance sanity check: مقارنة المسافة المُدخلة بالمسافة الخطية
+    const straightLineKm = haversineDistance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng);
+    if (distance_km < straightLineKm * 0.8) {
+      // المسافة المرسلة أقل من المسافة الخطية — مُحتمل تلاعب
+      console.warn(`[calculate-fare] Suspicious distance: client=${distance_km}km, straight=${straightLineKm.toFixed(2)}km`);
+      return new Response(
+        JSON.stringify({ error: "المسافة غير منطقية — أقل من المسافة الخطية بين النقطتين" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    if (distance_km > straightLineKm * 5) {
+      // المسافة أكثر من 5x المسافة الخطية — مبالغ فيها
+      console.warn(`[calculate-fare] Exaggerated distance: client=${distance_km}km, straight=${straightLineKm.toFixed(2)}km`);
+      return new Response(
+        JSON.stringify({ error: "المسافة المُدخلة مبالغ فيها" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     console.log("Calculating fare for:", {
       pickup: [pickup_lat, pickup_lng],
@@ -89,11 +164,12 @@ serve(async (req) => {
     const vehicleMultiplier = vehicleTypeData?.multiplier || 1.0;
     const vehicleMinFare = vehicleTypeData?.min_fare || 2000;
 
-    // Find the region based on pickup location
+    // Find the region based on pickup location — sort by name for deterministic fallback
     const { data: regions, error: regionsError } = await supabase
       .from("regions")
       .select("*")
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .order("name_ar", { ascending: true });
 
     if (regionsError) {
       console.error("Error fetching regions:", regionsError);

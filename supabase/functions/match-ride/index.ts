@@ -1,41 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
-
-// حساب المسافة بين نقطتين (Haversine formula) - Optimized
-function calculateDistance(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const R = 6371; // نصف قطر الأرض بالكيلومتر
-  const dLat = (lat2 - lat1) * 0.017453292519943295; // Math.PI / 180
-  const dLng = (lng2 - lng1) * 0.017453292519943295;
-
-  const a =
-    Math.sin(dLat * 0.5) * Math.sin(dLat * 0.5) +
-    Math.cos(lat1 * 0.017453292519943295) *
-      Math.cos(lat2 * 0.017453292519943295) *
-      Math.sin(dLng * 0.5) *
-      Math.sin(dLng * 0.5);
-
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-// حساب وقت الوصول المتوقع (بالدقائق) مع مراعاة الوقت
-function calculateETA(distanceKm: number): number {
-  const hour = new Date().getHours();
-  // Rush hours: 7-9 AM and 4-7 PM - slower speed
-  const isRushHour = (hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19);
-  const avgSpeedKmh = isRushHour ? 25 : 40;
-  return Math.round((distanceKm / avgSpeedKmh) * 60);
-}
+import { haversineDistance, calculateETA, corsHeaders, getAuthUser, jsonResponse, errorResponse, corsPreflightResponse } from "../_shared/utils.ts";
 
 // Vehicle type compatibility - which drivers can serve which rides
 function isVehicleTypeCompatible(
@@ -60,13 +25,19 @@ serve(async (req) => {
 
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return corsPreflightResponse();
   }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // التحقق من المستخدم — مطلوب بعد تفعيل JWT
+    const caller = await getAuthUser(req);
+    if (!caller) {
+      return errorResponse("غير مصرّح: يجب تسجيل الدخول", 401);
+    }
 
     const { rideId } = await req.json();
 
@@ -85,6 +56,21 @@ serve(async (req) => {
 
     if (rideError || !ride) {
       throw new Error("الرحلة غير موجودة");
+    }
+
+    // التحقق من أن المتصل هو صاحب الرحلة
+    if (ride.rider_id !== caller.id) {
+      // التحقق من أنه مدير (admin)
+      const { data: adminRole } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", caller.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      
+      if (!adminRole) {
+        return errorResponse("غير مصرّح: لا يمكنك مطابقة رحلة ليست لك", 403);
+      }
     }
 
     // التحقق من حالة الرحلة
@@ -180,7 +166,7 @@ serve(async (req) => {
           lat: number;
           lng: number;
         };
-        const distance = calculateDistance(
+        const distance = haversineDistance(
           pickupLoc.lat,
           pickupLoc.lng,
           driverLoc.lat,

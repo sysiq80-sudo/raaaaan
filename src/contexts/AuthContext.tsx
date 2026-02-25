@@ -165,7 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Safety-net: force loading off if nothing works (e.g. network completely down)
     const safetyTimer = setTimeout(() => {
       if (isMounted && !authResolved) {
-        console.warn("[AuthContext] Safety timeout reached (10s), forcing loading complete");
+        console.warn("[AuthContext] Safety timeout reached (4s), forcing loading complete");
         authResolved = true;
         setIsLoading(false);
       }
@@ -185,9 +185,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (isMounted) {
             setUserRole(role);
             // استعادة الدور المحفوظ في localStorage إذا متاح
+            // مع إعادة التحقق من حالة السائق لمنع استخدام دور قديم
             const savedRole = localStorage.getItem("raan_current_role");
             if (savedRole === "driver" && role === "rider") {
-              setUserRole("driver");
+              // إعادة التحقق: هل السائق لا يزال معتمداً؟
+              const { data: driver } = await supabase
+                .from("drivers")
+                .select("status")
+                .eq("user_id", session.user.id)
+                .maybeSingle();
+              
+              if (driver?.status === "approved") {
+                setUserRole("driver");
+              } else {
+                // السائق لم يعد معتمداً — إزالة الدور القديم
+                localStorage.removeItem("raan_current_role");
+                console.warn("[AuthContext] Stale driver role cleared — driver no longer approved");
+              }
             }
           }
         } catch (roleError) {

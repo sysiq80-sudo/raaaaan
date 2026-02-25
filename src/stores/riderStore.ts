@@ -247,6 +247,9 @@ export const useRiderBooking = () => useRiderStore((state) => ({
     estimatedFare: state.estimatedFare,
 }));
 
-export const useActiveRideStore = () => useRiderStore((state) => state.activeRide);
+export const useRiderActiveRide = () => useRiderStore((state) => state.activeRide);
+
+/** @deprecated Use useRiderActiveRide instead — kept for backward compatibility */
+export const useActiveRideStore = useRiderActiveRide;
 
 export default useRiderStore;

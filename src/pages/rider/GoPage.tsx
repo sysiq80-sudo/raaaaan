@@ -189,7 +189,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     initializeBookingMap,
     fetchRoute,
     cleanup: cleanupBooking
-  } = useBookingFlow(mapToken);
+  } = useBookingFlow();
 
   // Search and places
   const {

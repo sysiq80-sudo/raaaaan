@@ -303,6 +303,14 @@ const DriverHome = () => {
     }
   }, [isOnline, hasActiveRide, driverId, startLocationTracking, stopLocationTracking]);
 
+  // عند وجود رحلة نشطة: إلغاء وضع "مشغول" تلقائياً
+  // يُعالج حالة التعارض بين تحميل بيانات السائق (is_available=false) وتحميل الرحلة النشطة
+  useEffect(() => {
+    if (hasActiveRide && isPaused) {
+      setIsPaused(false);
+    }
+  }, [hasActiveRide, isPaused]);
+
   // Track active ride status to keep location updates while on trip
   useEffect(() => {
     if (!driverId) return;
@@ -405,8 +413,19 @@ const DriverHome = () => {
       setIsOnline(wasOnline);
       
       // استعادة حالة الإيقاف المؤقت: متصل لكن غير متاح = مشغول
+      // فقط إذا لم تكن هناك رحلة نشطة (is_available يُضبط false تلقائياً عند قبول الرحلة)
       if (wasOnline && data.is_available === false) {
-        setIsPaused(true);
+        // نتحقق من وجود رحلة نشطة قبل اعتبار السائق "مشغولاً يدوياً"
+        const { data: activeRides } = await supabase
+          .from("rides")
+          .select("id")
+          .eq("driver_id", data.id)
+          .in("status", ["accepted", "arrived", "in_progress"])
+          .limit(1);
+        if (!activeRides || activeRides.length === 0) {
+          setIsPaused(true);
+        }
+        // إذا كانت هناك رحلة نشطة، لا نضبط isPaused — السائق في رحلة وليس متوقفاً
       }
 
       // Restore location if available
@@ -782,6 +801,8 @@ const DriverHome = () => {
                         console.log(
                           "[DriverHome] Ride accepted — triggering ActiveRideCard refresh"
                         );
+                        // إلغاء حالة "مشغول" فوراً — السائق في رحلة وليس متوقفاً يدوياً
+                        setIsPaused(false);
                         setRideAcceptedTrigger(prev => prev + 1);
                       }}
                     />

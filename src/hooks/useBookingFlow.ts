@@ -19,7 +19,7 @@ interface LocationType {
 
 type VehicleType = "economy" | "comfort" | "premium" | "women_only";
 
-export const useBookingFlow = (apiKey: string | null) => {
+export const useBookingFlow = () => {
   const { toast } = useToast();
   const { apiKey: googleApiKey } = useGoogleMapsApiKey();
 
@@ -31,6 +31,9 @@ export const useBookingFlow = (apiKey: string | null) => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
+  // Track markers and polylines for proper cleanup
+  const markersRef = useRef<google.maps.Marker[]>([]);
+  const polylinesRef = useRef<google.maps.Polyline[]>([]);
   const [isBooking, setIsBooking] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
 
@@ -201,48 +204,15 @@ export const useBookingFlow = (apiKey: string | null) => {
     [googleApiKey, fetchRouteAndDraw]
   );
 
-  // Fetch route
-  const fetchRoute = useCallback(
-    async (pickupLocation: LocationType, dropoffLocation: LocationType) => {
-      if (!googleApiKey) return;
-
-      try {
-        const result = await getDirections(
-          { lat: pickupLocation.lat, lng: pickupLocation.lng },
-          { lat: dropoffLocation.lat, lng: dropoffLocation.lng }
-        );
-
-        if (result) {
-          setRouteDistance(parseFloat(result.distance.replace(/[^\d.-]/g, "")));
-          setRouteDuration(Math.ceil(parseInt(result.duration.replace(/[^\d]/g, "")) / 60));
-
-          // Draw route on booking map
-          if (bookingMap.current) {
-            drawPolyline(bookingMap.current, result.route, ROUTE_STYLES.main);
-
-            // Fit map to route bounds
-            const bounds = new google.maps.LatLngBounds();
-            result.route.forEach((point) => {
-              bounds.extend(new google.maps.LatLng(point.lat, point.lng));
-            });
-            bounds.extend(new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng));
-            bounds.extend(new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng));
-            bookingMap.current.fitBounds(bounds, 80);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching route:", error);
-        toast({
-          title: "خطأ في الاتجاهات",
-          description: "فشل في جلب المسار",
-          variant: "destructive",
-        });
-      }
-    },
-    [googleApiKey, toast]
-  );
+  /** @deprecated Use initializeBookingMap which calls fetchRouteAndDraw internally */
+  const fetchRoute = fetchRouteAndDraw;
 
   const cleanup = useCallback(() => {
+    // تنظيف العلامات والمسارات لمنع تسرب الذاكرة
+    markersRef.current.forEach(marker => marker.setMap(null));
+    markersRef.current = [];
+    polylinesRef.current.forEach(polyline => polyline.setMap(null));
+    polylinesRef.current = [];
     bookingMap.current = null;
   }, []);
 

@@ -37,6 +37,7 @@ import {
   AlertTriangle,
   MessageCircle,
   Star,
+  X,
 } from "lucide-react";
 
 interface ActiveRide {
@@ -160,6 +161,19 @@ export const ActiveRideCard = ({
 
   // Broadcast channel for driver-rider communication
   const broadcastChannel = useRef<any>(null);
+
+  // ═══ رسائل الراكب الواردة — بانر بارز داخل الكارد ═══
+  const [riderIncomingMsg, setRiderIncomingMsg] = useState<{
+    text: string;
+    senderName: string;
+    id: string;
+  } | null>(null);
+  const riderMsgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dismissRiderMsg = () => {
+    setRiderIncomingMsg(null);
+    if (riderMsgTimerRef.current) clearTimeout(riderMsgTimerRef.current);
+  };
 
   // ═══ مزامنة الموقع المباشر لصفحة التتبع العامة ═══
   useDriverLocationSync({
@@ -381,7 +395,7 @@ export const ActiveRideCard = ({
               pickup_lng: activeRide.pickup_location.lng,
               dropoff_lat: activeRide.dropoff_location.lat,
               dropoff_lng: activeRide.dropoff_location.lng,
-              distance_km: activeRide.distance_km || 0,
+              distance_km: activeRide.distance_km && activeRide.distance_km > 0 ? activeRide.distance_km : 1,
               vehicle_type: activeRide.vehicle_type || "economy",
               waiting_minutes: 0,
             },
@@ -717,6 +731,53 @@ export const ActiveRideCard = ({
     };
   }, [activeRide?.id, toast]);
 
+  // ═══ استقبال رسائل الراكب من قاعدة البيانات — بانر بارز ═══
+  useEffect(() => {
+    if (!activeRide) return;
+
+    const channel = supabase
+      .channel(`rider-chat-notify-${activeRide.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'ride_messages',
+          filter: `ride_id=eq.${activeRide.id}`,
+        },
+        (payload) => {
+          const msg = payload.new as {
+            id: string;
+            message: string;
+            sender_type: string;
+          };
+          // فقط رسائل الراكب
+          if (msg.sender_type !== 'rider') return;
+
+          setRiderIncomingMsg({
+            text: msg.message,
+            senderName: riderInfo?.full_name || 'الراكب',
+            id: msg.id,
+          });
+
+          playSound('message_received');
+          vibrate([150, 80, 150, 80, 200]);
+
+          // إخفاء تلقائي بعد 8 ثوانٍ
+          if (riderMsgTimerRef.current) clearTimeout(riderMsgTimerRef.current);
+          riderMsgTimerRef.current = setTimeout(() => {
+            setRiderIncomingMsg(null);
+          }, 8000);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      if (riderMsgTimerRef.current) clearTimeout(riderMsgTimerRef.current);
+    };
+  }, [activeRide?.id, riderInfo?.full_name]);
+
   // Timer for in_progress rides
   useEffect(() => {
     if (
@@ -857,12 +918,21 @@ export const ActiveRideCard = ({
       vibrate([200, 100, 200]);
 
       // ✅ DB Update FIRST (reliable REST) — الأولوية لتحديث قاعدة البيانات
-      const { error } = await supabase
+      const { data: updatedRows, error } = await supabase
         .from("rides")
-        .update({ status: "arrived" })
-        .eq("id", activeRide.id);
+        .update({
+          status: "arrived",
+          driver_arrival_time: new Date().toISOString(),
+        })
+        .eq("id", activeRide.id)
+        .select("id, status");
 
       if (error) throw error;
+
+      // تحقق من أن التحديث طُبّق فعلاً (RLS أو الجلسة قد تمنع بصمت)
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error("فشل تحديث الحالة — تحقق من الاتصال وأعد المحاولة");
+      }
 
       // ⚡ THEN broadcast (best-effort — لا يمنع الاستمرار)
       notifyRider("driver_arrived", "السائق وصل لموقعك!", {
@@ -1197,6 +1267,57 @@ export const ActiveRideCard = ({
   return (
     <Card className="border-2 border-primary overflow-hidden">
       <CardContent className="p-0">
+
+        {/* ═══ بانر رسالة الراكب الواردة ═══ */}
+        {riderIncomingMsg && (
+          <div className="bg-amber-500 text-white animate-in slide-in-from-top-2 duration-300 border-b-2 border-amber-600 shadow-lg">
+            <div className="px-4 pt-3 pb-2">
+              {/* رأس الرسالة */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2 min-w-0 flex-1">
+                  <MessageCircle className="w-5 h-5 shrink-0 mt-0.5 animate-bounce" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold opacity-90 mb-0.5">
+                      💬 {riderIncomingMsg.senderName}
+                    </p>
+                    <p className="font-bold text-sm leading-snug break-words">
+                      {riderIncomingMsg.text}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={dismissRiderMsg}
+                  className="shrink-0 hover:bg-amber-600 active:bg-amber-700 rounded-md p-1 touch-manipulation"
+                  aria-label="إغلاق"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* ردود سريعة */}
+              <div className="flex gap-2 mt-2 overflow-x-auto pb-1 scrollbar-hide">
+                {[
+                  { label: '🚗 في الطريق', msg: 'أنا في الطريق إليك' },
+                  { label: '📍 وصلت', msg: 'وصلت، أين أنت؟' },
+                  { label: '⏱️ انتظر', msg: 'انتظرني دقيقة واحدة' },
+                  { label: '👍 حسناً', msg: 'حسناً، فهمت' },
+                ].map((r) => (
+                  <button
+                    key={r.label}
+                    onClick={() => {
+                      sendQuickMessageToRider('driver_reply', r.msg, '✅ تم الرد');
+                      dismissRiderMsg();
+                    }}
+                    className="text-xs bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-full px-3 py-1.5 whitespace-nowrap shrink-0 touch-manipulation font-medium shadow-sm"
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Status Header */}
         <div
           className={`${config.color} text-white px-4 py-3 flex items-center justify-between`}
@@ -1545,7 +1666,7 @@ export const ActiveRideCard = ({
           <div className="space-y-2">
             {activeRide.status === "accepted" && (
               <Button
-                className="w-full h-12 text-base shadow-glow"
+                className="w-full h-14 text-base shadow-glow touch-manipulation active:scale-95 transition-transform"
                 onClick={handleArrived}
                 disabled={loading}
               >

@@ -2058,16 +2058,21 @@ serve(async (req) => {
     console.log(`[fare] Distance: ${distanceKm.toFixed(2)} km, Fare: ${fare} IQD`);
 
     // ── تحديث الرحلة بالوجهة ──
+    // ملاحظة: لا نخزن الملاحظات في cancellation_reason لأنه حقل خاص بالإلغاء فقط
+    const updatePayload: Record<string, unknown> = {
+      dropoff_location: { lat: destination.lat, lng: destination.lng },
+      dropoff_address: destination.address,
+      vehicle_type: intent.vehicle_type || "economy",
+      distance_km: Math.round(distanceKm * 100) / 100,
+      estimated_fare: fare,
+    };
+    // تخزين الملاحظات في fare_adjustment_reason مؤقتاً حتى يتم إضافة عمود notes في جدول rides
+    if (intent.notes) {
+      updatePayload.fare_adjustment_reason = `[ملاحظة واتساب] ${intent.notes}`;
+    }
     const { error: updateError } = await supabase
       .from("rides")
-      .update({
-        dropoff_location: { lat: destination.lat, lng: destination.lng },
-        dropoff_address: destination.address,
-        vehicle_type: intent.vehicle_type || "economy",
-        distance_km: Math.round(distanceKm * 100) / 100,
-        estimated_fare: fare,
-        cancellation_reason: intent.notes ? `[ملاحظة] ${intent.notes}` : null,
-      })
+      .update(updatePayload)
       .eq("id", session.ride_id);
 
     if (updateError) {

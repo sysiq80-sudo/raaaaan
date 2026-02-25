@@ -46,6 +46,25 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // ═══ Authorization: verify the caller is the assigned driver ═══
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Authorization header required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") || supabaseKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user: caller }, error: authError } = await anonClient.auth.getUser();
+    if (authError || !caller) {
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const {
       ride_id,
       final_gps_distance = null,
@@ -92,12 +111,27 @@ serve(async (req) => {
       );
     }
 
-    if (!["in_progress", "arrived", "accepted"].includes(ride.status)) {
+    if (!["in_progress"].includes(ride.status)) {
       return new Response(
         JSON.stringify({
-          error: `Cannot complete ride with status: ${ride.status}`,
+          error: `لا يمكن إنهاء رحلة بحالة: ${ride.status}. يجب أن تكون الرحلة "قيد التنفيذ"`,
+          current_status: ride.status,
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // ═══ Verify the caller is the ride's assigned driver ═══
+    const { data: callerDriver } = await supabase
+      .from("drivers")
+      .select("id")
+      .eq("user_id", caller.id)
+      .single();
+
+    if (!callerDriver || callerDriver.id !== ride.driver_id) {
+      return new Response(
+        JSON.stringify({ error: "غير مصرّح: يمكن فقط لسائق الرحلة إنهاؤها" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -130,12 +164,16 @@ serve(async (req) => {
     }
 
     // ═══ 3. Calculate waiting minutes ═══
+    // وقت الانتظار = من وصول السائق (arrived_at) إلى بدء الرحلة (started_at)
+    // وليس مدة الرحلة الكاملة
     let finalWaitingMinutes = waiting_minutes;
-    if (finalWaitingMinutes === null && ride.started_at) {
-      // Compute from ride timeline
+    if (finalWaitingMinutes === null && ride.driver_arrival_time && ride.started_at) {
+      // Waiting = time between driver arrival and ride start
+      const arrivedAt = new Date(ride.driver_arrival_time).getTime();
       const startedAt = new Date(ride.started_at).getTime();
-      const now = Date.now();
-      finalWaitingMinutes = Math.max(0, Math.floor((now - startedAt) / 60000));
+      finalWaitingMinutes = Math.max(0, Math.floor((startedAt - arrivedAt) / 60000));
+    } else if (finalWaitingMinutes === null) {
+      finalWaitingMinutes = 0;
     }
 
     // ═══ 4. Complete the ride in DB ═══
