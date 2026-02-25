@@ -1051,6 +1051,59 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       timestamp: Date.now()
     });
     
+    // ═══════════════════════════════════
+    // 🛡️ التحقق من حدود الرحلات
+    // ═══════════════════════════════════
+    try {
+      const { data: secData } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "security_settings")
+        .single();
+
+      const maxActive = (secData?.value as any)?.max_active_rides_per_user ?? 3;
+      const cooldown = (secData?.value as any)?.ride_creation_cooldown_seconds ?? 60;
+
+      // فحص عدد الرحلات النشطة
+      const { count: activeCount } = await supabase
+        .from("rides")
+        .select("id", { count: "exact", head: true })
+        .eq("rider_id", userId)
+        .in("status", ["pending", "accepted", "in_progress"]);
+
+      if (activeCount !== null && activeCount >= maxActive) {
+        toast({
+          title: "لديك رحلات نشطة بالفعل",
+          description: `الحد الأقصى ${maxActive} رحلات نشطة في وقت واحد`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // فحص فترة الانتظار بين الرحلات
+      const { data: lastRide } = await supabase
+        .from("rides")
+        .select("created_at")
+        .eq("rider_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (lastRide) {
+        const elapsed = (Date.now() - new Date(lastRide.created_at).getTime()) / 1000;
+        if (elapsed < cooldown) {
+          toast({
+            title: "يرجى الانتظار",
+            description: `انتظر ${Math.ceil(cooldown - elapsed)} ثانية قبل إنشاء رحلة جديدة`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("⚠️ Failed to check ride limits, continuing:", e);
+    }
+
     // ✅ إنشاء الحجز بدون حالة انتظار
     try {
       const {

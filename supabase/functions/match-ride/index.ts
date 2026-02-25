@@ -45,6 +45,34 @@ serve(async (req) => {
       throw new Error("رقم الرحلة مطلوب");
     }
 
+    // ═══════════════════════════════════
+    // 🛡️ حد الرحلات النشطة — من إعدادات الأمان
+    // ═══════════════════════════════════
+    try {
+      const { data: secConf } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "security_settings")
+        .maybeSingle();
+
+      const maxActive = (secConf?.value as any)?.max_active_rides_per_user ?? 3;
+
+      const { count } = await supabase
+        .from("rides")
+        .select("id", { count: "exact", head: true })
+        .eq("rider_id", caller.id)
+        .in("status", ["pending", "accepted", "in_progress"]);
+
+      if (count !== null && count >= maxActive) {
+        return errorResponse(
+          `لديك ${count} رحلات نشطة بالفعل — الحد الأقصى ${maxActive}`,
+          429
+        );
+      }
+    } catch (e) {
+      console.warn("[match-ride] ⚠️ Failed to check ride limit, continuing:", e);
+    }
+
     console.log("🔍 بدء مطابقة الرحلة:", rideId);
 
     // 1. جلب تفاصيل الرحلة

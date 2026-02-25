@@ -89,6 +89,7 @@ const AdminStoppedRides = lazy(() => import("./pages/admin/AdminStoppedRides"));
 const AdminEmergencySettings = lazy(() => import("./pages/admin/AdminEmergencySettings"));
 const AdminBotCustomers = lazy(() => import("./pages/admin/AdminBotCustomers"));
 const AdminDeveloperSettings = lazy(() => import("./pages/admin/AdminDeveloperSettings"));
+const AdminSecuritySettings = lazy(() => import("./pages/admin/AdminSecuritySettings"));
 const queryClient = new QueryClient();
 
 // Ù…Ø³Ø§Ø¹Ø¯: ÙƒØ´Ù Ø§Ù„Ø¬ÙˆØ§Ù„
@@ -893,6 +894,16 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminDeveloperSettings />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/security-settings"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminSecuritySettings />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }

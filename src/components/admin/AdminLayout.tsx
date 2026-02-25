@@ -38,6 +38,7 @@ import {
   MessageSquareWarning,
   CircleStop,
   ShieldAlert,
+  Shield,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdminNotificationsBell } from "./AdminNotificationsBell";
@@ -183,6 +184,7 @@ const AdminLayout = ({
     { icon: MessageSquareWarning, label: "الشكاوى", href: "/admin/complaints" },
     { icon: CircleStop, label: "الرحلات المتوقفة", href: "/admin/stopped-rides" },
     { icon: ShieldAlert, label: "إعدادات الطوارئ", href: "/admin/emergency-settings" },
+    { icon: Shield, label: "الأمان والحدود", href: "/admin/security-settings" },
     { icon: MessageCircle, label: "عملاء البوت", href: "/admin/bot-customers" },
     { icon: Code, label: "ران المطور", href: "/admin/developer-settings" },
     { icon: Settings, label: "الإعدادات", href: "/admin/settings" },

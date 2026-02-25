@@ -13,6 +13,33 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
+import { getSecuritySettings, SecuritySettings } from "../_shared/appSettings.ts";
+
+// ════════════════════════════════════════
+// Rate Limiter — حدود الاستخدام لكل رقم هاتف
+// ════════════════════════════════════════
+const rateLimitMap = new Map<string, number[]>();
+let _securitySettings: SecuritySettings | null = null;
+let _settingsLoadedAt = 0;
+
+function isRateLimited(phone: string, isVoice: boolean, settings: SecuritySettings): boolean {
+  const now = Date.now();
+  const limit = isVoice
+    ? settings.whatsapp_voice_rate_limit_per_minute
+    : settings.whatsapp_rate_limit_per_minute;
+  const key = isVoice ? `voice:${phone}` : `msg:${phone}`;
+  const timestamps = rateLimitMap.get(key) || [];
+  const recent = timestamps.filter((t) => now - t < 60000);
+  if (recent.length >= limit) return true;
+  recent.push(now);
+  rateLimitMap.set(key, recent);
+  // تنظيف الذاكرة — لا نخزّن أكثر من 500 رقم
+  if (rateLimitMap.size > 500) {
+    const oldest = rateLimitMap.keys().next().value;
+    if (oldest) rateLimitMap.delete(oldest);
+  }
+  return false;
+}
 
 // ════════════════════════════════════════
 // المتغيرات — تُحمّل ديناميكياً من system_configs
@@ -1237,6 +1264,32 @@ serve(async (req) => {
   const profileName = value?.contacts?.[0]?.profile?.name || null;
 
   console.log(`[wa] 📩 [${msgType}] from ${phoneNumber} (${profileName})`);
+
+  // ═══════════════════════════════════
+  // 🛡️ Rate Limiting — تقييد عدد الرسائل
+  // ═══════════════════════════════════
+  if (!_securitySettings || Date.now() - _settingsLoadedAt > 300000) {
+    try {
+      const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      _securitySettings = await getSecuritySettings(svc);
+      _settingsLoadedAt = Date.now();
+    } catch (e) {
+      console.warn("[wa] Failed to load security settings, using defaults");
+      _securitySettings = {
+        whatsapp_rate_limit_per_minute: 10,
+        whatsapp_voice_rate_limit_per_minute: 3,
+        max_active_rides_per_user: 3,
+        ride_creation_cooldown_seconds: 60,
+        max_failed_match_attempts: 5,
+      };
+    }
+  }
+
+  const isVoiceMsg = msgType === "audio";
+  if (isRateLimited(phoneNumber, isVoiceMsg, _securitySettings!)) {
+    console.log(`[wa] ⚠️ Rate limited: ${phoneNumber} (voice=${isVoiceMsg})`);
+    return new Response("EVENT_RECEIVED", { status: 200 });
+  }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
