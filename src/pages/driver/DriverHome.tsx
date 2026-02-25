@@ -5,6 +5,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { User, Session } from "@supabase/supabase-js";
 import { useToast } from "@/hooks/use-toast";
 import { useDriverNotifications } from "@/hooks/useDriverNotifications";
@@ -75,12 +85,55 @@ const DriverHome = () => {
   const [showNewRideAlert, setShowNewRideAlert] = useState(false);
   const [newRideData, setNewRideData] = useState<any>(null);
   const [rideAcceptedTrigger, setRideAcceptedTrigger] = useState(0);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isCancellingRide, setIsCancellingRide] = useState(false);
   const watchIdRef = useRef<number | null>(null);
   const locationUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [rating, setRating] = useState(5.0);
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [adminActivated, setAdminActivated] = useState(true);
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
+
+  // إلغاء الرحلة من FloatingTripBubble
+  const handleCancelRideFromBubble = async () => {
+    if (!driverId || isCancellingRide) return;
+    setIsCancellingRide(true);
+    try {
+      const { data: rides } = await supabase
+        .from("rides")
+        .select("id, status")
+        .eq("driver_id", driverId)
+        .in("status", ["accepted", "arrived", "in_progress"])
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (!rides || rides.length === 0) {
+        toast({ title: "لا توجد رحلة نشطة", variant: "destructive" });
+        setShowCancelConfirm(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("rides")
+        .update({
+          status: "cancelled",
+          cancelled_by: "driver",
+          cancellation_reason: "ألغى السائق الرحلة",
+        })
+        .eq("id", rides[0].id);
+
+      if (error) throw error;
+
+      setHasActiveRide(false);
+      setIsMinimized(false);
+      toast({ title: "تم إلغاء الرحلة", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "خطأ", description: err.message, variant: "destructive" });
+    } finally {
+      setIsCancellingRide(false);
+      setShowCancelConfirm(false);
+    }
+  };
 
   // 🔒 قفل الشاشة — يمنع إطفاء الشاشة أثناء القيادة
   const { isWakeLockActive, requestWakeLock, releaseWakeLock } = useWakeLock();
@@ -829,12 +882,7 @@ const DriverHome = () => {
                     description: "فتح الدردشة"
                   });
                 }}
-                onCancelClick={() => {
-                  toast({
-                    title: "إلغاء",
-                    description: "هل تريد إلغاء الرحلة؟"
-                  });
-                }}
+                onCancelClick={() => setShowCancelConfirm(true)}
                 passengerName={riderName}
                 passengerRating={riderRating}
               >
@@ -869,6 +917,28 @@ const DriverHome = () => {
           }}
           rideData={newRideData}
         />
+
+        {/* تأكيد إلغاء الرحلة */}
+        <AlertDialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+          <AlertDialogContent dir="rtl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>إلغاء الرحلة</AlertDialogTitle>
+              <AlertDialogDescription>
+                هل أنت متأكد أنك تريد إلغاء الرحلة؟ سيتم إشعار الراكب فوراً.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-row-reverse gap-2">
+              <AlertDialogCancel>تراجع</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive hover:bg-destructive/90"
+                onClick={handleCancelRideFromBubble}
+                disabled={isCancellingRide}
+              >
+                {isCancellingRide ? "جاري الإلغاء..." : "نعم، إلغاء الرحلة"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Loading State */}
         {loading && <SplashScreen />}

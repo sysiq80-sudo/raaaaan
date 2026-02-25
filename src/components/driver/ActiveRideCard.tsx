@@ -1715,16 +1715,14 @@ export const ActiveRideCard = ({
               </Button>
             )}
 
-            {activeRide.status !== "in_progress" && (
-              <Button
-                variant="outline"
-                className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                onClick={handleCancelRide}
-                disabled={loading}
-              >
-                إلغاء الرحلة
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              onClick={handleCancelRide}
+              disabled={loading}
+            >
+              إلغاء الرحلة
+            </Button>
           </div>
         </div>
       </CardContent>
