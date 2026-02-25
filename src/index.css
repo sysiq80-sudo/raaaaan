@@ -808,3 +808,98 @@
     animation: none !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   تحسينات شريط التنقل السفلي — Enhanced Bottom Navigation
+   تأثير زجاجي ضبابي جميل ومتقدم
+   ═══════════════════════════════════════════════════════════ */
+
+/* تأثير الوهج الزجاجي */
+.add-glow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(0, 0, 0, 0.05) 75%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* تحسين الزجاج الضبابي في الشريط السفلي */
+.bottom-nav-glass {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--card-rgb), 0.7) 0%,
+    rgba(var(--card-rgb), 0.8) 50%,
+    rgba(var(--card-rgb), 0.9) 100%
+  ) !important;
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+}
+
+/* تأثير الضوء على الأيقونات النشطة */
+@keyframes navActiveGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(var(--primary-rgb), 0.6),
+                0 0 40px rgba(var(--primary-rgb), 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(var(--primary-rgb), 0.7),
+                0 0 50px rgba(var(--primary-rgb), 0.4);
+  }
+}
+
+/* تأثير التوهج المتحرك */
+@keyframes glassShine {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+/* تأثير الظل الناعم */
+.bottom-nav-shadow {
+  box-shadow: 
+    0 -2px 8px rgba(0, 0, 0, 0.15),
+    0 -4px 16px rgba(0, 0, 0, 0.1),
+    0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+/* تحسين الشريط على الشاشات الصغيرة */
+@media (max-height: 600px) {
+  .rider-bottom-nav {
+    height: 64px;
+  }
+  
+  .nav-icon-large {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* تحسين الراحة اللمسية */
+@media (pointer: coarse) {
+  .nav-link-item {
+    min-height: 48px;
+    padding: 8px;
+  }
+}
+
+/* دعم المناطق الآمنة للأجهزة ذات الشقوق */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
