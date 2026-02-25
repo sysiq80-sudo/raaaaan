@@ -103,11 +103,17 @@ export const stopNativeLocationTracking = async (watchId: string | null): Promis
 
 /**
  * عرض إشعار محلي أصلي (يعمل حتى بدون اتصال إنترنت)
+ * مُحسَّن لطلبات الرحلات: أولوية قصوى + اهتزاز قوي
  */
 export const showNativeNotification = async (
   title: string,
   body: string,
-  id?: number
+  id?: number,
+  options?: { 
+    channelId?: string; 
+    priority?: 'high' | 'default';
+    ongoing?: boolean;
+  }
 ): Promise<void> => {
   if (!isNativePlatform) return; // على الويب نستخدم Web Notifications
 
@@ -127,8 +133,11 @@ export const showNativeNotification = async (
           sound: undefined, // يمكن إضافة صوت مخصص لاحقاً
           smallIcon: 'ic_stat_icon_config_sample',
           largeIcon: 'ic_launcher',
-          channelId: 'raan-rides',
+          channelId: options?.channelId || 'raan-rides',
           schedule: { at: new Date(Date.now()) },
+          extra: {
+            priority: options?.priority || 'high'
+          }
         },
       ],
     });
@@ -231,9 +240,11 @@ export const initCapacitorPlugins = async (): Promise<void> => {
   // تخصيص شريط الحالة
   await configureStatusBar();
 
-  // إنشاء قناة إشعارات لـ Android
+  // إنشاء قنوات إشعارات لـ Android
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
+    
+    // قناة طلبات الرحلات — أولوية قصوى
     await LocalNotifications.createChannel({
       id: 'raan-rides',
       name: 'طلبات الرحلات',
@@ -245,8 +256,95 @@ export const initCapacitorPlugins = async (): Promise<void> => {
       lights: true,
       lightColor: '#10b981',
     });
-    console.log('📢 قناة الإشعارات "raan-rides" مُنشأة');
+    
+    // قناة الإشعارات العامة — أولوية متوسطة
+    await LocalNotifications.createChannel({
+      id: 'raan-general',
+      name: 'إشعارات عامة',
+      description: 'تحديثات الحساب والنظام',
+      importance: 3, // DEFAULT
+      visibility: 1,
+      vibration: true,
+      sound: undefined,
+      lights: true,
+      lightColor: '#3b82f6',
+    });
+    
+    console.log('📢 قنوات الإشعارات مُنشأة');
   } catch (err) {
     console.log('لم يتم إنشاء قناة الإشعارات:', err);
+  }
+  
+  // تسجيل إشعارات FCM Push (لاستقبال الإشعارات حتى مع إغلاق الشاشة)
+  await initNativePushNotifications();
+};
+
+/**
+ * تهيئة إشعارات Push الأصلية عبر FCM
+ * يسجل الجهاز لاستقبال الإشعارات في الخلفية
+ */
+export const initNativePushNotifications = async (): Promise<void> => {
+  if (!isNativePlatform) return;
+  
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    
+    // التحقق من الإذن
+    const permResult = await PushNotifications.checkPermissions();
+    
+    if (permResult.receive === 'prompt' || permResult.receive === 'prompt-with-rationale') {
+      const requestResult = await PushNotifications.requestPermissions();
+      if (requestResult.receive !== 'granted') {
+        console.warn('⚠️ إذن Push مرفوض');
+        return;
+      }
+    } else if (permResult.receive !== 'granted') {
+      console.warn('⚠️ إذن Push غير ممنوح:', permResult.receive);
+      return;
+    }
+    
+    // تسجيل FCM
+    await PushNotifications.register();
+    
+    // مستمع رمز التسجيل
+    PushNotifications.addListener('registration', (token) => {
+      console.log('📱 FCM Token received:', token.value?.substring(0, 20) + '...');
+      // سيتم حفظه في driverNotificationService.registerFCMToken()
+      // نحفظ الرمز مؤقتاً في localStorage حتى يتم تسجيل الدخول
+      try {
+        localStorage.setItem('raan_fcm_token', token.value);
+      } catch {
+        // صامت
+      }
+    });
+    
+    PushNotifications.addListener('registrationError', (error) => {
+      console.error('❌ FCM Registration error:', error);
+    });
+    
+    // إشعار وصل والتطبيق في المقدمة
+    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      console.log('📩 FCM Push in foreground:', notification.title);
+      // التطبيق مفتوح — الإشعار يُعالج عبر Realtime
+    });
+    
+    // النقر على إشعار FCM
+    PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+      console.log('👆 FCM notification tapped:', action.actionId);
+      const rideId = action.notification.data?.ride_id || action.notification.data?.rideId;
+      
+      if (rideId && action.actionId === 'accept') {
+        // قبول الرحلة — يُعالج عند فتح الصفحة
+        try {
+          localStorage.setItem('raan_pending_accept_ride', rideId);
+        } catch {
+          // صامت
+        }
+      }
+    });
+    
+    console.log('✅ FCM Push Notifications initialized');
+  } catch (error) {
+    console.log('FCM initialization skipped:', error);
   }
 };

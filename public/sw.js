@@ -348,10 +348,17 @@ function getSmartNotificationConfig(notificationType, etaMinutes) {
       requireInteraction: true,
       tag: 'driver-arrived'
     },
-    // New ride request (for drivers)
+    // New ride request (for drivers) — أقوى إشعار: اهتزاز متكرر + إجباري
     'NEW_RIDE_REQUEST': {
       silent: false,
-      vibrate: [400, 100, 400, 100, 400, 100, 400],
+      vibrate: [500, 150, 500, 150, 500, 150, 500, 150, 800],
+      requireInteraction: true,
+      tag: 'new-ride'
+    },
+    // new_ride from push (variant tag from Edge Function)
+    'new_ride': {
+      silent: false,
+      vibrate: [500, 150, 500, 150, 500, 150, 500, 150, 800],
       requireInteraction: true,
       tag: 'new-ride'
     },
@@ -515,10 +522,41 @@ self.addEventListener('notificationclick', (event) => {
 
   const urlToOpen = notificationData.url || '/driver';
 
-  // Handle specific actions
+  // Handle accept action — قبول الرحلة مباشرة من الإشعار
   if (event.action === 'accept' && notificationData.rideId) {
-    // Could trigger ride acceptance here
-    console.log('[Service Worker] Accept action for ride:', notificationData.rideId);
+    console.log('[Service Worker] ✅ Accepting ride from notification:', notificationData.rideId);
+    
+    event.waitUntil(
+      // إرسال رسالة للتطبيق المفتوح لقبول الرحلة
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
+        // محاولة إبلاغ التطبيق المفتوح أولاً
+        let clientFound = false;
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin)) {
+            client.postMessage({
+              type: 'ACCEPT_RIDE_FROM_NOTIFICATION',
+              rideId: notificationData.rideId
+            });
+            client.focus();
+            clientFound = true;
+            break;
+          }
+        }
+        
+        // إذا لم يكن التطبيق مفتوحاً، فتح نافذة جديدة مع معلمات القبول
+        if (!clientFound && clients.openWindow) {
+          return clients.openWindow(`/driver?accept_ride=${notificationData.rideId}`);
+        }
+      })
+    );
+    return;
+  }
+
+  // Handle reject action
+  if (event.action === 'reject' && notificationData.rideId) {
+    console.log('[Service Worker] ❌ Ride rejected from notification:', notificationData.rideId);
+    // لا حاجة لعمل أي شيء — مجرد إغلاق الإشعار
+    return;
   }
 
   event.waitUntil(
@@ -822,15 +860,21 @@ self.addEventListener('message', (event) => {
       icon: '/logo.png',
       badge: '/logo.png',
       tag: `new-ride-${ride.id}`,
-      vibrate: [300, 100, 300, 100, 400],
+      vibrate: [500, 150, 500, 150, 500, 150, 500, 150, 800],
       requireInteraction: true,
       renotify: true,
+      silent: false,
       actions: [
         { action: 'accept', title: '✅ قبول' },
         { action: 'reject', title: '❌ رفض' }
       ],
-      data: { rideId: ride.id, url: '/driver' }
+      data: { rideId: ride.id, url: '/driver', type: 'NEW_RIDE_REQUEST' }
     });
+  }
+
+  // قبول الرحلة من إشعار — يُرسل من الصفحة الرئيسية بعد معالجة URL params
+  if (event.data.type === 'ACCEPT_RIDE_FROM_NOTIFICATION') {
+    console.log('[SW] Ride accept request forwarded:', event.data.rideId);
   }
 
   // Get cache stats

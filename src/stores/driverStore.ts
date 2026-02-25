@@ -15,6 +15,7 @@ interface Location {
 type DriverStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
 type RideStatus = 'pending' | 'accepted' | 'arrived' | 'in_progress' | 'completed' | 'cancelled';
 type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
+type NotificationMuteMode = 'off' | 'always' | 'scheduled';
 
 interface DriverInfo {
     id: string;
@@ -93,6 +94,13 @@ interface DriverState {
     soundsEnabled: boolean;
     vibrationEnabled: boolean;
 
+    // إعدادات كتم الإشعارات
+    notificationMuteMode: NotificationMuteMode;
+    muteScheduleStart: string; // "HH:mm" format
+    muteScheduleEnd: string;   // "HH:mm" format
+    muteDays: number[];        // 0=Sunday, 1=Monday, ... 6=Saturday
+    notificationVolume: number; // 0-100
+
     // UI
     isLoading: boolean;
 }
@@ -136,6 +144,12 @@ interface DriverActions {
     toggleSounds: () => void;
     toggleVibration: () => void;
 
+    // إعدادات كتم الإشعارات
+    setNotificationMuteMode: (mode: NotificationMuteMode) => void;
+    setMuteSchedule: (start: string, end: string, days: number[]) => void;
+    setNotificationVolume: (volume: number) => void;
+    isMutedNow: () => boolean;
+
     // UI
     setLoading: (loading: boolean) => void;
 
@@ -160,6 +174,11 @@ const initialState: DriverState = {
     autoAccept: false,
     soundsEnabled: true,
     vibrationEnabled: true,
+    notificationMuteMode: 'off' as NotificationMuteMode,
+    muteScheduleStart: '23:00',
+    muteScheduleEnd: '07:00',
+    muteDays: [0, 1, 2, 3, 4, 5, 6], // كل الأيام افتراضياً
+    notificationVolume: 80,
     isLoading: false,
 };
 
@@ -273,6 +292,42 @@ export const useDriverStore = create<DriverState & DriverActions>()(
                 vibrationEnabled: !state.vibrationEnabled
             })),
 
+            // إعدادات كتم الإشعارات
+            setNotificationMuteMode: (mode) => set({ notificationMuteMode: mode }),
+
+            setMuteSchedule: (start, end, days) => set({
+                muteScheduleStart: start,
+                muteScheduleEnd: end,
+                muteDays: days,
+            }),
+
+            setNotificationVolume: (volume) => set({ notificationVolume: volume }),
+
+            isMutedNow: () => {
+                const state = get();
+                if (state.notificationMuteMode === 'off') return false;
+                if (state.notificationMuteMode === 'always') return true;
+
+                // scheduled mode
+                const now = new Date();
+                const currentDay = now.getDay();
+                if (!state.muteDays.includes(currentDay)) return false;
+
+                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                const [startH, startM] = state.muteScheduleStart.split(':').map(Number);
+                const [endH, endM] = state.muteScheduleEnd.split(':').map(Number);
+                const startMinutes = startH * 60 + startM;
+                const endMinutes = endH * 60 + endM;
+
+                if (startMinutes <= endMinutes) {
+                    // نفس اليوم: مثل 08:00 - 17:00
+                    return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+                } else {
+                    // عبر منتصف الليل: مثل 23:00 - 07:00
+                    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+                }
+            },
+
             // UI
             setLoading: (loading) => set({ isLoading: loading }),
 
@@ -286,6 +341,11 @@ export const useDriverStore = create<DriverState & DriverActions>()(
                 autoAccept: state.autoAccept,
                 soundsEnabled: state.soundsEnabled,
                 vibrationEnabled: state.vibrationEnabled,
+                notificationMuteMode: state.notificationMuteMode,
+                muteScheduleStart: state.muteScheduleStart,
+                muteScheduleEnd: state.muteScheduleEnd,
+                muteDays: state.muteDays,
+                notificationVolume: state.notificationVolume,
                 todayStats: state.todayStats,
                 lastStatsResetDate: state.lastStatsResetDate,
             }),
@@ -309,6 +369,18 @@ export const useDriverSettings = () => useDriverStore((state) => ({
     autoAccept: state.autoAccept,
     soundsEnabled: state.soundsEnabled,
     vibrationEnabled: state.vibrationEnabled,
+}));
+
+export const useNotificationMuteSettings = () => useDriverStore((state) => ({
+    notificationMuteMode: state.notificationMuteMode,
+    muteScheduleStart: state.muteScheduleStart,
+    muteScheduleEnd: state.muteScheduleEnd,
+    muteDays: state.muteDays,
+    notificationVolume: state.notificationVolume,
+    isMutedNow: state.isMutedNow,
+    setNotificationMuteMode: state.setNotificationMuteMode,
+    setMuteSchedule: state.setMuteSchedule,
+    setNotificationVolume: state.setNotificationVolume,
 }));
 
 export default useDriverStore;

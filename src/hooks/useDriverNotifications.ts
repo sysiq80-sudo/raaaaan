@@ -4,6 +4,13 @@ import { useToast } from "@/hooks/use-toast";
 import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
 import { playNotificationSound } from "@/lib/audioContext";
 import { isNativePlatform, onAppStateChange, showNativeNotification, nativeHaptic } from "@/lib/capacitorBridge";
+import { useDriverStore } from "@/stores/driverStore";
+import { 
+  isNotificationMutedNow, 
+  acceptRideFromNotification,
+  registerFCMToken,
+  syncNotificationPreferences 
+} from "@/services/driverNotificationService";
 
 interface NewRide {
   id: string;
@@ -126,17 +133,26 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     const dropoffAddress = (ride.dropoff_address as string) || '';
     const distance = (ride.distance_km as number) || 0;
 
+    // ═══ التحقق من إعدادات الصوت والاهتزاز من المخزن المركزي ═══
+    const storeState = useDriverStore.getState();
+    const shouldPlaySound = storeState.soundsEnabled;
+    const shouldVibrate = storeState.vibrationEnabled;
+
     // 🔊 تشغيل تنبيه صوتي قوي ومتكرر (Loud Alert System)
-    startRideAlert();
-    
-    // تشغيل الصوت المركزي كإضافة
-    playNotificationSound();
+    if (shouldPlaySound) {
+      startRideAlert();
+      
+      // تشغيل الصوت المركزي كإضافة
+      playNotificationSound();
+    }
     
     // Vibrate device — استخدام اهتزاز أصلي في Capacitor
-    if (isNativePlatform) {
-      nativeHaptic('heavy');
-    } else {
-      vibrateDevice();
+    if (shouldVibrate) {
+      if (isNativePlatform) {
+        nativeHaptic('heavy');
+      } else {
+        vibrateDevice();
+      }
     }
 
     // Show enhanced toast notification
@@ -224,6 +240,12 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     // Only notify for pending rides
     if (rideStatus !== 'pending') return;
 
+    // ═══ فحص جدول الكتم — لا تُظهر إشعار إذا كان الكتم نشطاً ═══
+    if (isNotificationMutedNow()) {
+      console.log(`🔇 تم تخطي إشعار الرحلة ${rideId} — وضع الكتم نشط`);
+      return;
+    }
+
     // احترام تفضيل السائقة
     if (preferWomenDriver && vehicleType !== 'women_only') {
       console.log(`Skipping ride ${rideId}: prefers women driver`);
@@ -250,8 +272,54 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
 
     console.log('🔴 Setting up INSTANT ride notifications for driver:', driverId);
     let cleanupAppState: (() => void) | null = null;
+    let swMessageHandler: ((event: MessageEvent) => void) | null = null;
 
     const channelName = `driver-new-rides-${driverId}`;
+    
+    // ═══ مزامنة تفضيلات الإشعارات + تسجيل FCM ═══
+    syncNotificationPreferences(driverId).catch(() => {});
+    if (isNativePlatform) {
+      registerFCMToken(driverId).catch(() => {});
+    }
+    
+    // ═══ مستمع رسائل SW — قبول الرحلة من الإشعار ═══
+    if ('serviceWorker' in navigator) {
+      swMessageHandler = (event: MessageEvent) => {
+        if (event.data?.type === 'ACCEPT_RIDE_FROM_NOTIFICATION' && event.data?.rideId) {
+          console.log('✅ قبول الرحلة من إشعار SW:', event.data.rideId);
+          acceptRideFromNotification(event.data.rideId, driverId)
+            .then((success) => {
+              if (success) {
+                toast({
+                  title: "✅ تم قبول الرحلة",
+                  description: "جارٍ توجيهك إلى موقع الراكب",
+                });
+                // إيقاف التنبيه
+                stopRideAlert();
+              } else {
+                toast({
+                  title: "⚠️ الرحلة لم تعد متاحة",
+                  description: "ربما تم قبولها من سائق آخر",
+                  variant: "destructive",
+                });
+              }
+            })
+            .catch(() => {});
+        }
+      };
+      navigator.serviceWorker.addEventListener('message', swMessageHandler);
+    }
+    
+    // ═══ التحقق من قبول رحلة معلقة (من FCM أو URL param) ═══
+    try {
+      const pendingAcceptRide = localStorage.getItem('raan_pending_accept_ride');
+      if (pendingAcceptRide) {
+        localStorage.removeItem('raan_pending_accept_ride');
+        acceptRideFromNotification(pendingAcceptRide, driverId).catch(() => {});
+      }
+    } catch {
+      // صامت
+    }
     
     const createChannel = () => {
       // إزالة أي قناة قديمة بنفس الاسم قبل إعادة الإنشاء
@@ -333,6 +401,9 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
       console.log('Cleaning up ride notification subscription');
       supabase.removeChannel(channel);
       if (cleanupAppState) cleanupAppState();
+      if (swMessageHandler && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', swMessageHandler);
+      }
     };
   }, [driverId, handleNewRide]);
 

@@ -14,6 +14,7 @@ import RadiusSlider from "@/components/driver/RadiusSlider";
 import { toast } from "sonner";
 import { User, Session } from "@supabase/supabase-js";
 import ThemeToggle from "@/components/ThemeToggle";
+import { NotificationMuteScheduler } from "@/components/driver/NotificationMuteScheduler";
 import { 
   Car, 
   ArrowRight,
@@ -76,6 +77,7 @@ const DriverSettings = () => {
   });
 
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>(defaultNotificationPrefs);
+  const [driverId, setDriverId] = useState<string | null>(null);
 
   const [generalPrefs, setGeneralPrefs] = useState({
     language: "ar",
@@ -211,6 +213,7 @@ const DriverSettings = () => {
         .maybeSingle();
 
       if (driver) {
+        setDriverId(driver.id);
         setDriverProfile({
           full_name: driver.full_name || "",
           phone: driver.phone || "",
@@ -297,6 +300,13 @@ const DriverSettings = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
+
+              {/* Mute Scheduler — جدولة كتم الإشعارات */}
+              {driverId && (
+                <NotificationMuteScheduler driverId={driverId} />
+              )}
+
+              <Separator />
               
               {/* Push Notification Permission Status */}
               <div className="p-4 rounded-lg bg-secondary/30">
