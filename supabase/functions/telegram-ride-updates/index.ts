@@ -363,7 +363,7 @@ serve(async (req: Request) => {
 // ════════════════════════════════════════════════════════════
 
 async function resolveRiderChatId(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   riderId: string
 ): Promise<number | null> {
   if (!riderId) return null;
@@ -409,7 +409,7 @@ interface DriverDetails {
 }
 
 async function fetchDriverDetails(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   driverId: string
 ): Promise<DriverDetails | null> {
   const { data, error } = await supabase
