@@ -99,7 +99,7 @@ const MESSAGES = {
   confirmationPrompt: (origin: string, destination: string, fare: number, distanceKm: number) =>
     `🚕 *تأكيد الرحلة*\n\n📍 *من:* ${origin}\n🏁 *إلى:* ${destination}\n📏 *المسافة:* ${distanceKm.toFixed(1)} كم\n💰 *السعر التقديري:* ${fare.toLocaleString()} د.ع\n\nهل تريد تأكيد الرحلة؟ 👇`,
 
-  rideConfirmed: `✅ *تم تأكيد الطلب!*\nجاري إبلاغ أقرب كابتن عليك... 🚗`,
+  rideConfirmed: `✅ *تم تأكيد الطلب!*\nجاري البحث عن أقرب كابتن لك... 🚗`,
 
   rideCancelled: `🚫 *تم إلغاء الطلب.*\nتكدر تطلب رحلة جديدة بأي وقت! 🚕`,
 
@@ -178,30 +178,39 @@ async function sendInteractiveButtons(
   buttons: Array<{ id: string; title: string }>
 ) {
   try {
+    const payload = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "interactive",
+      interactive: {
+        type: "button",
+        body: { text: bodyText },
+        action: {
+          buttons: buttons.map((b) => ({
+            type: "reply",
+            reply: { id: b.id.substring(0, 256), title: b.title.substring(0, 20) },
+          })),
+        },
+      },
+    };
+
+    console.log(`[wa] sendButtons payload to ${to}:`, JSON.stringify(payload).substring(0, 500));
+
     const res = await fetch(GRAPH_API, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to,
-        type: "interactive",
-        interactive: {
-          type: "button",
-          body: { text: bodyText },
-          action: {
-            buttons: buttons.map((b) => ({
-              type: "reply",
-              reply: { id: b.id, title: b.title },
-            })),
-          },
-        },
-      }),
+      body: JSON.stringify(payload),
     });
     const result = await res.text();
-    console.log(`[wa] sendButtons (${res.status}): ${result.substring(0, 300)}`);
+    if (!res.ok) {
+      console.error(`[wa] sendButtons FAILED (${res.status}) to ${to}:`, result);
+    } else {
+      console.log(`[wa] ✅ sendButtons OK to ${to}:`, result.substring(0, 200));
+    }
   } catch (e) {
     console.error("[wa] sendInteractiveButtons failed:", e);
   }
@@ -783,7 +792,7 @@ async function resolveRamadiLocation(query: string, userLat = 33.4233, userLng =
       const place = data.results[0];
       return { lat: place.geometry.location.lat, lng: place.geometry.location.lng, address: place.formatted_address || place.name };
     }
-  } catch {}
+  } catch { }
 
   console.error(`[geocode] ALL strategies failed for: "${query}"`);
   return null;
@@ -1063,6 +1072,18 @@ async function createPickupSession(
   lng: number,
   address: string
 ): Promise<string> {
+  // 🔥 SECURITY: إلغاء أي رحلات نشطة سابقة (راكب واحد = رحلة واحدة فقط)
+  const { data: cancelledRides } = await supabase
+    .from("rides")
+    .update({ status: "cancelled", cancelled_by: "system", cancellation_reason: "تم إلغاؤها تلقائياً: طلب رحلة جديدة" })
+    .eq("rider_id", riderId)
+    .in("status", ["pending", "accepted", "arrived", "in_progress"])
+    .select("id");
+
+  if (cancelledRides && cancelledRides.length > 0) {
+    console.log(`[wa] 🔥 Auto-cancelled ${cancelledRides.length} active ride(s) for rider ${riderId}:`, cancelledRides.map(r => r.id));
+  }
+
   // حذف drafts قديمة
   await supabase
     .from("rides")
@@ -1071,6 +1092,14 @@ async function createPickupSession(
     .eq("status", "draft")
     .eq("trip_type", "whatsapp")
     .is("dropoff_address", null);
+
+  // مسح sub-state الدردشة (إن وجد)
+  try {
+    await supabase.from("bot_customers").update({ last_intent: null })
+      .eq("platform", "whatsapp")
+      .ilike("platform_id", `%`)
+      .eq("last_intent", `chatting_with_driver:%`);
+  } catch { } // صامت
 
   const { data, error } = await supabase
     .from("rides")
@@ -1229,7 +1258,7 @@ serve(async (req) => {
     await supabase.rpc("increment_bot_customer_interactions", {
       p_platform: "whatsapp",
       p_platform_id: phoneNumber,
-    }).then(() => {}).catch(() => {}); // صامت — إذا الدالة غير موجودة لا يأثر
+    }).then(() => { }).catch(() => { }); // صامت — إذا الدالة غير موجودة لا يأثر
   } catch (e) {
     console.warn("[wa] bot_customers upsert failed (non-critical):", e);
   }
@@ -1431,6 +1460,138 @@ serve(async (req) => {
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
+      // ══════════════════════════════════════════════════════════
+      // 🚗 حجز رحلة جديدة (من قائمة الإلغاء)
+      // ══════════════════════════════════════════════════════════
+      if (buttonId === "action_book_ride") {
+        await sendTextMessage(phoneNumber,
+          "🚗 *حجز رحلة جديدة*\n\nأرسل موقعك الحالي 📍 وراح نبدأ بالبحث عن كابتن فوراً!"
+        );
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ══════════════════════════════════════════════════════════
+      // 📞 المساعدة والاستفسارات
+      // ══════════════════════════════════════════════════════════
+      if (buttonId === "action_inquiry") {
+        await sendTextMessage(phoneNumber,
+          "📞 *المساعدة والاستفسارات*\n\nللتواصل مع فريق الدعم:\n📱 واتساب: 07700000000\n📧 support@raantaxi.com\n\nأو أرسل سؤالك هنا وسنرد عليك بأسرع وقت! 🙏"
+        );
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ══════════════════════════════════════════════════════════
+      // 📍 PARALLEL ACTION: Live Driver Location (track_ button)
+      // لا يغيّر حالة الرحلة — فقط يرسل رابط التتبع
+      // ══════════════════════════════════════════════════════════
+      const trackMatch = buttonId.match(/^track_([a-f0-9\-]+)$/);
+      if (trackMatch) {
+        const rideId = trackMatch[1];
+        console.log(`[wa] 📍 Track button pressed for ride: ${rideId}`);
+
+        try {
+          const { data: token } = await supabase
+            .rpc("generate_ride_tracking_token", { p_ride_id: rideId });
+          if (token) {
+            await sendTextMessage(phoneNumber,
+              `📍 *تتبع مسار الكابتن لحظة بلحظة:*\n\n${SITE_URL}/track/${token}\n\nافتح الرابط وراح تشوف موقع السيارة مباشرة على الخريطة! 🗺️`
+            );
+          } else {
+            await sendTextMessage(phoneNumber, "⚠️ عذراً، ما كدرنا نولّد رابط التتبع. حاول مرة ثانية.");
+          }
+        } catch (e) {
+          console.error("[wa] Track link generation failed:", e);
+          await sendTextMessage(phoneNumber, "⚠️ حدث خطأ تقني. حاول مرة ثانية.");
+        }
+
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ══════════════════════════════════════════════════════════
+      // 💬 PARALLEL ACTION: Proxy Chat (chat_ button)
+      // يضع المستخدم في sub-state: chatting_with_driver
+      // لا يغيّر حالة الرحلة — المحادثة مستقلة تماماً
+      // ══════════════════════════════════════════════════════════
+      const chatMatch = buttonId.match(/^chat_([a-f0-9\-]+)$/);
+      if (chatMatch) {
+        const rideId = chatMatch[1];
+        console.log(`[wa] 💬 Chat button pressed for ride: ${rideId}`);
+
+        // حفظ sub-state في bot_customers
+        try {
+          await supabase.from("bot_customers").update({
+            last_intent: `chatting_with_driver:${rideId}`,
+          }).eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+        } catch (e) {
+          console.warn("[wa] Failed to set chat sub-state:", e);
+        }
+
+        await sendTextMessage(phoneNumber,
+          `💬 *اكتب رسالتك للكابتن الآن وسأقوم بإيصالها فوراً* 👇\n\n_(لإلغاء المحادثة أرسل "خلص" أو "انتهيت")_`
+        );
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ══════════════════════════════════════════════════════════
+      // ⭐ PARALLEL ACTION: Driver Rating (rate_ button)
+      // يحفظ التقييم في ride_ratings — لا يغيّر حالة الرحلة
+      // ══════════════════════════════════════════════════════════
+      const rateMatch = buttonId.match(/^rate_([a-f0-9\-]+)_(\d+)$/);
+      if (rateMatch) {
+        const rideId = rateMatch[1];
+        const rating = parseInt(rateMatch[2], 10);
+        console.log(`[wa] ⭐ Rating: ${rating} stars for ride ${rideId}`);
+
+        try {
+          const riderId = await findOrCreateWhatsAppUser(supabase, phoneNumber, profileName);
+
+          // جلب driver_id من الرحلة
+          const { data: ride } = await supabase
+            .from("rides")
+            .select("driver_id")
+            .eq("id", rideId)
+            .maybeSingle();
+
+          if (ride?.driver_id) {
+            // إدراج أو تحديث التقييم
+            await supabase.from("ride_ratings").upsert({
+              ride_id: rideId,
+              rider_id: riderId,
+              driver_id: ride.driver_id,
+              rating: rating,
+              created_at: new Date().toISOString(),
+            }, {
+              onConflict: "ride_id,rider_id",
+            });
+
+            // تحديث متوسط تقييم السائق
+            const { data: avgData } = await supabase
+              .from("ride_ratings")
+              .select("rating")
+              .eq("driver_id", ride.driver_id);
+
+            if (avgData && avgData.length > 0) {
+              const avgRating = avgData.reduce((sum: number, r: any) => sum + r.rating, 0) / avgData.length;
+              await supabase.from("drivers")
+                .update({ rating: Math.round(avgRating * 10) / 10 })
+                .eq("id", ride.driver_id);
+            }
+
+            const stars = "⭐".repeat(rating);
+            await sendTextMessage(phoneNumber,
+              `${stars}\n\n✅ *شكراً لتقييمك!*\nتقييمك يساعدنا نقدم خدمة أفضل. 🙏\n\nلطلب رحلة جديدة، دز موقعك الحالي 📍`
+            );
+          } else {
+            await sendTextMessage(phoneNumber, "⚠️ ما كدرنا نحفظ التقييم. حاول مرة ثانية.");
+          }
+        } catch (e) {
+          console.error("[wa] Rating save failed:", e);
+          await sendTextMessage(phoneNumber, "⚠️ حدث خطأ في حفظ التقييم. حاول مرة ثانية.");
+        }
+
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
@@ -1514,6 +1675,113 @@ serve(async (req) => {
     // ── فحص إذا المستخدم موجود ──
     const riderId = await findOrCreateWhatsAppUser(supabase, phoneNumber, profileName);
 
+    // ══════════════════════════════════════════════════════════
+    // 💬 PROXY CHAT SUB-STATE: Hard Purge + Smart Routing
+    // 3 طبقات حماية ضد تسرب الحالة:
+    //   1️⃣ Global keyword overrides (حجز، إلغاء → كسر فوري)
+    //   2️⃣ Double verification (sub-state + active ride query)
+    //   3️⃣ Auto-purge on stale state
+    // ══════════════════════════════════════════════════════════
+    if (hasText) {
+      try {
+        const { data: botCustomer } = await supabase
+          .from("bot_customers")
+          .select("last_intent")
+          .eq("platform", "whatsapp")
+          .eq("platform_id", phoneNumber)
+          .maybeSingle();
+
+        if (botCustomer?.last_intent?.startsWith("chatting_with_driver:")) {
+          const chatRideId = botCustomer.last_intent.replace("chatting_with_driver:", "");
+          const userText = message.text.body.trim();
+          const userTextLower = userText.toLowerCase();
+
+          // ═══════════════════════════════════════════════════
+          // 1️⃣ GLOBAL KEYWORD OVERRIDES — كسر فوري من chat state
+          // هذه الكلمات تخرج المستخدم من المحادثة فوراً
+          // ═══════════════════════════════════════════════════
+          const breakoutKeywords = [
+            // أوامر حجز
+            "حجز", "اريد حجز", "ابي حجز", "ابغى حجز", "رحلة جديدة", "حجز جديد",
+            "اريد رحلة", "ابي رحلة", "book", "new ride",
+            // أوامر إلغاء
+            "إلغاء", "الغاء", "cancel",
+            // أوامر قائمة
+            "قائمة", "menu", "مساعدة", "help",
+          ];
+
+          const isBreakoutCommand = breakoutKeywords.some(kw =>
+            userTextLower === kw || userTextLower.includes(kw)
+          );
+
+          if (isBreakoutCommand) {
+            console.log(`[wa] 🔥 Breakout keyword detected: "${userText}" — clearing chat state`);
+            await supabase.from("bot_customers").update({ last_intent: null })
+              .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+            // لا نرجع — نكمل الـ flow العادي
+          } else {
+            // ═══════════════════════════════════════════════════
+            // 2️⃣ DOUBLE VERIFICATION — تحقق من الرحلة + رحلة نشطة
+            // ═══════════════════════════════════════════════════
+            const { data: rideCheck } = await supabase
+              .from("rides")
+              .select("status")
+              .eq("id", chatRideId)
+              .maybeSingle();
+
+            // تحقق إضافي: هل المستخدم لديه أي رحلة نشطة أصلاً؟
+            const { data: anyActiveRide } = await supabase
+              .from("rides")
+              .select("id")
+              .eq("rider_id", riderId)
+              .in("status", ["accepted", "arrived", "in_progress"])
+              .limit(1)
+              .maybeSingle();
+
+            if (
+              !rideCheck ||
+              !["accepted", "arrived", "in_progress"].includes(rideCheck.status) ||
+              !anyActiveRide
+            ) {
+              // ═══════════════════════════════════════════════════
+              // 3️⃣ AUTO-PURGE — الرحلة منتهية، مسح تلقائي
+              // ═══════════════════════════════════════════════════
+              console.log(`[wa] 🔥 HARD PURGE: Stale chat state for ride ${chatRideId} (status: ${rideCheck?.status || "missing"}, hasActive: ${!!anyActiveRide}). Clearing.`);
+              await supabase.from("bot_customers").update({ last_intent: null })
+                .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+              // لا نرجع — نكمل الـ flow العادي
+            } else {
+              // ✅ الرحلة نشطة فعلاً — ترحيل الرسالة
+
+              // إدراج الرسالة في ride_messages
+              const { error: msgError } = await supabase
+                .from("ride_messages")
+                .insert({
+                  ride_id: chatRideId,
+                  sender_id: riderId,
+                  sender_type: "rider",
+                  message: userText,
+                });
+
+              if (msgError) {
+                console.error("[wa] Proxy chat insert failed:", msgError.message);
+                await sendTextMessage(phoneNumber, "⚠️ ما كدرنا نرسل رسالتك. حاول مرة ثانية.");
+              } else {
+                console.log(`[wa] 💬 Proxy chat: rider → driver for ride ${chatRideId}`);
+                await sendTextMessage(phoneNumber,
+                  "✅ تم إرسال رسالتك للكابتن."
+                );
+              }
+              return new Response("EVENT_RECEIVED", { status: 200 });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[wa] Proxy chat sub-state check failed:", e);
+        // نكمل الـ flow العادي
+      }
+    }
+
     // ── 🧠 ذاكرة الرحلة النشطة + ترحيل الدردشة ──
     const activeRide = await checkActiveRide(supabase, riderId);
     if (activeRide) {
@@ -1571,7 +1839,7 @@ serve(async (req) => {
         } else {
           // لم يتم استخراج نص — عرض حالة الرحلة كالمعتاد
           const statusText = activeRide.status === "accepted" ? "الكابتن في الطريق إليك" :
-                            activeRide.status === "arrived" ? "الكابتن وصل" : "الرحلة جارية";
+            activeRide.status === "arrived" ? "الكابتن وصل" : "الرحلة جارية";
 
           let trackingLine = "";
           try {
@@ -1827,7 +2095,7 @@ serve(async (req) => {
 
     try {
       await sendTextMessage(phoneNumber, MESSAGES.error);
-    } catch {}
+    } catch { }
 
     // Always return 200 so Meta doesn't retry
     return new Response("EVENT_RECEIVED", { status: 200 });

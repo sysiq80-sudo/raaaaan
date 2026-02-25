@@ -1,16 +1,20 @@
 /**
  * ران — إشعارات تحديث الرحلة عبر تيليغرام (الراكب)
- * Telegram Ride Status Notifications for @raan_1_bot
+ * Telegram Ride Status Notifications — Strict State Machine
  *
- * يُستدعى من Database Webhook (trigger) كل ما يتغير status في rides
- * الشرط: trip_type = 'telegram' + تغيّر الحالة
- *
- * الحالات المدعومة:
- *   accepted   → رسالة بتفاصيل الكابتن + السيارة
- *   arrived    → الكابتن وصل
+ * State Machine (Strict & Uninterruptible):
+ *   pending    → البحث عن كابتن
+ *   accepted   → رسالة بتفاصيل الكابتن + أزرار inline (📍 موقع + 💬 محادثة)
+ *   arrived    → الكابتن وصل 🚨
  *   in_progress→ بدأت الرحلة
- *   completed  → وصلت بالسلامة + أزرار التقييم ⭐
+ *   completed  → إيصال + أزرار تقييم ⭐ (1-5)
  *   cancelled  → تم إلغاء الرحلة
+ *
+ * Parallel Actions (DO NOT alter ride state):
+ *   - Live Driver Location → tracking link
+ *   - Proxy Chat → driver ↔ rider via bot (rides.status unchanged)
+ *
+ * Updated: 2026-02-25
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -29,10 +33,7 @@ async function loadDynamicConfig() {
   if (_configLoaded) return;
   try {
     const svc = createServiceClient();
-    const cfg = await getConfigBatch(svc, [
-      "TELEGRAM_BOT_TOKEN",
-      "SITE_URL",
-    ]);
+    const cfg = await getConfigBatch(svc, ["TELEGRAM_BOT_TOKEN", "SITE_URL"]);
     TELEGRAM_BOT_TOKEN = cfg["TELEGRAM_BOT_TOKEN"] || TELEGRAM_BOT_TOKEN;
     SITE_URL = cfg["SITE_URL"] || SITE_URL;
     TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
@@ -48,8 +49,7 @@ async function loadDynamicConfig() {
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 // ════════════════════════════════════════════════════════════
@@ -64,22 +64,24 @@ async function sendMessage(chatId: number | string, text: string, replyMarkup?: 
   };
   if (replyMarkup) body.reply_markup = replyMarkup;
 
+  console.log(`[RideUpdates] sendMessage payload:`, JSON.stringify(body).substring(0, 600));
+
   const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
+  const responseText = await res.text();
   if (!res.ok) {
-    const err = await res.text();
-    console.error(`[RideUpdates] sendMessage failed for chat ${chatId}:`, err);
+    console.error(`[RideUpdates] sendMessage FAILED (${res.status}) for chat ${chatId}:`, responseText);
   } else {
-    console.log(`[RideUpdates] Message sent to chat ${chatId}`);
+    console.log(`[RideUpdates] ✅ Message sent to chat ${chatId}:`, responseText.substring(0, 200));
   }
 }
 
 // ════════════════════════════════════════════════════════════
-// Smart Destination Hint — تنويه ذكي للوجهة
+// Smart Destination Hint
 // ════════════════════════════════════════════════════════════
 
 const VAGUE_KEYWORDS = ["شارع", "حي", "منطقة"];
@@ -87,11 +89,7 @@ const LANDMARK_KEYWORDS = ["جامعة", "مستشفى", "مول", "ملعب"];
 
 function getSmartHint(address: string | null): string {
   if (!address) return "";
-
-  // إذا الوجهة معلم معروف — لا حاجة للتنويه
   if (LANDMARK_KEYWORDS.some((kw) => address.includes(kw))) return "";
-
-  // إذا الوجهة عامة (شارع/حي/منطقة) — أضف تنويه
   if (VAGUE_KEYWORDS.some((kw) => address.includes(kw))) {
     return (
       `\n\n💡 <b>تنويه:</b> بما أنك حددت الوجهة (عامة)، ` +
@@ -99,12 +97,11 @@ function getSmartHint(address: string | null): string {
       `(بداية الشارع، منتصفه، أو نهايته) لضمان دقة الوصول.`
     );
   }
-
   return "";
 }
 
 // ════════════════════════════════════════════════════════════
-// Main Handler
+// Main Handler — Strict State Machine
 // ════════════════════════════════════════════════════════════
 
 serve(async (req: Request) => {
@@ -117,7 +114,6 @@ serve(async (req: Request) => {
   try {
     const payload = await req.json();
 
-    // الحقول المتوقعة من الـ trigger
     const {
       ride_id,
       new_status,
@@ -129,6 +125,8 @@ serve(async (req: Request) => {
       estimated_fare,
       pickup_address,
       dropoff_address,
+      distance_km,
+      duration_minutes,
     } = payload;
 
     console.log(
@@ -145,64 +143,91 @@ serve(async (req: Request) => {
       return jsonOk({ skipped: true, reason: "same_status" });
     }
 
+    // ── التحقق من صحة انتقال الحالة (State Machine Validation)
+    const validTransitions: Record<string, string[]> = {
+      pending: ["accepted", "cancelled"],
+      accepted: ["arrived", "cancelled"],
+      arrived: ["in_progress", "cancelled"],
+      in_progress: ["completed", "cancelled"],
+    };
+    if (old_status && validTransitions[old_status]) {
+      if (!validTransitions[old_status].includes(new_status)) {
+        console.warn(`[RideUpdates] ⚠️ Invalid transition: ${old_status} → ${new_status}`);
+      }
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // ── جلب telegram chat_id للراكب من profiles.phone (tg_{telegram_id}) أو user_metadata
+    // ── جلب telegram chat_id للراكب
     const chatId = await resolveRiderChatId(supabase, rider_id);
     if (!chatId) {
       console.error(`[RideUpdates] Could not resolve Telegram chat_id for rider ${rider_id}`);
       return jsonOk({ skipped: true, reason: "no_chat_id" });
     }
 
-    // ══════════════════════════════════
-    // 1️⃣ accepted — تم قبول الطلب + رابط التتبع المباشر
-    // ══════════════════════════════════
+    // ══════════════════════════════════════════════
+    // 1️⃣ ACCEPTED — تم قبول الطلب + أزرار inline
+    // ══════════════════════════════════════════════
     if (new_status === "accepted" && driver_id) {
       const driver = await fetchDriverDetails(supabase, driver_id);
       const eta = driver?.eta ?? 5;
 
       // إنشاء رابط التتبع المباشر
-      let trackingLine = "";
+      let trackingUrl = "";
       try {
-        const { data: token } = await supabase
-          .rpc("generate_ride_tracking_token", { p_ride_id: ride_id });
+        const { data: token } = await supabase.rpc("generate_ride_tracking_token", {
+          p_ride_id: ride_id,
+        });
         if (token) {
-          const trackingUrl = `${SITE_URL}/track/${token}`;
-          trackingLine = `\n\n📍 <b>تتبع الرحلة مباشرة:</b>\n${trackingUrl}`;
+          trackingUrl = `${SITE_URL}/track/${token}`;
         }
       } catch (e) {
         console.warn("[RideUpdates] Failed to generate tracking link:", e);
       }
 
-      await sendMessage(
-        chatId,
-        `🎉 <b>تم قبول طلبك!</b>\n\n` +
-          `👤 الكابتن: <b>${driver?.full_name ?? "غير معروف"}</b>\n` +
-          `🚗 السيارة: ${driver?.vehicle_model ?? "—"} - ${driver?.vehicle_color ?? "—"} (${driver?.vehicle_plate ?? "—"})\n\n` +
-          `⏳ وقت الوصول: خلال <b>${eta} دقائق</b> تقريباً.\n` +
-          `خليك جاهز.. الكابتن بالطريق!` +
-          trackingLine
-      );
+      // أزرار inline: موقع + محادثة (تظهر دائماً)
+      const trackButton = trackingUrl
+        ? { text: "📍 موقع السائق", url: trackingUrl }
+        : { text: "📍 موقع السائق", callback_data: `track_${ride_id}` };
 
-      return jsonOk({ sent: "accepted" });
+      const inlineKeyboard = {
+        inline_keyboard: [
+          [
+            trackButton,
+            { text: "💬 راسل السائق", callback_data: `chat_${ride_id}` },
+          ],
+        ],
+      };
+
+      const msgText =
+        `🎉 <b>تم قبول طلبك!</b>\n\n` +
+        `👤 الكابتن: <b>${driver?.full_name ?? "غير معروف"}</b>\n` +
+        `🚗 السيارة: ${driver?.vehicle_model ?? "—"} - ${driver?.vehicle_color ?? "—"} (${driver?.vehicle_plate ?? "—"})\n\n` +
+        `⏳ وقت الوصول: خلال <b>${eta} دقائق</b> تقريباً.\n` +
+        `خليك جاهز.. الكابتن بالطريق!`;
+
+      console.log(`[RideUpdates] Sending accepted msg to ${chatId} with inline_keyboard:`, JSON.stringify(inlineKeyboard));
+
+      await sendMessage(chatId, msgText, inlineKeyboard);
+
+      return jsonOk({ sent: "accepted", buttons: true });
     }
 
-    // ══════════════════════════════════
-    // 2️⃣ arrived — الكابتن وصل
-    // ══════════════════════════════════
+    // ══════════════════════════════════════════════
+    // 2️⃣ ARRIVED — الكابتن وصل 🚨
+    // ══════════════════════════════════════════════
     if (new_status === "arrived") {
       await sendMessage(
         chatId,
-        `🔔 <b>الكابتن وصل للموقع!</b>\nهو بانتظارك الآن.. يرجى التوجه للسيارة.`
+        `🚨 <b>الكابتن وصل وهو بانتظارك في الخارج!</b>\nيرجى التوجه للسيارة بأسرع وقت. 🚗`
       );
       return jsonOk({ sent: "arrived" });
     }
 
-    // ══════════════════════════════════
-    // 3️⃣ in_progress — بدأت الرحلة + تنويه ذكي
-    // ══════════════════════════════════
+    // ══════════════════════════════════════════════
+    // 3️⃣ IN_PROGRESS — بدأت الرحلة
+    // ══════════════════════════════════════════════
     if (new_status === "in_progress") {
-      // جلب مدة الرحلة المقدرة من جدول rides
       let tripDuration: number | null = null;
       try {
         const { data: rideRow } = await supabase
@@ -216,25 +241,38 @@ serve(async (req: Request) => {
       }
 
       const durationLine = tripDuration
-        ? `\n⏱️ مدة الطريق: <b>${tripDuration} دقيقة</b> تقريباً.`
+        ? `\n⏱️ مدة الطريق: <b>${tripDuration} دقيقة </b> تقريباً.`
         : "";
 
       const smartHint = getSmartHint(dropoff_address);
 
-      await sendMessage(
-        chatId,
-        `🚀 <b>أنت الآن في الرحلة!</b>${durationLine}${smartHint}`
-      );
+      await sendMessage(chatId, `🚀 <b>أنت الآن في الرحلة!</b>${durationLine}${smartHint}`);
       return jsonOk({ sent: "in_progress" });
     }
 
-    // ══════════════════════════════════
-    // 4️⃣ completed — وصلت بالسلامة + تقييم
-    // ══════════════════════════════════
+    // ══════════════════════════════════════════════
+    // 4️⃣ COMPLETED — إيصال + تقييم ⭐
+    // ══════════════════════════════════════════════
     if (new_status === "completed") {
       const fare = final_fare || estimated_fare || 0;
+      const distText = distance_km ? `${Number(distance_km).toFixed(1)} كم` : "—";
+      const durationText = duration_minutes ? `${duration_minutes} دقيقة` : "—";
 
-      // أزرار التقييم Inline
+      // إيصال الرحلة
+      const receiptMsg =
+        `✅ <b>الحمد لله على السلامة!</b>\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `🧾 <b>إيصال الرحلة</b>\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `📍 من: ${pickup_address || "—"}\n` +
+        `🏁 إلى: ${dropoff_address || "—"}\n` +
+        `📏 المسافة: ${distText}\n` +
+        `⏱️ المدة: ${durationText}\n` +
+        `💰 المبلغ: <b>${fare.toLocaleString()} د.ع</b>\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `شكراً لاستخدامك ران! الرحلة انتهت. كيف تقيم الكابتن؟ 👇`;
+
+      // أزرار التقييم Inline (5 نجوم)
       const ratingButtons = {
         inline_keyboard: [
           [
@@ -247,36 +285,44 @@ serve(async (req: Request) => {
         ],
       };
 
-      await sendMessage(
-        chatId,
-        `✅ <b>الحمد لله على السلامة!</b>\n\n` +
-          `💰 المبلغ المطلوب: <b>${fare.toLocaleString()} د.ع</b>\n\n` +
-          `شكراً لاستخدامك الحجز الذكي من ران 🚕\n` +
-          `كيف كان تعامل الكابتن؟ 👇`,
-        ratingButtons
-      );
+      await sendMessage(chatId, receiptMsg, ratingButtons);
 
       // ── عرض خيار رحلة جديدة مع كيبورد الموقع
-      await sendMessage(
-        chatId,
-        `هل تريد رحلة جديدة؟ 🚕\nدز موقعك الحالي مرة ثانية 👇`,
-        {
-          keyboard: [[{ text: "📍 مشاركة موقعي الحالي", request_location: true }]],
-          resize_keyboard: true,
-        }
-      );
+      await sendMessage(chatId, `هل تريد رحلة جديدة؟ 🚕\nدز موقعك الحالي مرة ثانية 👇`, {
+        keyboard: [[{ text: "📍 مشاركة موقعي الحالي", request_location: true }]],
+        resize_keyboard: true,
+      });
 
-      return jsonOk({ sent: "completed" });
+      // 🔥 CRITICAL: مسح sub-state الدردشة عند اكتمال الرحلة
+      try {
+        // مسح عبر telegram chat_id
+        await supabase.from("bot_customers").update({ last_intent: null })
+          .eq("platform", "telegram").eq("platform_id", String(chatId));
+        console.log(`[RideUpdates] ✅ Cleared chat sub-state for Telegram ${chatId} on completed`);
+      } catch (e) {
+        console.warn("[RideUpdates] Failed to clear sub-state on completed:", e);
+      }
+
+      return jsonOk({ sent: "completed", receipt: true, rating_buttons: true });
     }
 
-    // ══════════════════════════════════
-    // 5️⃣ cancelled — تم الإلغاء
-    // ══════════════════════════════════
+    // ══════════════════════════════════════════════
+    // 5️⃣ CANCELLED — تم الإلغاء + مسح context + أزرار inline
+    // ══════════════════════════════════════════════
     if (new_status === "cancelled") {
+      // 🔥 CRITICAL: مسح sub-state الدردشة فوراً عند الإلغاء
+      try {
+        await supabase.from("bot_customers").update({ last_intent: null })
+          .eq("platform", "telegram").eq("platform_id", String(chatId));
+        console.log(`[RideUpdates] ✅ Cleared chat sub-state for Telegram ${chatId} on cancelled`);
+      } catch (e) {
+        console.warn("[RideUpdates] Failed to clear sub-state on cancelled:", e);
+      }
+
       const cancelledBy = payload.cancelled_by;
       const reason = payload.cancellation_reason;
 
-      let cancelMsg = `❌ <b>تم إلغاء الرحلة</b>\n`;
+      let cancelMsg = `❌ <b>تم إلغاء الطلب بنجاح.</b>\n`;
       if (cancelledBy === "driver") {
         cancelMsg += `\nالسبب: السائق ألغى الرحلة.`;
       } else if (cancelledBy === "system") {
@@ -285,30 +331,35 @@ serve(async (req: Request) => {
       if (reason) {
         cancelMsg += `\nملاحظة: ${reason}`;
       }
-      cancelMsg += `\n\nيمكنك طلب رحلة جديدة بإرسال موقعك مرة أخرى 📍`;
+      cancelMsg += `\n\nتكدر تطلب رحلة جديدة بأي وقت! 🚕\nكيف يمكنني مساعدتك الآن؟`;
 
-      await sendMessage(chatId, cancelMsg);
-      return jsonOk({ sent: "cancelled" });
+      // أزرار inline تفاعلية (حجز جديد + مساعدة)
+      const cancelButtons = {
+        inline_keyboard: [
+          [
+            { text: "🚗 حجز رحلة جديدة", callback_data: "action_book_ride" },
+            { text: "📞 الاستفسارات", callback_data: "action_inquiry" },
+          ],
+        ],
+      };
+
+      await sendMessage(chatId, cancelMsg, cancelButtons);
+      return jsonOk({ sent: "cancelled", buttons: true });
     }
 
-    // أي حالة أخرى — تجاهل
     console.log(`[RideUpdates] Unhandled status: ${new_status}, skipping.`);
     return jsonOk({ skipped: true, reason: "unhandled_status" });
-
   } catch (err) {
     console.error("[RideUpdates] Error:", err);
-    return new Response(
-      JSON.stringify({ error: (err as Error).message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: (err as Error).message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
 
 // ════════════════════════════════════════════════════════════
 // Helper: جلب telegram_id من rider_id
-// الاستراتيجية:
-//   1. profiles.phone يبدأ بـ "tg_" → استخرج الرقم
-//   2. fallback: auth.users.raw_user_meta_data → telegram_id
 // ════════════════════════════════════════════════════════════
 
 async function resolveRiderChatId(
@@ -317,7 +368,6 @@ async function resolveRiderChatId(
 ): Promise<number | null> {
   if (!riderId) return null;
 
-  // 1. جلب profiles.phone
   const { data: profile } = await supabase
     .from("profiles")
     .select("phone")
@@ -332,7 +382,6 @@ async function resolveRiderChatId(
     }
   }
 
-  // 2. Fallback: auth.users.raw_user_meta_data.telegram_id
   try {
     const { data: authUser } = await supabase.auth.admin.getUserById(riderId);
     const tgId = authUser?.user?.user_metadata?.telegram_id;
@@ -379,7 +428,7 @@ async function fetchDriverDetails(
     vehicle_model: data.vehicle_model,
     vehicle_color: data.vehicle_color,
     vehicle_plate: data.vehicle_plate,
-    eta: 5, // قيمة افتراضية — يمكن حسابها مستقبلاً من المسافة
+    eta: 5,
   };
 }
 

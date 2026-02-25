@@ -2,7 +2,112 @@
 
 ## 🎯 المهام المكتملة
 
-### ✅ المرحلة 1: نظام التقييم
+### ✅ 2026-02-25: State Machine & Parallel Proxy Chat
+
+**الوصف:** تنفيذ State Machine صارم للرحلات مع أنظمة محادثة وتتبع وتقييم موازية
+
+**الملفات المُعدّلة:**
+- ✅ `supabase/functions/whatsapp-ride-updates/index.ts` — State Machine صارم + أزرار تفاعلية (موقع + محادثة) + إيصال + تقييم
+- ✅ `supabase/functions/telegram-ride-updates/index.ts` — نفس التحديثات لتيليغرام مع 5 أزرار تقييم
+- ✅ `supabase/functions/whatsapp-webhook/index.ts` — معالجة أزرار `track_*`, `chat_*`, `rate_*` + Proxy Chat sub-state
+- ✅ `src/components/ride/RideChat.tsx` — المحادثة مستقلة عن حالة الرحلة + relay للبوت
+
+**الملفات المُنشأة:**
+- ✅ `STATE_MACHINE_AND_PROXY_CHAT_2026-02-25.md` — توثيق شامل للنظام
+
+**التفاصيل التقنية:**
+1. **State Machine**: `pending → accepted → arrived → in_progress → completed` (انتقالات صارمة مع تحقق)
+2. **Parallel Actions**: تتبع الموقع + محادثة بروكسي (لا تغيّر حالة الرحلة)
+3. **Proxy Chat**: sub-state `chatting_with_driver:{ride_id}` في `bot_customers.last_intent`
+4. **Rating**: أزرار تقييم ⭐ عند اكتمال الرحلة → حفظ في `ride_ratings` + تحديث متوسط السائق
+
+---
+
+### 🔥 2026-02-25 (Hotfix): WhatsApp Buttons + Driver App GPS
+
+**المشاكل المُصلحة:**
+1. **WhatsApp Interactive Buttons فشلت** — عنوان الزر تجاوز حد 20 حرف في Meta API → تقصير + `substring(0,20)` safety
+2. **"وصلت لموقع العميل"** — GPS validation 100م → 500م + اختياري
+3. **"تم الوصول"** — GPS validation 150م → 1000م + اختياري
+4. **"العميل ركب"** — `window.confirm()` محجوب في Capacitor → إزالة
+5. **"رسائل سريعة"** — broadcast فقط → + DB fallback
+
+**الملفات:** `whatsapp-ride-updates/index.ts`, `ActiveRideCard.tsx`
+
+---
+
+### 🔥 2026-02-25 (Hotfix #2): State Leak + Interactive Cancellation Menu
+
+**المشاكل المُصلحة:**
+1. **🔥 CRITICAL: Bot stuck in proxy chat** — `chatting_with_driver` sub-state لم يُمسح عند الإلغاء/الإكمال → مسح تلقائي في `cancelled` و `completed`
+2. **تحقق من الرحلة قبل الترحيل** — proxy chat interceptor يتحقق أن الرحلة نشطة قبل ترحيل الرسالة. إذا الرحلة منتهية → يمسح sub-state تلقائياً ويكمل العادي
+3. **قائمة إلغاء تفاعلية** — بدلاً من نص عادي، يرسل أزرار `[🚗 حجز رحلة جديدة]` + `[📞 المساعدة]`
+
+**الملفات:** `whatsapp-ride-updates/index.ts`, `whatsapp-webhook/index.ts`
+
+---
+
+### 🔥 2026-02-25 (Hotfix #3): Cross-Platform Hard Purge + Smart Routing
+
+**الوصف:** إعادة كتابة كاملة لمنطق Proxy Chat Interceptor مع 3 طبقات حماية
+
+**الطبقات:**
+1. **Global Keyword Overrides** — كلمات مثل (حجز، إلغاء، رحلة جديدة) تكسر chat state فوراً
+2. **Double Verification** — تحقق من sub-state + استعلام رحلة نشطة (`rides WHERE status IN active`)
+3. **Auto-Purge** — إذا الرحلة منتهية → مسح تلقائي + توجيه للـ flow العادي
+
+**Telegram أيضاً:**
+- مسح `last_intent` عند `cancelled` و `completed`
+- قائمة إلغاء تفاعلية مع `InlineKeyboardMarkup`
+
+**الملفات:** `whatsapp-webhook/index.ts`, `whatsapp-ride-updates/index.ts`, `telegram-ride-updates/index.ts`
+
+---
+
+### 🔥 2026-02-25 (Hotfix #4): Telegram Missing Buttons + WhatsApp Payload Strict Fix
+
+**المشاكل المُصلحة:**
+1. **Telegram Accepted — أزرار مفقودة** — زر الموقع كان يظهر فقط مع tracking URL. الآن يظهر دائماً (callback_data fallback)
+2. **WhatsApp webhook `sendInteractiveButtons`** — كان ينقصه `recipient_type: "individual"` + `substring(0,20)` للعنوان + `substring(0,256)` للـ ID
+3. **Logging مفصّل** — كلا المنصتين تطبع الـ payload + response لكشف الأخطاء فوراً
+
+**الملفات:** `telegram-ride-updates/index.ts`, `whatsapp-webhook/index.ts`
+
+---
+
+### 🔥 2026-02-25 (Hotfix #5): Telegram Callback Handlers + WhatsApp Debug Logging
+
+**المشاكل المُصلحة:**
+1. **Telegram — أزرار "ميتة"** — أزرار `track_` و `chat_` لم يكن لها handlers في `telegram-ai-booking`. تمت إضافة:
+   - `track_{ride_id}` → يولد/يسترجع رابط التتبع ويرسله
+   - `chat_{ride_id}` → يعين `chatting_with_driver` sub-state ويفتح وضع المحادثة
+2. **WhatsApp — صمت تام عند Accepted** — أضيف logging شامل (raw payload, config check, GRAPH_API status) لـ `whatsapp-ride-updates` لكشف السبب الجذري
+
+**الملفات:** `telegram-ai-booking/index.ts`, `whatsapp-ride-updates/index.ts`
+
+---
+
+### 🔥 2026-02-25 (Hotfix #6): Phone Resolution Fix + Auto-Cancel Duplicates
+
+**المشاكل المُصلحة:**
+1. **WhatsApp صامت عند Accepted** — `resolveRiderPhone` كان يفشل بسبب format `wa_964xxx`. الآن 4 استراتيجيات (profiles.user_id → profiles.id → bot_customers → auth.metadata)
+2. **🔒 SECURITY: Auto-Cancel Duplicates** — قبل إنشاء رحلة جديدة، يتم إلغاء أي رحلات نشطة سابقة تلقائياً (راكب واحد = رحلة واحدة فقط)
+3. **مسح chat state عند حجز جديد** — `last_intent` يُمسح تلقائياً عند إنشاء رحلة جديدة
+
+**الملفات:** `whatsapp-ride-updates/index.ts`, `whatsapp-webhook/index.ts`, `telegram-ai-booking/index.ts`
+
+---
+
+### 🔥 2026-02-25 (Hotfix #7): Driver-to-Passenger Chat Relay Fix + Tracking RPC
+
+**المشاكل المُصلحة:**
+1. **رسائل السائق لا تصل للراكب** — `resolveWhatsAppPhone` و `resolveTelegramChatId` في `relay-chat-message` كانت تستخدم strategy واحدة. الآن 3 استراتيجيات
+2. **Tracking RPC** — SQL جاهز لإنشاء `generate_ride_tracking_token` + GRANT لكل الأدوار
+3. **Logging شامل** — كل relay يسجّل الـ payload + phone/chatId
+
+**الملفات:** `relay-chat-message/index.ts`
+
+---
 
 **الملفات المُنشأة:**
 - ✅ `src/components/rider/RideRatingScreen.tsx` (250+ سطر)

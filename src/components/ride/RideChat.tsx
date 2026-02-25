@@ -84,7 +84,7 @@ export const RideChat = ({ rideId, userType, rideStatus }: RideChatProps) => {
         (payload) => {
           const newMsg = payload.new as Message;
           setMessages(prev => [...prev, newMsg]);
-          
+
           if (newMsg.sender_type !== userType) {
             if (!open) {
               setUnreadCount(prev => prev + 1);
@@ -114,25 +114,23 @@ export const RideChat = ({ rideId, userType, rideStatus }: RideChatProps) => {
     }
   }, [open, unreadCount]);
 
-  // إغلاق المحادثة عند وصول السائق أو اكتمال الرحلة
+  // ── Parallel Chat: المحادثة تعمل بشكل مستقل عن حالة الرحلة
+  // تُغلق فقط عند اكتمال أو إلغاء الرحلة
   useEffect(() => {
-    if (rideStatus === 'arrived' && !chatEnded) {
+    if (rideStatus === 'completed' || rideStatus === 'cancelled') {
       setChatEnded(true);
       setMessages(prev => [...prev, {
-        id: 'system-arrived',
-        message: '✅ وصل السائق إلى موقعك - المحادثة ستُغلق',
+        id: 'system-ended',
+        message: rideStatus === 'completed'
+          ? '✅ تمت الرحلة بنجاح - شكراً لاستخدامك ران'
+          : '❌ تم إلغاء الرحلة',
         sender_type: 'rider' as const,
         created_at: new Date().toISOString(),
         is_read: true,
       }]);
       setTimeout(() => setOpen(false), 3000);
     }
-    
-    if (rideStatus === 'completed' || rideStatus === 'cancelled') {
-      setChatEnded(true);
-      setOpen(false);
-    }
-  }, [rideStatus, chatEnded]);
+  }, [rideStatus]);
   const sendMessage = async (text: string) => {
     if (!text.trim() || sending) return;
 
@@ -141,6 +139,7 @@ export const RideChat = ({ rideId, userType, rideStatus }: RideChatProps) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // حفظ الرسالة في ride_messages
       const { error } = await supabase
         .from('ride_messages')
         .insert({
@@ -151,6 +150,35 @@ export const RideChat = ({ rideId, userType, rideStatus }: RideChatProps) => {
         });
 
       if (error) throw error;
+
+      // ── Relay: إذا كان المرسل هو السائق، أرسل الرسالة للراكب عبر البوت
+      if (userType === 'driver') {
+        try {
+          // جلب بيانات الرحلة لمعرفة rider_id و trip_type
+          const { data: ride } = await supabase
+            .from('rides')
+            .select('rider_id, trip_type')
+            .eq('id', rideId)
+            .single();
+
+          if (ride?.rider_id && ride?.trip_type) {
+            // relay-chat-message Edge Function
+            await supabase.functions.invoke('relay-chat-message', {
+              body: {
+                ride_id: rideId,
+                message: text.trim(),
+                sender_type: 'driver',
+                platform: ride.trip_type, // 'whatsapp' أو 'telegram'
+                rider_id: ride.rider_id,
+              }
+            });
+          }
+        } catch (relayErr) {
+          console.warn('[RideChat] Relay to bot failed (non-blocking):', relayErr);
+          // لا نعرض خطأ للسائق — الرسالة محفوظة في DB
+        }
+      }
+
       setNewMessage("");
     } catch (error) {
       console.error('Error sending message:', error);
@@ -197,23 +225,20 @@ export const RideChat = ({ rideId, userType, rideStatus }: RideChatProps) => {
               messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`flex ${
-                    msg.sender_type === userType ? "justify-end" : "justify-start"
-                  }`}
+                  className={`flex ${msg.sender_type === userType ? "justify-end" : "justify-start"
+                    }`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                      msg.sender_type === userType
+                    className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.sender_type === userType
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted"
-                    }`}
+                      }`}
                   >
                     <p>{msg.message}</p>
-                    <p className={`text-xs mt-1 ${
-                      msg.sender_type === userType
+                    <p className={`text-xs mt-1 ${msg.sender_type === userType
                         ? "text-primary-foreground/70"
                         : "text-muted-foreground"
-                    }`}>
+                      }`}>
                       {new Date(msg.created_at).toLocaleTimeString('ar-IQ', {
                         hour: '2-digit',
                         minute: '2-digit'
@@ -254,8 +279,8 @@ export const RideChat = ({ rideId, userType, rideStatus }: RideChatProps) => {
                 disabled={sending}
                 className="flex-1"
               />
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 size="icon"
                 disabled={sending || !newMessage.trim()}
                 className="flex-shrink-0"

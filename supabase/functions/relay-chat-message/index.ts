@@ -130,33 +130,80 @@ async function resolveWhatsAppPhone(
 ): Promise<string | null> {
   if (!riderId) return null;
 
-  // 1. من profiles.phone (مثل wa_9647884669922)
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("phone")
-    .eq("user_id", riderId)
-    .maybeSingle();
+  console.log(`[RelayChatMessage] Resolving WhatsApp phone for rider: ${riderId}`);
 
-  if (profile?.phone && !profile.phone.startsWith("tg_")) {
-    // إزالة بادئة wa_ إذا موجودة ثم تنظيف
-    let phone = profile.phone;
-    if (phone.startsWith("wa_")) phone = phone.replace("wa_", "");
-    const cleanPhone = phone.replace(/[^0-9]/g, "");
-    if (cleanPhone.length >= 10) return cleanPhone;
-  }
-
-  // 2. Fallback: auth.users.phone
+  // Strategy 1: profiles بـ user_id
   try {
-    const { data: authUser } = await supabase.auth.admin.getUserById(riderId);
-    const phone = authUser?.user?.phone;
-    if (phone) {
-      const cleanPhone = phone.replace(/[^0-9]/g, "");
-      if (cleanPhone.length >= 10) return cleanPhone;
+    const { data: p1 } = await supabase
+      .from("profiles")
+      .select("phone, email")
+      .eq("user_id", riderId)
+      .maybeSingle();
+
+    if (p1) {
+      console.log(`[RelayChatMessage] Profile (user_id): phone=${p1.phone}, email=${p1.email}`);
+      if (p1.phone?.startsWith("wa_")) {
+        const waPhone = p1.phone.replace("wa_", "");
+        if (waPhone.length >= 10) return waPhone;
+      }
+      if (p1.phone && !p1.phone.startsWith("tg_")) {
+        const clean = p1.phone.replace(/[^0-9]/g, "");
+        if (clean.length >= 10) return clean;
+      }
+      if (p1.email?.includes("@whatsapp.raan.app")) {
+        const fromEmail = p1.email.replace("wa_", "").replace("@whatsapp.raan.app", "");
+        if (fromEmail.length >= 10) return fromEmail;
+      }
     }
   } catch (e) {
-    console.error("[RelayChatMessage] Failed to fetch auth user:", e);
+    console.warn("[RelayChatMessage] Strategy 1 failed:", e);
   }
 
+  // Strategy 2: profiles بـ id
+  try {
+    const { data: p2 } = await supabase
+      .from("profiles")
+      .select("phone, email")
+      .eq("id", riderId)
+      .maybeSingle();
+
+    if (p2) {
+      console.log(`[RelayChatMessage] Profile (id): phone=${p2.phone}, email=${p2.email}`);
+      if (p2.phone?.startsWith("wa_")) {
+        const waPhone = p2.phone.replace("wa_", "");
+        if (waPhone.length >= 10) return waPhone;
+      }
+      if (p2.phone && !p2.phone.startsWith("tg_")) {
+        const clean = p2.phone.replace(/[^0-9]/g, "");
+        if (clean.length >= 10) return clean;
+      }
+      if (p2.email?.includes("@whatsapp.raan.app")) {
+        const fromEmail = p2.email.replace("wa_", "").replace("@whatsapp.raan.app", "");
+        if (fromEmail.length >= 10) return fromEmail;
+      }
+    }
+  } catch (e) {
+    console.warn("[RelayChatMessage] Strategy 2 failed:", e);
+  }
+
+  // Strategy 3: auth user metadata
+  try {
+    const { data: authUser } = await supabase.auth.admin.getUserById(riderId);
+    const meta = authUser?.user?.user_metadata;
+    if (meta?.whatsapp_phone) {
+      const clean = String(meta.whatsapp_phone).replace(/[^0-9]/g, "");
+      if (clean.length >= 10) return clean;
+    }
+    const phone = authUser?.user?.phone;
+    if (phone) {
+      const clean = phone.replace(/[^0-9]/g, "");
+      if (clean.length >= 10) return clean;
+    }
+  } catch (e) {
+    console.error("[RelayChatMessage] Strategy 3 (auth) failed:", e);
+  }
+
+  console.error(`[RelayChatMessage] ❌ ALL strategies failed for rider ${riderId}`);
   return null;
 }
 
@@ -170,19 +217,42 @@ async function resolveTelegramChatId(
 ): Promise<number | null> {
   if (!riderId) return null;
 
-  // 1. من profiles.phone (مثل tg_123456789)
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("phone")
-    .eq("user_id", riderId)
-    .maybeSingle();
+  // 1. من profiles.phone (مثل tg_123456789) — بـ user_id أو id
+  for (const col of ["user_id", "id"]) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("phone")
+      .eq(col, riderId)
+      .maybeSingle();
 
-  if (profile?.phone && profile.phone.startsWith("tg_")) {
-    const telegramId = parseInt(profile.phone.replace("tg_", ""), 10);
-    if (!isNaN(telegramId)) return telegramId;
+    if (profile?.phone?.startsWith("tg_")) {
+      const telegramId = parseInt(profile.phone.replace("tg_", ""), 10);
+      if (!isNaN(telegramId)) return telegramId;
+    }
   }
 
-  // 2. Fallback: auth.users.user_metadata.telegram_id
+  // 2. من bot_customers
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("phone")
+      .or(`user_id.eq.${riderId},id.eq.${riderId}`)
+      .maybeSingle();
+
+    if (profile?.phone?.startsWith("tg_")) {
+      const tgId = profile.phone.replace("tg_", "");
+      const { data: bc } = await supabase
+        .from("bot_customers")
+        .select("platform_id")
+        .eq("platform", "telegram")
+        .eq("platform_id", tgId)
+        .maybeSingle();
+
+      if (bc?.platform_id) return parseInt(bc.platform_id, 10);
+    }
+  } catch { }
+
+  // 3. Fallback: auth.users.user_metadata.telegram_id
   try {
     const { data: authUser } = await supabase.auth.admin.getUserById(riderId);
     const tgId = authUser?.user?.user_metadata?.telegram_id;
@@ -231,12 +301,17 @@ serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  console.log("[RelayChatMessage] ═══ FUNCTION INVOKED ═══");
+
   try {
-    const payload = await req.json();
+    const rawBody = await req.text();
+    console.log(`[RelayChatMessage] Raw payload:`, rawBody.substring(0, 500));
+
+    const payload = JSON.parse(rawBody);
     const { ride_id, message, sender_type, platform, rider_id } = payload;
 
     console.log(
-      `[RelayChatMessage] ride=${ride_id} sender=${sender_type} platform=${platform}`
+      `[RelayChatMessage] ride=${ride_id} sender=${sender_type} platform=${platform} rider=${rider_id}`
     );
 
     // التحقق من البيانات المطلوبة
@@ -250,21 +325,21 @@ serve(async (req: Request) => {
     // جلب اسم السائق
     const driverName = await getDriverName(supabase, ride_id);
 
-    // صياغة الرسالة
-    const formattedMsg = `💬 رسالة من ${driverName}:\n\n${message}`;
-
     // ══════════════════════════════════
     // إرسال عبر واتساب
     // ══════════════════════════════════
     if (platform === "whatsapp") {
       const phone = await resolveWhatsAppPhone(supabase, rider_id);
       if (!phone) {
-        console.error(`[RelayChatMessage] Could not resolve WhatsApp phone for rider ${rider_id}`);
+        console.error(`[RelayChatMessage] ❌ Could not resolve WhatsApp phone for rider ${rider_id}`);
         return jsonOk({ error: "no_phone" });
       }
 
+      const formattedMsg = `💬 *رسالة من ${driverName}:*\n\n${message}`;
+      console.log(`[RelayChatMessage] Sending WhatsApp to ${phone}: ${formattedMsg.substring(0, 100)}`);
+
       const sent = await sendWhatsAppMessage(phone, formattedMsg);
-      return jsonOk({ sent, platform: "whatsapp" });
+      return jsonOk({ sent, platform: "whatsapp", phone });
     }
 
     // ══════════════════════════════════
@@ -273,15 +348,13 @@ serve(async (req: Request) => {
     if (platform === "telegram") {
       const chatId = await resolveTelegramChatId(supabase, rider_id);
       if (!chatId) {
-        console.error(`[RelayChatMessage] Could not resolve Telegram chat_id for rider ${rider_id}`);
+        console.error(`[RelayChatMessage] ❌ Could not resolve Telegram chat_id for rider ${rider_id}`);
         return jsonOk({ error: "no_chat_id" });
       }
 
-      const sent = await sendTelegramMessage(
-        chatId,
-        `💬 <b>رسالة من ${driverName}:</b>\n\n${message}`
-      );
-      return jsonOk({ sent, platform: "telegram" });
+      const formattedMsg = `💬 <b>رسالة من ${driverName}:</b>\n\n${message}`;
+      const sent = await sendTelegramMessage(chatId, formattedMsg);
+      return jsonOk({ sent, platform: "telegram", chatId });
     }
 
     console.log(`[RelayChatMessage] Unknown platform: ${platform}`);

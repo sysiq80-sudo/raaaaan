@@ -838,9 +838,9 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLng / 2) *
+    Math.sin(dLng / 2);
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
@@ -988,6 +988,18 @@ async function createPickupSession(
   lng: number,
   address: string
 ): Promise<string> {
+  // 🔥 SECURITY: إلغاء أي رحلات نشطة سابقة (راكب واحد = رحلة واحدة فقط)
+  const { data: cancelledRides } = await supabase
+    .from("rides")
+    .update({ status: "cancelled", cancelled_by: "system", cancellation_reason: "تم إلغاؤها تلقائياً: طلب رحلة جديدة" })
+    .eq("rider_id", riderId)
+    .in("status", ["pending", "accepted", "arrived", "in_progress"])
+    .select("id");
+
+  if (cancelledRides && cancelledRides.length > 0) {
+    console.log(`[telegram] 🔥 Auto-cancelled ${cancelledRides.length} active ride(s) for rider ${riderId}`);
+  }
+
   // حذف sessions قديمة غير مكتملة (draft فقط)
   await supabase
     .from("rides")
@@ -1406,7 +1418,7 @@ serve(async (req) => {
         await supabase.from("bot_customers").update({
           last_intent: "awaiting_schedule",
         }).eq("platform", "telegram").eq("platform_id", String(cbQuery.from?.id || cbChatId));
-      } catch {} // صامت
+      } catch { } // صامت
 
       await directSend(cbChatId,
         `ممتاز أستاذ ${tgName}! 🕒\n\nأرسل لي موقعك والوجهة والوقت والتاريخ الذي تريد فيه السيارة.\n\nمثال: غداً الساعة 8 صباحاً من بيتي لجامعة الأنبار\n\nأو دز موقعك أول شي ثم اكتب الوجهة والوقت 📍`
@@ -1419,6 +1431,110 @@ serve(async (req) => {
     // ═══════════════════════════════════
     if (cbData === "ignore_action") {
       await answerCallbackQuery(cbQuery.id, "👌");
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // 📍 موقع السائق المباشر (track_{ride_id})
+    // ═══════════════════════════════════
+    const trackMatch = cbData.match(/^track_([a-f0-9\-]+)$/);
+    if (trackMatch && cbChatId) {
+      const rideId = trackMatch[1];
+      console.log(`[telegram] Track button pressed for ride: ${rideId}`);
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      try {
+        // محاولة 1: RPC function
+        let token: string | null = null;
+
+        const { data: rpcResult, error: rpcError } = await supabase.rpc("generate_ride_tracking_token", {
+          p_ride_id: rideId,
+        });
+
+        if (rpcError) {
+          console.error(`[telegram] RPC generate_ride_tracking_token FAILED:`, rpcError.message, rpcError.details, rpcError.hint);
+
+          // محاولة 2: Fallback — إدراج مباشر في ride_share_links
+          console.log(`[telegram] Trying direct insert fallback...`);
+          const fallbackToken = crypto.randomUUID().replace(/-/g, "").substring(0, 24);
+
+          const { error: insertError } = await supabase
+            .from("ride_share_links")
+            .insert({
+              ride_id: rideId,
+              token: fallbackToken,
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              is_active: true,
+            });
+
+          if (insertError) {
+            console.error(`[telegram] Direct insert also FAILED:`, insertError.message);
+          } else {
+            token = fallbackToken;
+            console.log(`[telegram] ✅ Fallback token created: ${token}`);
+          }
+        } else {
+          token = rpcResult;
+          console.log(`[telegram] ✅ RPC token: ${token}`);
+        }
+
+        if (token) {
+          const SITE_URL = Deno.env.get("SITE_URL") || "https://raan-taxi.vercel.app";
+          const trackUrl = `${SITE_URL}/track/${token}`;
+          await directSend(cbChatId,
+            `📍 <b>موقع السائق المباشر:</b>\n\n${trackUrl}\n\nاضغط الرابط لمتابعة موقع الكابتن على الخريطة! 🗺️`
+          );
+          await answerCallbackQuery(cbQuery.id, "📍 تم إرسال الرابط");
+        } else {
+          await directSend(cbChatId, "⚠️ عذراً، ما كدرنا نولّد رابط التتبع. حاول مرة أخرى.");
+          await answerCallbackQuery(cbQuery.id, "⚠️ خطأ");
+        }
+
+      } catch (e) {
+        console.error("[telegram] Track button error:", e);
+        await answerCallbackQuery(cbQuery.id, "⚠️ حدث خطأ");
+      }
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // 💬 مراسلة السائق (chat_{ride_id})
+    // ═══════════════════════════════════
+    const chatMatch = cbData.match(/^chat_([a-f0-9\-]+)$/);
+    if (chatMatch && cbChatId) {
+      const rideId = chatMatch[1];
+      console.log(`[telegram] Chat button pressed for ride: ${rideId}`);
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      try {
+        // التحقق من أن الرحلة نشطة
+        const { data: ride } = await supabase
+          .from("rides")
+          .select("status")
+          .eq("id", rideId)
+          .maybeSingle();
+
+        if (!ride || !["accepted", "arrived", "in_progress"].includes(ride.status)) {
+          await answerCallbackQuery(cbQuery.id, "⚠️ الرحلة غير نشطة");
+          await directSend(cbChatId, "⚠️ هذه الرحلة لم تعد نشطة.");
+          return new Response("OK", { status: 200, headers: corsHeaders });
+        }
+
+        // تعيين sub-state: chatting_with_driver
+        const platformId = String(cbQuery.from?.id || cbChatId);
+        await supabase.from("bot_customers").update({
+          last_intent: `chatting_with_driver:${rideId}`,
+        }).eq("platform", "telegram").eq("platform_id", platformId);
+
+        await directSend(cbChatId,
+          `💬 <b>وضع المحادثة مع الكابتن</b>\n\nاكتب رسالتك الآن وسأقوم بإيصالها للكابتن فوراً 👇`
+        );
+
+        await answerCallbackQuery(cbQuery.id, "💬 اكتب رسالتك");
+      } catch (e) {
+        console.error("[telegram] Chat button error:", e);
+        await answerCallbackQuery(cbQuery.id, "⚠️ حدث خطأ");
+      }
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
@@ -1458,7 +1574,7 @@ serve(async (req) => {
     await supabase.rpc("increment_bot_customer_interactions", {
       p_platform: "telegram",
       p_platform_id: String(telegramUser?.id || chatId),
-    }).then(() => {}).catch((e: any) => { console.warn("[tg] increment failed:", e); }); // صامت
+    }).then(() => { }).catch((e: any) => { console.warn("[tg] increment failed:", e); }); // صامت
   } catch (e) {
     console.warn("[tg] bot_customers upsert failed (non-critical):", e);
   }
@@ -1839,7 +1955,7 @@ serve(async (req) => {
 
     try {
       await directSend(chatId, "عذراً، حدث خطأ تقني. يرجى المحاولة مرة أخرى. ⚠️");
-    } catch {}
+    } catch { }
 
     return new Response(JSON.stringify({ error: errMsg }), {
       status: 200,

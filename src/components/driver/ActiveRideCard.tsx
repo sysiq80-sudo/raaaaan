@@ -548,13 +548,29 @@ export const ActiveRideCard = ({
     };
   }, [activeRide?.status, activeRide?.id, driverLocation]);
 
-  // Send quick message to rider
-  const sendQuickMessageToRider = (
+  // Send quick message to rider (via broadcast + DB fallback)
+  const sendQuickMessageToRider = async (
     event: string,
     message: string,
     confirmTitle: string,
   ) => {
-    notifyRider(event, message);
+    // 1. Broadcast (instant — best-effort)
+    notifyRider(event, message).catch(() => { });
+
+    // 2. DB fallback: حفظ الرسالة في ride_messages لضمان الوصول
+    if (activeRide) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        await supabase.from('ride_messages').insert({
+          ride_id: activeRide.id,
+          sender_type: 'driver',
+          sender_id: user?.id || driverId,
+          message: message,
+        });
+      } catch (dbErr) {
+        logger.warn("ActiveRideCard", "Quick message DB save failed", dbErr);
+      }
+    }
 
     playSound("messageSent");
     vibrate(VibrationPatterns.messageSent);
@@ -803,39 +819,37 @@ export const ActiveRideCard = ({
     setLoading(true);
 
     try {
-      // التحقق من الموقع الحالي بدقة عالية
-      let currentLocation: { lat: number; lng: number };
+      // التحقق من الموقع الحالي (اختياري — لا يمنع الاستمرار)
+      let distanceMeters = 0;
+      try {
+        let currentLocation: { lat: number; lng: number };
 
-      if (driverLocation) {
-        currentLocation = driverLocation;
-      } else {
-        toast({
-          title: "جاري تحديد موقعك...",
-          description: "يرجى الانتظار",
-        });
+        if (driverLocation) {
+          currentLocation = driverLocation;
+        } else {
+          const position = await getCurrentLocationHighAccuracy();
+          currentLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+        }
 
-        const position = await getCurrentLocationHighAccuracy();
-        currentLocation = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-      }
+        // التحقق من المسافة (500م تسامح)
+        const validation = validateDriverAtPickup(
+          currentLocation,
+          activeRide.pickup_location,
+          500,
+        );
+        distanceMeters = validation.distance;
 
-      // التحقق من المسافة (يجب أن يكون ضمن 100م)
-      const validation = validateDriverAtPickup(
-        currentLocation,
-        activeRide.pickup_location,
-        100,
-      );
-
-      if (!validation.isValid) {
-        toast({
-          title: "⚠️ لم تصل بعد",
-          description: validation.message,
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
+        if (!validation.isValid) {
+          toast({
+            title: "⚠️ تنبيه: أنت بعيد عن العميل",
+            description: `المسافة: ${Math.round(validation.distance)}م — تم التأكيد رغم ذلك`,
+          });
+        }
+      } catch (gpsErr) {
+        logger.warn("ActiveRideCard", "GPS check failed, proceeding anyway", gpsErr);
       }
 
       // Play confirmation sound immediately
@@ -853,11 +867,11 @@ export const ActiveRideCard = ({
       // ⚡ THEN broadcast (best-effort — لا يمنع الاستمرار)
       notifyRider("driver_arrived", "السائق وصل لموقعك!", {
         riderName: riderInfo?.full_name,
-      }).catch(() => {});
+      }).catch(() => { });
 
       toast({
         title: "تم تأكيد الوصول ✅",
-        description: `تم إبلاغ العميل - المسافة: ${Math.round(validation.distance)}م`,
+        description: distanceMeters > 0 ? `المسافة: ${Math.round(distanceMeters)}م` : "تم إبلاغ العميل",
       });
     } catch (error: any) {
       toast({
@@ -872,11 +886,6 @@ export const ActiveRideCard = ({
 
   const handleStartRide = async () => {
     if (!activeRide || loading) return;
-
-    // Confirmation dialog
-    const confirmed = window.confirm("هل تأكدت من ركوب العميل في السيارة؟");
-    if (!confirmed) return;
-
     setLoading(true);
 
     try {
@@ -899,7 +908,7 @@ export const ActiveRideCard = ({
       notifyRider("ride_started", "الرحلة بدأت!", {
         riderName: riderInfo?.full_name,
         dropoffAddress: activeRide.dropoff_address,
-      }).catch(() => {});
+      }).catch(() => { });
 
       toast({
         title: "✅ العميل ركب - بدأت الرحلة!",
@@ -928,9 +937,9 @@ export const ActiveRideCard = ({
       const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
         Math.cos(toRad(points[i - 1].lat)) *
-          Math.cos(toRad(points[i].lat)) *
-          Math.sin(dLng / 2) *
-          Math.sin(dLng / 2);
+        Math.cos(toRad(points[i].lat)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       totalKm += R * c;
     }
@@ -942,47 +951,45 @@ export const ActiveRideCard = ({
     setLoading(true);
 
     try {
-      // التحقق من الموقع الحالي بدقة عالية
-      let currentLocation: { lat: number; lng: number };
+      // التحقق من الموقع (اختياري — لا يمنع إكمال الرحلة)
+      let currentLocation: { lat: number; lng: number } | null = null;
 
-      if (driverLocation) {
-        currentLocation = driverLocation;
-      } else {
-        toast({
-          title: "جاري تحديد موقعك...",
-          description: "يرجى الانتظار",
-        });
+      try {
+        if (driverLocation) {
+          currentLocation = driverLocation;
+        } else {
+          const position = await getCurrentLocationHighAccuracy();
+          currentLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+        }
 
-        const position = await getCurrentLocationHighAccuracy();
-        currentLocation = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-      }
+        // التحقق من المسافة (1000م تسامح)
+        const validation = validateDriverAtDropoff(
+          currentLocation,
+          activeRide.dropoff_location,
+          1000,
+        );
 
-      // التحقق من المسافة (يجب أن يكون ضمن 150م من الوجهة)
-      const validation = validateDriverAtDropoff(
-        currentLocation,
-        activeRide.dropoff_location,
-        150,
-      );
-
-      if (!validation.isValid) {
-        toast({
-          title: "⚠️ لم تصل للوجهة بعد",
-          description: validation.message,
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
+        if (!validation.isValid) {
+          toast({
+            title: "⚠️ تنبيه: بعيد عن الوجهة",
+            description: `المسافة: ${Math.round(validation.distance)}م — تم التأكيد رغم ذلك`,
+          });
+        }
+      } catch (gpsErr) {
+        logger.warn("ActiveRideCard", "GPS check failed on complete, proceeding", gpsErr);
       }
 
       // إضافة النقطة الأخيرة (موقع الوصول)
-      trackingPointsRef.current.push({
-        lat: currentLocation.lat,
-        lng: currentLocation.lng,
-        recorded_at: new Date().toISOString(),
-      });
+      if (currentLocation) {
+        trackingPointsRef.current.push({
+          lat: currentLocation.lat,
+          lng: currentLocation.lng,
+          recorded_at: new Date().toISOString(),
+        });
+      }
 
       // حساب المسافة الفعلية من نقاط GPS المتراكمة
       const gpsDistance = calculateGpsDistance(trackingPointsRef.current);
@@ -991,8 +998,8 @@ export const ActiveRideCard = ({
       const waitingMinutes =
         activeRide.status === "arrived"
           ? Math.floor(
-              (Date.now() - new Date(activeRide.created_at).getTime()) / 60000,
-            )
+            (Date.now() - new Date(activeRide.created_at).getTime()) / 60000,
+          )
           : 0;
 
       const estimatedFare = activeRide.estimated_fare || 0;
@@ -1046,7 +1053,7 @@ export const ActiveRideCard = ({
         notifyRider("fare_adjusted", completionResult.adjustment_message, {
           oldFare: estimatedFare,
           newFare: finalFare,
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       // تنظيف نقاط التتبع
@@ -1057,7 +1064,7 @@ export const ActiveRideCard = ({
       notifyRider("ride_completed", "الحمد لله على السلامة!", {
         finalFare,
         riderName: riderInfo?.full_name,
-      }).catch(() => {});
+      }).catch(() => { });
 
       // Show completed screen with rating
       setCompletedRideData({
@@ -1101,7 +1108,7 @@ export const ActiveRideCard = ({
       if (error) throw error;
 
       // ⚡ THEN broadcast (best-effort)
-      notifyRider("ride_cancelled_by_driver", "ألغى السائق الرحلة").catch(() => {});
+      notifyRider("ride_cancelled_by_driver", "ألغى السائق الرحلة").catch(() => { });
 
       toast({
         title: "تم إلغاء الرحلة",
@@ -1335,11 +1342,10 @@ export const ActiveRideCard = ({
           <div className="space-y-2 mb-3">
             <div className="flex items-start gap-3">
               <div
-                className={`w-3 h-3 mt-1.5 rounded-full shrink-0 ${
-                  activeRide.status === "accepted"
-                    ? "bg-primary animate-pulse"
-                    : "bg-primary"
-                }`}
+                className={`w-3 h-3 mt-1.5 rounded-full shrink-0 ${activeRide.status === "accepted"
+                  ? "bg-primary animate-pulse"
+                  : "bg-primary"
+                  }`}
               />
               <div className="flex-1">
                 <p className="text-xs text-muted-foreground">نقطة الانطلاق</p>
@@ -1351,11 +1357,10 @@ export const ActiveRideCard = ({
             </div>
             <div className="flex items-start gap-3">
               <div
-                className={`w-3 h-3 mt-1.5 rounded-full shrink-0 ${
-                  activeRide.status === "in_progress"
-                    ? "bg-destructive animate-pulse"
-                    : "bg-muted"
-                }`}
+                className={`w-3 h-3 mt-1.5 rounded-full shrink-0 ${activeRide.status === "in_progress"
+                  ? "bg-destructive animate-pulse"
+                  : "bg-muted"
+                  }`}
               />
               <div className="flex-1">
                 <p className="text-xs text-muted-foreground">الوجهة</p>
@@ -1430,12 +1435,12 @@ export const ActiveRideCard = ({
             onOpenModal={
               onNavigationClick
                 ? (lat, lng) => {
-                    const label =
-                      activeRide.status === "in_progress"
-                        ? "الوجهة"
-                        : "موقع العميل";
-                    onNavigationClick(lat, lng, label);
-                  }
+                  const label =
+                    activeRide.status === "in_progress"
+                      ? "الوجهة"
+                      : "موقع العميل";
+                  onNavigationClick(lat, lng, label);
+                }
                 : undefined
             }
           />
@@ -1468,12 +1473,11 @@ export const ActiveRideCard = ({
                   onClick={() =>
                     sendQuickMessageToRider(
                       "driver_car_info",
-                      `السيارة ${
-                        activeRide.vehicle_type === "economy"
-                          ? "اقتصادية"
-                          : activeRide.vehicle_type === "comfort"
-                            ? "مريحة"
-                            : "فاخرة"
+                      `السيارة ${activeRide.vehicle_type === "economy"
+                        ? "اقتصادية"
+                        : activeRide.vehicle_type === "comfort"
+                          ? "مريحة"
+                          : "فاخرة"
                       }`,
                       "✅ تم إرسال معلومات السيارة",
                     )
