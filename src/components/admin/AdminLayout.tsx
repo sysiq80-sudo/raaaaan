@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/logo.png";
 import { useState, useEffect } from "react";
 import {
@@ -70,6 +71,7 @@ const AdminLayout = ({
 }: AdminLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [adminName, setAdminName] = useState<string>("");
   const [collapsed, setCollapsed] = useState(() => {
@@ -109,8 +111,15 @@ const AdminLayout = ({
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
+    try {
+      await logout();
+      // navigate happens automatically via ProtectedRoute after user is cleared
+      navigate("/auth", { replace: true });
+    } catch (err) {
+      console.error("Logout error:", err);
+      // Force redirect even if logout fails
+      navigate("/auth", { replace: true });
+    }
   };
 
   const formatDate = (date: Date) => {
