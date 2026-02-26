@@ -54,9 +54,20 @@ if ('serviceWorker' in navigator) {
 // Google Maps API will be loaded by @react-google-maps/api wrapper
 // RTL support is natively handled by Google Maps for Arabic text
 
-// ⚠️ Service Worker معطل مؤقتاً — لحين حل مشكلة الكاش التالف على الجوال
-// TODO: إعادة تفعيله بعد التأكد من استقرار التطبيق
-// Register Service Worker only after auth session is validated
-// let serviceWorkerRegistered = false;
+// ✅ Service Worker — تفعيل الإشعارات و PWA
+// Phase 12: Hybrid notification system with offline sync
+if ('serviceWorker' in navigator) {
+  // Register after app mounts (auth context fully loaded)
+  window.addEventListener('load', async () => {
+    setTimeout(async () => {
+      try {
+        await registerServiceWorker();
+        console.log('✅ Service Worker registered — PWA ready');
+      } catch (err) {
+        console.error('Service Worker registration failed:', err);
+      }
+    }, 1000); // Delay 1s to ensure auth context is ready
+  });
+}
 
 createRoot(document.getElementById("root")!).render(<App />);
