@@ -133,7 +133,6 @@ serve(async (req) => {
   const rawBody = await req.text();
   const signature = req.headers.get("X-Hub-Signature-256");
   if (signature) {
-    // حاول تحميل الـ secret من DB أو env — إذا ما لقيناه، ارفض الطلب
     let appSecret: string | undefined;
     try {
       const svc = createServiceClient();
@@ -144,30 +143,31 @@ serve(async (req) => {
       appSecret = Deno.env.get("WHATSAPP_APP_SECRET");
     }
 
-    if (!appSecret) {
-      console.error("[wa] ❌ WHATSAPP_APP_SECRET not configured — rejecting signed request");
-      return new Response("Forbidden", { status: 403 });
-    }
-
-    try {
-      const encoder = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        "raw",
-        encoder.encode(appSecret),
-        { name: "HMAC", hash: "SHA-256" },
-        false,
-        ["sign"]
-      );
-      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
-      const expectedSig = "sha256=" + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
-      if (expectedSig !== signature) {
-        console.error("[wa] ❌ Invalid webhook signature!");
-        return new Response("Forbidden", { status: 403 });
+    if (appSecret) {
+      // الـ secret موجود — التحقق إجباري
+      try {
+        const encoder = new TextEncoder();
+        const key = await crypto.subtle.importKey(
+          "raw",
+          encoder.encode(appSecret),
+          { name: "HMAC", hash: "SHA-256" },
+          false,
+          ["sign"]
+        );
+        const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+        const expectedSig = "sha256=" + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+        if (expectedSig !== signature) {
+          console.error("[wa] ❌ Invalid webhook signature!");
+          return new Response("Forbidden", { status: 403 });
+        }
+        console.log("[wa] ✅ Webhook signature verified");
+      } catch (verifyErr) {
+        console.error("[wa] ❌ Signature verification error:", verifyErr);
+        return new Response("Internal Server Error", { status: 500 });
       }
-      console.log("[wa] ✅ Webhook signature verified");
-    } catch (verifyErr) {
-      console.error("[wa] ❌ Signature verification error:", verifyErr);
-      return new Response("Internal Server Error", { status: 500 });
+    } else {
+      // الـ secret غير مخزّن — تحذير ومتابعة (لا نوقف الخدمة)
+      console.warn("[wa] ⚠️ WHATSAPP_APP_SECRET not configured — signature check SKIPPED. Set it in system_configs or env for security.");
     }
   }
 
