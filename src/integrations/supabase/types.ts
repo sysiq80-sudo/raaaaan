@@ -83,6 +83,33 @@ export type Database = {
         }
         Relationships: []
       }
+      analytics_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: number
+          metadata: Json | null
+          phone_number: string | null
+          ride_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: never
+          metadata?: Json | null
+          phone_number?: string | null
+          ride_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: never
+          metadata?: Json | null
+          phone_number?: string | null
+          ride_id?: string | null
+        }
+        Relationships: []
+      }
       api_usage_logs: {
         Row: {
           api_type: string
@@ -785,30 +812,36 @@ export type Database = {
       }
       driver_live_locations: {
         Row: {
+          accuracy: number | null
           created_at: string
           driver_id: string
           heading: number | null
           id: string
+          is_offline: boolean | null
           location: Json
           ride_id: string
           speed: number | null
           updated_at: string
         }
         Insert: {
+          accuracy?: number | null
           created_at?: string
           driver_id: string
           heading?: number | null
           id?: string
+          is_offline?: boolean | null
           location?: Json
           ride_id: string
           speed?: number | null
           updated_at?: string
         }
         Update: {
+          accuracy?: number | null
           created_at?: string
           driver_id?: string
           heading?: number | null
           id?: string
+          is_offline?: boolean | null
           location?: Json
           ride_id?: string
           speed?: number | null
@@ -1326,6 +1359,7 @@ export type Database = {
           license_image_url: string | null
           license_number: string | null
           max_pickup_radius: number | null
+          notification_preferences: Json | null
           phone: string
           profile_image_url: string | null
           rating: number | null
@@ -1367,6 +1401,7 @@ export type Database = {
           license_image_url?: string | null
           license_number?: string | null
           max_pickup_radius?: number | null
+          notification_preferences?: Json | null
           phone: string
           profile_image_url?: string | null
           rating?: number | null
@@ -1408,6 +1443,7 @@ export type Database = {
           license_image_url?: string | null
           license_number?: string | null
           max_pickup_radius?: number | null
+          notification_preferences?: Json | null
           phone?: string
           profile_image_url?: string | null
           rating?: number | null
@@ -2145,6 +2181,8 @@ export type Database = {
       }
       notifications_log: {
         Row: {
+          ack_method: string | null
+          acknowledged_at: string | null
           body: string
           created_at: string
           data: Json | null
@@ -2152,16 +2190,21 @@ export type Database = {
           delivery_delay_ms: number | null
           driver_id: string | null
           error_message: string | null
+          fallback_at: string | null
+          fallback_sent: boolean | null
           id: string
           notification_id: string | null
           notification_type: string
           opened_at: string | null
           retry_count: number | null
+          ride_id: string | null
           sent_at: string | null
           status: string
           title: string
         }
         Insert: {
+          ack_method?: string | null
+          acknowledged_at?: string | null
           body: string
           created_at?: string
           data?: Json | null
@@ -2169,16 +2212,21 @@ export type Database = {
           delivery_delay_ms?: number | null
           driver_id?: string | null
           error_message?: string | null
+          fallback_at?: string | null
+          fallback_sent?: boolean | null
           id?: string
           notification_id?: string | null
           notification_type: string
           opened_at?: string | null
           retry_count?: number | null
+          ride_id?: string | null
           sent_at?: string | null
           status?: string
           title: string
         }
         Update: {
+          ack_method?: string | null
+          acknowledged_at?: string | null
           body?: string
           created_at?: string
           data?: Json | null
@@ -2186,11 +2234,14 @@ export type Database = {
           delivery_delay_ms?: number | null
           driver_id?: string | null
           error_message?: string | null
+          fallback_at?: string | null
+          fallback_sent?: boolean | null
           id?: string
           notification_id?: string | null
           notification_type?: string
           opened_at?: string | null
           retry_count?: number | null
+          ride_id?: string | null
           sent_at?: string | null
           status?: string
           title?: string
@@ -2222,6 +2273,20 @@ export type Database = {
             columns: ["driver_id"]
             isOneToOne: false
             referencedRelation: "drivers_with_email"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_log_ride_id_fkey"
+            columns: ["ride_id"]
+            isOneToOne: false
+            referencedRelation: "ride_matching_stats"
+            referencedColumns: ["ride_id"]
+          },
+          {
+            foreignKeyName: "notifications_log_ride_id_fkey"
+            columns: ["ride_id"]
+            isOneToOne: false
+            referencedRelation: "rides"
             referencedColumns: ["id"]
           },
         ]
@@ -2426,7 +2491,9 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           current_location: Json | null
+          device_type: string | null
           email: string | null
+          fcm_token: string | null
           full_name: string | null
           id: string
           phone: string | null
@@ -2441,7 +2508,9 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           current_location?: Json | null
+          device_type?: string | null
           email?: string | null
+          fcm_token?: string | null
           full_name?: string | null
           id?: string
           phone?: string | null
@@ -2456,7 +2525,9 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           current_location?: Json | null
+          device_type?: string | null
           email?: string | null
+          fcm_token?: string | null
           full_name?: string | null
           id?: string
           phone?: string | null
@@ -2540,27 +2611,36 @@ export type Database = {
           created_at: string
           driver_id: string | null
           endpoint: string
+          fcm_token: string | null
           id: string
           p256dh_key: string
+          platform: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           auth_key: string
           created_at?: string
           driver_id?: string | null
           endpoint: string
+          fcm_token?: string | null
           id?: string
           p256dh_key: string
+          platform?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           auth_key?: string
           created_at?: string
           driver_id?: string | null
           endpoint?: string
+          fcm_token?: string | null
           id?: string
           p256dh_key?: string
+          platform?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -2626,6 +2706,24 @@ export type Database = {
           token?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      rate_limit_log: {
+        Row: {
+          created_at: string
+          id: number
+          phone_key: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          phone_key: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          phone_key?: string
         }
         Relationships: []
       }
@@ -3469,6 +3567,7 @@ export type Database = {
           is_chain_ride: boolean | null
           matched_at: string | null
           matching_attempts: number | null
+          metadata: Json | null
           notified_drivers: Json | null
           original_estimated_fare: number | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
@@ -3491,6 +3590,7 @@ export type Database = {
           trip_type: string | null
           updated_at: string
           vehicle_type: Database["public"]["Enums"]["vehicle_type"] | null
+          waiting_fare: number | null
           waiting_minutes: number | null
         }
         Insert: {
@@ -3523,6 +3623,7 @@ export type Database = {
           is_chain_ride?: boolean | null
           matched_at?: string | null
           matching_attempts?: number | null
+          metadata?: Json | null
           notified_drivers?: Json | null
           original_estimated_fare?: number | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
@@ -3545,6 +3646,7 @@ export type Database = {
           trip_type?: string | null
           updated_at?: string
           vehicle_type?: Database["public"]["Enums"]["vehicle_type"] | null
+          waiting_fare?: number | null
           waiting_minutes?: number | null
         }
         Update: {
@@ -3577,6 +3679,7 @@ export type Database = {
           is_chain_ride?: boolean | null
           matched_at?: string | null
           matching_attempts?: number | null
+          metadata?: Json | null
           notified_drivers?: Json | null
           original_estimated_fare?: number | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
@@ -3599,6 +3702,7 @@ export type Database = {
           trip_type?: string | null
           updated_at?: string
           vehicle_type?: Database["public"]["Enums"]["vehicle_type"] | null
+          waiting_fare?: number | null
           waiting_minutes?: number | null
         }
         Relationships: [
@@ -4838,9 +4942,22 @@ export type Database = {
         }
         Returns: boolean
       }
+      check_rate_limit: {
+        Args: {
+          p_limit: number
+          p_phone_key: string
+          p_window_seconds?: number
+        }
+        Returns: boolean
+      }
+      cleanup_old_analytics: { Args: never; Returns: number }
       cleanup_old_push_tokens: { Args: never; Returns: number }
       cleanup_old_tracking_points: { Args: never; Returns: number }
+      cleanup_rate_limit_log: { Args: never; Returns: undefined }
+      cleanup_stale_awaiting_schedule: { Args: never; Returns: number }
+      cleanup_stale_chat_sessions: { Args: never; Returns: number }
       cleanup_stale_draft_rides: { Args: never; Returns: number }
+      cleanup_stale_draft_sessions: { Args: never; Returns: number }
       confirm_scheduled_ride: {
         Args: { p_scheduled_ride_id: string }
         Returns: Json
@@ -5008,6 +5125,7 @@ export type Database = {
           surge_multiplier: number
         }[]
       }
+      get_daily_analytics: { Args: { p_date?: string }; Returns: Json }
       get_driver_commission_tier: {
         Args: { p_driver_id: string }
         Returns: {
@@ -5074,6 +5192,7 @@ export type Database = {
           is_chain_ride: boolean | null
           matched_at: string | null
           matching_attempts: number | null
+          metadata: Json | null
           notified_drivers: Json | null
           original_estimated_fare: number | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
@@ -5096,6 +5215,7 @@ export type Database = {
           trip_type: string | null
           updated_at: string
           vehicle_type: Database["public"]["Enums"]["vehicle_type"] | null
+          waiting_fare: number | null
           waiting_minutes: number | null
         }[]
         SetofOptions: {
@@ -5119,6 +5239,7 @@ export type Database = {
           whatsapp_count: number
         }[]
       }
+      get_supabase_config: { Args: { p_key: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -5155,6 +5276,10 @@ export type Database = {
           p_metadata?: Json
           p_request_count?: number
         }
+        Returns: undefined
+      }
+      mark_notification_acknowledged: {
+        Args: { p_method?: string; p_notification_id: string }
         Returns: undefined
       }
       mark_notifications_as_read: {
@@ -5198,6 +5323,7 @@ export type Database = {
         Args: { driver_id_param: string }
         Returns: boolean
       }
+      run_all_cleanups: { Args: never; Returns: Json }
       transfer_wallet_to_driver: {
         Args: {
           p_amount: number
