@@ -64,11 +64,12 @@ const createNotificationSound = () => {
   }
 };
 
-// Vibration pattern for mobile
+// Vibration pattern for mobile — guarded by user-interaction policy
 const vibrateDevice = () => {
-  if ('vibrate' in navigator) {
-    navigator.vibrate([300, 100, 300, 100, 400]);
-  }
+  // Only vibrate after user has interacted with the page (browser policy)
+  import('../lib/userGestureTracker').then(({ safeVibrate }) => {
+    safeVibrate([300, 100, 300, 100, 400]);
+  }).catch(() => { /* ignore */ });
 };
 
 export const useDriverNotifications = (driverId: string | null, vehicleType: string | null) => {

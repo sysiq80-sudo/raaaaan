@@ -206,14 +206,14 @@ const SoundTypes = {
   },
 };
 
-// Vibrate device with pattern
+// Vibrate device with pattern — guarded by user interaction check
 export const vibrate = (pattern: number[]) => {
+  // Dynamically import to avoid circular deps
   try {
-    if ("vibrate" in navigator) {
-      navigator.vibrate(pattern);
-    }
-  } catch (error) {
-    // Silently fail if vibration blocked by browser
+    const { safeVibrate } = require('../lib/userGestureTracker');
+    safeVibrate(pattern);
+  } catch {
+    // Silently fail — browser blocks vibrate before user interaction
   }
 };
 

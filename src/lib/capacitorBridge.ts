@@ -153,15 +153,15 @@ export const showNativeNotification = async (
  */
 export const nativeHaptic = async (style: 'light' | 'medium' | 'heavy' = 'heavy'): Promise<void> => {
   if (!isNativePlatform) {
-    // Fallback للويب
-    if ('vibrate' in navigator) {
-      const patterns: Record<string, number[]> = {
-        light: [50],
-        medium: [100, 50, 100],
-        heavy: [300, 100, 300, 100, 400],
-      };
-      navigator.vibrate(patterns[style]);
-    }
+    // Fallback للويب — guarded by user interaction policy
+    const patterns: Record<string, number[]> = {
+      light: [50],
+      medium: [100, 50, 100],
+      heavy: [300, 100, 300, 100, 400],
+    };
+    import('./userGestureTracker').then(({ safeVibrate }) => {
+      safeVibrate(patterns[style]);
+    }).catch(() => { /* ignore */ });
     return;
   }
 
@@ -175,7 +175,7 @@ export const nativeHaptic = async (style: 'light' | 'medium' | 'heavy' = 'heavy'
     await Haptics.impact({ style: styleMap[style] });
   } catch {
     // Fallback
-    if ('vibrate' in navigator) navigator.vibrate([200]);
+    import('./userGestureTracker').then(({ safeVibrate }) => safeVibrate([200])).catch(() => { /* ignore */ });
   }
 };
 

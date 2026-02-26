@@ -92,10 +92,10 @@ export const playLoudAlert = (audioCtx?: AudioContext | null): void => {
  * تشغيل اهتزاز قوي ومتكرر
  */
 export const vibrateStrong = (): void => {
-  if ("vibrate" in navigator) {
-    // نمط اهتزاز قوي: مشغل - موقف - مشغل - موقف - مشغل طويل
-    navigator.vibrate([400, 150, 400, 150, 600]);
-  }
+  // Only vibrate after user has interacted with the page (browser policy)
+  import('./userGestureTracker').then(({ safeVibrate }) => {
+    safeVibrate([400, 150, 400, 150, 600]);
+  }).catch(() => { /* ignore */ });
 };
 
 /**

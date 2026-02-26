@@ -176,13 +176,11 @@ export const playSound = (sound: SoundType): void => {
  * @param pattern نمط الاهتزاز بالمللي ثانية
  */
 export const vibrate = (pattern: number | number[] = 50): void => {
-  try {
-    if (navigator.vibrate) {
-      navigator.vibrate(pattern);
-    }
-  } catch {
-    // الاهتزاز غير مدعوم
-  }
+  // guarded by user interaction policy (browser blocks vibrate before first gesture)
+  import('../lib/userGestureTracker').then(({ safeVibrate }) => {
+    const arr = Array.isArray(pattern) ? pattern : [pattern];
+    safeVibrate(arr);
+  }).catch(() => { /* ignore */ });
 };
 
 /**

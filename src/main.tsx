@@ -4,9 +4,13 @@ import "./index.css";
 import { registerServiceWorker } from "./utils/serviceWorker";
 import { supabase } from "./integrations/supabase/client";
 import { initCapacitorPlugins, isNativePlatform } from "./lib/capacitorBridge";
+import { initUserGestureTracking } from "./lib/userGestureTracker";
 
 // تهيئة إضافات Capacitor (إذا كنا داخل التطبيق الأصلي)
 initCapacitorPlugins();
+
+// تتبع تفاعل المستخدم (مطلوب لـ navigator.vibrate)
+initUserGestureTracking();
 
 // Load Google Maps JavaScript API at runtime
 declare global {
@@ -20,9 +24,11 @@ declare global {
 // ═══════════════════════════════════════════════════════════════
 const _origWarn = console.warn;
 const SUPPRESSED_WARNINGS = [
-  'RealtimeChannel REST fallback',         // تحذير سوبابيس الداخلي
-  'google.maps.Marker is deprecated',      // تحذير جوجل المستقبلي
-  'Non-serializable values were found',    // تحذير React Navigation
+  'RealtimeChannel REST fallback',                   // تحذير سوبابيس الداخلي
+  'google.maps.Marker is deprecated',                // تحذير جوجل المستقبلي
+  'Non-serializable values were found',              // تحذير React Navigation
+  'google.maps.DirectionsService is deprecated',     // تحذير جوجل — لم يُوقف بعد
+  'google.maps.DirectionsRenderer is deprecated',    // نفس المجموعة
 ];
 console.warn = (...args: any[]) => {
   const msg = typeof args[0] === 'string' ? args[0] : '';
