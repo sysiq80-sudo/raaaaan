@@ -636,6 +636,12 @@ serve(async (req) => {
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
+      // ── اطلب رحلة → طلب الموقع ──
+      if (buttonId === "action_book_ride") {
+        await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
@@ -879,15 +885,6 @@ serve(async (req) => {
             { id: "action_other_options", title: "📋 المزيد" },
           ]
         );
-        return new Response("EVENT_RECEIVED", { status: 200 });
-      }
-    }
-
-    // ── "اطلب رحلة" button → طلب الموقع ──
-    if (msgType === "interactive") {
-      const buttonId = message.interactive?.button_reply?.id;
-      if (buttonId === "action_book_ride") {
-        await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
     }
