@@ -330,6 +330,7 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
       
       const ch = supabase
         .channel(channelName)
+        // ═══ INSERT: رحلات تُنشأ مباشرة بحالة pending (من التطبيق/الويب) ═══
         .on(
           'postgres_changes',
           {
@@ -339,14 +340,33 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
             filter: 'status=eq.pending'
           },
           (payload) => {
-            console.log('⚡ INSTANT: New ride detected:', payload.new?.id);
+            console.log('⚡ INSTANT INSERT: New ride detected:', payload.new?.id);
             handleNewRide(payload as { new: Record<string, unknown> });
+          }
+        )
+        // ═══ UPDATE: رحلات تتحول من draft → pending (من واتساب/حجز مجدول) ═══
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'rides',
+            filter: 'status=eq.pending'
+          },
+          (payload) => {
+            // فقط عندما تتحول الحالة إلى pending (مثل تأكيد حجز واتساب)
+            const oldStatus = (payload.old as Record<string, unknown>)?.status;
+            const newStatus = (payload.new as Record<string, unknown>)?.status;
+            if (newStatus === 'pending' && oldStatus !== 'pending') {
+              console.log('⚡ INSTANT UPDATE: Ride became pending:', payload.new?.id, `(${oldStatus} → ${newStatus})`);
+              handleNewRide(payload as { new: Record<string, unknown> });
+            }
           }
         )
         .subscribe((status) => {
           console.log('🔴 Notification subscription status:', status);
           if (status === 'SUBSCRIBED') {
-            console.log('✅ INSTANT notifications ready - driver will receive immediate alerts');
+            console.log('✅ INSTANT notifications ready — listening for INSERT + UPDATE to pending');
           }
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             console.warn('⚠️ Realtime channel error — will retry in 3s');

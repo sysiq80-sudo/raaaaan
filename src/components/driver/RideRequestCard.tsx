@@ -318,6 +318,7 @@ export const RideRequestCard = ({
     
     const channel = supabase
       .channel(`ride-requests-${driverId}`)
+      // ═══ INSERT: رحلات تُنشأ مباشرة بحالة pending (من التطبيق) ═══
       .on(
         "postgres_changes",
         {
@@ -327,9 +328,27 @@ export const RideRequestCard = ({
           filter: "status=eq.pending",
         },
         (payload) => {
-          logger.debug("RideRequestCard", "New ride inserted", payload.new?.id);
-          // يستدعي الـ ref بدلاً من الدالة مباشرة — لا يُعيد الاشتراك
+          logger.debug("RideRequestCard", "⚡ New ride INSERT (pending)", payload.new?.id);
           fetchPendingRidesRef.current();
+        }
+      )
+      // ═══ UPDATE: رحلات تتحول من draft → pending (من واتساب/حجز مجدول) ═══
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "rides",
+          filter: "status=eq.pending",
+        },
+        (payload) => {
+          const oldStatus = (payload.old as Record<string, unknown>)?.status;
+          const newStatus = (payload.new as Record<string, unknown>)?.status;
+          // فقط عندما تتحول الحالة إلى pending
+          if (newStatus === 'pending' && oldStatus !== 'pending') {
+            logger.debug("RideRequestCard", `⚡ Ride UPDATE to pending (${oldStatus} → ${newStatus})`, payload.new?.id);
+            fetchPendingRidesRef.current();
+          }
         }
       )
       .subscribe();
