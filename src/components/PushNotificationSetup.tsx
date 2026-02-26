@@ -95,7 +95,7 @@ export const PushNotificationSetup = ({ userId, userType }: PushNotificationSetu
       
       if (!subscription) {
         // إنشاء subscription جديد
-        const vapidPublicKey = 'YOUR_VAPID_PUBLIC_KEY'; // سيتم إضافته لاحقاً
+        const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
         
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,

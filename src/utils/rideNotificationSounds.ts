@@ -322,3 +322,83 @@ export const triggerNotification = (
   vibrate(vibrationPattern);
   showNotification(title, body, options);
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Looping Alert — for new ride requests that demand driver attention
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ActiveAlert {
+  intervalId: ReturnType<typeof setInterval>;
+}
+
+const _activeAlerts = new Map<string, ActiveAlert>();
+
+/** Play a looping 3-tone alarm until stopLoopingAlert() is called.
+ *  Safe to call multiple times for the same rideId — deduplicates automatically.
+ */
+export const playLoopingAlert = (rideId: string): void => {
+  if (_activeAlerts.has(rideId)) return; // already running
+
+  const AudioContextClass =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext: typeof window.AudioContext })
+      .webkitAudioContext;
+  if (!AudioContextClass) return;
+
+  const ctx = new AudioContextClass();
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+  const playOneCycle = (): void => {
+    const frequencies = [659, 880, 1_319, 880, 1_319] as const;
+    let offset = 0;
+
+    // Max volume
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 1.0;
+    gainNode.connect(ctx.destination);
+
+    frequencies.forEach((freq) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      osc.connect(gainNode);
+      osc.start(ctx.currentTime + offset);
+      osc.stop(ctx.currentTime + offset + 0.18);
+      offset += 0.2;
+    });
+  };
+
+  playOneCycle(); // immediate first ping
+
+  const intervalId = setInterval(() => {
+    playOneCycle();
+    vibrate([250, 80, 250, 80, 500]);
+  }, 3_000);
+
+  vibrate([250, 80, 250, 80, 500]); // vibrate on first ping too
+
+  _activeAlerts.set(rideId, { intervalId });
+  console.log('[Sound] Looping alert started for ride', rideId);
+};
+
+/** Stop the looping alert for a specific ride. */
+export const stopLoopingAlert = (rideId: string): void => {
+  const alert = _activeAlerts.get(rideId);
+  if (!alert) return;
+
+  clearInterval(alert.intervalId);
+  _activeAlerts.delete(rideId);
+
+  try {
+    navigator.vibrate(0); // cancel vibration
+  } catch {
+    // not available in all environments
+  }
+
+  console.log('[Sound] Looping alert stopped for ride', rideId);
+};
+
+/** Emergency stop — silences all active looping alerts. */
+export const stopAllLoopingAlerts = (): void => {
+  _activeAlerts.forEach((_, rideId) => stopLoopingAlert(rideId));
+};
