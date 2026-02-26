@@ -256,7 +256,118 @@ serve(async (req) => {
       }
     }
 
-    // ═══ 6. Build response ═══
+    // ═══ 6. Waiting fare — إضافة أجرة الانتظار ═══
+    let waitingFare = 0;
+    const actualWaitingMinutes = finalWaitingMinutes || ride.waiting_minutes || 0;
+    if (actualWaitingMinutes > 0) {
+      try {
+        const { data: fareSettings } = await supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", "fare_calculation")
+          .maybeSingle();
+
+        const waitingFarePerMin = (fareSettings?.value as any)?.waiting_fare_per_minute ?? 250;
+        const freeWaitingMinutes = (fareSettings?.value as any)?.free_waiting_minutes ?? 3;
+        const chargeableMinutes = Math.max(0, actualWaitingMinutes - freeWaitingMinutes);
+        waitingFare = chargeableMinutes * waitingFarePerMin;
+
+        if (waitingFare > 0) {
+          finalFare += waitingFare;
+          // Update the ride with the new fare including waiting
+          await supabase
+            .from("rides")
+            .update({ final_fare: finalFare, waiting_fare: waitingFare })
+            .eq("id", ride_id);
+          console.log(`[complete-ride] Waiting fare added: ${waitingFare} IQD (${chargeableMinutes} min × ${waitingFarePerMin})`);
+        }
+      } catch (e) {
+        console.warn("[complete-ride] Failed to calculate waiting fare:", e);
+      }
+    }
+
+    // ═══ 7. Commission deduction — خصم العمولة ومعالجة أرباح السائق ═══
+    let commissionResult: any = null;
+    try {
+      // 7a. Fetch default commission rate
+      const { data: walletSettings } = await supabase
+        .from("wallet_settings")
+        .select("default_commission_rate")
+        .limit(1)
+        .single();
+
+      let baseRate = walletSettings?.default_commission_rate ?? 15;
+
+      // 7b. Fetch driver's commission tier discount
+      let tierDiscount = 0;
+      let tierName = "";
+      try {
+        const { data: tierData } = await supabase.rpc("get_driver_commission_tier", {
+          p_driver_id: ride.driver_id,
+        });
+        if (tierData && tierData.length > 0) {
+          tierDiscount = tierData[0].commission_discount || 0;
+          tierName = tierData[0].tier_name_ar || "";
+        }
+      } catch (e) {
+        console.warn("[complete-ride] Tier lookup failed:", e);
+      }
+
+      // 7c. Fetch active subscription discount
+      let subscriptionDiscount = 0;
+      let subscriptionName = "";
+      try {
+        const { data: subData } = await supabase.rpc("get_active_driver_subscription", {
+          p_driver_id: ride.driver_id,
+        });
+        if (subData && subData.length > 0) {
+          subscriptionDiscount = subData[0].commission_discount || 0;
+          subscriptionName = subData[0].plan_name_ar || "";
+        }
+      } catch (e) {
+        console.warn("[complete-ride] Subscription lookup failed:", e);
+      }
+
+      // 7d. Calculate effective commission rate (minimum 0%)
+      const effectiveRate = Math.max(0, baseRate - tierDiscount - subscriptionDiscount);
+
+      console.log(`[complete-ride] Commission: base=${baseRate}% - tier=${tierDiscount}%(${tierName}) - sub=${subscriptionDiscount}%(${subscriptionName}) = ${effectiveRate}%`);
+
+      // 7e. Process ride earnings via DB function (handles wallet + transactions)
+      const { data: earnings, error: earningsError } = await supabase.rpc("process_ride_earnings", {
+        p_ride_id: ride_id,
+        p_driver_id: ride.driver_id,
+        p_total_fare: finalFare,
+        p_commission_rate: effectiveRate,
+      });
+
+      if (earningsError) {
+        console.error("[complete-ride] process_ride_earnings failed:", earningsError.message);
+      } else {
+        commissionResult = earnings;
+        console.log("[complete-ride] Earnings processed:", JSON.stringify(earnings));
+      }
+
+      // 7f. Record in company_earnings
+      const commissionAmount = Math.round(finalFare * effectiveRate / 100);
+      const driverShare = finalFare - commissionAmount;
+
+      await supabase.from("company_earnings").insert({
+        ride_id,
+        driver_id: ride.driver_id,
+        total_fare: finalFare,
+        commission_rate: effectiveRate / 100, // stored as decimal 0.15
+        commission_amount: commissionAmount,
+        driver_share: driverShare,
+      });
+
+      console.log(`[complete-ride] Company earnings recorded: fare=${finalFare}, commission=${commissionAmount}, driver=${driverShare}`);
+    } catch (e) {
+      console.error("[complete-ride] Commission processing failed (non-critical):", e);
+      // Ride is already completed — commission can be reconciled later
+    }
+
+    // ═══ 8. Build response ═══
     const response = {
       success: true,
       ride_id,
@@ -267,8 +378,14 @@ serve(async (req) => {
       actual_distance_km: final_gps_distance || auditResult?.actual_distance || null,
       estimated_distance_km: ride.distance_km,
       variance_percent: auditResult?.variance_percent || null,
-      waiting_minutes: finalWaitingMinutes || ride.waiting_minutes || 0,
+      waiting_minutes: actualWaitingMinutes,
+      waiting_fare: waitingFare,
       completed_at: new Date().toISOString(),
+      commission: commissionResult ? {
+        rate: commissionResult.commission ? (commissionResult.commission / finalFare * 100).toFixed(1) + "%" : null,
+        amount: commissionResult.commission || null,
+        driver_earning: commissionResult.driver_earning || null,
+      } : null,
     };
 
     console.log("[complete-ride] Complete:", response);

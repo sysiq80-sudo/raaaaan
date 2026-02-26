@@ -2,6 +2,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { haversineDistance, calculateETA, corsHeaders, getAuthUser, jsonResponse, errorResponse, corsPreflightResponse } from "../_shared/utils.ts";
 
+// ═══ Constants ═══
+const MAX_RETRY_ROUNDS = 3;
+const RETRY_DELAY_MS = 30_000; // 30s between retry rounds
+const RADIUS_EXPANSION_KM = 3; // expand search radius by 3km per round
+
 // Vehicle type compatibility - which drivers can serve which rides
 function isVehicleTypeCompatible(
   driverType: string,
@@ -173,6 +178,7 @@ serve(async (req) => {
     // 3. حساب المسافة لكل سائق وترتيبهم - Optimized
     const pickupLoc = ride.pickup_location as { lat: number; lng: number };
     const alreadyNotified = new Set((ride.notified_drivers || []) as string[]);
+    const radiusBonus = (ride.metadata as any)?.radius_bonus_km || 0;
 
     const driversWithDistance = drivers
       .filter((driver) => {
@@ -202,7 +208,7 @@ serve(async (req) => {
         );
         const eta = calculateETA(distance);
         const maxRadius =
-          (driver.max_pickup_radius || 10) + (ride.high_priority ? 5 : 0);
+          (driver.max_pickup_radius || 10) + (ride.high_priority ? 5 : 0) + radiusBonus;
 
         // Weighted dispatch: distance + rating (primary) with a small experience tie-breaker
         const normalizedDistance = Math.max(0, 1 - distance / maxRadius);
@@ -357,11 +363,62 @@ serve(async (req) => {
     const notificationResults = await Promise.all(notificationPromises);
     const successCount = notificationResults.filter((r) => r.success).length;
 
+    // ═══ 8. Schedule progressive re-matching retry ═══
+    // If we haven't exhausted all retry rounds and there might be more drivers
+    const currentAttempt = (ride.matching_attempts || 0) + 1;
+    let retryScheduled = false;
+
+    if (currentAttempt < MAX_RETRY_ROUNDS) {
+      // Schedule a delayed retry invocation to expand search
+      const retryFn = async () => {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+
+        // Re-check ride is still pending
+        const { data: currentRide } = await supabase
+          .from("rides")
+          .select("status")
+          .eq("id", rideId)
+          .single();
+
+        if (currentRide?.status !== "pending") {
+          console.log(`[match-ride] ⏭️ Retry skipped — ride ${rideId} is now ${currentRide?.status}`);
+          return;
+        }
+
+        // Invoke self for next round (with expanded radius bonus)
+        console.log(`[match-ride] 🔄 Retry round ${currentAttempt + 1}/${MAX_RETRY_ROUNDS} for ride ${rideId} (+${RADIUS_EXPANSION_KM * currentAttempt}km radius)`);
+
+        // Update ride with radius expansion hint
+        await supabase
+          .from("rides")
+          .update({
+            metadata: {
+              ...(ride.metadata || {}),
+              radius_bonus_km: RADIUS_EXPANSION_KM * currentAttempt,
+            },
+          })
+          .eq("id", rideId);
+
+        try {
+          await supabase.functions.invoke("match-ride", {
+            body: { rideId },
+            headers: { Authorization: req.headers.get("Authorization") || "" },
+          });
+        } catch (e) {
+          console.error(`[match-ride] Retry invocation failed:`, e);
+        }
+      };
+
+      // Fire and forget — don't block the response
+      retryFn().catch((e) => console.error("[match-ride] Retry error:", e));
+      retryScheduled = true;
+    }
+
     const endTime = performance.now();
     const processingTime = Math.round(endTime - startTime);
 
     console.log(
-      `📨 تم إرسال ${successCount}/${topDrivers.length} إشعار (${processingTime}ms)`,
+      `📨 تم إرسال ${successCount}/${topDrivers.length} إشعار (${processingTime}ms) | retry=${retryScheduled}`,
     );
 
     return new Response(
@@ -372,6 +429,9 @@ serve(async (req) => {
         drivers_notified: successCount,
         total_drivers: topDrivers.length,
         already_notified: alreadyNotified.size,
+        matching_attempt: currentAttempt,
+        retry_scheduled: retryScheduled,
+        radius_bonus_km: radiusBonus,
         processing_time_ms: processingTime,
         top_drivers: topDrivers.map((d) => ({
           id: d.id,

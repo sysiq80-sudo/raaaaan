@@ -47,6 +47,31 @@ async function loadDynamicConfig() {
 const STALE_MESSAGE = "نعتذر منك، لا يتوفر كباتن حالياً لأننا في وضع التجربة 🚕. جرب تطلب مرة ثانية بعد شوية!";
 
 // ════════════════════════════════════════
+// جلب إعدادات الانتظار الديناميكية
+// ════════════════════════════════════════
+async function getWaitSettings(supabase: ReturnType<typeof createClient>) {
+  try {
+    const { data, error } = await supabase
+      .from("rider_wait_settings")
+      .select("max_wait_minutes, auto_cancel_enabled, auto_cancel_message")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!error && data) {
+      return {
+        maxWaitMinutes: data.max_wait_minutes ?? 10,
+        autoCancelEnabled: data.auto_cancel_enabled ?? true,
+        autoCancelMessage: data.auto_cancel_message || STALE_MESSAGE,
+      };
+    }
+  } catch (e) {
+    console.warn("[cron] Failed to load rider_wait_settings, using defaults:", e);
+  }
+  return { maxWaitMinutes: 10, autoCancelEnabled: true, autoCancelMessage: STALE_MESSAGE };
+}
+
+// ════════════════════════════════════════
 // إرسال رسالة واتساب
 // ════════════════════════════════════════
 async function sendWhatsAppMessage(phoneNumber: string, text: string) {
@@ -107,14 +132,30 @@ serve(async (_req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    // ── 1. البحث عن الرحلات المعلّقة أكثر من 10 دقائق ──
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    // ── 0. جلب إعدادات الانتظار الديناميكية ──
+    const waitSettings = await getWaitSettings(supabase);
+
+    if (!waitSettings.autoCancelEnabled) {
+      console.log("[cron] Auto-cancel is DISABLED in rider_wait_settings. Skipping.");
+      return new Response(JSON.stringify({ cancelled: 0, reason: "auto_cancel_disabled", elapsed_ms: Date.now() - startTime }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const maxWaitMs = waitSettings.maxWaitMinutes * 60 * 1000;
+    const cancelMessage = waitSettings.autoCancelMessage;
+
+    console.log(`[cron] Using dynamic timeout: ${waitSettings.maxWaitMinutes} min`);
+
+    // ── 1. البحث عن الرحلات المعلّقة أكثر من الوقت المحدد ──
+    const cutoffTime = new Date(Date.now() - maxWaitMs).toISOString();
 
     const { data: staleRides, error: fetchError } = await supabase
       .from("rides")
       .select("id, rider_id, trip_type, pickup_address, dropoff_address, created_at")
       .eq("status", "pending")
-      .lte("created_at", tenMinutesAgo);
+      .lte("created_at", cutoffTime);
 
     if (fetchError) {
       console.error("[cron] Error fetching stale rides:", fetchError);
@@ -174,13 +215,30 @@ serve(async (_req) => {
       if (tripType === "whatsapp" && profile.phone.startsWith("wa_")) {
         // استخراج رقم الهاتف: wa_995555004471 → 995555004471
         const waPhone = profile.phone.replace("wa_", "");
-        const sent = await sendWhatsAppMessage(waPhone, STALE_MESSAGE);
+        const sent = await sendWhatsAppMessage(waPhone, cancelMessage);
         if (sent) notifiedCount++;
       } else if (tripType === "telegram" && profile.phone.startsWith("tg_")) {
         // استخراج chat ID: tg_123456789 → 123456789
         const chatId = profile.phone.replace("tg_", "");
-        const sent = await sendTelegramMessage(chatId, STALE_MESSAGE);
+        const sent = await sendTelegramMessage(chatId, cancelMessage);
         if (sent) notifiedCount++;
+      } else if (tripType === "sms" && profile.phone.startsWith("sms_")) {
+        // SMS booking: sms_9647801234567 → 9647801234567
+        const smsPhone = profile.phone.replace("sms_", "");
+        // Send via OTPIQ (use edge function invoke to avoid duplicating logic)
+        try {
+          await supabase.functions.invoke("sms-ride-updates", {
+            body: {
+              ride_id: ride.id,
+              phone: smsPhone,
+              message: cancelMessage,
+              status: "cancelled",
+            },
+          });
+          notifiedCount++;
+        } catch (e) {
+          console.warn(`[cron] SMS notification failed for ${smsPhone}:`, e);
+        }
       } else {
         console.log(`[cron] Unknown trip_type "${tripType}" or phone format "${profile.phone}" — no notification sent`);
       }
