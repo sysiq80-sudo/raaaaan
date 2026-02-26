@@ -86,12 +86,20 @@ import {
   getCacheStats,
 } from "./lib/cache.ts";
 
+import {
+  trackEvent,
+  trackResponseTime,
+  trackBookingFunnel,
+  forceFlushEvents,
+} from "./lib/analytics.ts";
+
 // ════════════════════════════════════════
 // ════════════════════════════════════════
 // Handler الرئيسي
 // ════════════════════════════════════════
 // ════════════════════════════════════════
 serve(async (req) => {
+  const _startTime = Date.now();
   // تحميل الإعدادات الديناميكية من system_configs
   await loadDynamicConfig();
 
@@ -454,6 +462,7 @@ serve(async (req) => {
         const confirmMsg = MESSAGES.rideConfirmed +
           `\n\n⏱️ أقصى وقت انتظار: ${waitSettings.max_wait_minutes} دقيقة`;
         await sendTextMessage(phoneNumber, confirmMsg);
+        trackBookingFunnel("confirm", phoneNumber, rideId);
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
@@ -510,6 +519,7 @@ serve(async (req) => {
 
         await sendTextMessage(phoneNumber, MESSAGES.rideCancelled + feeMessage);
         console.log(`[wa] Ride ${rideId} cancelled (fee: ${cancellationFee})`);
+        trackBookingFunnel("cancel", phoneNumber, rideId, { fee: cancellationFee });
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
@@ -653,6 +663,7 @@ serve(async (req) => {
 
       const userName = profileName || "عزيزي";
       await sendTextMessage(phoneNumber, MESSAGES.locationReceived(address, userName));
+      trackBookingFunnel("location", phoneNumber, sessionId, { address });
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
@@ -969,6 +980,7 @@ serve(async (req) => {
         const localResult = classifyLocally(userMsgText, userName);
         if (localResult.handled) {
           console.log(`[classify] ⚡ LOCAL: intent=${localResult.intent}`);
+          trackEvent("classify_local", { intent: localResult.intent }, phoneNumber);
           if (localResult.intent === "booking") {
             await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
           } else if (localResult.reply) {
@@ -982,6 +994,7 @@ serve(async (req) => {
           const cachedAI = getCachedAIClassification(userMsgText);
           if (cachedAI) {
             console.log(`[classify] 📦 CACHED: intent=${cachedAI.intent}`);
+            trackEvent("classify_cached", { intent: cachedAI.intent }, phoneNumber);
             if (cachedAI.intent === "booking" || cachedAI.destination_hint) {
               await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
             } else {
@@ -991,6 +1004,7 @@ serve(async (req) => {
             // محاولة 3: GPT-4o (fallback)
             const aiResponse = await classifyAndRespond(userMsgText, userName);
             console.log(`[classify] 🧠 GPT: intent=${aiResponse.intent}, hint=${aiResponse.destination_hint}`);
+            trackEvent("classify_gpt", { intent: aiResponse.intent, hint: aiResponse.destination_hint }, phoneNumber);
             cacheAIClassification(userMsgText, aiResponse);
 
             if (aiResponse.intent === "booking" || aiResponse.destination_hint) {
@@ -1123,17 +1137,27 @@ serve(async (req) => {
     );
 
     console.log(`[wa] Confirmation sent for ride ${session.ride_id}`);
+    trackBookingFunnel("destination", phoneNumber, session.ride_id, {
+      destination: destination.address,
+      fare,
+      distance_km: distanceKm,
+    });
+    trackResponseTime(_startTime, phoneNumber, "destination_flow");
+    await forceFlushEvents();
     return new Response("EVENT_RECEIVED", { status: 200 });
 
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error("[wa] CRITICAL ERROR:", errMsg);
     console.error("[wa] Stack:", error instanceof Error ? error.stack : "N/A");
+    trackEvent("ai_error", { error: errMsg }, phoneNumber);
 
     try {
       await sendTextMessage(phoneNumber, MESSAGES.error);
     } catch { }
 
+    trackResponseTime(_startTime, phoneNumber, "error");
+    await forceFlushEvents();
     // Always return 200 so Meta doesn't retry
     return new Response("EVENT_RECEIVED", { status: 200 });
   }
