@@ -116,7 +116,10 @@ export default function DriverFinance() {
   const [topupMethod, setTopupMethod] = useState<string>("");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [commissionRate] = useState(15);
+  const [commissionRate, setCommissionRate] = useState(15);
+  const [tierName, setTierName] = useState<string | null>(null);
+  const [tierBadge, setTierBadge] = useState<string | null>(null);
+  const [tierDiscount, setTierDiscount] = useState(0);
 
   // Payment breakdown
   const [earningsBreakdown, setEarningsBreakdown] = useState({
@@ -140,6 +143,36 @@ export default function DriverFinance() {
           total_rides: driver.total_rides || 0,
           rating: driver.rating || 5.0
         });
+
+        // Fetch base commission rate from wallet_settings
+        const { data: walletSettings } = await supabase
+          .from('wallet_settings')
+          .select('default_commission_rate')
+          .limit(1)
+          .maybeSingle();
+        const baseRate = walletSettings?.default_commission_rate ?? 15;
+
+        // Fetch driver's commission tier based on monthly rides & rating
+        const driverRating = driver.rating || 5.0;
+        const monthlyRides = driver.total_rides || 0;
+        const { data: tiers } = await supabase
+          .from('commission_tiers')
+          .select('name_ar, commission_discount, badge_icon')
+          .eq('is_active', true)
+          .lte('min_rides_monthly', monthlyRides)
+          .lte('min_rating', driverRating)
+          .order('priority', { ascending: false })
+          .limit(1);
+
+        if (tiers && tiers.length > 0) {
+          const tier = tiers[0];
+          setTierName(tier.name_ar);
+          setTierBadge(tier.badge_icon);
+          setTierDiscount(tier.commission_discount || 0);
+          setCommissionRate(Math.max(0, baseRate - (tier.commission_discount || 0)));
+        } else {
+          setCommissionRate(baseRate);
+        }
       } else {
         navigate('/driver/auth');
       }
@@ -412,6 +445,35 @@ export default function DriverFinance() {
           </CardContent>
         </Card>
 
+        {/* Commission Tier Info */}
+        {tierName && (
+          <Card className="border-border/50 shadow-sm mb-4">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{tierBadge || '🏷️'}</span>
+                  <div>
+                    <span className="font-medium text-foreground">المستوى: {tierName}</span>
+                    {tierDiscount > 0 && (
+                      <p className="text-xs text-emerald-600">خصم {tierDiscount}% على العمولة</p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-left">
+                  <span className="text-lg font-bold text-foreground">{commissionRate}%</span>
+                  <p className="text-xs text-muted-foreground">نسبة العمولة</p>
+                </div>
+              </div>
+              <Link to="/driver/subscription">
+                <Button variant="outline" size="sm" className="w-full mt-3 text-xs">
+                  <Star className="w-3.5 h-3.5 ml-1" />
+                  عرض خطط الاشتراك لخصم إضافي
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Time-based Stats */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           <Card className="border-border/50">
@@ -550,7 +612,7 @@ export default function DriverFinance() {
                             <span className="font-medium">{fare.toLocaleString()} د.ع</span>
                           </div>
                           <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">العمولة ({commissionRate}%)</span>
+                            <span className="text-muted-foreground">العمولة ({commissionRate}%{tierDiscount > 0 ? ` بعد خصم ${tierDiscount}%` : ''})</span>
                             <span className="text-orange-600">-{commission.toLocaleString()} د.ع</span>
                           </div>
                           <div className="border-t border-border pt-2 flex items-center justify-between">

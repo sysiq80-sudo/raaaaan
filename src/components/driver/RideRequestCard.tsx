@@ -34,6 +34,7 @@ interface PendingRide {
   vehicle_type: string;
   created_at: string;
   rider_id: string;
+  surge_multiplier?: number;
 }
 
 interface RideRequestCardProps {
@@ -220,6 +221,7 @@ export const RideRequestCard = ({
             vehicle_type: ride.vehicle_type || "economy",
             created_at: ride.created_at,
             rider_id: ride.rider_id || "",
+            surge_multiplier: ride.surge_multiplier ?? undefined,
           };
           
           // تخطي الرحلات في cooldown
@@ -271,6 +273,7 @@ export const RideRequestCard = ({
             vehicle_type: ride.vehicle_type || "economy",
             created_at: ride.created_at,
             rider_id: ride.rider_id || "",
+            surge_multiplier: ride.surge_multiplier ?? undefined,
           };
 
           // تخطي الرحلات في cooldown
@@ -545,11 +548,17 @@ export const RideRequestCard = ({
 
             {/* Fare + Vehicle Type */}
             <div className="grid grid-cols-2 gap-2">
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
+              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 relative">
                 <span className="text-white/80 text-xs block">الأجرة</span>
                 <span className="text-white font-bold text-sm">
                   {roundFare(pendingRide.estimated_fare || 0).toLocaleString()}
                 </span>
+                {pendingRide.surge_multiplier && pendingRide.surge_multiplier > 1 && (
+                  <span className="absolute -top-1 -right-1 bg-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-lg">
+                    <Zap className="w-2.5 h-2.5" />
+                    x{pendingRide.surge_multiplier.toFixed(1)}
+                  </span>
+                )}
               </div>
               <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2">
                 <span className="text-white/80 text-xs block">النوع</span>

@@ -47,6 +47,7 @@ const DriverStatistics = lazy(() => import("./pages/driver/DriverStatistics"));
 const DriverProfile = lazy(() => import("./pages/driver/DriverProfile"));
 const DriverIncentives = lazy(() => import("./pages/driver/DriverIncentives"));
 const DriverFinance = lazy(() => import("./pages/driver/DriverFinance"));
+const DriverSubscription = lazy(() => import("./pages/driver/DriverSubscription"));
 
 // Layout components
 const RiderLayout = lazy(() => import("./components/rider/RiderLayout"));
@@ -530,6 +531,18 @@ const AppRoutes = () => {
                   <ProtectedRoute requiredRole="driver">
                     <DriverLayout>
                       <DriverIncentives />
+                    </DriverLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/driver/subscription"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="driver">
+                    <DriverLayout>
+                      <DriverSubscription />
                     </DriverLayout>
                   </ProtectedRoute>
                 </ErrorBoundary>

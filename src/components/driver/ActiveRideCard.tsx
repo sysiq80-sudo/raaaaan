@@ -38,6 +38,7 @@ import {
   MessageCircle,
   Star,
   X,
+  Zap,
 } from "lucide-react";
 
 interface ActiveRide {
@@ -56,6 +57,7 @@ interface ActiveRide {
   scheduled_at?: string | null;
   rider_id: string;
   payment_method: string | null;
+  surge_multiplier?: number;
 }
 
 interface RiderInfo {
@@ -226,6 +228,7 @@ export const ActiveRideCard = ({
         started_at: ride.started_at,
         rider_id: ride.rider_id || "",
         payment_method: ride.payment_method,
+        surge_multiplier: ride.surge_multiplier ?? undefined,
       });
 
       // Fetch rider info
@@ -1509,11 +1512,17 @@ export const ActiveRideCard = ({
               </p>
             </div>
             <div className="w-px h-8 bg-border" />
-            <div className="text-center">
+            <div className="text-center relative">
               <Wallet className="w-3.5 h-3.5 text-primary mx-auto mb-0.5" />
               <p className="text-sm font-bold text-primary">
                 {roundFare(activeRide.estimated_fare || 0).toLocaleString()} د.ع
               </p>
+              {activeRide.surge_multiplier && activeRide.surge_multiplier > 1 && (
+                <span className="absolute -top-2 -right-2 bg-yellow-500 text-black text-[9px] font-bold px-1 py-0.5 rounded-full flex items-center gap-0.5 shadow">
+                  <Zap className="w-2 h-2" />
+                  x{activeRide.surge_multiplier.toFixed(1)}
+                </span>
+              )}
             </div>
           </div>
 

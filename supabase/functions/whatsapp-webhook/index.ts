@@ -351,18 +351,118 @@ async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promis
   return data.text || "";
 }
 
+// مخزن مؤقت لأنواع السيارات النشطة
+let _vehicleTypesCache: { types: Array<{ key: string; name_ar: string }>; fetchedAt: number } | null = null;
+
+async function getActiveVehicleTypes(supabase: any): Promise<Array<{ key: string; name_ar: string }>> {
+  const now = Date.now();
+  if (_vehicleTypesCache && (now - _vehicleTypesCache.fetchedAt) < 300_000) {
+    return _vehicleTypesCache.types;
+  }
+  try {
+    const { data } = await supabase
+      .from("vehicle_types")
+      .select("key, name_ar")
+      .eq("is_active", true)
+      .order("key");
+    if (data && data.length > 0) {
+      _vehicleTypesCache = { types: data, fetchedAt: now };
+      return data;
+    }
+  } catch (e) {
+    console.warn("[wa] Failed to fetch vehicle types:", e);
+  }
+  return [
+    { key: "economy", name_ar: "اقتصادي" },
+    { key: "comfort", name_ar: "مريح" },
+    { key: "premium", name_ar: "فاخر" },
+    { key: "women_only", name_ar: "نسائي" },
+  ];
+}
+
+// مخزن مؤقت لإعدادات انتظار الراكب
+interface WaitSettings {
+  max_wait_minutes: number;
+  search_messages: Array<{ text: string; icon: string }>;
+  warning_message: string;
+  warning_threshold: number;
+  auto_cancel_enabled: boolean;
+  auto_cancel_message: string;
+}
+let _waitSettingsCache: { settings: WaitSettings; fetchedAt: number } | null = null;
+
+async function getWaitSettings(supabase: any): Promise<WaitSettings> {
+  const now = Date.now();
+  if (_waitSettingsCache && (now - _waitSettingsCache.fetchedAt) < 300_000) {
+    return _waitSettingsCache.settings;
+  }
+  const defaults: WaitSettings = {
+    max_wait_minutes: 10,
+    search_messages: [
+      { text: "جاري البحث عن أفضل سائق لك...", icon: "🔍" },
+      { text: "سائقونا في الطريق إليك...", icon: "🚗" },
+      { text: "لحظات قليلة وسيتم إيجاد سائق...", icon: "⏳" },
+      { text: "نبحث في منطقتك عن سائق متاح...", icon: "📍" },
+      { text: "شكراً لصبرك، نحن نعمل على ذلك...", icon: "💚" },
+      { text: "سيتم إعلامك فور قبول السائق...", icon: "🔔" },
+    ],
+    warning_message: "سيتم الإلغاء التلقائي قريباً",
+    warning_threshold: 0.8,
+    auto_cancel_enabled: true,
+    auto_cancel_message: "لم يتم العثور على سائق متاح خلال الوقت المحدد",
+  };
+  try {
+    const { data } = await supabase
+      .from("rider_wait_settings")
+      .select("*")
+      .limit(1)
+      .maybeSingle();
+    if (data) {
+      const settings: WaitSettings = {
+        max_wait_minutes: data.max_wait_minutes ?? defaults.max_wait_minutes,
+        search_messages: Array.isArray(data.search_messages) ? data.search_messages : defaults.search_messages,
+        warning_message: data.warning_message ?? defaults.warning_message,
+        warning_threshold: data.warning_threshold ?? defaults.warning_threshold,
+        auto_cancel_enabled: data.auto_cancel_enabled ?? defaults.auto_cancel_enabled,
+        auto_cancel_message: data.auto_cancel_message ?? defaults.auto_cancel_message,
+      };
+      _waitSettingsCache = { settings, fetchedAt: now };
+      return settings;
+    }
+  } catch (e) {
+    console.warn("[wa] Failed to fetch wait settings:", e);
+  }
+  return defaults;
+}
+
 // ════════════════════════════════════════
 // GPT-4o: استخراج الوجهة فقط (الموقع يأتي من GPS)
 // ════════════════════════════════════════
 interface ExtractedDestination {
   destination_search_query: string;
-  vehicle_type: "economy" | "comfort" | "premium" | "women_only";
+  vehicle_type: string;
   notes: string | null;
   is_destination: boolean;
   conversation_reply: string | null;
 }
 
-async function extractDestination(transcript: string, userName: string, userLat = 33.4233, userLng = 43.2974): Promise<ExtractedDestination> {
+async function extractDestination(
+  transcript: string,
+  userName: string,
+  userLat = 33.4233,
+  userLng = 43.2974,
+  vehicleTypes?: Array<{ key: string; name_ar: string }>
+): Promise<ExtractedDestination> {
+  // بناء قائمة أنواع السيارات ديناميكياً
+  const vtypes = vehicleTypes || [
+    { key: "economy", name_ar: "اقتصادي" },
+    { key: "comfort", name_ar: "مريح" },
+    { key: "premium", name_ar: "فاخر" },
+    { key: "women_only", name_ar: "نسائي" },
+  ];
+  const vehicleTypeKeys = vtypes.map(v => v.key).join("|");
+  const vehicleTypeMapping = vtypes.map(v => `${v.name_ar} → ${v.key}`).join(", ");
+
   const systemPrompt = `You are 'Raan' (ران), a highly polite, cooperative, and smart Iraqi taxi dispatcher bot operating in Al Anbar Governorate (محافظة الأنبار), Iraq.
 User Name: ${userName}
 
@@ -388,7 +488,7 @@ Critical Rules:
 3. If the user says "أريد أروح" or "وديني" or "لـ" → what follows is the destination.
 4. If the user just says a place name, that IS the destination.
 5. Keep the name natural: "جامعة الأنبار" not "جامعة الأنبار، الرمادي، العراق".
-6. If the user mentions vehicle preference: فخمة/فاخرة → premium, مريحة → comfort, نسائي/بنات → women_only. Otherwise "economy".
+6. If the user mentions vehicle preference: ${vehicleTypeMapping}. Otherwise "economy".
 7. Extract any notes (مستعجل، قرب الصيدلية، etc).
 8. NEVER return an error message. ALWAYS try to extract a destination.
 9. NEVER rename, translate, or "correct" the user's destination. Return their words verbatim.
@@ -416,11 +516,12 @@ CRITICAL: Do NOT attempt to calculate prices or search for drivers if the locati
 Respond in JSON ONLY:
 {
   "destination_search_query": "اسم الوجهة أو فارغ",
-  "vehicle_type": "economy",
+  "vehicle_type": "${vtypes[0]?.key || 'economy'}",
   "notes": null,
   "is_destination": true,
   "conversation_reply": null
-}`;
+}
+Available vehicle_type values: ${vehicleTypeKeys}`;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -963,17 +1064,46 @@ async function calculateFareFromEdge(
     });
     if (error) throw error;
     if (data?.total_fare) return Math.ceil(data.total_fare / 250) * 250;
-    // fallback
-    return estimateFareLocal(distanceKm);
+    // fallback — يجلب إعدادات الأجرة من الأدمن
+    const fs = await getFareSettings(supabase);
+    return estimateFareLocal(distanceKm, fs.baseFare, fs.perKmRate);
   } catch (e) {
     console.warn("[fare] Edge function failed, using local fallback:", e);
-    return estimateFareLocal(distanceKm);
+    const fs = await getFareSettings(supabase);
+    return estimateFareLocal(distanceKm, fs.baseFare, fs.perKmRate);
   }
 }
 
-function estimateFareLocal(distanceKm: number): number {
-  const baseFare = 2000;
-  const perKmRate = 1000;
+// مخزن مؤقت لإعدادات الأجرة — يُحدّث كل 5 دقائق
+let _fareSettingsCache: { baseFare: number; perKmRate: number; fetchedAt: number } | null = null;
+
+async function getFareSettings(supabase: any): Promise<{ baseFare: number; perKmRate: number }> {
+  const now = Date.now();
+  if (_fareSettingsCache && (now - _fareSettingsCache.fetchedAt) < 300_000) {
+    return _fareSettingsCache;
+  }
+  try {
+    const { data } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "fare_calculation")
+      .maybeSingle();
+    if (data?.value) {
+      const cfg = typeof data.value === "string" ? JSON.parse(data.value) : data.value;
+      _fareSettingsCache = {
+        baseFare: cfg.base_fare ?? cfg.baseFare ?? 2000,
+        perKmRate: cfg.per_km_rate ?? cfg.perKmRate ?? 1000,
+        fetchedAt: now,
+      };
+      return _fareSettingsCache;
+    }
+  } catch (e) {
+    console.warn("[fare] Failed to fetch fare settings, using defaults:", e);
+  }
+  return { baseFare: 2000, perKmRate: 1000 };
+}
+
+function estimateFareLocal(distanceKm: number, baseFare = 2000, perKmRate = 1000): number {
   const raw = baseFare + distanceKm * perKmRate;
   return Math.ceil(raw / 250) * 250;
 }
@@ -989,6 +1119,32 @@ async function findOrCreateWhatsAppUser(
   const waRef = `wa_${phoneNumber}`;
   const email = `wa_${phoneNumber}@whatsapp.raan.app`;
   const displayName = profileName || "راكب واتساب";
+
+  // 0. فحص الأسماء المحظورة
+  if (displayName && displayName !== "راكب واتساب") {
+    try {
+      const { data: banned } = await supabase
+        .from("banned_names")
+        .select("name")
+        .eq("is_active", true);
+      if (banned && banned.length > 0) {
+        const nameLower = displayName.toLowerCase().trim();
+        const isBanned = banned.some((b: any) => {
+          const bannedLower = (b.name || "").toLowerCase().trim();
+          return nameLower === bannedLower || nameLower.includes(bannedLower) || bannedLower.includes(nameLower);
+        });
+        if (isBanned) {
+          console.warn(`[auth] ⛔ Banned name detected: "${displayName}"`);
+          // لا نرفض المستخدم — نستبدل اسمه فقط
+          // سيتم إنشاء الحساب باسم افتراضي
+          profileName = null;
+        }
+      }
+    } catch (e) {
+      console.warn("[auth] Failed to check banned names:", e);
+    }
+  }
+  const finalName = profileName || "راكب واتساب";
 
   // 1. البحث في profiles
   const { data: existing } = await supabase
@@ -1009,7 +1165,7 @@ async function findOrCreateWhatsAppUser(
     password: crypto.randomUUID(),
     email_confirm: true,
     user_metadata: {
-      full_name: displayName,
+      full_name: finalName,
       source: "whatsapp",
       whatsapp_phone: phoneNumber,
     },
@@ -1046,7 +1202,7 @@ async function findOrCreateWhatsAppUser(
   // إنشاء/تحديث profile
   await supabase.from("profiles").upsert({
     user_id: userId,
-    full_name: displayName,
+    full_name: finalName,
     phone: waRef,
     email,
     status: "active",
@@ -1154,10 +1310,10 @@ async function createPickupSession(
 async function checkActiveRide(
   supabase: any,
   riderId: string
-): Promise<{ id: string; status: string; pickup_address: string | null; dropoff_address: string | null } | null> {
+): Promise<{ id: string; status: string; pickup_address: string | null; dropoff_address: string | null; created_at: string } | null> {
   const { data } = await supabase
     .from("rides")
-    .select("id, status, pickup_address, dropoff_address")
+    .select("id, status, pickup_address, dropoff_address, created_at")
     .eq("rider_id", riderId)
     .in("status", ["pending", "accepted", "arrived", "in_progress"])
     .order("created_at", { ascending: false })
@@ -1488,22 +1644,72 @@ serve(async (req) => {
           console.warn("[wa] match-ride failed (non-critical):", matchErr);
         }
 
-        await sendTextMessage(phoneNumber, MESSAGES.rideConfirmed);
+        // إرسال رسالة تأكيد مع معلومات الانتظار من الإعدادات
+        const waitSettings = await getWaitSettings(supabase);
+        const randomMsg = waitSettings.search_messages[Math.floor(Math.random() * waitSettings.search_messages.length)];
+        const confirmMsg = `✅ *تم تأكيد الطلب!*\n${randomMsg.icon} ${randomMsg.text}\n\n⏱️ الوقت المتوقع: ${waitSettings.max_wait_minutes} دقيقة كحد أقصى`;
+        await sendTextMessage(phoneNumber, confirmMsg);
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
-      // ── إلغاء الرحلة ──
+      // ── إلغاء الرحلة (مع دعم غرامة الإلغاء للرحلات المقبولة) ──
       const cancelMatch = buttonId.match(/^cancel_ride_([a-f0-9\-]+)$/);
       if (cancelMatch) {
         const rideId = cancelMatch[1];
+
+        // جلب تفاصيل الرحلة لتحديد الحالة
+        const { data: rideToCancel } = await supabase
+          .from("rides")
+          .select("id, status, driver_id, accepted_at")
+          .eq("id", rideId)
+          .maybeSingle();
+
+        if (!rideToCancel) {
+          await sendTextMessage(phoneNumber, "⚠️ الرحلة غير موجودة أو تم إلغاؤها مسبقاً.");
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+
+        // حساب غرامة الإلغاء للرحلات المقبولة
+        let cancellationFee = 0;
+        let feeMessage = "";
+        if (["accepted", "arrived"].includes(rideToCancel.status)) {
+          try {
+            const { data: feeSettings } = await supabase
+              .from("app_settings")
+              .select("value")
+              .eq("key", "cancellation_fee")
+              .maybeSingle();
+            if (feeSettings?.value) {
+              const cfg = typeof feeSettings.value === "string" ? JSON.parse(feeSettings.value) : feeSettings.value;
+              if (cfg.enabled) {
+                cancellationFee = cfg.amount || 0;
+                if (cancellationFee > 0) {
+                  feeMessage = `\n\n⚠️ تم احتساب غرامة إلغاء: ${cancellationFee.toLocaleString()} د.ع`;
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("[wa] Failed to fetch cancellation fee settings:", e);
+          }
+        }
+
+        const updateData: any = {
+          status: "cancelled",
+          cancelled_by: "rider",
+          cancellation_reason: "ألغيت من قبل الراكب (واتساب)",
+        };
+        if (cancellationFee > 0) {
+          updateData.cancellation_fee = cancellationFee;
+        }
+
         await supabase
           .from("rides")
-          .update({ status: "cancelled", cancellation_reason: "ألغيت من قبل الراكب (واتساب)" })
+          .update(updateData)
           .eq("id", rideId)
-          .in("status", ["draft", "pending"]);
+          .in("status", ["draft", "pending", "accepted", "arrived"]);
 
-        await sendTextMessage(phoneNumber, MESSAGES.rideCancelled);
-        console.log(`[wa] Ride ${rideId} cancelled`);
+        await sendTextMessage(phoneNumber, MESSAGES.rideCancelled + feeMessage);
+        console.log(`[wa] Ride ${rideId} cancelled (fee: ${cancellationFee})`);
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
@@ -1656,9 +1862,25 @@ serve(async (req) => {
       const lng = message.location.longitude;
       console.log(`[wa] Location: ${lat}, ${lng}`);
 
-      // التحقق: داخل الرمادي؟
-      const distFromCenter = haversineDistance(lat, lng, 33.4233, 43.2974);
-      if (distFromCenter > 60) {
+      // التحقق: داخل نطاق الخدمة (يجلب من إعدادات الأدمن)
+      let serviceCenterLat = 33.4233, serviceCenterLng = 43.2974, maxServiceRadiusKm = 60;
+      try {
+        const { data: boundarySettings } = await supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", "service_boundary")
+          .maybeSingle();
+        if (boundarySettings?.value) {
+          const bCfg = typeof boundarySettings.value === "string" ? JSON.parse(boundarySettings.value) : boundarySettings.value;
+          serviceCenterLat = bCfg.center_lat ?? serviceCenterLat;
+          serviceCenterLng = bCfg.center_lng ?? serviceCenterLng;
+          maxServiceRadiusKm = bCfg.max_radius_km ?? maxServiceRadiusKm;
+        }
+      } catch (e) {
+        console.warn("[wa] Failed to fetch service boundary settings, using defaults:", e);
+      }
+      const distFromCenter = haversineDistance(lat, lng, serviceCenterLat, serviceCenterLng);
+      if (distFromCenter > maxServiceRadiusKm) {
         await sendTextMessage(phoneNumber, MESSAGES.locationTooFar);
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
@@ -1814,10 +2036,24 @@ serve(async (req) => {
       console.log(`[wa] Active ride: ${activeRide.id} (${activeRide.status})`);
 
       if (activeRide.status === "pending") {
-        // رحلة منتظرة — عرض خيار الإلغاء
+        // رحلة منتظرة — عرض رسالة انتظار ديناميكية مع خيار الإلغاء
+        const waitSettings = await getWaitSettings(supabase);
+        const messages = waitSettings.search_messages;
+        const rideCreatedAt = new Date(activeRide.created_at).getTime();
+        const elapsedMin = Math.floor((Date.now() - rideCreatedAt) / 60000);
+        const warningThresholdMin = Math.floor(waitSettings.max_wait_minutes * waitSettings.warning_threshold);
+
+        let waitMsg: string;
+        if (elapsedMin >= warningThresholdMin && waitSettings.auto_cancel_enabled) {
+          waitMsg = `⚠️ ${waitSettings.warning_message}\n\n📍 من: ${activeRide.pickup_address || "موقعك"}\n🏁 إلى: ${activeRide.dropoff_address || "الوجهة"}\n⏱️ مضت ${elapsedMin} دقيقة من أصل ${waitSettings.max_wait_minutes}`;
+        } else {
+          const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+          waitMsg = `${randomMsg.icon} ${randomMsg.text}\n\n📍 من: ${activeRide.pickup_address || "موقعك"}\n🏁 إلى: ${activeRide.dropoff_address || "الوجهة"}\n⏱️ مضت ${elapsedMin} دقيقة`;
+        }
+
         await sendInteractiveButtons(
           phoneNumber,
-          MESSAGES.activeRidePending(activeRide.pickup_address || "موقعك", activeRide.dropoff_address || "الوجهة"),
+          waitMsg,
           [
             { id: `cancel_ride_${activeRide.id}`, title: "❌ إلغاء الرحلة" },
             { id: "keep_searching", title: "🔄 استمر بالبحث" },
@@ -2086,7 +2322,8 @@ serve(async (req) => {
     // ── GPT-4o: استخراج الوجهة (مع شخصية ران) ──
     const userName = profileName || "عزيزي";
     console.log("[gpt4o] Extracting destination...");
-    const intent = await extractDestination(userText, userName, session.pickup_lat, session.pickup_lng);
+    const vehicleTypes = await getActiveVehicleTypes(supabase);
+    const intent = await extractDestination(userText, userName, session.pickup_lat, session.pickup_lng, vehicleTypes);
     console.log("[gpt4o] Result:", JSON.stringify(intent));
 
     // إذا كان النص ليس وجهة (استفسار/شكوى) — رد الذكاء الاصطناعي
