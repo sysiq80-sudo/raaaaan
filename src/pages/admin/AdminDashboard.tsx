@@ -474,6 +474,9 @@ const AdminDashboard = () => {
             <Button variant="outline" className="w-full justify-start" size="sm" onClick={() => navigate("/admin/settings")}>
               <UserCog className="w-4 h-4 ml-2" /> الإعدادات
             </Button>
+            <Button variant="outline" className="w-full justify-start" size="sm" onClick={() => navigate("/admin/withdrawals")}>
+              <TrendingUp className="w-4 h-4 ml-2" /> طلبات السحب
+            </Button>
           </CardContent>
         </Card>
       </div>

@@ -91,6 +91,7 @@ const AdminEmergencySettings = lazy(() => import("./pages/admin/AdminEmergencySe
 const AdminBotCustomers = lazy(() => import("./pages/admin/AdminBotCustomers"));
 const AdminDeveloperSettings = lazy(() => import("./pages/admin/AdminDeveloperSettings"));
 const AdminSecuritySettings = lazy(() => import("./pages/admin/AdminSecuritySettings"));
+const AdminWithdrawals = lazy(() => import("./pages/admin/AdminWithdrawals"));
 const queryClient = new QueryClient();
 
 // Ù…Ø³Ø§Ø¹Ø¯: ÙƒØ´Ù Ø§Ù„Ø¬ÙˆØ§Ù„
@@ -917,6 +918,16 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminSecuritySettings />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/withdrawals"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminWithdrawals />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }

@@ -116,6 +116,46 @@ export default function DriverSubscription() {
     if (!driverId) return;
     setSubscribing(plan.id);
     try {
+      // 1. التحقق من رصيد المحفظة
+      const { data: wallet } = await supabase
+        .from("driver_wallets")
+        .select("id, balance")
+        .eq("driver_id", driverId)
+        .maybeSingle();
+
+      if (!wallet || wallet.balance < plan.price) {
+        toast({
+          title: "رصيد غير كافٍ",
+          description: `رصيدك الحالي ${(wallet?.balance || 0).toLocaleString()} د.ع — تحتاج ${plan.price.toLocaleString()} د.ع. أضف رصيداً أولاً.`,
+          variant: "destructive",
+        });
+        setSubscribing(null);
+        return;
+      }
+
+      // 2. خصم المبلغ من المحفظة
+      const newBalance = wallet.balance - plan.price;
+      const { error: walletError } = await supabase
+        .from("driver_wallets")
+        .update({ balance: newBalance })
+        .eq("id", wallet.id);
+
+      if (walletError) throw walletError;
+
+      // 3. تسجيل معاملة السحب
+      await supabase.from("wallet_transactions").insert({
+        wallet_id: wallet.id,
+        driver_id: driverId,
+        transaction_type: "penalty", // subscription charge
+        amount: -plan.price,
+        balance_before: wallet.balance,
+        balance_after: newBalance,
+        description: `اشتراك خطة ${plan.name_ar}`,
+        metadata: { plan_id: plan.id, plan_name: plan.name_ar },
+        status: "completed",
+      });
+
+      // 4. تسجيل الاشتراك
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + plan.duration_days);
 
@@ -135,7 +175,7 @@ export default function DriverSubscription() {
 
       toast({
         title: "✅ تم الاشتراك بنجاح!",
-        description: `تم تفعيل خطة ${plan.name_ar} حتى ${expiresAt.toLocaleDateString("ar-IQ")}`,
+        description: `تم تفعيل خطة ${plan.name_ar} حتى ${expiresAt.toLocaleDateString("ar-IQ")} وخصم ${plan.price.toLocaleString()} د.ع من محفظتك`,
       });
 
       if (driverId) fetchData();

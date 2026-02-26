@@ -181,6 +181,7 @@ const AdminLayout = ({
     { icon: BarChart3, label: "إحصائيات API", href: "/admin/api-stats" },
     { icon: Phone, label: "سجلات SMS", href: "/admin/sms-logs" },
     { icon: Wallet, label: "طلبات المحفظة", href: "/admin/wallet-requests" },
+    { icon: DollarSign, label: "طلبات السحب", href: "/admin/withdrawals" },
     { icon: MessageSquareWarning, label: "الشكاوى", href: "/admin/complaints" },
     { icon: CircleStop, label: "الرحلات المتوقفة", href: "/admin/stopped-rides" },
     { icon: ShieldAlert, label: "إعدادات الطوارئ", href: "/admin/emergency-settings" },

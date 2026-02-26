@@ -14,7 +14,7 @@ import {
   Wallet, ArrowUpRight, ArrowDownLeft, TrendingUp, Clock, Car, XCircle, Gift, 
   ChevronLeft, RefreshCw, AlertTriangle, Plus, Smartphone, Copy, CheckCircle, 
   Send, Loader2, Percent, History, DollarSign, Banknote, CreditCard, Phone, 
-  Building2, Target, Star, Receipt, MapPin
+  Building2, Target, Star, Receipt, MapPin, ArrowDown, Ban
 } from "lucide-react";
 import { format, startOfWeek, startOfMonth } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -53,6 +53,17 @@ interface TopupRequest {
   payment_method: string;
   reference_number: string;
   status: string;
+  created_at: string;
+}
+
+interface WithdrawalRequest {
+  id: string;
+  amount: number;
+  withdrawal_method: string;
+  account_holder_name: string;
+  account_details: Record<string, string>;
+  status: string;
+  review_notes: string | null;
   created_at: string;
 }
 
@@ -125,6 +136,17 @@ export default function DriverFinance() {
   const [earningsBreakdown, setEarningsBreakdown] = useState({
     cash: 0, zain_cash: 0, asia_hawala: 0, qi_card: 0
   });
+
+  // Withdrawal state
+  const [withdrawalAmount, setWithdrawalAmount] = useState<number>(25000);
+  const [withdrawalMethod, setWithdrawalMethod] = useState<string>("zain_cash");
+  const [accountHolder, setAccountHolder] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
+  const [walletId, setWalletId] = useState<string | null>(null);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [minWithdrawal, setMinWithdrawal] = useState(10000);
 
   useEffect(() => {
     const fetchDriverId = async () => {
@@ -264,6 +286,35 @@ export default function DriverFinance() {
           .limit(10);
         if (requests) setTopupRequests(requests);
       }
+
+      // Fetch driver wallet for withdrawal
+      const { data: walletData } = await supabase
+        .from('driver_wallets')
+        .select('id, balance')
+        .eq('driver_id', driverId)
+        .maybeSingle();
+      if (walletData) {
+        setWalletId(walletData.id);
+        setWalletBalance(Number(walletData.balance) || 0);
+      }
+
+      // Fetch withdrawal settings
+      const { data: wSettings } = await supabase
+        .from('wallet_settings')
+        .select('min_withdrawal_amount')
+        .limit(1)
+        .maybeSingle();
+      if (wSettings) setMinWithdrawal(Number(wSettings.min_withdrawal_amount) || 10000);
+
+      // Fetch withdrawal requests
+      // @ts-ignore — withdrawal_requests table exists via migration
+      const { data: wRequests } = await supabase
+        .from('withdrawal_requests')
+        .select('*')
+        .eq('driver_id', driverId)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (wRequests) setWithdrawals(wRequests as WithdrawalRequest[]);
     } catch (error: any) {
       toast({ title: "خطأ", description: error.message, variant: "destructive" });
     } finally {
@@ -299,6 +350,44 @@ export default function DriverFinance() {
       toast({ title: "خطأ", description: error.message, variant: "destructive" });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSubmitWithdrawal = async () => {
+    if (!driverId || !walletId) return;
+    if (!accountHolder.trim() || !accountNumber.trim()) {
+      toast({ title: "خطأ", description: "يرجى ملء اسم صاحب الحساب ورقم الحساب", variant: "destructive" });
+      return;
+    }
+    if (withdrawalAmount < minWithdrawal) {
+      toast({ title: "خطأ", description: `الحد الأدنى للسحب ${minWithdrawal.toLocaleString()} د.ع`, variant: "destructive" });
+      return;
+    }
+    if (withdrawalAmount > walletBalance) {
+      toast({ title: "رصيد غير كافٍ", description: `رصيدك الحالي ${walletBalance.toLocaleString()} د.ع`, variant: "destructive" });
+      return;
+    }
+    setWithdrawing(true);
+    try {
+      // @ts-ignore — withdrawal_requests table exists via migration
+      const { error } = await supabase.from("withdrawal_requests").insert({
+        driver_id: driverId,
+        wallet_id: walletId,
+        amount: withdrawalAmount,
+        withdrawal_method: withdrawalMethod,
+        account_holder_name: accountHolder.trim(),
+        account_details: { account_number: accountNumber.trim(), method: withdrawalMethod },
+        status: "pending",
+      });
+      if (error) throw error;
+      toast({ title: "✅ تم إرسال طلب السحب", description: "سيتم مراجعة طلبك من قبل الإدارة" });
+      setAccountHolder("");
+      setAccountNumber("");
+      await fetchAllData();
+    } catch (error: any) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    } finally {
+      setWithdrawing(false);
     }
   };
 
@@ -498,7 +587,7 @@ export default function DriverFinance() {
 
         {/* Tabs */}
         <Tabs defaultValue="earnings" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-4">
+          <TabsList className="grid w-full grid-cols-5 mb-4">
             <TabsTrigger value="earnings" className="text-xs gap-1">
               <DollarSign className="w-3 h-3" />
               الأرباح
@@ -510,6 +599,10 @@ export default function DriverFinance() {
             <TabsTrigger value="transactions" className="text-xs gap-1">
               <History className="w-3 h-3" />
               المعاملات
+            </TabsTrigger>
+            <TabsTrigger value="withdraw" className="text-xs gap-1">
+              <ArrowDown className="w-3 h-3" />
+              سحب
             </TabsTrigger>
             <TabsTrigger value="topup" className="text-xs gap-1">
               <Plus className="w-3 h-3" />
@@ -673,6 +766,125 @@ export default function DriverFinance() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Withdrawal Tab */}
+          <TabsContent value="withdraw" className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <ArrowDown className="w-5 h-5 text-primary" />
+                  سحب الأرباح
+                </CardTitle>
+                <CardDescription>
+                  اسحب أرباحك عبر الطرق المتاحة — الحد الأدنى {minWithdrawal.toLocaleString()} د.ع
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Available Balance */}
+                <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">الرصيد المتاح للسحب</span>
+                    <span className="text-xl font-bold text-primary">{walletBalance.toLocaleString()} د.ع</span>
+                  </div>
+                </div>
+
+                {/* Amount */}
+                <div>
+                  <Label className="text-sm mb-2 block">مبلغ السحب</Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[25000, 50000, 100000, 200000].map(amount => (
+                      <Button key={amount} variant={withdrawalAmount === amount ? "default" : "outline"} className="h-12" onClick={() => setWithdrawalAmount(amount)}>
+                        {(amount / 1000).toLocaleString()}K
+                      </Button>
+                    ))}
+                  </div>
+                  <Input type="number" placeholder="أو أدخل مبلغ آخر" value={withdrawalAmount} onChange={e => setWithdrawalAmount(Number(e.target.value))} className="mt-2" />
+                </div>
+
+                {/* Method */}
+                <div>
+                  <Label className="text-sm mb-2 block">طريقة السحب</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: "zain_cash", name: "زين كاش", icon: <Phone className="w-4 h-4" /> },
+                      { id: "nas_wallet", name: "ناس واليت", icon: <Smartphone className="w-4 h-4" /> },
+                      { id: "bank_transfer", name: "تحويل بنكي", icon: <Building2 className="w-4 h-4" /> },
+                      { id: "manual", name: "صرف يدوي", icon: <Banknote className="w-4 h-4" /> },
+                    ].map(m => (
+                      <button key={m.id} onClick={() => setWithdrawalMethod(m.id)} className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm ${withdrawalMethod === m.id ? 'border-primary bg-primary/5' : 'border-border/50 hover:border-primary/50'}`}>
+                        {m.icon}
+                        <span>{m.name}</span>
+                        {withdrawalMethod === m.id && <CheckCircle className="w-4 h-4 text-primary mr-auto" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Account Details */}
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-sm mb-1 block">اسم صاحب الحساب</Label>
+                    <Input placeholder="الاسم الكامل" value={accountHolder} onChange={e => setAccountHolder(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-sm mb-1 block">
+                      {withdrawalMethod === "bank_transfer" ? "رقم الحساب البنكي (IBAN)" :
+                       withdrawalMethod === "zain_cash" ? "رقم زين كاش" :
+                       withdrawalMethod === "nas_wallet" ? "رقم ناس واليت" : "رقم الهاتف"}
+                    </Label>
+                    <Input placeholder="أدخل رقم الحساب" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} />
+                  </div>
+                </div>
+
+                {/* Submit */}
+                <Button className="w-full gap-2" size="lg" onClick={handleSubmitWithdrawal} disabled={withdrawing || !accountHolder.trim() || !accountNumber.trim() || withdrawalAmount < minWithdrawal || withdrawalAmount > walletBalance}>
+                  {withdrawing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  إرسال طلب السحب
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Withdrawal History */}
+            {withdrawals.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <History className="w-4 h-4" />
+                    سجل طلبات السحب
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {withdrawals.map(w => (
+                    <div key={w.id} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                      <div>
+                        <p className="font-medium">{Number(w.amount).toLocaleString()} د.ع</p>
+                        <p className="text-xs text-muted-foreground">{w.account_holder_name} — {w.withdrawal_method}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(w.created_at), "d MMM yyyy HH:mm", { locale: ar })}
+                        </p>
+                        {w.review_notes && <p className="text-xs text-orange-600 mt-1">{w.review_notes}</p>}
+                      </div>
+                      <Badge variant={
+                        w.status === "completed" ? "outline" :
+                        w.status === "approved" || w.status === "processing" ? "secondary" :
+                        w.status === "rejected" ? "destructive" : "secondary"
+                      } className={
+                        w.status === "completed" ? "bg-green-100 text-green-800" :
+                        w.status === "pending" ? "bg-yellow-100 text-yellow-800" :
+                        w.status === "rejected" ? "" : "bg-blue-100 text-blue-800"
+                      }>
+                        {w.status === "pending" ? "قيد المراجعة" :
+                         w.status === "approved" ? "تمت الموافقة" :
+                         w.status === "processing" ? "قيد التنفيذ" :
+                         w.status === "completed" ? "تم التحويل" :
+                         w.status === "rejected" ? "مرفوض" : w.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Topup Tab */}

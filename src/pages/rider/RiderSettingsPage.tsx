@@ -307,11 +307,26 @@ const RiderSettingsPage: React.FC = () => {
                     <AlertDialogCancel>إلغاء</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive hover:bg-destructive/90"
-                      onClick={() => {
-                        toast({
-                          title: "قريباً",
-                          description: "ميزة حذف الحساب ستكون متاحة قريباً",
-                        });
+                      onClick={async () => {
+                        if (!userId) return;
+                        try {
+                          const { data, error } = await supabase.functions.invoke("delete-user-account", {
+                            body: { user_id: userId },
+                          });
+                          if (error) throw error;
+                          toast({
+                            title: "تم حذف الحساب",
+                            description: "تم حذف حسابك وجميع بياناتك بنجاح",
+                          });
+                          await supabase.auth.signOut();
+                          navigate("/");
+                        } catch (err: any) {
+                          toast({
+                            title: "خطأ",
+                            description: err.message || "حدث خطأ أثناء حذف الحساب",
+                            variant: "destructive",
+                          });
+                        }
                       }}
                     >
                       حذف الحساب

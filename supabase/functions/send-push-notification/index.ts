@@ -561,12 +561,71 @@ serve(async (req) => {
     // Action: Notify ride status update to rider
     if (action === 'notify_rider') {
       const { rider_id, title, body: notifyBody, data } = body;
+      const notificationId = generateNotificationId();
+      const sentAt = new Date();
       
-      console.log(`Would notify rider ${rider_id}: ${title}`);
-      
+      console.log(`Notifying rider ${rider_id}: ${title}`);
+
+      // Try to find rider push subscriptions by user_id
+      const { data: subscriptions, error: subError } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .eq('user_id', rider_id);
+
+      let pushSent = false;
+      let pushError = '';
+
+      if (!subError && subscriptions && subscriptions.length > 0) {
+        const payload: PushPayload = {
+          title: title || 'ران',
+          body: notifyBody || 'لديك إشعار جديد',
+          icon: '/logo.png',
+          badge: '/badge.png',
+          tag: `rider-${notificationId}`,
+          data: { ...data, notification_id: notificationId, sent_at: sentAt.toISOString() },
+        };
+
+        let successCount = 0;
+        for (const sub of subscriptions) {
+          const result = await sendPushNotificationWithRetry(sub, payload, 2);
+          if (result.success) successCount++;
+          if (result.error === 'subscription_expired') {
+            await supabase.from('push_subscriptions').delete().eq('id', sub.id);
+          }
+        }
+        pushSent = successCount > 0;
+        if (!pushSent) pushError = 'All push deliveries failed';
+      } else {
+        pushError = 'No push subscription found for rider';
+      }
+
+      // Always log notification regardless of push delivery
+      await logNotification(
+        supabase, null, 'rider_notification', title || 'ران',
+        notifyBody || '', data || null,
+        pushSent ? 'sent' : 'failed', pushError || undefined,
+        0, notificationId, sentAt
+      );
+
+      // Also insert into in-app notifications table for the rider
+      try {
+        await supabase.from('notifications').insert({
+          user_id: rider_id,
+          title: title || 'ران',
+          body: notifyBody || '',
+          type: data?.type || 'ride_update',
+          data: data || {},
+          is_read: false,
+        });
+      } catch (e) {
+        console.log('In-app notification insert skipped (table may not exist):', e);
+      }
+
       return new Response(JSON.stringify({ 
         success: true, 
-        message: 'Rider notification logged (push not implemented for riders yet)' 
+        push_delivered: pushSent,
+        message: pushSent ? 'Rider notified via push' : 'Notification logged (no push subscription)',
+        notification_id: notificationId,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
