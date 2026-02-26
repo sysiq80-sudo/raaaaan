@@ -6,7 +6,9 @@
  *   new SharedWorker(new URL('../workers/locationWorker.ts', import.meta.url), { type: 'module' })
  */
 
-declare const self: SharedWorkerGlobalScope;
+// SharedWorker context — self typed as any to avoid lib conflicts (webworker vs DOM)
+// At runtime self IS SharedWorkerGlobalScope
+declare const self: any;
 
 interface StartPayload {
   rideId:         string;

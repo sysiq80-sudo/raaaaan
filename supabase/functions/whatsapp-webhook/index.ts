@@ -133,29 +133,41 @@ serve(async (req) => {
   const rawBody = await req.text();
   const signature = req.headers.get("X-Hub-Signature-256");
   if (signature) {
+    // حاول تحميل الـ secret من DB أو env — إذا ما لقيناه، ارفض الطلب
+    let appSecret: string | undefined;
     try {
       const svc = createServiceClient();
       const cfg = await getConfigBatch(svc, ["WHATSAPP_APP_SECRET"]);
-      const appSecret = cfg["WHATSAPP_APP_SECRET"];
-      if (appSecret) {
-        const encoder = new TextEncoder();
-        const key = await crypto.subtle.importKey(
-          "raw",
-          encoder.encode(appSecret),
-          { name: "HMAC", hash: "SHA-256" },
-          false,
-          ["sign"]
-        );
-        const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
-        const expectedSig = "sha256=" + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
-        if (expectedSig !== signature) {
-          console.error("[wa] ❌ Invalid webhook signature!");
-          return new Response("Forbidden", { status: 403 });
-        }
-        console.log("[wa] ✅ Webhook signature verified");
-      }
+      appSecret = cfg["WHATSAPP_APP_SECRET"] || Deno.env.get("WHATSAPP_APP_SECRET");
     } catch (sigErr) {
-      console.warn("[wa] Signature verification skipped:", sigErr);
+      console.warn("[wa] Config load failed during signature check, trying env fallback:", sigErr);
+      appSecret = Deno.env.get("WHATSAPP_APP_SECRET");
+    }
+
+    if (!appSecret) {
+      console.error("[wa] ❌ WHATSAPP_APP_SECRET not configured — rejecting signed request");
+      return new Response("Forbidden", { status: 403 });
+    }
+
+    try {
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(appSecret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+      const expectedSig = "sha256=" + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+      if (expectedSig !== signature) {
+        console.error("[wa] ❌ Invalid webhook signature!");
+        return new Response("Forbidden", { status: 403 });
+      }
+      console.log("[wa] ✅ Webhook signature verified");
+    } catch (verifyErr) {
+      console.error("[wa] ❌ Signature verification error:", verifyErr);
+      return new Response("Internal Server Error", { status: 500 });
     }
   }
 
@@ -233,7 +245,7 @@ serve(async (req) => {
     await supabase.rpc("increment_bot_customer_interactions", {
       p_platform: "whatsapp",
       p_platform_id: phoneNumber,
-    }).then(() => { }).catch(() => { });
+    }).then(() => { }, () => { });
   } catch (e) {
     console.warn("[wa] bot_customers upsert failed (non-critical):", e);
   }
@@ -658,7 +670,19 @@ serve(async (req) => {
       console.log(`[wa] Reverse geocoded: ${address}`);
 
       const riderId = await findOrCreateWhatsAppUser(supabase, phoneNumber, profileName);
-      const sessionId = await createPickupSession(supabase, riderId, lat, lng, address);
+
+      // 🔒 إنشاء جلسة — محمي من الإلغاء العرضي للرحلات الجارية
+      let sessionId: string;
+      try {
+        sessionId = await createPickupSession(supabase, riderId, lat, lng, address);
+      } catch (sessionErr: any) {
+        if (sessionErr?.message?.startsWith("IN_PROGRESS_RIDE:")) {
+          console.warn(`[wa] Blocked: rider ${riderId} has in_progress ride, sending notice.`);
+          await sendTextMessage(phoneNumber, MESSAGES.activeRideWithDriver("جارية 🚕"));
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+        throw sessionErr;
+      }
       console.log(`[wa] Session created: ${sessionId}`);
 
       const userName = profileName || "عزيزي";

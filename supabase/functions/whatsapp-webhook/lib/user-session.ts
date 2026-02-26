@@ -153,19 +153,32 @@ export async function createPickupSession(
   lng: number,
   address: string
 ): Promise<string> {
-  // 🔥 SECURITY: إلغاء أي رحلات نشطة سابقة
+  // � SAFETY: فحص الرحلات الجارية أولاً — لا يُلغى in_progress أبداً
+  const { data: inProgressRide } = await supabase
+    .from("rides")
+    .select("id, pickup_address, dropoff_address")
+    .eq("rider_id", riderId)
+    .eq("status", "in_progress")
+    .maybeSingle();
+
+  if (inProgressRide) {
+    console.warn(`[wa] 🚫 Blocked createPickupSession — rider ${riderId} has active ride: ${inProgressRide.id}`);
+    throw new Error(`IN_PROGRESS_RIDE:${inProgressRide.id}`);
+  }
+
+  // إلغاء الرحلات المعلّقة فقط (pending / accepted / arrived) — لا تمس الجارية
   const { data: cancelledRides } = await supabase
     .from("rides")
     .update({ status: "cancelled", cancelled_by: "system", cancellation_reason: "تم إلغاؤها تلقائياً: طلب رحلة جديدة" })
     .eq("rider_id", riderId)
-    .in("status", ["pending", "accepted", "arrived", "in_progress"])
+    .in("status", ["pending", "accepted", "arrived"])
     .select("id");
 
   if (cancelledRides && cancelledRides.length > 0) {
-    console.log(`[wa] 🔥 Auto-cancelled ${cancelledRides.length} active ride(s) for rider ${riderId}:`, cancelledRides.map((r: any) => r.id));
+    console.log(`[wa] 🔥 Auto-cancelled ${cancelledRides.length} pending/accepted/arrived ride(s) for rider ${riderId}:`, cancelledRides.map((r: any) => r.id));
   }
 
-  // حذف drafts قديمة
+  // حذف drafts هذا الراكب القديمة
   await supabase
     .from("rides")
     .delete()
@@ -173,6 +186,17 @@ export async function createPickupSession(
     .eq("status", "draft")
     .eq("trip_type", "whatsapp")
     .is("dropoff_address", null);
+
+  // تنظيف عام: حذف كل drafts عمرها أكثر من 30 دقيقة (orphaned sessions)
+  const staleThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  supabase
+    .from("rides")
+    .delete()
+    .eq("status", "draft")
+    .eq("trip_type", "whatsapp")
+    .is("dropoff_address", null)
+    .lt("created_at", staleThreshold)
+    .then(() => {}, (e: any) => console.warn("[wa] Stale draft cleanup failed (non-critical):", e));
 
   // مسح sub-state الدردشة
   try {

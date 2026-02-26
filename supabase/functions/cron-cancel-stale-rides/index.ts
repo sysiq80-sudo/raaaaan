@@ -49,7 +49,7 @@ const STALE_MESSAGE = "نعتذر منك، لا يتوفر كباتن حاليا
 // ════════════════════════════════════════
 // جلب إعدادات الانتظار الديناميكية
 // ════════════════════════════════════════
-async function getWaitSettings(supabase: ReturnType<typeof createClient>) {
+async function getWaitSettings(supabase: ReturnType<typeof createClient<any>>) {
   try {
     const { data, error } = await supabase
       .from("rider_wait_settings")
