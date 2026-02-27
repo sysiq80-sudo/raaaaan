@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
-  DialogDescription, DialogFooter, DialogTrigger,
+  DialogDescription, DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -265,6 +265,7 @@ function AddAccountDialog({
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
+    console.log('[messenger-dialog] handleSubmit called, form:', { page_name: form.page_name, page_id: form.page_id, has_token: !!form.page_access_token });
     if (!form.page_name.trim()) {
       toast.error('اسم الصفحة مطلوب');
       return;
@@ -277,29 +278,40 @@ function AddAccountDialog({
       toast.error('Page Access Token مطلوب');
       return;
     }
+    console.log('[messenger-dialog] Validation passed, submitting...');
     setSubmitting(true);
-    const result = await onSubmit(form);
-    setSubmitting(false);
-    if (result) {
-      setForm({ account_name: '', page_name: '', page_id: '', page_access_token: '', app_id: '', app_secret: '', platform: 'messenger' });
-      onOpenChange(false);
+    try {
+      const result = await onSubmit(form);
+      console.log('[messenger-dialog] Submit result:', result);
+      if (result) {
+        setForm({ account_name: '', page_name: '', page_id: '', page_access_token: '', app_id: '', app_secret: '', platform: 'messenger' });
+        onOpenChange(false);
+      }
+    } catch (err) {
+      console.error('[messenger-dialog] Submit error:', err);
+      toast.error('خطأ غير متوقع');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg flex flex-col max-h-[90vh]" dir="rtl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Facebook className="h-5 w-5 text-blue-600" />
-            إضافة صفحة Facebook
-          </DialogTitle>
-          <DialogDescription>
-            أدخل بيانات صفحة Facebook من Meta Developer Console
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-lg !flex !flex-col max-h-[90vh] p-0 gap-0" dir="rtl">
+        <div className="px-6 pt-6 pb-2">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Facebook className="h-5 w-5 text-blue-600" />
+              إضافة صفحة Facebook
+            </DialogTitle>
+            <DialogDescription>
+              أدخل بيانات صفحة Facebook من Meta Developer Console
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <div className="overflow-y-auto flex-1 px-1 space-y-4 py-2">
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="flex flex-col flex-1 min-h-0">
+        <div className="overflow-y-auto flex-1 px-6 space-y-4 py-2">
           {/* اسم الحساب */}
           <div className="space-y-1.5">
             <Label htmlFor="account_name">اسم الحساب (اختياري)</Label>
@@ -411,13 +423,14 @@ function AddAccountDialog({
           </div>
         </div>
 
-        <DialogFooter className="border-t pt-4 mt-2 shrink-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-          <Button type="button" onClick={handleSubmit} disabled={submitting} className="gap-1 bg-blue-600 hover:bg-blue-700 text-white">
+        <div className="flex items-center justify-end gap-2 border-t px-6 py-4 shrink-0">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
+          <Button type="submit" disabled={submitting} className="gap-1 bg-blue-600 hover:bg-blue-700 text-white">
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             إضافة الصفحة
           </Button>
-        </DialogFooter>
+        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

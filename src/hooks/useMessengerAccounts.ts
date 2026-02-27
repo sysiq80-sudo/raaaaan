@@ -64,25 +64,32 @@ export function useMessengerAccounts() {
 
   const createAccount = useCallback(async (input: CreateMessengerAccountInput) => {
     try {
+      console.log('[messenger] Creating account:', { page_name: input.page_name, page_id: input.page_id });
+      
+      const insertData = {
+        account_name: input.account_name || null,
+        page_name: input.page_name,
+        page_id: input.page_id,
+        page_access_token: input.page_access_token,
+        app_id: input.app_id || null,
+        app_secret: input.app_secret || null,
+        platform: input.platform || 'messenger',
+      };
+      
       const { data, error } = await sb
         .from('messenger_accounts')
-        .insert({
-          account_name: input.account_name || null,
-          page_name: input.page_name,
-          page_id: input.page_id,
-          page_access_token: input.page_access_token,
-          app_id: input.app_id || null,
-          app_secret: input.app_secret || null,
-          platform: input.platform || 'messenger',
-        })
+        .insert(insertData)
         .select()
         .single();
+
+      console.log('[messenger] Insert result:', { data, error });
 
       if (error) {
         if (error.code === '23505') {
           toast.error('هذا الـ Page ID مسجل مسبقاً');
         } else {
-          throw error;
+          console.error('❌ Insert error details:', JSON.stringify(error));
+          toast.error('فشل إضافة الحساب: ' + (error.message || error.code || 'خطأ غير معروف'));
         }
         return null;
       }
