@@ -34,7 +34,9 @@ const AdminBotController: React.FC = () => {
   const loadConfig = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data, error } = await sb
         .from('system_configs')
         .select('key_value')
         .eq('key_name', 'bot_controller_mode')
@@ -47,8 +49,8 @@ const AdminBotController: React.FC = () => {
       }
 
       // Load available workflows
-      const { data: wfData } = await supabase
-        .from('visual_workflows' as any)
+      const { data: wfData } = await sb
+        .from('visual_workflows')
         .select('id, name, is_active')
         .order('created_at', { ascending: false });
 
@@ -64,8 +66,11 @@ const AdminBotController: React.FC = () => {
   const saveConfig = async (newConfig: BotConfig) => {
     setSaving(true);
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+
       // Check if row already exists
-      const { data: existing } = await supabase
+      const { data: existing } = await sb
         .from('system_configs')
         .select('id')
         .eq('key_name', 'bot_controller_mode')
@@ -74,16 +79,13 @@ const AdminBotController: React.FC = () => {
       const jsonValue = JSON.stringify(newConfig);
 
       if (existing) {
-        // Update existing row
-        const { error } = await supabase
+        const { error } = await sb
           .from('system_configs')
           .update({ key_value: jsonValue })
           .eq('id', existing.id);
         if (error) throw error;
       } else {
-        // Insert new row
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (supabase as any)
+        const { error } = await sb
           .from('system_configs')
           .insert({
             key_name: 'bot_controller_mode',
