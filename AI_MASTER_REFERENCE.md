@@ -468,18 +468,24 @@ stateDiagram-v2
 
 ## 12. سجل التغييرات
 
-### 2026-02-27 — Infobip Inbound SMS Webhook v2: Dynamic Pricing & Debug Logs
+### 2026-02-27 — Production Shift: Real Dispatch + Advanced Iraqi NLP
 
 | النوع | التغيير | السبب |
 |-------|---------|-------|
-| **ميزة رئيسية** | **Edge Function `sms-webhook` — استقبال SMS الوارد عبر Infobip** | **Webhook يستقبل رسائل المستخدمين الواردة من Infobip (MO payload)، يحلل النية بالعربي، ويرد فوراً عبر Infobip outbound API** |
-| **ميزة** | **تسجيل ضيف تلقائي (Guest User Auto-Registration)** | **إذا الرقم غير مسجل → يُنشئ مستخدم ضيف في `auth.users` + `profiles` + `bot_customers` تلقائياً** |
-| **ميزة** | **تحليل نية الرحلة بالعربي (NLP Intent Parser)** | **يفهم أنماط: `انا في X اريد الذهاب الى Y` / `من X الى Y` — يستخرج نقطة الانطلاق والوجهة** |
-| **ميزة** | **تدفق خطوة بخطوة (Step-by-Step Flow)** | **أرسل "ران/RAAN" → موقعك → وجهتك → تأكيد (1/2) — حالات: `idle → pickup → dropoff → awaiting_confirm → active`** |
-| **إصلاح** | **حساب أجرة ديناميكي بدل الـ 5000 الثابتة** | **يستدعي `calculate-fare` Edge Function أولاً — إذا فشل يستخدم Haversine fallback (مسافة × 750 + 2000 أساس)** |
-| **إصلاح** | **سجلات تصحيح مكثفة (Debug Logs)** | **`console.log` لكل خطوة: payload، session، NLP، DB insert، Infobip API call+response — لتتبع أي فشل صامت** |
-| **إصلاح** | **دعم كلمات البدء (RAAN/ران)** | **إضافة START_KEYWORDS لبدء تدفق الحجز خطوة بخطوة** |
-| **ميزة** | **قاعدة بيانات المعالم (23 معلم)** | **أماكن الرمادي + شارع المستودع + مول ام عمار + المزيد** |
+| **تحول إنتاجي** | **تدفق إرسال حقيقي (Real Driver Dispatch)** | **الرحلة تُنشأ بحالة `pending` مباشرة → تبث للسائقين الحقيقيين — لا تأكيد فوري ولا بيانات سائق مزيفة** |
+| **تحول إنتاجي** | **رسالة واحدة شاملة فقط عند القبول** | **`sms-webhook` يرسل "جاري البحث عن سائق" فقط — التأكيد الحقيقي يُرسل من `sms-ride-updates` عند `accepted` بمعلومات السائق والسيارة الحقيقية** |
+| **ميزة** | **NLP متقدم للهجات العراقية (Typo-Tolerant)** | **يفهم: `اني بشارع` + `انا في` + `مكاني` + `يم` + `قرب` + `مقابل` — تطبيع عربي (إأآا→ا، ة→ه) + Keyword proximity fallback** |
+| **إصلاح** | **`calculate-fare` كان يرجع 400** | **كان ينقص `distance_km` (حقل إلزامي) — الآن يُحسب بـ Haversine ويُمرر مع الطلب** |
+| **إصلاح** | **DB Migration: أعمدة مفقودة** | **`ALTER TABLE bot_customers ADD COLUMN session_data JSONB` + `display_name TEXT`** |
+| **إصلاح** | **قالب القبول في `sms-ride-updates`** | **الآن يطابق طلب العميل: `تم تأكيد طلبك / من: / الى: / المبلغ: / السيارة: الرقم: / السائق بالطريق اليك / للتأكيد 1 للإلغاء 2`** |
+| **ميزة** | **بحث الهاتف عبر `sms_infobip` أيضاً** | **`sms-ride-updates` يبحث في bot_customers بنظامي `sms` و `sms_infobip`** |
+
+#### الملفات المُعدلة:
+| الملف | التغيير |
+|-------|---------|
+| `supabase/functions/sms-webhook/index.ts` | إعادة كتابة كاملة — تدفق إنتاجي + NLP عراقي |
+| `supabase/functions/sms-ride-updates/index.ts` | قالب `accepted` جديد + بحث هاتف مزدوج |
+| `supabase/migrations/20260227060000_add_session_data_to_bot_customers.sql` | [NEW] أعمدة مفقودة |
 
 #### رابط Webhook لـ Infobip Dashboard:
 ```

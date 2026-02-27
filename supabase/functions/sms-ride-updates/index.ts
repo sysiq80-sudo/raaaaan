@@ -155,16 +155,19 @@ serve(async (req) => {
     // ── Resolve rider phone number ──
     let phoneNumber = "";
 
-    // Strategy 1: bot_customers (most reliable for SMS bookings)
-    const { data: botCustomer } = await supabase
-      .from("bot_customers")
-      .select("phone_number, platform_id")
-      .eq("platform", "sms")
-      .eq("session_data->>rider_id", rider_id)
-      .maybeSingle();
-
-    if (botCustomer?.phone_number) {
-      phoneNumber = botCustomer.phone_number;
+    // Strategy 1: bot_customers — check both sms and sms_infobip platforms
+    for (const platform of ["sms", "sms_infobip"]) {
+      if (phoneNumber) break;
+      const { data: botCustomer } = await supabase
+        .from("bot_customers")
+        .select("phone_number, platform_id")
+        .eq("platform", platform)
+        .eq("session_data->>rider_id", rider_id)
+        .maybeSingle();
+      if (botCustomer?.phone_number) {
+        phoneNumber = botCustomer.phone_number;
+        console.log(`[sms-ride-updates] Found phone via bot_customers (${platform}): ${phoneNumber}`);
+      }
     }
 
     // Strategy 2: profiles table
@@ -202,6 +205,7 @@ serve(async (req) => {
         let driverName = "سائقك";
         let driverVehicle = "";
         let driverPlate = "";
+        const fare = estimated_fare || 0;
 
         if (driver_id) {
           const { data: driver } = await supabase
@@ -212,18 +216,22 @@ serve(async (req) => {
 
           if (driver) {
             driverName = driver.full_name || "سائقك";
-            driverVehicle = [driver.vehicle_color, driver.vehicle_make, driver.vehicle_model]
+            driverVehicle = [driver.vehicle_make, driver.vehicle_model]
               .filter(Boolean)
               .join(" ");
             driverPlate = driver.plate_number || "";
           }
         }
 
+        // Client's exact format — single comprehensive SMS
         smsText =
-          `كابتن ${driverName} في الطريق إليك! ` +
-          `سيارة ${driverVehicle || "—"} لوحة ${driverPlate || "—"}.\n\n` +
-          `لمعرفة موقع الكابتن أرسل رقم [1]\n` +
-          `لمراسلة الكابتن أرسل [2]`;
+          `تم تأكيد طلبك\n` +
+          `من : ${pickup_address || "—"}\n` +
+          `الى : ${dropoff_address || "—"}\n` +
+          `المبلغ : ${Number(fare).toLocaleString()} دينار\n` +
+          `السيارة : ${driverVehicle || "—"} الرقم : ${driverPlate || "—"}\n` +
+          `السائق بالطريق اليك\n\n` +
+          `للتأكيد ارسل 1 للإلغاء ارسل 2`;
         break;
       }
 
@@ -258,15 +266,17 @@ serve(async (req) => {
         smsText += `المبلغ: ${Number(fare).toLocaleString()} د.ع\n\n`;
         smsText += `كيف تقيم الكابتن؟ أرسل رقم من 1 إلى 5 (حيث 5 ممتاز).`;
 
-        // Clear session
+        // Clear session (both sms and sms_infobip platforms)
         try {
-          await supabase
-            .from("bot_customers")
-            .update({
-              session_data: { state: "idle", updated_at: new Date().toISOString() },
-            })
-            .eq("platform", "sms")
-            .eq("phone_number", phoneNumber);
+          for (const p of ["sms", "sms_infobip"]) {
+            await supabase
+              .from("bot_customers")
+              .update({
+                session_data: { state: "idle", updated_at: new Date().toISOString() },
+              })
+              .eq("platform", p)
+              .eq("phone_number", phoneNumber);
+          }
         } catch { }
         break;
       }
