@@ -1985,6 +1985,66 @@ export type Database = {
           },
         ]
       }
+      messenger_accounts: {
+        Row: {
+          account_name: string | null
+          app_id: string | null
+          app_secret: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          is_verified: boolean | null
+          last_message_at: string | null
+          messages_received: number | null
+          messages_sent: number | null
+          page_access_token: string
+          page_id: string
+          page_name: string
+          platform: string | null
+          updated_at: string | null
+          verify_token: string
+        }
+        Insert: {
+          account_name?: string | null
+          app_id?: string | null
+          app_secret?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_verified?: boolean | null
+          last_message_at?: string | null
+          messages_received?: number | null
+          messages_sent?: number | null
+          page_access_token: string
+          page_id: string
+          page_name: string
+          platform?: string | null
+          updated_at?: string | null
+          verify_token?: string
+        }
+        Update: {
+          account_name?: string | null
+          app_id?: string | null
+          app_secret?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_verified?: boolean | null
+          last_message_at?: string | null
+          messages_received?: number | null
+          messages_sent?: number | null
+          page_access_token?: string
+          page_id?: string
+          page_name?: string
+          platform?: string | null
+          updated_at?: string | null
+          verify_token?: string
+        }
+        Relationships: []
+      }
       notification_analytics: {
         Row: {
           avg_delivery_delay_ms: number | null

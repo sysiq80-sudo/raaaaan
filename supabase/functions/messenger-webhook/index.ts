@@ -180,7 +180,7 @@ async function handleIncomingMessage(
   messageId: string,
   isPostback: boolean,
   postbackPayload: string | null,
-  supabaseClient: ReturnType<typeof createClient>
+  supabaseClient: any
 ) {
   console.log(`[messenger] 📩 From ${senderId} to page ${pageId}: "${messageText || postbackPayload}"`);
 
