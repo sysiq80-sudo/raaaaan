@@ -40,6 +40,9 @@ import {
   CircleStop,
   ShieldAlert,
   Shield,
+  BookOpen,
+  Bot,
+  GitBranch,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdminNotificationsBell } from "./AdminNotificationsBell";
@@ -196,6 +199,9 @@ const AdminLayout = ({
     { icon: ShieldAlert, label: "إعدادات الطوارئ", href: "/admin/emergency-settings" },
     { icon: Shield, label: "الأمان والحدود", href: "/admin/security-settings" },
     { icon: MessageCircle, label: "عملاء البوت", href: "/admin/bot-customers" },
+    { icon: Bot, label: "البوت المتحكم", href: "/admin/bot-controller" },
+    { icon: GitBranch, label: "التدفقات المرئية", href: "/admin/workflows" },
+    { icon: BookOpen, label: "التوثيق", href: "/admin/documentation" },
     { icon: Code, label: "ران المطور", href: "/admin/developer-settings" },
     { icon: Settings, label: "الإعدادات", href: "/admin/settings" },
   ];

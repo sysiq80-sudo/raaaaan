@@ -81,6 +81,8 @@ const AdminPromoBanners = lazy(() => import("./pages/admin/AdminPromoBanners"));
 const AdminRiderPages = lazy(() => import("./pages/admin/AdminRiderPages"));
 const AdminPageEditor = lazy(() => import("./pages/admin/AdminPageEditor"));
 const AdminWorkflows = lazy(() => import("./pages/admin/AdminWorkflows"));
+const AdminDocumentation = lazy(() => import("./pages/admin/AdminDocumentation"));
+const AdminBotController = lazy(() => import("./pages/admin/AdminBotController"));
 const AdminWalletRequests = lazy(() => import("./pages/admin/AdminWalletRequests"));
 const AdminSMSLogs = lazy(() => import("./pages/admin/AdminSMSLogs"));
 const AdminDriverVisibility = lazy(() => import("./pages/admin/AdminDriverVisibility"));
@@ -829,6 +831,26 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminWorkflows />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/documentation"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminDocumentation />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/bot-controller"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminBotController />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }
