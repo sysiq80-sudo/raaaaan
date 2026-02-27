@@ -254,6 +254,7 @@ serve(async (req) => {
   // 🤖 Bot Controller Mode — التحويل للتدفق المرئي
   // ═══════════════════════════════════
   let botMode = "hardcoded";
+  let activeWorkflowId: string | null = null;
   try {
     const { data: modeRow } = await supabase
       .from("system_configs")
@@ -263,7 +264,8 @@ serve(async (req) => {
     if (modeRow?.key_value) {
       const parsed = JSON.parse(modeRow.key_value);
       botMode = parsed.mode || "hardcoded";
-      console.log(`[wa] 🤖 Bot mode: ${botMode}`);
+      activeWorkflowId = parsed.active_workflow_id || null;
+      console.log(`[wa] 🤖 Bot mode: ${botMode}, workflow: ${activeWorkflowId || 'auto'}`);
     }
   } catch (e) {
     console.warn("[wa] Failed to read bot_controller_mode, defaulting to hardcoded:", e);
@@ -293,6 +295,7 @@ serve(async (req) => {
           body: JSON.stringify({
             phone: phoneNumber,
             trigger_type: "message_received",
+            ...(activeWorkflowId ? { workflow_id: activeWorkflowId } : {}),
             metadata: {
               message_content: messageContent,
               message_type: msgType,
@@ -310,19 +313,30 @@ serve(async (req) => {
       const vwResult = await vwResponse.json();
       console.log(`[wa] 🔀 Visual workflow result:`, JSON.stringify(vwResult).substring(0, 300));
 
-      if (vwResponse.ok && vwResult.workflows?.length > 0) {
-        const totalSteps = vwResult.workflows.reduce((sum: number, w: any) => sum + (w.steps || 0), 0);
-        if (totalSteps > 0) {
-          console.log(`[wa] ✅ Visual workflow handled message (${totalSteps} steps). Done.`);
-          return new Response("EVENT_RECEIVED", { status: 200 });
-        }
+      const wfRan = vwResponse.ok && vwResult.workflows?.length > 0;
+      const totalActions = wfRan ? vwResult.workflows.reduce((sum: number, w: any) => sum + (w.actions_run ?? 0), 0) : 0;
+      const totalSteps   = wfRan ? vwResult.workflows.reduce((sum: number, w: any) => sum + (w.steps   || 0), 0) : 0;
+
+      if (totalActions > 0) {
+        console.log(`[wa] ✅ Visual workflow sent ${totalActions} message(s) (${totalSteps} steps). Done.`);
+        return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
-      // Visual workflow didn't handle → always fall through to hardcoded
-      console.log("[wa] ⚠️ Visual workflow didn't handle message — falling through to hardcoded.");
+      // ── Pure visual_workflow mode: NEVER fall through to hardcoded ──
+      if (botMode === "visual_workflow") {
+        console.log(`[wa] 🛑 visual_workflow mode: workflow ran ${totalSteps} steps, ${totalActions} sent. Stopping (no hardcoded fallback).`);
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── hybrid mode: fall through to hardcoded when workflow sent nothing ──
+      console.log(`[wa] ⚠️ hybrid mode: visual workflow ran but sent 0 messages — falling through to hardcoded.`);
     } catch (vwErr) {
-      // Any error (including timeout) → fall through to hardcoded code
-      console.error("[wa] ❌ Visual workflow error (falling through to hardcoded):", vwErr);
+      console.error("[wa] ❌ Visual workflow error:", vwErr);
+      // In pure visual mode don't fall through on error either
+      if (botMode === "visual_workflow") {
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+      // hybrid: fall through on error
     }
   }
 

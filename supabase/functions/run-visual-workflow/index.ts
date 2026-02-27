@@ -47,7 +47,7 @@ interface GraphEdge {
   label?: string;
 }
 
-interface StepCounter { value: number; }
+interface StepCounter { value: number; sent: number; }
 
 // =====================================================
 // Variable Resolution
@@ -470,6 +470,12 @@ async function traverseGraph(
         context[node.id] = { output: result.output };
         results.push({ node_id: node.id, type: 'action', actionType: node.data.actionType, ...result });
 
+        // Track messaging actions that successfully sent something
+        const MESSAGING_ACTIONS = ['send_message', 'ask_question', 'ask_location', 'ask_address', 'buttons', 'list_message'];
+        if (result.success && MESSAGING_ACTIONS.includes(node.data.actionType || '')) {
+          counter.sent++;
+        }
+
         await logStep(supabase, executionId, node.id, 'action', result.success ? 'success' : 'error',
           { actionType: node.data.actionType, config: node.data.config },
           result.output || {}, result.error || null, Date.now() - stepStart, counter);
@@ -594,7 +600,7 @@ serve(async (req: Request) => {
 
       const context: Record<string, any> = {};
       const results: any[] = [];
-      const counter: StepCounter = { value: 0 };
+      const counter: StepCounter = { value: 0, sent: 0 };
 
       try {
         await traverseGraph(
@@ -611,7 +617,7 @@ serve(async (req: Request) => {
           context_data: context,
         }).eq('id', execution.id);
 
-        allResults.push({ workflow_id: wfId, execution_id: execution.id, steps: counter.value, results });
+        allResults.push({ workflow_id: wfId, execution_id: execution.id, steps: counter.value, actions_run: counter.sent, results });
       } catch (err) {
         await supabase.from('workflow_executions').update({
           status: 'error',

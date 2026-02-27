@@ -62,6 +62,7 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(workflowId || null);
   const [saving, setSaving] = useState(false);
   const [traceNodeIds, setTraceNodeIds] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<'list' | 'builder'>(() => workflowId ? 'builder' : 'list');
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
@@ -171,6 +172,10 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
         animated: e.animated,
       }));
 
+      // Detect trigger_type from the trigger node
+      const triggerNode = cleanNodes.find((n: any) => n.data?.type === 'trigger');
+      const detectedTriggerType = (triggerNode as any)?.data?.triggerType || 'message_received';
+
       if (currentWorkflowId) {
         const { error: saveErr } = await saveGraphData(currentWorkflowId, cleanNodes as Node[], cleanEdges);
         if (saveErr) {
@@ -179,7 +184,7 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
           return;
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: nameErr } = await updateWorkflow(currentWorkflowId, { name: workflowName } as any);
+        const { error: nameErr } = await updateWorkflow(currentWorkflowId, { name: workflowName, trigger_type: detectedTriggerType } as any);
         if (nameErr) {
           console.error('[handleSave] updateWorkflow error:', nameErr);
         }
@@ -187,7 +192,7 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
       } else {
         const { data, error } = await createWorkflow({
           name: workflowName,
-          trigger_type: 'message_received',
+          trigger_type: detectedTriggerType,
           graph_data: { nodes: cleanNodes, edges: cleanEdges },
         });
         if (error) {
@@ -233,7 +238,19 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
     toast.success(active ? 'تم التفعيل' : 'تم الإيقاف');
   }, [currentWorkflowId, toggleWorkflow]);
 
-  // New workflow
+  // Back to list (from toolbar)
+  const handleBackToList = useCallback(() => {
+    setCurrentWorkflowId(null);
+    setNodes([]);
+    setEdges([]);
+    setWorkflowName('تدفق جديد');
+    setIsActive(false);
+    setSelectedNode(null);
+    setViewMode('list');
+    navigate('/admin/workflows', { replace: true });
+  }, [setNodes, setEdges, navigate]);
+
+  // New workflow — opens empty builder canvas
   const handleNewWorkflow = useCallback(() => {
     setCurrentWorkflowId(null);
     setNodes([]);
@@ -241,12 +258,14 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
     setWorkflowName('تدفق جديد');
     setIsActive(false);
     setSelectedNode(null);
+    setViewMode('builder');
     navigate('/admin/workflows', { replace: true });
   }, [setNodes, setEdges, navigate]);
 
   // Select existing workflow
   const handleSelectWorkflow = useCallback((id: string) => {
     setCurrentWorkflowId(id);
+    setViewMode('builder');
     navigate(`/admin/workflows/${id}`, { replace: true });
   }, [navigate]);
 
@@ -258,12 +277,12 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
       toast.error('فشل في الحذف');
     } else {
       toast.success('تم الحذف');
-      if (currentWorkflowId === id) handleNewWorkflow();
+      if (currentWorkflowId === id) handleBackToList();
     }
-  }, [deleteWorkflow, currentWorkflowId, handleNewWorkflow]);
+  }, [deleteWorkflow, currentWorkflowId, handleBackToList]);
 
   // ═══════ Workflow List View (when no workflow selected) ═══════
-  if (!currentWorkflowId && !workflowId) {
+  if (viewMode === 'list') {
     return (
       <div className="min-h-screen bg-background p-8" dir="rtl">
         <div className="max-w-4xl mx-auto">
@@ -342,7 +361,7 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
     <div className="h-screen flex flex-col bg-background">
       {/* Toolbar */}
       <div className="h-14 border-b flex items-center gap-3 px-4 bg-card/80 backdrop-blur-sm shrink-0">
-        <Button variant="ghost" size="sm" onClick={handleNewWorkflow} className="gap-1">
+        <Button variant="ghost" size="sm" onClick={handleBackToList} className="gap-1">
           <ChevronLeft className="h-4 w-4" />
           القائمة
         </Button>

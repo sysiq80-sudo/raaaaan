@@ -176,7 +176,7 @@ export function createDefaultActionNode(actionType = 'send_message'): Partial<No
 
 export function createDefaultDelayNode(): Partial<Node> {
   return {
-    type: 'visualDelay',
+    type: 'visualAction',
     data: {
       type: 'delay',
       label: 'تأخير',
