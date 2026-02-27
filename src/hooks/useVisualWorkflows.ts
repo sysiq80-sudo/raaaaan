@@ -199,10 +199,11 @@ export function useVisualWorkflows() {
 
   const fetchWorkflows = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('visual_workflows' as any)
       .select('*')
       .order('created_at', { ascending: false });
+    if (error) console.error('[useVisualWorkflows] fetchWorkflows error:', error);
     setWorkflows((data as any as VisualWorkflow[]) || []);
     setLoading(false);
   }, []);
@@ -228,21 +229,32 @@ export function useVisualWorkflows() {
     trigger_type: string;
     graph_data: { nodes: Node[]; edges: Edge[] };
   }) => {
+    console.log('[useVisualWorkflows] Creating workflow:', workflow.name);
     const { data, error } = await supabase
       .from('visual_workflows' as any)
       .insert({ ...workflow, is_active: false } as any)
       .select()
       .single();
-    if (!error) await fetchWorkflows();
+    if (error) {
+      console.error('[useVisualWorkflows] createWorkflow error:', error);
+    } else {
+      console.log('[useVisualWorkflows] Workflow created:', data);
+      await fetchWorkflows();
+    }
     return { data: data as any as VisualWorkflow | null, error };
   }, [fetchWorkflows]);
 
   const updateWorkflow = useCallback(async (id: string, updates: Partial<VisualWorkflow>) => {
+    console.log('[useVisualWorkflows] Updating workflow:', id, updates);
     const { error } = await supabase
       .from('visual_workflows' as any)
       .update(updates as any)
       .eq('id', id);
-    if (!error) await fetchWorkflows();
+    if (error) {
+      console.error('[useVisualWorkflows] updateWorkflow error:', error);
+    } else {
+      await fetchWorkflows();
+    }
     return { error };
   }, [fetchWorkflows]);
 

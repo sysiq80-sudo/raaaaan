@@ -149,21 +149,39 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
     setSaving(true);
     try {
       if (currentWorkflowId) {
-        await saveGraphData(currentWorkflowId, nodes, edges);
-        await updateWorkflow(currentWorkflowId, { name: workflowName } as any);
+        const { error: saveErr } = await saveGraphData(currentWorkflowId, nodes, edges);
+        if (saveErr) {
+          console.error('[handleSave] saveGraphData error:', saveErr);
+          toast.error('فشل في حفظ البيانات: ' + (saveErr.message || 'خطأ غير معروف'));
+          return;
+        }
+        const { error: nameErr } = await updateWorkflow(currentWorkflowId, { name: workflowName } as any);
+        if (nameErr) {
+          console.error('[handleSave] updateWorkflow error:', nameErr);
+        }
+        toast.success('تم الحفظ بنجاح ✅');
       } else {
-        const { data } = await createWorkflow({
+        const { data, error } = await createWorkflow({
           name: workflowName,
           trigger_type: 'message_received',
           graph_data: { nodes, edges },
         });
-        if (data) setCurrentWorkflowId(data.id);
+        if (error) {
+          console.error('[handleSave] createWorkflow error:', error);
+          toast.error('فشل في إنشاء التدفق: ' + (error.message || 'خطأ غير معروف'));
+          return;
+        }
+        if (data) {
+          setCurrentWorkflowId(data.id);
+          toast.success('تم إنشاء التدفق بنجاح ✅');
+        }
       }
-      toast.success('تم الحفظ بنجاح');
-    } catch {
-      toast.error('فشل في الحفظ');
+    } catch (err) {
+      console.error('[handleSave] unexpected error:', err);
+      toast.error('فشل في الحفظ: ' + String(err));
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }, [currentWorkflowId, nodes, edges, workflowName, saveGraphData, updateWorkflow, createWorkflow]);
 
   // Test run

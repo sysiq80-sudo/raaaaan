@@ -34,14 +34,16 @@ const AdminBotController: React.FC = () => {
   const loadConfig = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('system_configs' as any)
-        .select('value')
-        .eq('key', 'bot_controller_mode')
+      const { data, error } = await supabase
+        .from('system_configs')
+        .select('key_value')
+        .eq('key_name', 'bot_controller_mode')
         .maybeSingle();
 
-      if (data?.value) {
-        setConfig(data.value as unknown as BotConfig);
+      if (!error && data?.key_value) {
+        try {
+          setConfig(JSON.parse(data.key_value) as BotConfig);
+        } catch { /* invalid JSON, keep defaults */ }
       }
 
       // Load available workflows
@@ -63,14 +65,14 @@ const AdminBotController: React.FC = () => {
     setSaving(true);
     try {
       const { error } = await supabase
-        .from('system_configs' as any)
+        .from('system_configs')
         .upsert({
-          key: 'bot_controller_mode',
-          value: newConfig as any,
+          key_name: 'bot_controller_mode',
+          key_value: JSON.stringify(newConfig),
           category: 'bot',
-          label: 'وضع تشغيل البوت',
-          updated_at: new Date().toISOString(),
-        } as any, { onConflict: 'key' });
+          description: 'وضع تشغيل البوت',
+          is_secret: false,
+        }, { onConflict: 'key_name' });
 
       if (error) throw error;
       setConfig(newConfig);
@@ -78,8 +80,9 @@ const AdminBotController: React.FC = () => {
     } catch (err) {
       toast.error('فشل في حفظ الإعدادات');
       console.error(err);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const modeOptions = [
