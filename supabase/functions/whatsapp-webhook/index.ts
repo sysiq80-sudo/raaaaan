@@ -250,6 +250,86 @@ serve(async (req) => {
     console.warn("[wa] bot_customers upsert failed (non-critical):", e);
   }
 
+  // ═══════════════════════════════════
+  // 🤖 Bot Controller Mode — التحويل للتدفق المرئي
+  // ═══════════════════════════════════
+  let botMode = "hardcoded";
+  try {
+    const { data: modeRow } = await supabase
+      .from("system_configs")
+      .select("key_value")
+      .eq("key_name", "bot_controller_mode")
+      .maybeSingle();
+    if (modeRow?.key_value) {
+      const parsed = JSON.parse(modeRow.key_value);
+      botMode = parsed.mode || "hardcoded";
+      console.log(`[wa] 🤖 Bot mode: ${botMode}`);
+    }
+  } catch (e) {
+    console.warn("[wa] Failed to read bot_controller_mode, defaulting to hardcoded:", e);
+  }
+
+  if (botMode === "visual_workflow" || botMode === "hybrid") {
+    try {
+      const messageContent = msgType === "text" ? (message.text?.body || "") :
+                             msgType === "interactive" ? (message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || "") :
+                             msgType === "location" ? `location:${message.location?.latitude},${message.location?.longitude}` :
+                             `[${msgType}]`;
+
+      console.log(`[wa] 🔀 Routing to visual workflow engine (mode=${botMode})...`);
+
+      const vwResponse = await fetch(
+        `${SUPABASE_URL}/functions/v1/run-visual-workflow`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+          body: JSON.stringify({
+            phone: phoneNumber,
+            trigger_type: "message_received",
+            metadata: {
+              message_content: messageContent,
+              message_type: msgType,
+              profile_name: profileName,
+              source: "whatsapp",
+              raw_message: message,
+            },
+          }),
+        }
+      );
+
+      const vwResult = await vwResponse.json();
+      console.log(`[wa] 🔀 Visual workflow result:`, JSON.stringify(vwResult).substring(0, 300));
+
+      if (vwResponse.ok && vwResult.workflows?.length > 0) {
+        const totalSteps = vwResult.workflows.reduce((sum: number, w: any) => sum + (w.steps || 0), 0);
+        if (totalSteps > 0) {
+          console.log(`[wa] ✅ Visual workflow handled message (${totalSteps} steps). Done.`);
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+      }
+
+      // If visual workflow didn't handle it
+      if (botMode === "visual_workflow") {
+        console.log("[wa] ⚠️ Visual workflow mode but no workflow handled the message. Sending fallback.");
+        await sendTextMessage(phoneNumber, "عذراً، لم يتم العثور على تدفق نشط لمعالجة رسالتك. يرجى المحاولة لاحقاً.");
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // hybrid mode: fall through to hardcoded
+      console.log("[wa] 🔄 Hybrid mode: Visual workflow didn't handle — falling through to hardcoded.");
+    } catch (vwErr) {
+      console.error("[wa] ❌ Visual workflow error:", vwErr);
+      if (botMode === "visual_workflow") {
+        await sendTextMessage(phoneNumber, "عذراً، حدث خطأ في نظام التدفق. يرجى المحاولة لاحقاً.");
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+      console.log("[wa] 🔄 Hybrid mode: Error in visual workflow, falling through to hardcoded.");
+    }
+  }
+
   try {
     // ═══════════════════════════════════
     // 🔘 Interactive Button Reply (تأكيد / إلغاء)
