@@ -228,7 +228,7 @@ export const ActiveRideCard = ({
         started_at: ride.started_at,
         rider_id: ride.rider_id || "",
         payment_method: ride.payment_method,
-        surge_multiplier: ride.surge_multiplier ?? undefined,
+        surge_multiplier: (ride as any).surge_multiplier ?? undefined,
       });
 
       // Fetch rider info
@@ -763,7 +763,7 @@ export const ActiveRideCard = ({
             id: msg.id,
           });
 
-          playSound('message_received');
+          playSound('messageSent');
           vibrate([150, 80, 150, 80, 200]);
 
           // إخفاء تلقائي بعد 8 ثوانٍ

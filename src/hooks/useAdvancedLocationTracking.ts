@@ -110,6 +110,7 @@ export const useAdvancedLocationTracking = (
       console.log('[useAdvancedLocationTracking] Starting tracking');
 
       await backgroundLocationService.startTracking({
+        driverId: '', // will be resolved by the service
         rideId: rideId!,
         updateInterval,
         minAccuracy,
@@ -143,8 +144,8 @@ export const useAdvancedLocationTracking = (
     setIsTracking(false);
   }, []);
 
-  const updateStats = useCallback(() => {
-    statsRef.current.bufferSize = backgroundLocationService.getBufferSize();
+  const updateStats = useCallback(async () => {
+    statsRef.current.bufferSize = await backgroundLocationService.getBufferSize();
     setStats({ ...statsRef.current });
   }, []);
 

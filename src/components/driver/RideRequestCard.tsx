@@ -221,7 +221,7 @@ export const RideRequestCard = ({
             vehicle_type: ride.vehicle_type || "economy",
             created_at: ride.created_at,
             rider_id: ride.rider_id || "",
-            surge_multiplier: ride.surge_multiplier ?? undefined,
+            surge_multiplier: (ride as any).surge_multiplier ?? undefined,
           };
           
           // تخطي الرحلات في cooldown
@@ -273,7 +273,7 @@ export const RideRequestCard = ({
             vehicle_type: ride.vehicle_type || "economy",
             created_at: ride.created_at,
             rider_id: ride.rider_id || "",
-            surge_multiplier: ride.surge_multiplier ?? undefined,
+            surge_multiplier: (ride as any).surge_multiplier ?? undefined,
           };
 
           // تخطي الرحلات في cooldown

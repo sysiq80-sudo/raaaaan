@@ -82,7 +82,7 @@ export const saveNotificationPreferences = async (
     const { error } = await supabase
       .from('drivers')
       .update({
-        notification_preferences: prefs,
+        notification_preferences: prefs as unknown as Record<string, any>,
         updated_at: new Date().toISOString()
       })
       .eq('id', driverId);
@@ -117,7 +117,7 @@ export const loadNotificationPreferences = async (
       return null;
     }
 
-    return data.notification_preferences as NotificationPreferences;
+    return data.notification_preferences as unknown as NotificationPreferences;
   } catch (error) {
     console.error('فشل جلب التفضيلات:', error);
     return null;

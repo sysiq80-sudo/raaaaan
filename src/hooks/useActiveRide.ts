@@ -102,7 +102,7 @@ export const useActiveRide = (userId: string | null) => {
                     setCompletedRide({ ...completedRideData, driver_name: driverData.full_name });
                   }
                 })
-                .catch(() => {});
+                .then(undefined, () => {});
             }
             
             setCompletedRide(completedRideData);
