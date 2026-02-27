@@ -1,17 +1,21 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ReactFlow, Background, Controls, MiniMap,
   addEdge, useNodesState, useEdgesState,
-  type Connection, type Node, type Edge,
+  type Connection, type Node,
   ReactFlowProvider,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import {
-  Save, Play, ArrowRight, Plus, List, ChevronLeft,
+  Save, Play, List, ChevronLeft, Plus, Trash2,
+  GitBranch, Clock,
 } from 'lucide-react';
 import {
   useVisualWorkflows,
@@ -40,9 +44,10 @@ interface VisualWorkflowBuilderProps {
 }
 
 export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuilderProps) {
+  const navigate = useNavigate();
   const {
-    workflows, fetchWorkflows,
-    createWorkflow, updateWorkflow, saveGraphData,
+    workflows, loading: workflowsLoading, fetchWorkflows,
+    createWorkflow, updateWorkflow, deleteWorkflow, saveGraphData,
     executions, executionsLoading, fetchExecutions, fetchStepLogs, testRunWorkflow,
     toggleWorkflow,
   } = useVisualWorkflows();
@@ -58,9 +63,10 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
   const [saving, setSaving] = useState(false);
   const [traceNodeIds, setTraceNodeIds] = useState<string[]>([]);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
 
-  // Load existing workflow
+  // Load existing workflow when ID changes
   useEffect(() => {
     if (currentWorkflowId && workflows.length > 0) {
       const wf = workflows.find(w => w.id === currentWorkflowId);
@@ -88,6 +94,7 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
     setEdges(eds => addEdge({ ...connection, animated: true, style: { strokeWidth: 2 } }, eds));
   }, [setEdges]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const onNodeClick = useCallback((_: any, node: Node) => {
     setSelectedNode(node);
   }, []);
@@ -144,17 +151,34 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
     setSelectedNode(null);
   }, [setNodes, setEdges]);
 
-  // Save
+  // Save — serializes clean node/edge data
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
+      // Clean node data: remove runtime-only properties from React Flow
+      const cleanNodes = nodes.map(n => ({
+        id: n.id,
+        type: n.type,
+        position: n.position,
+        data: n.data,
+      }));
+      const cleanEdges = edges.map(e => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+        animated: e.animated,
+      }));
+
       if (currentWorkflowId) {
-        const { error: saveErr } = await saveGraphData(currentWorkflowId, nodes, edges);
+        const { error: saveErr } = await saveGraphData(currentWorkflowId, cleanNodes as Node[], cleanEdges);
         if (saveErr) {
           console.error('[handleSave] saveGraphData error:', saveErr);
           toast.error('فشل في حفظ البيانات: ' + (saveErr.message || 'خطأ غير معروف'));
           return;
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: nameErr } = await updateWorkflow(currentWorkflowId, { name: workflowName } as any);
         if (nameErr) {
           console.error('[handleSave] updateWorkflow error:', nameErr);
@@ -164,7 +188,7 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
         const { data, error } = await createWorkflow({
           name: workflowName,
           trigger_type: 'message_received',
-          graph_data: { nodes, edges },
+          graph_data: { nodes: cleanNodes, edges: cleanEdges },
         });
         if (error) {
           console.error('[handleSave] createWorkflow error:', error);
@@ -173,6 +197,7 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
         }
         if (data) {
           setCurrentWorkflowId(data.id);
+          navigate(`/admin/workflows/${data.id}`, { replace: true });
           toast.success('تم إنشاء التدفق بنجاح ✅');
         }
       }
@@ -182,7 +207,7 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
     } finally {
       setSaving(false);
     }
-  }, [currentWorkflowId, nodes, edges, workflowName, saveGraphData, updateWorkflow, createWorkflow]);
+  }, [currentWorkflowId, nodes, edges, workflowName, saveGraphData, updateWorkflow, createWorkflow, navigate]);
 
   // Test run
   const handleTestRun = useCallback(async () => {
@@ -208,16 +233,119 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
     toast.success(active ? 'تم التفعيل' : 'تم الإيقاف');
   }, [currentWorkflowId, toggleWorkflow]);
 
+  // New workflow
+  const handleNewWorkflow = useCallback(() => {
+    setCurrentWorkflowId(null);
+    setNodes([]);
+    setEdges([]);
+    setWorkflowName('تدفق جديد');
+    setIsActive(false);
+    setSelectedNode(null);
+    navigate('/admin/workflows', { replace: true });
+  }, [setNodes, setEdges, navigate]);
+
+  // Select existing workflow
+  const handleSelectWorkflow = useCallback((id: string) => {
+    setCurrentWorkflowId(id);
+    navigate(`/admin/workflows/${id}`, { replace: true });
+  }, [navigate]);
+
+  // Delete workflow
+  const handleDeleteWorkflow = useCallback(async (id: string) => {
+    if (!confirm('هل تريد حذف هذا التدفق نهائياً؟')) return;
+    const { error } = await deleteWorkflow(id);
+    if (error) {
+      toast.error('فشل في الحذف');
+    } else {
+      toast.success('تم الحذف');
+      if (currentWorkflowId === id) handleNewWorkflow();
+    }
+  }, [deleteWorkflow, currentWorkflowId, handleNewWorkflow]);
+
+  // ═══════ Workflow List View (when no workflow selected) ═══════
+  if (!currentWorkflowId && !workflowId) {
+    return (
+      <div className="min-h-screen bg-background p-8" dir="rtl">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold">التدفقات المرئية</h1>
+              <p className="text-sm text-muted-foreground">إدارة تدفقات واتساب بالسحب والإفلات</p>
+            </div>
+            <Button onClick={handleNewWorkflow} className="gap-2">
+              <Plus className="h-4 w-4" />
+              تدفق جديد
+            </Button>
+          </div>
+
+          {workflowsLoading ? (
+            <div className="text-center py-20 text-muted-foreground">جارٍ التحميل...</div>
+          ) : workflows.length === 0 ? (
+            <Card>
+              <CardContent className="py-16 text-center">
+                <GitBranch className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
+                <p className="text-lg font-medium mb-2">لا توجد تدفقات بعد</p>
+                <p className="text-sm text-muted-foreground mb-4">أنشئ أول تدفق مرئي لبوت الواتساب</p>
+                <Button onClick={handleNewWorkflow} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  إنشاء تدفق
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3">
+              {workflows.map((wf) => (
+                <Card
+                  key={wf.id}
+                  className="cursor-pointer hover:border-primary/40 transition-colors"
+                  onClick={() => handleSelectWorkflow(wf.id)}
+                >
+                  <CardContent className="py-4 flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${wf.is_active ? 'bg-emerald-500/10' : 'bg-muted'}`}>
+                      <GitBranch className={`h-5 w-5 ${wf.is_active ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-sm truncate">{wf.name}</p>
+                        <Badge variant={wf.is_active ? 'default' : 'secondary'} className="text-[10px]">
+                          {wf.is_active ? 'مفعّل' : 'متوقف'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {new Date(wf.updated_at).toLocaleDateString('ar-IQ')}
+                        </span>
+                        <span>{wf.graph_data?.nodes?.length || 0} عقدة</span>
+                        <span>v{wf.version}</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost" size="icon"
+                      className="text-destructive hover:text-destructive shrink-0"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteWorkflow(wf.id); }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════ Builder View ═══════
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Toolbar */}
       <div className="h-14 border-b flex items-center gap-3 px-4 bg-card/80 backdrop-blur-sm shrink-0">
-        {onBack && (
-          <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
-            <ChevronLeft className="h-4 w-4" />
-            العودة
-          </Button>
-        )}
+        <Button variant="ghost" size="sm" onClick={handleNewWorkflow} className="gap-1">
+          <ChevronLeft className="h-4 w-4" />
+          القائمة
+        </Button>
 
         <Input
           className="w-48 h-8 text-sm font-bold"

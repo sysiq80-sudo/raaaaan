@@ -64,22 +64,42 @@ const AdminBotController: React.FC = () => {
   const saveConfig = async (newConfig: BotConfig) => {
     setSaving(true);
     try {
-      const { error } = await supabase
+      // Check if row already exists
+      const { data: existing } = await supabase
         .from('system_configs')
-        .upsert({
-          key_name: 'bot_controller_mode',
-          key_value: JSON.stringify(newConfig),
-          category: 'bot',
-          description: 'وضع تشغيل البوت',
-          is_secret: false,
-        }, { onConflict: 'key_name' });
+        .select('id')
+        .eq('key_name', 'bot_controller_mode')
+        .maybeSingle();
 
-      if (error) throw error;
+      const jsonValue = JSON.stringify(newConfig);
+
+      if (existing) {
+        // Update existing row
+        const { error } = await supabase
+          .from('system_configs')
+          .update({ key_value: jsonValue })
+          .eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        // Insert new row
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any)
+          .from('system_configs')
+          .insert({
+            key_name: 'bot_controller_mode',
+            key_value: jsonValue,
+            category: 'bot',
+            description: 'وضع تشغيل البوت',
+            is_secret: false,
+          });
+        if (error) throw error;
+      }
+
       setConfig(newConfig);
-      toast.success('تم حفظ إعدادات البوت');
+      toast.success('تم حفظ إعدادات البوت ✅');
     } catch (err) {
       toast.error('فشل في حفظ الإعدادات');
-      console.error(err);
+      console.error('saveConfig error:', err);
     } finally {
       setSaving(false);
     }
