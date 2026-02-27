@@ -278,6 +278,10 @@ serve(async (req) => {
 
       console.log(`[wa] 🔀 Routing to visual workflow engine (mode=${botMode})...`);
 
+      // 5-second timeout to prevent webhook from hanging
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
       const vwResponse = await fetch(
         `${SUPABASE_URL}/functions/v1/run-visual-workflow`,
         {
@@ -297,8 +301,11 @@ serve(async (req) => {
               raw_message: message,
             },
           }),
+          signal: controller.signal,
         }
       );
+
+      clearTimeout(timeout);
 
       const vwResult = await vwResponse.json();
       console.log(`[wa] 🔀 Visual workflow result:`, JSON.stringify(vwResult).substring(0, 300));
@@ -311,22 +318,11 @@ serve(async (req) => {
         }
       }
 
-      // If visual workflow didn't handle it
-      if (botMode === "visual_workflow") {
-        console.log("[wa] ⚠️ Visual workflow mode but no workflow handled the message. Sending fallback.");
-        await sendTextMessage(phoneNumber, "عذراً، لم يتم العثور على تدفق نشط لمعالجة رسالتك. يرجى المحاولة لاحقاً.");
-        return new Response("EVENT_RECEIVED", { status: 200 });
-      }
-
-      // hybrid mode: fall through to hardcoded
-      console.log("[wa] 🔄 Hybrid mode: Visual workflow didn't handle — falling through to hardcoded.");
+      // Visual workflow didn't handle → always fall through to hardcoded
+      console.log("[wa] ⚠️ Visual workflow didn't handle message — falling through to hardcoded.");
     } catch (vwErr) {
-      console.error("[wa] ❌ Visual workflow error:", vwErr);
-      if (botMode === "visual_workflow") {
-        await sendTextMessage(phoneNumber, "عذراً، حدث خطأ في نظام التدفق. يرجى المحاولة لاحقاً.");
-        return new Response("EVENT_RECEIVED", { status: 200 });
-      }
-      console.log("[wa] 🔄 Hybrid mode: Error in visual workflow, falling through to hardcoded.");
+      // Any error (including timeout) → fall through to hardcoded code
+      console.error("[wa] ❌ Visual workflow error (falling through to hardcoded):", vwErr);
     }
   }
 
