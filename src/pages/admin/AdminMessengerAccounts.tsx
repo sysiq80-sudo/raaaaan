@@ -288,7 +288,7 @@ function AddAccountDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
+      <DialogContent className="max-w-lg flex flex-col max-h-[90vh]" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Facebook className="h-5 w-5 text-blue-600" />
@@ -299,7 +299,7 @@ function AddAccountDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="overflow-y-auto flex-1 px-1 space-y-4 py-2">
           {/* اسم الحساب */}
           <div className="space-y-1.5">
             <Label htmlFor="account_name">اسم الحساب (اختياري)</Label>
@@ -376,7 +376,6 @@ function AddAccountDialog({
               <Label htmlFor="app_secret">المفتاح السري (App Secret)</Label>
               <Input
                 id="app_secret"
-                type="password"
                 placeholder="App Secret"
                 value={form.app_secret}
                 onChange={e => setForm(prev => ({ ...prev, app_secret: e.target.value }))}
@@ -412,9 +411,9 @@ function AddAccountDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="border-t pt-4 mt-2 shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-          <Button onClick={handleSubmit} disabled={submitting} className="gap-1">
+          <Button type="button" onClick={handleSubmit} disabled={submitting} className="gap-1 bg-blue-600 hover:bg-blue-700 text-white">
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             إضافة الصفحة
           </Button>
