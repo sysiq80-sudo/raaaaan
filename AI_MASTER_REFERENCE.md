@@ -468,20 +468,18 @@ stateDiagram-v2
 
 ## 12. سجل التغييرات
 
-### 2026-02-27 — Infobip Inbound SMS Webhook & Guest NLP Flow
+### 2026-02-27 — Infobip Inbound SMS Webhook v2: Dynamic Pricing & Debug Logs
 
 | النوع | التغيير | السبب |
 |-------|---------|-------|
 | **ميزة رئيسية** | **Edge Function `sms-webhook` — استقبال SMS الوارد عبر Infobip** | **Webhook يستقبل رسائل المستخدمين الواردة من Infobip (MO payload)، يحلل النية بالعربي، ويرد فوراً عبر Infobip outbound API** |
 | **ميزة** | **تسجيل ضيف تلقائي (Guest User Auto-Registration)** | **إذا الرقم غير مسجل → يُنشئ مستخدم ضيف في `auth.users` + `profiles` + `bot_customers` تلقائياً** |
 | **ميزة** | **تحليل نية الرحلة بالعربي (NLP Intent Parser)** | **يفهم أنماط: `انا في X اريد الذهاب الى Y` / `من X الى Y` — يستخرج نقطة الانطلاق والوجهة** |
-| **ميزة** | **رد فوري بتأكيد الحجز المُنسق** | **يرسل: `تم تأكيد طلبك / من: / الى: / المبلغ: / السيارة: / للتأكيد ارسل 1 للإلغاء ارسل 2`** |
-| **ميزة** | **إدارة حالة الجلسة (Session State Machine)** | **`idle → awaiting_confirm → active` — مع تقييم 1-5 نجوم بعد الاكتمال** |
-
-#### الملفات الجديدة:
-| الملف | الوصف |
-|-------|-------|
-| `supabase/functions/sms-webhook/index.ts` | [NEW] Infobip inbound webhook + NLP + guest registration |
+| **ميزة** | **تدفق خطوة بخطوة (Step-by-Step Flow)** | **أرسل "ران/RAAN" → موقعك → وجهتك → تأكيد (1/2) — حالات: `idle → pickup → dropoff → awaiting_confirm → active`** |
+| **إصلاح** | **حساب أجرة ديناميكي بدل الـ 5000 الثابتة** | **يستدعي `calculate-fare` Edge Function أولاً — إذا فشل يستخدم Haversine fallback (مسافة × 750 + 2000 أساس)** |
+| **إصلاح** | **سجلات تصحيح مكثفة (Debug Logs)** | **`console.log` لكل خطوة: payload، session، NLP، DB insert، Infobip API call+response — لتتبع أي فشل صامت** |
+| **إصلاح** | **دعم كلمات البدء (RAAN/ران)** | **إضافة START_KEYWORDS لبدء تدفق الحجز خطوة بخطوة** |
+| **ميزة** | **قاعدة بيانات المعالم (23 معلم)** | **أماكن الرمادي + شارع المستودع + مول ام عمار + المزيد** |
 
 #### رابط Webhook لـ Infobip Dashboard:
 ```
