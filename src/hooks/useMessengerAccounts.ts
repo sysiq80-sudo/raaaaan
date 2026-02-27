@@ -66,6 +66,9 @@ export function useMessengerAccounts() {
     try {
       console.log('[messenger] Creating account:', { page_name: input.page_name, page_id: input.page_id });
       
+      // Get current user for created_by
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const insertData = {
         account_name: input.account_name || null,
         page_name: input.page_name,
@@ -74,7 +77,10 @@ export function useMessengerAccounts() {
         app_id: input.app_id || null,
         app_secret: input.app_secret || null,
         platform: input.platform || 'messenger',
+        created_by: user?.id || null,
       };
+      
+      console.log('[messenger] Insert data prepared, user:', user?.id);
       
       const { data, error } = await sb
         .from('messenger_accounts')
@@ -82,7 +88,7 @@ export function useMessengerAccounts() {
         .select()
         .single();
 
-      console.log('[messenger] Insert result:', { data, error });
+      console.log('[messenger] Insert result:', { data: !!data, error });
 
       if (error) {
         if (error.code === '23505') {
