@@ -1377,7 +1377,7 @@ export const ActiveRideCard = ({
           </div>
         </div>
 
-        <div className="p-3">
+        <div className="p-2 sm:p-3 max-h-[55vh] overflow-y-auto">
           {/* Customer Info - Compact Row */}
           <div className="flex items-center justify-between mb-3 pb-3 border-b border-border">
             <div className="flex items-center gap-2 min-w-0">
@@ -1497,7 +1497,7 @@ export const ActiveRideCard = ({
           </div>
 
           {/* Stats - Compact */}
-          <div className="flex items-center justify-between py-2 px-3 bg-secondary/50 rounded-lg mb-3">
+          <div className="flex items-center justify-between py-1.5 px-2 sm:py-2 sm:px-3 bg-secondary/50 rounded-lg mb-2 sm:mb-3">
             <div className="text-center">
               <p className="text-[11px] text-muted-foreground">المسافة</p>
               <p className="text-sm font-bold text-foreground">
@@ -1672,7 +1672,7 @@ export const ActiveRideCard = ({
           )}
 
           {/* Action Buttons */}
-          <div className="space-y-2">
+          <div className="space-y-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
             {activeRide.status === "accepted" && (
               <Button
                 className="w-full h-14 text-base shadow-glow touch-manipulation active:scale-95 transition-transform"

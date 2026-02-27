@@ -94,6 +94,12 @@ const DriverHome = () => {
   const [adminActivated, setAdminActivated] = useState(true);
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
 
+  // 🔒 Driver Mode — منع التمرير على مستوى الصفحة
+  useEffect(() => {
+    document.body.classList.add('driver-mode');
+    return () => document.body.classList.remove('driver-mode');
+  }, []);
+
   // إلغاء الرحلة من FloatingTripBubble
   const handleCancelRideFromBubble = async () => {
     if (!driverId || isCancellingRide) return;
@@ -707,7 +713,7 @@ const DriverHome = () => {
   const statusBadge = getStatusBadge();
 
   return (
-    <div className="h-screen bg-background flex flex-col">
+    <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
       {/* ═══ Header — Glassmorphism floating bar + Safe Area for Capacitor ═══ */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/60 backdrop-blur-xl border-b border-white/5" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="container flex items-center justify-between h-14">
@@ -777,22 +783,20 @@ const DriverHome = () => {
       />
 
       {/* Main Content - Full Screen Map Layout */}
-      <main className="flex-1 relative overflow-hidden">
+      <main className="flex-1 flex flex-col relative overflow-hidden" style={{ paddingTop: 'calc(56px + env(safe-area-inset-top, 0px))' }}>
         {driverId && adminActivated && driverStatus === "approved" && (
           <>
             {/* Dashboard — Map + Controls (always visible) */}
             {/* Full Screen Map - Absolute background — top accounts for header + safe area */}
-            <div className="absolute inset-0" style={{ top: 'calc(56px + env(safe-area-inset-top, 0px))' }}>
+            <div className="flex-1 relative min-h-0">
               <DriverMap
                 driverLocation={currentLocation}
                 isOnline={isOnline}
               />
             </div>
 
-            {/* ═══ Driver Control Center — Vertical stack at bottom center ═══ */}
-            <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none flex flex-col items-center pb-4">
-              {/* Gradient backdrop for readability over map */}
-              <div className="absolute bottom-0 left-0 right-0 h-72 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+            {/* ═══ Driver Control Center — Centered on screen ═══ */}
+            <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
               
               <div className="relative flex flex-col items-center gap-3 w-full max-w-sm px-4">
                 {/* 1️⃣ Top: DutyToggle — Large circular power button */}

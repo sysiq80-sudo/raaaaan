@@ -19,7 +19,7 @@ const FallbackMapView = ({ location, isOnline }: { location: { lat: number; lng:
   const tileUrl = `https://tile.openstreetmap.org/${zoom}/${Math.floor((center.lng + 180) / 360 * Math.pow(2, zoom))}/${Math.floor((1 - Math.log(Math.tan(center.lat * Math.PI / 180) + 1 / Math.cos(center.lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom))}.png`;
 
   return (
-    <div className="relative h-full min-h-[12rem] bg-gradient-to-b from-gray-900 to-gray-800 flex flex-col items-center justify-center overflow-hidden">
+    <div className="relative h-full bg-gradient-to-b from-gray-900 to-gray-800 flex flex-col items-center justify-center overflow-hidden">
       {/* خلفية OSM tiles */}
       <div className="absolute inset-0 opacity-30">
         <img src={tileUrl} className="w-full h-full object-cover" alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -197,7 +197,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
 
   if (error) {
     return (
-      <div className="relative h-full min-h-[12rem] bg-secondary/50 flex items-center justify-center">
+      <div className="relative h-full bg-secondary/50 flex items-center justify-center">
         <div className="text-center p-4">
           <AlertCircle className="w-8 h-8 text-destructive mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">{error}</p>

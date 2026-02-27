@@ -332,14 +332,13 @@ export const RideRequestCard = ({
           fetchPendingRidesRef.current();
         }
       )
-      // ═══ UPDATE: رحلات تتحول من draft → pending (من واتساب/حجز مجدول) ═══
+      // ═══ UPDATE: أي تحديث — نفحص الحالة يدوياً (الفلتر غير موثوق على UPDATE) ═══
       .on(
         "postgres_changes",
         {
           event: "UPDATE",
           schema: "public",
           table: "rides",
-          filter: "status=eq.pending",
         },
         (payload) => {
           const oldStatus = (payload.old as Record<string, unknown>)?.status;
@@ -351,11 +350,23 @@ export const RideRequestCard = ({
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        logger.debug("RideRequestCard", `Realtime subscription: ${status}`);
+      });
+
+    // 👁️ Force-poll when tab/app regains visibility
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        logger.debug("RideRequestCard", "👁️ Tab visible — force-polling rides");
+        fetchPendingRidesRef.current();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       logger.debug("RideRequestCard", "Cleaning up realtime subscription");
       supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isOnline, driverId, isPaused]); // ← بدون fetchPendingRides
 

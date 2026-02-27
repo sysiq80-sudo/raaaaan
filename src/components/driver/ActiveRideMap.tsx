@@ -196,7 +196,7 @@ export const ActiveRideMap = ({
 
   if (error) {
     return (
-      <div className="h-56 bg-secondary/50 rounded-xl flex items-center justify-center">
+      <div className="h-44 sm:h-56 bg-secondary/50 rounded-xl flex items-center justify-center">
         <div className="text-center p-4">
           <AlertCircle className="w-8 h-8 text-destructive mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">{error}</p>
@@ -206,7 +206,7 @@ export const ActiveRideMap = ({
   }
 
   return (
-    <div className="relative h-56 rounded-xl overflow-hidden border border-border">
+    <div className="relative h-44 sm:h-56 rounded-xl overflow-hidden border border-border">
       {loading && (
         <div className="absolute inset-0 z-10 bg-secondary/80 flex items-center justify-center">
           <Loader2 className="w-8 h-8 text-primary animate-spin" />

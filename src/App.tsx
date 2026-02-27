@@ -36,22 +36,22 @@ const RiderSavedPlacesPage = lazy(() => import("./pages/rider/RiderSavedPlacesPa
 const RiderSettingsPage = lazy(() => import("./pages/rider/RiderSettingsPage"));
 
 // ØµÙØ­Ø§Øª Ø§Ù„Ø³Ø§Ø¦Ù‚ - ØªØ­Ù…ÙŠÙ„ ÙƒØ³ÙˆÙ„
-const DriverHome = lazy(() => import("./pages/driver/DriverHome"));
+import DriverHome from "./pages/driver/DriverHome";
 const DriverAuth = lazy(() => import("./pages/driver/DriverAuth"));
 const DriverRegister = lazy(() => import("./pages/driver/DriverRegister"));
 const DriverCompleteRegistration = lazy(() => import("./pages/driver/DriverCompleteRegistration"));
 const DriverApplicationStatus = lazy(() => import("./pages/driver/DriverApplicationStatus"));
-const DriverRides = lazy(() => import("./pages/driver/DriverRides"));
+import DriverRides from "./pages/driver/DriverRides";
 const DriverSettings = lazy(() => import("./pages/driver/DriverSettings"));
-const DriverStatistics = lazy(() => import("./pages/driver/DriverStatistics"));
-const DriverProfile = lazy(() => import("./pages/driver/DriverProfile"));
+import DriverStatistics from "./pages/driver/DriverStatistics";
+import DriverProfile from "./pages/driver/DriverProfile";
 const DriverIncentives = lazy(() => import("./pages/driver/DriverIncentives"));
-const DriverFinance = lazy(() => import("./pages/driver/DriverFinance"));
+import DriverFinance from "./pages/driver/DriverFinance";
 const DriverSubscription = lazy(() => import("./pages/driver/DriverSubscription"));
 
 // Layout components
 const RiderLayout = lazy(() => import("./components/rider/RiderLayout"));
-const DriverLayout = lazy(() => import("./components/driver/DriverLayout"));
+import DriverLayout from "./components/driver/DriverLayout";
 
 // ØµÙØ­Ø§Øª Ø§Ù„Ø£Ø¯Ù…Ù† - ØªØ­Ù…ÙŠÙ„ ÙƒØ³ÙˆÙ„ (Ù„Ø§ ÙŠØ­Ù…Ù„Ù‡Ø§ Ø§Ù„Ø±Ø§ÙƒØ¨ Ø£Ùˆ Ø§Ù„Ø³Ø§Ø¦Ù‚)
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -80,6 +80,7 @@ const AdminBannedNames = lazy(() => import("./pages/admin/AdminBannedNames"));
 const AdminPromoBanners = lazy(() => import("./pages/admin/AdminPromoBanners"));
 const AdminRiderPages = lazy(() => import("./pages/admin/AdminRiderPages"));
 const AdminPageEditor = lazy(() => import("./pages/admin/AdminPageEditor"));
+const AdminWorkflows = lazy(() => import("./pages/admin/AdminWorkflows"));
 const AdminWalletRequests = lazy(() => import("./pages/admin/AdminWalletRequests"));
 const AdminSMSLogs = lazy(() => import("./pages/admin/AdminSMSLogs"));
 const AdminDriverVisibility = lazy(() => import("./pages/admin/AdminDriverVisibility"));
@@ -808,6 +809,26 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminPageEditor />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/workflows"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminWorkflows />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/workflows/:workflowId"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminWorkflows />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }

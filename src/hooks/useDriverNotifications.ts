@@ -345,19 +345,18 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
             handleNewRide(payload as { new: Record<string, unknown> });
           }
         )
-        // ═══ UPDATE: رحلات تتحول من draft → pending (من واتساب/حجز مجدول) ═══
+        // ═══ UPDATE: أي تحديث — نفحص الحالة يدوياً لأن الفلتر غير موثوق على UPDATE ═══
         .on(
           'postgres_changes',
           {
             event: 'UPDATE',
             schema: 'public',
             table: 'rides',
-            filter: 'status=eq.pending'
           },
           (payload) => {
-            // فقط عندما تتحول الحالة إلى pending (مثل تأكيد حجز واتساب)
-            const oldStatus = (payload.old as Record<string, unknown>)?.status;
             const newStatus = (payload.new as Record<string, unknown>)?.status;
+            const oldStatus = (payload.old as Record<string, unknown>)?.status;
+            // فقط عندما تتحول الحالة إلى pending (مثل تأكيد حجز واتساب)
             if (newStatus === 'pending' && oldStatus !== 'pending') {
               console.log('⚡ INSTANT UPDATE: Ride became pending:', payload.new?.id, `(${oldStatus} → ${newStatus})`);
               handleNewRide(payload as { new: Record<string, unknown> });

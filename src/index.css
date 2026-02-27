@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@100;200;300;400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@100;200;300;400;500;600;700&display=swap");
 
 @import "./styles/rtl.css";
 @import "./styles/typography.css";
@@ -88,11 +88,11 @@
 @layer base {
   * {
     @apply border-border;
-    font-family: 'IBM Plex Sans Arabic', sans-serif !important;
+    font-family: "IBM Plex Sans Arabic", sans-serif !important;
   }
 
   html {
-    font-family: 'IBM Plex Sans Arabic', sans-serif !important;
+    font-family: "IBM Plex Sans Arabic", sans-serif !important;
     direction: rtl;
     font-size: 14px; /* Base font size for better mobile scaling */
   }
@@ -844,13 +844,16 @@
 
 /* تأثير الضوء على الأيقونات النشطة */
 @keyframes navActiveGlow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(var(--primary-rgb), 0.6),
-                0 0 40px rgba(var(--primary-rgb), 0.3);
+  0%,
+  100% {
+    box-shadow:
+      0 0 20px rgba(var(--primary-rgb), 0.6),
+      0 0 40px rgba(var(--primary-rgb), 0.3);
   }
   50% {
-    box-shadow: 0 0 25px rgba(var(--primary-rgb), 0.7),
-                0 0 50px rgba(var(--primary-rgb), 0.4);
+    box-shadow:
+      0 0 25px rgba(var(--primary-rgb), 0.7),
+      0 0 50px rgba(var(--primary-rgb), 0.4);
   }
 }
 
@@ -871,7 +874,7 @@
 
 /* تأثير الظل الناعم */
 .bottom-nav-shadow {
-  box-shadow: 
+  box-shadow:
     0 -2px 8px rgba(0, 0, 0, 0.15),
     0 -4px 16px rgba(0, 0, 0, 0.1),
     0 8px 32px rgba(0, 0, 0, 0.2);
@@ -882,7 +885,7 @@
   .rider-bottom-nav {
     height: 64px;
   }
-  
+
   .nav-icon-large {
     width: 24px;
     height: 24px;
@@ -902,4 +905,17 @@
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom);
   }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Driver Mode — Zero Scroll & Fixed Viewport
+   يُطبّق تلقائياً عند دخول صفحة السائق ويُزال عند المغادرة
+   ═══════════════════════════════════════════════════════════ */
+body.driver-mode {
+  overflow: hidden;
+  overscroll-behavior-y: none;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
