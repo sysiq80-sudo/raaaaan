@@ -1,19 +1,104 @@
 /**
- * ران — إشعارات حالة الرحلة عبر SMS
- * SMS Ride Updates — Receives trigger payload, sends SMS via OTPIQ
+ * ران — إشعارات حالة الرحلة عبر SMS (Infobip حصرياً)
+ * SMS Ride Updates — Infobip API Only (Strict Gateway Separation)
  *
  * يعمل مع trigger: sms_ride_status_notify
  * عند تغيير حالة رحلة trip_type='sms'
+ *
+ * 🏗️ فصل البوابات الصارم:
+ *   - OTPIQ → فقط للتحقق من الهوية (OTP) في smsSender.ts
+ *   - Infobip → حصرياً لإشعارات الرحلة والبوت التفاعلي (هذا الملف)
+ *
+ * Updated: 2026-02-27
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendSMS, formatIraqiPhone } from "../_shared/smsSender.ts";
+
+const INFOBIP_API_URL = "https://rkgdry.api.infobip.com/sms/3/messages";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// ════════════════════════════════════════════════════════════
+// Infobip SMS Sender (Exclusive for Bot & Ride Updates)
+// ════════════════════════════════════════════════════════════
+
+/**
+ * تنسيق رقم الهاتف العراقي (964...)
+ */
+function formatIraqiPhone(phone: string): string {
+  let cleaned = phone.replace(/\D/g, "");
+  if (cleaned.startsWith("0")) cleaned = "964" + cleaned.substring(1);
+  if (!cleaned.startsWith("964")) cleaned = "964" + cleaned;
+  return cleaned;
+}
+
+/**
+ * إرسال SMS عبر Infobip API
+ * ⚠️ هذا المُرسل مخصص حصراً لإشعارات الرحلة والبوت التفاعلي
+ *    لإرسال OTP استخدم _shared/smsSender.ts (OTPIQ)
+ */
+async function sendInfobipSMS(
+  phoneNumber: string,
+  message: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const apiKey = Deno.env.get("INFOBIP_API_KEY");
+  const sender = Deno.env.get("INFOBIP_SENDER") || "447491163443";
+
+  if (!apiKey) {
+    console.error("[sms-ride-updates] ❌ INFOBIP_API_KEY not configured");
+    return { success: false, error: "INFOBIP_API_KEY missing" };
+  }
+
+  const formattedPhone = formatIraqiPhone(phoneNumber);
+
+  const payload = {
+    messages: [
+      {
+        destinations: [{ to: formattedPhone }],
+        sender: sender,
+        content: { text: message },
+      },
+    ],
+  };
+
+  try {
+    console.log(`[sms-ride-updates] 📤 Sending via Infobip to ${formattedPhone}...`);
+
+    const res = await fetch(INFOBIP_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `App ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await res.json();
+
+    if (res.ok) {
+      const msgInfo = result?.messages?.[0];
+      const messageId = msgInfo?.messageId || "";
+      const statusName = msgInfo?.status?.name || "UNKNOWN";
+      console.log(`[sms-ride-updates] ✅ Infobip OK: status=${statusName}, messageId=${messageId}`);
+      return { success: true, messageId };
+    }
+
+    const errorText = result?.requestError?.serviceException?.text || JSON.stringify(result);
+    console.error(`[sms-ride-updates] ❌ Infobip error (${res.status}): ${errorText}`);
+    return { success: false, error: errorText };
+  } catch (e) {
+    console.error("[sms-ride-updates] ❌ Infobip network error:", e);
+    return { success: false, error: "Network error" };
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// Main Handler
+// ════════════════════════════════════════════════════════════
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -51,7 +136,7 @@ serve(async (req) => {
 
     // ── Direct message mode (for cron/other callers) ──
     if (directPhone && directMessage) {
-      const result = await sendSMS(directPhone, directMessage);
+      const result = await sendInfobipSMS(directPhone, directMessage);
       return new Response(JSON.stringify({ success: result.success }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -65,7 +150,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[sms-ride-updates] Ride ${ride_id}: ${old_status} → ${new_status}`);
+    console.log(`[sms-ride-updates] ═══ Ride ${ride_id}: ${old_status} → ${new_status} ═══`);
 
     // ── Resolve rider phone number ──
     let phoneNumber = "";
@@ -96,22 +181,27 @@ serve(async (req) => {
     }
 
     if (!phoneNumber) {
-      console.error(`[sms-ride-updates] Cannot resolve phone for rider ${rider_id}`);
+      console.error(`[sms-ride-updates] ❌ Cannot resolve phone for rider ${rider_id}`);
       return new Response(
         JSON.stringify({ error: "Cannot resolve rider phone" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // ── Build status message ──
+    // ══════════════════════════════════════════════════════════
+    // State Machine — Build SMS text with numbered menus
+    // ══════════════════════════════════════════════════════════
+
     let smsText = "";
 
     switch (new_status) {
+      // ──────────────────────────────────────────────────────
+      // 1️⃣ ACCEPTED — الكابتن في الطريق + قائمة مرقمة
+      // ──────────────────────────────────────────────────────
       case "accepted": {
-        // جلب معلومات السائق
         let driverName = "سائقك";
-        let driverPhone = "";
         let driverVehicle = "";
+        let driverPlate = "";
 
         if (driver_id) {
           const { data: driver } = await supabase
@@ -122,27 +212,38 @@ serve(async (req) => {
 
           if (driver) {
             driverName = driver.full_name || "سائقك";
-            driverPhone = driver.phone || "";
-            driverVehicle = [driver.vehicle_color, driver.vehicle_make, driver.vehicle_model].filter(Boolean).join(" ");
+            driverVehicle = [driver.vehicle_color, driver.vehicle_make, driver.vehicle_model]
+              .filter(Boolean)
+              .join(" ");
+            driverPlate = driver.plate_number || "";
           }
         }
 
-        smsText = `✅ تم قبول طلبك!\n`;
-        smsText += `السائق: ${driverName}\n`;
-        if (driverVehicle) smsText += `السيارة: ${driverVehicle}\n`;
-        if (driverPhone) smsText += `هاتف السائق: ${driverPhone}\n`;
-        smsText += `\nمن: ${pickup_address || "—"}\nإلى: ${dropoff_address || "—"}`;
+        smsText =
+          `كابتن ${driverName} في الطريق إليك! ` +
+          `سيارة ${driverVehicle || "—"} لوحة ${driverPlate || "—"}.\n\n` +
+          `لمعرفة موقع الكابتن أرسل رقم [1]\n` +
+          `لمراسلة الكابتن أرسل [2]`;
         break;
       }
 
+      // ──────────────────────────────────────────────────────
+      // 2️⃣ ARRIVED — الكابتن وصل
+      // ──────────────────────────────────────────────────────
       case "arrived":
         smsText = `🚗 سائقك وصل!\nيرجى التوجه لنقطة الانطلاق: ${pickup_address || "موقعك"}`;
         break;
 
+      // ──────────────────────────────────────────────────────
+      // 3️⃣ IN_PROGRESS — الرحلة بدأت
+      // ──────────────────────────────────────────────────────
       case "in_progress":
         smsText = `🛣️ الرحلة بدأت!\nفي الطريق إلى: ${dropoff_address || "الوجهة"}`;
         break;
 
+      // ──────────────────────────────────────────────────────
+      // 4️⃣ COMPLETED — الإيصال + تقييم مرقم
+      // ──────────────────────────────────────────────────────
       case "completed": {
         const fare = final_fare || estimated_fare || 0;
         smsText = `✅ وصلت بالسلامة!\n\n`;
@@ -154,8 +255,8 @@ serve(async (req) => {
         if (waiting_fare && Number(waiting_fare) > 0) {
           smsText += `انتظار: ${Number(waiting_fare).toLocaleString()} د.ع\n`;
         }
-        smsText += `المبلغ: ${Number(fare).toLocaleString()} د.ع\n`;
-        smsText += `\nشكراً لاستخدامك ران 🚕\nأرسل (1) لرحلة جديدة`;
+        smsText += `المبلغ: ${Number(fare).toLocaleString()} د.ع\n\n`;
+        smsText += `كيف تقيم الكابتن؟ أرسل رقم من 1 إلى 5 (حيث 5 ممتاز).`;
 
         // Clear session
         try {
@@ -170,13 +271,14 @@ serve(async (req) => {
         break;
       }
 
+      // ──────────────────────────────────────────────────────
+      // 5️⃣ CANCELLED — إلغاء + قائمة مرقمة
+      // ──────────────────────────────────────────────────────
       case "cancelled": {
-        const reason = cancellation_reason || "سبب غير محدد";
-        const by = cancelled_by === "driver" ? "السائق" : cancelled_by === "system" ? "النظام" : "الراكب";
-        smsText = `❌ تم إلغاء الرحلة\n`;
-        smsText += `بواسطة: ${by}\n`;
-        smsText += `السبب: ${reason}\n`;
-        smsText += `\nأرسل (1) لطلب رحلة جديدة 🚕`;
+        smsText =
+          `تم إلغاء الطلب.\n` +
+          `لحجز رحلة جديدة أرسل [1]\n` +
+          `للمساعدة أرسل [2]`;
 
         // Clear session
         try {
@@ -199,21 +301,21 @@ serve(async (req) => {
         );
     }
 
-    // ── Send SMS ──
+    // ── Send SMS via Infobip ──
     if (smsText) {
-      const result = await sendSMS(phoneNumber, smsText);
-      console.log(`[sms-ride-updates] SMS sent to ${phoneNumber}: ${result.success}`);
+      const result = await sendInfobipSMS(phoneNumber, smsText);
+      console.log(`[sms-ride-updates] SMS → ${phoneNumber}: success=${result.success}`);
 
-      // Log
+      // Log to sms_logs table
       try {
         await supabase.from("sms_logs").insert({
           phone: phoneNumber,
           message_type: "notification",
           purpose: `ride_${new_status}`,
-          provider: "sms",
+          provider: "infobip",
           status: result.success ? "sent" : "failed",
           error_message: result.error || null,
-          external_id: result.externalId || null,
+          external_id: result.messageId || null,
           cost: 0.02,
         });
       } catch { }
