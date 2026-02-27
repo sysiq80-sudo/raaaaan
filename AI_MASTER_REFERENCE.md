@@ -468,6 +468,26 @@ stateDiagram-v2
 
 ## 12. سجل التغييرات
 
+### 2026-02-27 — Infobip Inbound SMS Webhook & Guest NLP Flow
+
+| النوع | التغيير | السبب |
+|-------|---------|-------|
+| **ميزة رئيسية** | **Edge Function `sms-webhook` — استقبال SMS الوارد عبر Infobip** | **Webhook يستقبل رسائل المستخدمين الواردة من Infobip (MO payload)، يحلل النية بالعربي، ويرد فوراً عبر Infobip outbound API** |
+| **ميزة** | **تسجيل ضيف تلقائي (Guest User Auto-Registration)** | **إذا الرقم غير مسجل → يُنشئ مستخدم ضيف في `auth.users` + `profiles` + `bot_customers` تلقائياً** |
+| **ميزة** | **تحليل نية الرحلة بالعربي (NLP Intent Parser)** | **يفهم أنماط: `انا في X اريد الذهاب الى Y` / `من X الى Y` — يستخرج نقطة الانطلاق والوجهة** |
+| **ميزة** | **رد فوري بتأكيد الحجز المُنسق** | **يرسل: `تم تأكيد طلبك / من: / الى: / المبلغ: / السيارة: / للتأكيد ارسل 1 للإلغاء ارسل 2`** |
+| **ميزة** | **إدارة حالة الجلسة (Session State Machine)** | **`idle → awaiting_confirm → active` — مع تقييم 1-5 نجوم بعد الاكتمال** |
+
+#### الملفات الجديدة:
+| الملف | الوصف |
+|-------|-------|
+| `supabase/functions/sms-webhook/index.ts` | [NEW] Infobip inbound webhook + NLP + guest registration |
+
+#### رابط Webhook لـ Infobip Dashboard:
+```
+https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/sms-webhook
+```
+
 ### 2026-02-27 — فصل بوابات SMS الصارم (OTPIQ للتحقق، Infobip للبوت)
 
 | النوع | التغيير | السبب |
