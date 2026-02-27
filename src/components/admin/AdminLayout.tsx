@@ -201,6 +201,7 @@ const AdminLayout = ({
     { icon: MessageCircle, label: "عملاء البوت", href: "/admin/bot-customers" },
     { icon: Bot, label: "البوت المتحكم", href: "/admin/bot-controller" },
     { icon: GitBranch, label: "التدفقات المرئية", href: "/admin/workflows" },
+    { icon: MessageCircle, label: "حسابات Messenger", href: "/admin/messenger-accounts" },
     { icon: BookOpen, label: "التوثيق", href: "/admin/documentation" },
     { icon: Code, label: "ران المطور", href: "/admin/developer-settings" },
     { icon: Settings, label: "الإعدادات", href: "/admin/settings" },

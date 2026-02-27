@@ -92,6 +92,7 @@ const AdminComplaints = lazy(() => import("./pages/admin/AdminComplaints"));
 const AdminStoppedRides = lazy(() => import("./pages/admin/AdminStoppedRides"));
 const AdminEmergencySettings = lazy(() => import("./pages/admin/AdminEmergencySettings"));
 const AdminBotCustomers = lazy(() => import("./pages/admin/AdminBotCustomers"));
+const AdminMessengerAccounts = lazy(() => import("./pages/admin/AdminMessengerAccounts"));
 const AdminDeveloperSettings = lazy(() => import("./pages/admin/AdminDeveloperSettings"));
 const AdminSecuritySettings = lazy(() => import("./pages/admin/AdminSecuritySettings"));
 const AdminWithdrawals = lazy(() => import("./pages/admin/AdminWithdrawals"));
@@ -851,6 +852,16 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminBotController />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/messenger-accounts"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminMessengerAccounts />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }

@@ -106,29 +106,31 @@ export function WorkflowExecutionLogs({
 
               return (
                 <Collapsible key={exec.id} open={isExpanded} onOpenChange={() => handleExpand(exec.id)}>
-                  <CollapsibleTrigger className="w-full px-4 py-2 hover:bg-muted/50 transition-colors text-start">
-                    <div className="flex items-center gap-2">
-                      {isExpanded ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <StatusBadge status={exec.status} />
-                          <span className="text-[10px] text-muted-foreground font-mono">{exec.id.slice(0, 8)}</span>
-                          {duration !== null && <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Clock className="h-2.5 w-2.5" />{formatDuration(duration)}</span>}
+                  <div className="flex items-center justify-between w-full px-4 py-2 hover:bg-muted/50 transition-colors">
+                    <CollapsibleTrigger asChild>
+                      <button className="flex items-center gap-2 flex-1 text-start hover:opacity-75 transition-opacity">
+                        {isExpanded ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <StatusBadge status={exec.status} />
+                            <span className="text-[10px] text-muted-foreground font-mono">{exec.id.slice(0, 8)}</span>
+                            {duration !== null && <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Clock className="h-2.5 w-2.5" />{formatDuration(duration)}</span>}
+                          </div>
                         </div>
-                      </div>
-                      {(exec.status === 'running' || exec.status === 'waiting') && onLiveTrace && (
-                        <Button
-                          variant={activeTraceId === exec.id ? 'default' : 'outline'}
-                          size="sm"
-                          className={`h-6 px-2 text-[10px] gap-1 shrink-0 ${activeTraceId === exec.id ? 'animate-pulse' : ''}`}
-                          onClick={(e) => { e.stopPropagation(); handleLiveTrace(exec.id); }}
-                        >
-                          <Radio className="h-3 w-3" />
-                          {activeTraceId === exec.id ? 'إيقاف' : 'تتبع مباشر'}
-                        </Button>
-                      )}
-                    </div>
-                  </CollapsibleTrigger>
+                      </button>
+                    </CollapsibleTrigger>
+                    {(exec.status === 'running' || exec.status === 'waiting') && onLiveTrace && (
+                      <Button
+                        variant={activeTraceId === exec.id ? 'default' : 'outline'}
+                        size="sm"
+                        className={`h-6 px-2 text-[10px] gap-1 shrink-0 ${activeTraceId === exec.id ? 'animate-pulse' : ''}`}
+                        onClick={(e) => { e.stopPropagation(); handleLiveTrace(exec.id); }}
+                      >
+                        <Radio className="h-3 w-3" />
+                        {activeTraceId === exec.id ? 'إيقاف' : 'تتبع مباشر'}
+                      </Button>
+                    )}
+                  </div>
                   <CollapsibleContent>
                     <div className="px-4 pb-2">
                       {loadingSteps === exec.id ? (
