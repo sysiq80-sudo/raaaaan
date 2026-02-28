@@ -240,7 +240,26 @@ serve(async (_req) => {
           console.warn(`[cron] SMS notification failed for ${smsPhone}:`, e);
         }
       } else {
-        console.log(`[cron] Unknown trip_type "${tripType}" or phone format "${profile.phone}" — no notification sent`);
+        // إشعار FCM لمستخدم التطبيق (trip_type app أو غير معروف)
+        try {
+          const fcmRes = await supabase.functions.invoke("fcm-ride-updates", {
+            body: {
+              ride_id: ride.id,
+              user_id: ride.rider_id,
+              title: "تم إلغاء الرحلة تلقائياً",
+              message: cancelMessage,
+              status: "cancelled",
+            },
+          });
+          if (fcmRes?.error) {
+            console.warn(`[cron] FCM notification failed for user ${ride.rider_id}:`, fcmRes.error);
+          } else {
+            notifiedCount++;
+            console.log(`[cron] FCM notification sent to user ${ride.rider_id}`);
+          }
+        } catch (e) {
+          console.warn(`[cron] FCM notification failed for user ${ride.rider_id}:`, e);
+        }
       }
     }
 

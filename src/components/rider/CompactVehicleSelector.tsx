@@ -63,7 +63,7 @@ const CompactVehicleSelector = ({
   ];
 
   return (
-    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}>
       {vehicles.map((vehicle, index) => {
         const isSelected = selectedVehicle === vehicle.type;
         const driverCount = availableDrivers?.[vehicle.type] ?? 0;
@@ -82,7 +82,7 @@ const CompactVehicleSelector = ({
             whileTap={{ scale: 0.95 }}
             onClick={() => !isUnavailable && onSelect(vehicle.type)}
             disabled={isUnavailable}
-            className={`flex-shrink-0 flex flex-col items-center justify-center p-3 rounded-2xl transition-all min-w-[85px] relative overflow-hidden ${
+            className={`flex-shrink-0 flex flex-col items-center justify-center p-3 rounded-2xl transition-all min-w-[85px] relative overflow-hidden snap-center ${
               isUnavailable
                 ? "bg-secondary/30 opacity-50 cursor-not-allowed"
                 : isSelected

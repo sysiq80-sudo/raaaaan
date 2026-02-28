@@ -1,12 +1,14 @@
 /**
  * ران - مكون نتائج البحث الديناميكي على الخريطة
  * يعرض نتائج البحث المباشرة عن طريق Google Places API
+ * + اقتراحات من البحوثات السابقة
  */
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, Loader2, AlertCircle, ChevronRight } from 'lucide-react';
+import { Search, MapPin, Loader2, AlertCircle, ChevronRight, Clock, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { RecentSearch } from '@/hooks/useRecentSearches';
 
 interface DynamicSearchResult {
   place_id: string;
@@ -19,9 +21,12 @@ interface DynamicSearchResult {
 interface DynamicSearchResultsProps {
   query: string;
   results: DynamicSearchResult[];
+  recentSearches?: RecentSearch[];
   isSearching: boolean;
   isLoadingDetails: boolean;
   onSelect: (placeId: string, mainText: string) => void;
+  onSelectRecent?: (search: RecentSearch) => void;
+  onRemoveRecent?: (id: string) => void;
   onClear?: () => void;
   className?: string;
   maxResults?: number;
@@ -30,15 +35,18 @@ interface DynamicSearchResultsProps {
 export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
   query,
   results,
+  recentSearches = [],
   isSearching,
   isLoadingDetails,
   onSelect,
+  onSelectRecent,
+  onRemoveRecent,
   onClear,
   className,
   maxResults = 5,
 }) => {
-  if (!query) return null;
-
+  // احفظ البحوثات السابقة وإخفها إذا كان هناك بحث
+  const showRecent = !query && recentSearches && recentSearches.length > 0;
   const displayedResults = results.slice(0, maxResults);
   const hasMore = results.length > maxResults;
 
@@ -56,79 +64,139 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
           className
         )}
       >
-        {isSearching ? (
-          // Loading state
-          <div className="flex items-center justify-center gap-2 p-4 text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-sm">جاري البحث...</span>
-          </div>
-        ) : displayedResults.length === 0 ? (
-          // No results state
-          <div className="p-4 text-center space-y-2">
-            <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto" />
-            <p className="text-sm font-medium text-foreground">لا توجد نتائج</p>
-            <p className="text-xs text-muted-foreground">
-              جرّب البحث بكلمات مختلفة أو تأكد من تفعيل Places API
-            </p>
-          </div>
-        ) : (
-          // Results list
+        {showRecent ? (
+          // عرض البحوثات السابقة
           <div className="divide-y divide-border">
-            {displayedResults.map((result, index) => (
+            {/* Header */}
+            <div className="px-3 py-2 sticky top-0 bg-background/95 backdrop-blur-sm">
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <Clock className="w-3 h-3" />
+                <span>البحوثات الأخيرة</span>
+              </div>
+            </div>
+
+            {/* Recent searches list */}
+            {recentSearches.slice(0, maxResults).map((search, index) => (
               <motion.button
-                key={result.place_id}
+                key={search.id}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.05 }}
-                onClick={() => onSelect(result.place_id, result.main_text)}
-                disabled={isLoadingDetails}
-                className="w-full text-right p-3 hover:bg-muted/50 transition-colors disabled:opacity-50 flex items-start justify-between gap-3 group"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onSelectRecent?.(search);
+                }}
+                className="w-full text-right p-3 hover:bg-muted/50 transition-colors flex items-start justify-between gap-3 group relative"
               >
                 {/* Icon and Text */}
                 <div className="flex-1 flex items-start gap-3">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <MapPin className="w-4 h-4 text-primary" />
+                    <Clock className="w-4 h-4 text-muted-foreground" />
                   </div>
                   <div className="text-right">
                     <p className="font-medium text-sm text-foreground line-clamp-1">
-                      {result.main_text}
+                      {search.mainText}
                     </p>
-                    {result.secondary_text && (
+                    {search.secondaryText && (
                       <p className="text-xs text-muted-foreground line-clamp-1">
-                        {result.secondary_text}
+                        {search.secondaryText}
                       </p>
                     )}
                   </div>
                 </div>
 
-                {result.distance_text && (
-                  <div className="text-xs text-muted-foreground whitespace-nowrap mt-1">
-                    {result.distance_text}
-                  </div>
-                )}
-
-                {/* Chevron Icon */}
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0 mt-0.5" />
-
-                {/* Loading indicator on selection */}
-                {isLoadingDetails && (
-                  <div className="absolute inset-0 bg-background/50 rounded-lg flex items-center justify-center">
-                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                  </div>
-                )}
+                {/* Delete button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveRecent?.(search.id);
+                  }}
+                  className="p-1 hover:bg-destructive/20 rounded-md transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
+                  title="حذف"
+                >
+                  <X className="w-4 h-4 text-destructive" />
+                </button>
               </motion.button>
             ))}
-
-            {/* Show more indicator */}
-            {hasMore && (
-              <div className="p-3 text-center border-t border-border">
+          </div>
+        ) : query ? (
+          // عرض نتائج البحث
+          <>
+            {isSearching ? (
+              // Loading state
+              <div className="flex items-center justify-center gap-2 p-4 text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">جاري البحث...</span>
+              </div>
+            ) : displayedResults.length === 0 ? (
+              // No results state
+              <div className="p-4 text-center space-y-2">
+                <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto" />
+                <p className="text-sm font-medium text-foreground">لا توجد نتائج</p>
                 <p className="text-xs text-muted-foreground">
-                  و {results.length - maxResults} نتائج أخرى
+                  جرّب البحث بكلمات مختلفة أو تأكد من تفعيل Places API
                 </p>
               </div>
+            ) : (
+              // Results list
+              <div className="divide-y divide-border">
+                {displayedResults.map((result, index) => (
+                  <motion.button
+                    key={result.place_id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    onClick={() => onSelect(result.place_id, result.main_text)}
+                    disabled={isLoadingDetails}
+                    className="w-full text-right p-3 hover:bg-muted/50 transition-colors disabled:opacity-50 flex items-start justify-between gap-3 group"
+                  >
+                    {/* Icon and Text */}
+                    <div className="flex-1 flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <MapPin className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium text-sm text-foreground line-clamp-1">
+                          {result.main_text}
+                        </p>
+                        {result.secondary_text && (
+                          <p className="text-xs text-muted-foreground line-clamp-1">
+                            {result.secondary_text}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {result.distance_text && (
+                      <div className="text-xs text-muted-foreground whitespace-nowrap mt-1">
+                        {result.distance_text}
+                      </div>
+                    )}
+
+                    {/* Chevron Icon */}
+                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0 mt-0.5" />
+
+                    {/* Loading indicator on selection */}
+                    {isLoadingDetails && (
+                      <div className="absolute inset-0 bg-background/50 rounded-lg flex items-center justify-center">
+                        <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                      </div>
+                    )}
+                  </motion.button>
+                ))}
+
+                {/* Show more indicator */}
+                {hasMore && (
+                  <div className="p-3 text-center border-t border-border">
+                    <p className="text-xs text-muted-foreground">
+                      و {results.length - maxResults} نتائج أخرى
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
-          </div>
-        )}
+          </>
+        ) : null}
       </motion.div>
     </AnimatePresence>
   );

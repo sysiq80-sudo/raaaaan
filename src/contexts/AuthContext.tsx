@@ -176,6 +176,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!isMounted) return;
 
       if (session?.user) {
+        // تحقق من خيار "ابقَني مسجلاً"
+        const rememberMe = localStorage.getItem("raan_remember_me");
+        const sessionAlive = sessionStorage.getItem("raan_session_alive");
+        if (
+          rememberMe === "false" &&
+          sessionAlive !== "1" &&
+          (source === "INITIAL_SESSION" || source === "getSession")
+        ) {
+          // المستخدم لم يختر التذكر والجلسة الحالية من تشغيل سابق — تسجيل خروج تلقائي
+          console.log("[AuthContext] Session expired (remember-me=false, browser restarted) — signing out");
+          await supabase.auth.signOut();
+          if (isMounted) setIsLoading(false);
+          return;
+        }
+
         console.log(`[AuthContext] Session found via ${source}:`, session.user.id);
         setUser(session.user);
 
@@ -221,6 +236,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setUserRole(null);
           localStorage.removeItem("raan_current_role");
+          localStorage.removeItem("raan_remember_me");
+          sessionStorage.removeItem("raan_session_alive");
         } else {
           console.log(`[AuthContext] No session found (${source})`);
         }

@@ -53,7 +53,7 @@ export default function AdminSecuritySettings() {
         .from("app_settings")
         .select("value")
         .eq("key", "security_settings")
-        .single();
+        .maybeSingle();
 
       if (!error && data?.value) {
         setSettings({ ...DEFAULTS, ...(data.value as Partial<SecuritySettings>) });

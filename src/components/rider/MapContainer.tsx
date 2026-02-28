@@ -39,7 +39,7 @@ const MapContainer: React.FC<MapContainerProps> = memo(
           ref={mapRef}
           className="absolute inset-0 z-0"
           style={{
-            touchAction: "none",
+            touchAction: "manipulation",
             pointerEvents: "auto",
           }}
         />

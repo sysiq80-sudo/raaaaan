@@ -1,54 +1,108 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
   <head>
+    <!-- Encoding & Viewport (Critical for Responsiveness) -->
     <meta charset="UTF-8" />
-    <meta name="viewport" content="viewport-fit=cover, width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>ران RAAN</title>
-    <meta name="description" content="منصة ران لطلب سيارات الأجرة في الانبار- خدمة سريعة وآمنة">
+    <meta name="viewport" content="viewport-fit=cover, width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, minimal-ui" />
+    
+    <!-- Title & Core Meta -->
+    <title>ران RAAN - طلب سيارات الأجرة في العراق</title>
+    <meta name="description" content="منصة ران لطلب سيارات الأجرة - خدمة سريعة وآمنة موثوقة في الانبار والعراق. احجز الآن واستمتع برحلة آمنة ومريحة." />
     <meta name="author" content="ران RAAN" />
-    <meta name="theme-color" content="#10b981" />
+    <meta name="robots" content="index, follow" />
+    
+    <!-- Theme & Mobile Configuration -->
+    <meta name="supported-color-schemes" content="light dark" />
+    <meta name="theme-color" content="#10b981" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#064e3b" media="(prefers-color-scheme: dark)" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="ران كابتن" />
+    <meta name="apple-mobile-web-app-title" content="ران" />
+    <meta name="format-detection" content="telephone=yes" />
     
-    <!-- Manifest for PWA -->
+    <!-- PWA Manifest & Icons -->
     <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/png" href="/logo.png" />
-    <link rel="apple-touch-icon" href="/logo.png" />
+    <link rel="icon" type="image/png" href="/logo.png" sizes="192x192" />
+    <link rel="icon" type="image/png" href="/logo.png" sizes="512x512" />
+    <link rel="apple-touch-icon" href="/logo.png" sizes="180x180" />
+    <link rel="shortcut icon" href="/logo.png" type="image/png" />
     
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/5Aec1bkD4ianDfQP9kYuQoMNj9l1/social-images/social-1765910032252-unnamed.png">
-
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@رايد" />
-    <meta name="twitter:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/5Aec1bkD4ianDfQP9kYuQoMNj9l1/social-images/social-1765910032252-unnamed.png">
-
-    <!-- Preconnect for faster resource loading -->
+    <!-- Preconnect & DNS Prefetch (Performance Optimization) -->
     <link rel="preconnect" href="https://wgolkcztdrwdphwjvqxt.supabase.co" crossorigin>
     <link rel="preconnect" href="https://maps.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://maps.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://www.google-analytics.com">
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com">
     
-    <!-- IBM Plex Sans Arabic Font -->
+    <!-- Font Loading (IBM Plex Sans Arabic) -->
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@100;200;300;400;500;600;700&display=swap" rel="stylesheet">
     
+    <!-- Open Graph Meta Tags (Social Media Sharing) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="ar_IQ" />
+    <meta property="og:site_name" content="ران RAAN" />
+    <meta property="og:title" content="ران RAAN - طلب سيارات الأجرة" />
+    <meta property="og:description" content="منصة ران لطلب سيارات الأجرة - خدمة سريعة وآمنة موثوقة. احجز الآن عبر التطبيق أو الويب." />
+    <meta property="og:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/5Aec1bkD4ianDfQP9kYuQoMNj9l1/social-images/social-1765910032252-unnamed.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="تطبيق ران لطلب سيارات الأجرة" />
+    <meta property="og:url" content="https://raan.app" />
     
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@raantaxi" />
+    <meta name="twitter:creator" content="@raantaxi" />
+    <meta name="twitter:title" content="ران RAAN - طلب سيارات الأجرة" />
+    <meta name="twitter:description" content="احجز سيارة أجرة آمنة وسريعة مع ران. التطبيق الموثوق لطلب الرحلات في العراق." />
+    <meta name="twitter:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/5Aec1bkD4ianDfQP9kYuQoMNj9l1/social-images/social-1765910032252-unnamed.png" />
     
+    <!-- Structured Data (JSON-LD) for Search Engines & Rich Results -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "ران RAAN",
+      "description": "منصة ران لطلب سيارات الأجرة - خدمة سريعة وآمنة موثوقة",
+      "url": "https://raan.app",
+      "logo": "https://storage.googleapis.com/gpt-engineer-file-uploads/5Aec1bkD4ianDfQP9kYuQoMNj9l1/social-images/social-1765910032252-unnamed.png",
+      "sameAs": [
+        "https://www.facebook.com/raantaxi",
+        "https://www.instagram.com/raantaxi",
+        "https://www.twitter.com/raantaxi"
+      ],
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "Customer Support",
+        "availableLanguage": "ar",
+        "areaServed": "IQ"
+      },
+      "areaServed": {
+        "@type": "GeoShape",
+        "addressCountry": "IQ"
+      }
+    }
+    </script>
     
-    
-  
-  
-  
-  
-  
-  
-  
-  <meta property="og:title" content="ران RAAN">
-  <meta name="twitter:title" content="ران RAAN">
-  <meta property="og:description" content="منصة ران لطلب سيارات الأجرة في الانبار- خدمة سريعة وآمنة">
-  <meta name="twitter:description" content="منصة ران لطلب سيارات الأجرة في الانبار- خدمة سريعة وآمنة">
+    <!-- PWA Application Metadata -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "ران RAAN",
+      "description": "تطبيق ران لطلب سيارات الأجرة - خدمة سريعة وآمنة موثوقة",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Android, iOS",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "IQD"
+      }
+    }
+    </script>
 </head>
 
   <body>

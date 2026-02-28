@@ -35,6 +35,7 @@ import { useRiderData } from "@/hooks/useRiderData";
 import { useLocationPicker } from "@/hooks/useLocationPicker";
 import { useBookingFlow } from "@/hooks/useBookingFlow";
 import { useSearchAndPlaces } from "@/hooks/useSearchAndPlaces";
+import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { useRideTracking } from "@/hooks/useRideTracking";
 import { useLastLocation } from "@/hooks/useLastLocation";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -201,6 +202,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     getPlaceDetails,
     clearSearch
   } = useSearchAndPlaces(userLocation);
+
+  // Recent searches
+  const {
+    recentSearches,
+    addRecentSearch,
+    removeRecentSearch,
+    clearAllSearches
+  } = useRecentSearches();
 
   // Ride tracking
   const {
@@ -398,8 +407,36 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   // Fare calculation
   const {
     fareBreakdown,
-    fareLoading
+    fareLoading,
+    fareError
   } = useFareCalculation(pickupLocation, dropoffLocation, selectedVehicle, routeDistance);
+
+  // Show fare calculation error
+  useEffect(() => {
+    if (fareError) {
+      toast({
+        title: "خطأ في حساب السعر ❌",
+        description: "تحقق من الاتصال أو حاول مرة أخرى",
+        variant: "destructive"
+      });
+    }
+  }, [fareError, toast]);
+
+  // 🔍 Debug fare calculation state
+  useEffect(() => {
+    if (pickupLocation && dropoffLocation && routeDistance) {
+      console.log('🔍 DEBUG Fare Calculation:', {
+        pickupLocation,
+        dropoffLocation,
+        routeDistance,
+        selectedVehicle,
+        fareLoading,
+        fareError,
+        fareBreakdown: fareBreakdown ? { total_fare: fareBreakdown.total_fare, formatted_fare: fareBreakdown.formatted_fare } : null,
+        buttonDisabled: fareLoading || !fareBreakdown
+      });
+    }
+  }, [pickupLocation, dropoffLocation, routeDistance, selectedVehicle, fareLoading, fareError, fareBreakdown]);
 
   // Nearby drivers
   const {
@@ -554,12 +591,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userLocation?.lat, userLocation?.lng]);
-
-  // Fetch route when both locations are set (for initial location picker map)
-  useEffect(() => {
-    if (!pickupLocation || !dropoffLocation || currentMode === "booking") return;
-    fetchRoute(pickupLocation, dropoffLocation);
-  }, [pickupLocation, dropoffLocation, fetchRoute, currentMode]);
 
   // Initialize booking mode map
   useEffect(() => {
@@ -797,11 +828,16 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         }
         
         setPickupLocation(location);
-        setCurrentMode("dropoff");
+        // إذا كانت الوجهة موجودة مسبقاً (تعديل من شاشة الحجز)، ارجع مباشرة للحجز
+        if (dropoffLocation) {
+          setCurrentMode("booking");
+        } else {
+          setCurrentMode("dropoff");
+        }
         setCenterAddress("");
         setSearchQuery("");
         toast({
-          title: "تم تحديد موقع الانطلاق ✅",
+          title: pickupLocation ? "تم تحديث موقع الانطلاق ✅" : "تم تحديد موقع الانطلاق ✅",
           description: address
         });
       } else if (currentMode === "dropoff") {
@@ -819,7 +855,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         setDropoffLocation(location);
         setCurrentMode("booking");
         toast({
-          title: "تم تحديد الوجهة ✅",
+          title: dropoffLocation ? "تم تحديث الوجهة ✅" : "تم تحديد الوجهة ✅",
           description: address
         });
       }
@@ -833,7 +869,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     } finally {
       setIsConfirming(false);
     }
-  }, [currentMode, centerAddress, isConfirming, map, checkServiceArea, toast]);
+  }, [currentMode, centerAddress, isConfirming, map, checkServiceArea, toast, pickupLocation, dropoffLocation, setCurrentMode, setSearchQuery]);
 
   // Track first drag to hide tooltip permanently
   useEffect(() => {
@@ -930,8 +966,40 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     
   }, [userLocation, map, reverseGeocode, toast, setIsLoading, setMapReloadKey]);
 
+  // الانتقال لتعديل نقطة الانطلاق/الوجهة من شاشة الحجز بدون إعادة العملية من الصفر
+  const startLocationEdit = useCallback((mode: "pickup" | "dropoff") => {
+    // تنظيف خريطة الحجز الحالية حتى لا تتداخل مع خريطة اختيار الموقع
+    cleanupBooking();
+
+    // إعادة تهيئة خريطة اختيار الموقع بعد العودة من شاشة الحجز
+    setIsLoading(true);
+    setMapReloadKey((prev) => prev + 1);
+
+    // انتقال إلى وضع التعديل المطلوب
+    setCurrentMode(mode);
+    setSearchQuery("");
+    setCenterAddress("");
+  }, [cleanupBooking, setIsLoading, setMapReloadKey, setSearchQuery, setCenterAddress]);
+
   // Handle booking submission
   const handleBookRide = async () => {
+    if (isBooking) {
+      console.log('⏳ Booking already in progress, ignoring duplicate click');
+      return;
+    }
+    console.log('✅ handleBookRide clicked!');
+    setIsBooking(true);
+
+    try {
+    const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) =>
+          setTimeout(() => reject(new Error(`انتهت مهلة ${label}`)), ms)
+        ),
+      ]);
+    };
+
     // التحقق من الاتصال بالإنترنت
     if (!isOnline) {
       toast({
@@ -954,7 +1022,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       return;
     }
 
-    // Check if there's already an active ride
+    // Check if there's already an active ride in local state
     if (activeRide && activeRide.status !== "completed" && activeRide.status !== "cancelled") {
       toast({
         title: "لديك رحلة نشطة",
@@ -964,6 +1032,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       setShowWaitingScreen(true);
       return;
     }
+
     if (!pickupLocation || !dropoffLocation) {
       toast({
         title: "معلومات ناقصة",
@@ -975,7 +1044,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
     // Check if pickup location is in service area
     try {
-      const pickupServiceCheck = await checkServiceArea(pickupLocation.lat, pickupLocation.lng);
+      const pickupServiceCheck = await withTimeout(
+        checkServiceArea(pickupLocation.lat, pickupLocation.lng),
+        5000,
+        "التحقق من منطقة خدمة موقع الانطلاق"
+      );
       if (pickupServiceCheck && !pickupServiceCheck.in_service) {
         toast({
           title: "⚠️ موقع الانطلاق خارج منطقة الخدمة",
@@ -988,7 +1061,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       }
 
       // Check if dropoff location is in service area
-      const dropoffServiceCheck = await checkServiceArea(dropoffLocation.lat, dropoffLocation.lng);
+      const dropoffServiceCheck = await withTimeout(
+        checkServiceArea(dropoffLocation.lat, dropoffLocation.lng),
+        5000,
+        "التحقق من منطقة خدمة الوجهة"
+      );
       if (dropoffServiceCheck && !dropoffServiceCheck.in_service) {
         toast({
           title: "⚠️ الوجهة خارج منطقة الخدمة",
@@ -1059,19 +1136,30 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         .from("app_settings")
         .select("value")
         .eq("key", "security_settings")
-        .single();
+        .maybeSingle();
 
       const maxActive = (secData?.value as any)?.max_active_rides_per_user ?? 3;
       const cooldown = (secData?.value as any)?.ride_creation_cooldown_seconds ?? 60;
 
-      // فحص عدد الرحلات النشطة
-      const { count: activeCount } = await supabase
+      // فحص الرحلات النشطة (تجاهل pending القديمة > 10 دقائق لأنها غالباً عالقة)
+      const { data: activeRidesRaw } = await supabase
         .from("rides")
-        .select("id", { count: "exact", head: true })
+        .select("id, status, created_at")
         .eq("rider_id", userId)
-        .in("status", ["pending", "accepted", "in_progress"]);
+        .in("status", ["pending", "accepted", "in_progress", "arrived"])
+        .order("created_at", { ascending: false })
+        .limit(20);
 
-      if (activeCount !== null && activeCount >= maxActive) {
+      const now = Date.now();
+      const activeCount = (activeRidesRaw || []).filter((ride: any) => {
+        if (ride.status === "pending") {
+          const ageMinutes = (now - new Date(ride.created_at).getTime()) / 60000;
+          return ageMinutes <= 10;
+        }
+        return true;
+      }).length;
+
+      if (activeCount >= maxActive) {
         toast({
           title: "لديك رحلات نشطة بالفعل",
           description: `الحد الأقصى ${maxActive} رحلات نشطة في وقت واحد`,
@@ -1085,9 +1173,10 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         .from("rides")
         .select("created_at")
         .eq("rider_id", userId)
+        .not("status", "in", '("cancelled","completed")')
         .order("created_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (lastRide) {
         const elapsed = (Date.now() - new Date(lastRide.created_at).getTime()) / 1000;
@@ -1159,15 +1248,62 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       // Show waiting screen
       setShowWaitingScreen(true);
 
-      // Trigger ride matching (في الخلفية)
-      await supabase.functions.invoke("match-ride", {
-        body: {
-          rideId: ride.id
-        }
+      // Trigger ride matching in background (بدون انتظار لتجنب تعليق الواجهة)
+      withTimeout(
+        supabase.functions.invoke("match-ride", {
+          body: {
+            rideId: ride.id
+          }
+        }),
+        8000,
+        "مطابقة السائق"
+      ).catch((matchErr) => {
+        console.warn("⚠️ match-ride background error:", matchErr);
       });
       // ✅ لا toasts - الشاشة نفسها تعرض حالة البحث
     } catch (error: any) {
       console.error("❌ Booking error:", error);
+
+      // Fallback: إذا انتهت مهلة الإنشاء، افحص إن كانت الرحلة أُنشئت فعلاً بالخلفية
+      const errorMessage = String(error?.message || "");
+      if (errorMessage.includes("انتهت مهلة إنشاء الرحلة")) {
+        try {
+          const { data: fallbackRide } = await supabase
+            .from("rides")
+            .select("*")
+            .eq("rider_id", userId)
+            .eq("status", "pending")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (fallbackRide) {
+            const pickupLoc = fallbackRide.pickup_location as unknown as { lat: number; lng: number };
+            const dropoffLoc = fallbackRide.dropoff_location as unknown as { lat: number; lng: number };
+            setActiveRide({
+              id: fallbackRide.id,
+              pickup_location: pickupLoc,
+              dropoff_location: dropoffLoc,
+              pickup_address: fallbackRide.pickup_address,
+              dropoff_address: fallbackRide.dropoff_address,
+              status: fallbackRide.status,
+              estimated_fare: fallbackRide.estimated_fare,
+              final_fare: fallbackRide.final_fare,
+              distance_km: fallbackRide.distance_km,
+              duration_minutes: fallbackRide.duration_minutes,
+              vehicle_type: fallbackRide.vehicle_type,
+              driver_id: fallbackRide.driver_id,
+              created_at: fallbackRide.created_at,
+              completed_at: fallbackRide.completed_at,
+            });
+            setShowWaitingScreen(true);
+            return;
+          }
+        } catch (fallbackError) {
+          console.warn("⚠️ Fallback pending ride check failed:", fallbackError);
+        }
+      }
+
       // فقط في حالة الخطأ نعرض toast
       toast({
         title: "فشل الحجز",
@@ -1175,7 +1311,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         variant: "destructive"
       });
     }
-    // ✅ لا حاجة لـ setIsBooking(false) - لم نستخدمه أصلاً
+    } finally {
+      setIsBooking(false);
+    }
   };
   const isPickup = currentMode === "pickup";
   const isDropoff = currentMode === "dropoff";
@@ -1262,7 +1400,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       opacity: 0
     }} animate={{
       opacity: 1
-    }} className="h-screen bg-background flex flex-col overflow-hidden">
+    }} className="h-[100dvh] bg-background flex flex-col overflow-hidden">
         {/* Offline/Online status indicator */}
         {!isOnline && <div className="absolute top-0 left-0 right-0 z-50 bg-destructive/90 backdrop-blur-md px-4 py-2 text-center text-sm font-medium text-destructive-foreground flex items-center justify-center gap-2">
             <AlertTriangle className="w-4 h-4" />
@@ -1328,7 +1466,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           <div className="absolute top-2 right-4 z-40 safe-area-top pointer-events-auto">
             <button
               onClick={manualGeolocateBooking}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
+              className="w-11 h-11 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
               title="تحديد موقعي"
               aria-label="تحديد موقعي"
             >
@@ -1345,7 +1483,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           </div>
 
           {/* Scrollable content */}
-          <div className={`flex-1 overflow-y-auto px-4 space-y-3 ${bottomNavEnabled ? 'pb-40' : 'pb-6'}`}>
+          <div className={`flex-1 overflow-y-auto px-4 space-y-3 ${bottomNavEnabled ? 'pb-[calc(80px+1rem)]' : 'pb-6'}`}>
             {/* Route summary - Modern vertical timeline */}
             <motion.div initial={{
             y: 20,
@@ -1366,9 +1504,18 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 <div className="flex-1 space-y-4">
                   {/* Pickup */}
                   <div className="min-h-[32px]">
-                    <p className="text-[10px] uppercase tracking-wider text-primary font-bold mb-0.5">
-                      موقع الانطلاق
-                    </p>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <p className="text-[10px] uppercase tracking-wider text-primary font-bold">
+                        موقع الانطلاق
+                      </p>
+                      <button
+                        onClick={() => startLocationEdit("pickup")}
+                        className="text-[11px] font-bold text-primary hover:text-primary/80 transition-colors"
+                        aria-label="تغيير موقع الانطلاق"
+                      >
+                        تغيير
+                      </button>
+                    </div>
                     <p className="text-sm font-semibold text-foreground line-clamp-1">
                       {buildDescriptiveAddress(pickupLocation.address || "")}
                     </p>
@@ -1376,9 +1523,19 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                   
                   {/* Dropoff */}
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider font-bold mb-0.5" style={{color: '#2A6CD5'}}>
-                      الوجهة
-                    </p>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <p className="text-[10px] uppercase tracking-wider font-bold" style={{color: '#2A6CD5'}}>
+                        الوجهة
+                      </p>
+                      <button
+                        onClick={() => startLocationEdit("dropoff")}
+                        className="text-[11px] font-bold hover:opacity-80 transition-opacity"
+                        style={{color: '#2A6CD5'}}
+                        aria-label="تغيير الوجهة"
+                      >
+                        تغيير
+                      </button>
+                    </div>
                     <p className="text-sm font-semibold text-foreground line-clamp-1">
                       {buildDescriptiveAddress(dropoffLocation.address || "")}
                     </p>
@@ -1458,17 +1615,17 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               <CompactVehicleSelector selectedVehicle={selectedVehicle} onSelect={setSelectedVehicle} availableDrivers={availableDriversByType} baseFare={fareBreakdown?.total_fare} />
             </motion.div>
 
-            {/* Fare & Payment - Combined Card */}
+            {/* Fare & Payment - Combined Card in Single Row */}
             <motion.div 
               initial={{ y: 20, opacity: 0 }} 
               animate={{ y: 0, opacity: 1 }} 
               transition={{ delay: 0.2 }}
               className="bg-gradient-to-br from-primary/5 via-primary/8 to-primary/10 rounded-2xl p-4 border border-primary/20 shadow-lg"
             >
-              {/* Fare Display */}
-              {fareBreakdown && (
-                <div className="mb-3 pb-3 border-b border-primary/10">
-                  <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
+                {/* Fare Display */}
+                {fareBreakdown && (
+                  <div className="flex-1 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center">
                         <Zap className="w-5 h-5 text-primary" />
@@ -1485,31 +1642,34 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                       <p className="text-xs text-muted-foreground">دينار عراقي</p>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Payment Method Selector */}
-              <button 
-                onClick={() => setPaymentSheetOpen(true)} 
-                className="w-full bg-card/50 rounded-xl px-4 py-3 border border-border/40 hover:border-primary/40 hover:bg-card/80 transition-all duration-200 active:scale-[0.98] flex items-center justify-between group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-lg">
-                    {paymentMethod === 'cash' ? '💵' : 
-                     paymentMethod === 'wallet' ? '👛' : 
-                     paymentMethod === 'card' ? '💳' : '💵'}
+                {/* Divider */}
+                <div className="w-px h-16 bg-primary/20" />
+
+                {/* Payment Method Selector */}
+                <button 
+                  onClick={() => setPaymentSheetOpen(true)} 
+                  className="flex-1 bg-card/50 rounded-xl px-4 py-3 border border-border/40 hover:border-primary/40 hover:bg-card/80 transition-all duration-200 active:scale-[0.98] flex items-center justify-between group h-full"
+                >
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-lg">
+                      {paymentMethod === 'cash' ? '💵' : 
+                       paymentMethod === 'wallet' ? '👛' : 
+                       paymentMethod === 'card' ? '💳' : '💵'}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">طريقة الدفع</p>
+                      <p className="font-bold text-sm">
+                        {paymentMethod === 'cash' ? 'نقداً' : 
+                         paymentMethod === 'wallet' ? 'المحفظة' : 
+                         paymentMethod === 'card' ? 'البطاقة' : 'نقداً'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">طريقة الدفع</p>
-                    <p className="font-bold text-sm">
-                      {paymentMethod === 'cash' ? 'نقداً' : 
-                       paymentMethod === 'wallet' ? 'المحفظة' : 
-                       paymentMethod === 'card' ? 'البطاقة' : 'نقداً'}
-                    </p>
-                  </div>
-                </div>
-                <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-              </button>
+                  <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                </button>
+              </div>
             </motion.div>
 
             {/* Schedule option - Enhanced */}
@@ -1543,18 +1703,60 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 }} 
               />
             </motion.div>
-          </div>
 
-          {/* Book button - Conditional positioning */}
-          {!bottomNavEnabled && (
-            <div className="px-4 pb-6">
-              <div className="max-w-lg mx-auto">
-                <Button onClick={() => { if (navigator.vibrate) navigator.vibrate(50); handleBookRide(); }} disabled={fareLoading || !fareBreakdown} className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground">
+            {/* Book button - Inside scroll container */}
+            {!bottomNavEnabled && (
+              <div className="px-1 mt-2">
+                <Button 
+                  onClick={handleBookRide}
+                  disabled={fareLoading || !fareBreakdown || isBooking}
+                  className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground"
+                >
                   <span className="flex items-center gap-3 justify-center">
                     {fareLoading ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
                         <span>جاري حساب السعر...</span>
+                      </>
+                    ) : isBooking ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>جاري إنشاء الحجز...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Navigation className="w-5 h-5" />
+                        <span>احجز الآن</span>
+                        <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
+                          {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
+                        </span>
+                      </>
+                    )}
+                  </span>
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Book button - Fixed at bottom when nav is visible */}
+          {bottomNavEnabled && (
+            <div className="fixed bottom-[80px] left-0 right-0 p-4 bg-background/98 backdrop-blur-md border-t border-border/20 z-40 safe-area-bottom">
+              <div className="max-w-lg mx-auto">
+                <Button 
+                  onClick={handleBookRide}
+                  disabled={fareLoading || !fareBreakdown || isBooking}
+                  className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground"
+                >
+                  <span className="flex items-center gap-3 justify-center">
+                    {fareLoading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>جاري حساب السعر...</span>
+                      </>
+                    ) : isBooking ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>جاري إنشاء الحجز...</span>
                       </>
                     ) : (
                       <>
@@ -1569,32 +1771,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 </Button>
               </div>
             </div>
-          )}
-
-          {/* Book button - Fixed at bottom when nav is visible */}
-          {bottomNavEnabled && (
-            <div className="fixed bottom-20 left-0 right-0 p-4 bg-background/98 backdrop-blur-md border-t border-border/20 z-40">
-            <div className="max-w-lg mx-auto">
-              <Button onClick={() => { if (navigator.vibrate) navigator.vibrate(50); handleBookRide(); }} disabled={fareLoading || !fareBreakdown} className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground">
-                <span className="flex items-center gap-3 justify-center">
-                  {fareLoading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>جاري حساب السعر...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Navigation className="w-5 h-5" />
-                      <span>احجز الآن</span>
-                      <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
-                        {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
-                      </span>
-                    </>
-                  )}
-                </span>
-              </Button>
-            </div>
-          </div>
           )}
         </div>
 
@@ -1746,7 +1922,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         <div className="absolute top-20 right-4 z-40 safe-area-top pointer-events-auto">
           <button
             onClick={manualGeolocateMain}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
+            className="w-11 h-11 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
             title="تحديد موقعي"
             aria-label="تحديد موقعي"
           >
@@ -1779,8 +1955,21 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           <motion.div 
             initial={{ scale: 0.8, opacity: 0 }} 
             animate={{ scale: 1, opacity: 1 }}
-            className="flex flex-col items-center"
+            className="flex flex-col items-center gap-1"
           >
+            {/* Location Name Label - يظهر أعلى الدبوس للتطابق البصري */}
+            {centerAddress && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-card/95 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-lg border border-border/50 whitespace-nowrap max-w-xs"
+              >
+                <p className="text-xs sm:text-sm font-semibold text-foreground truncate">
+                  {buildDescriptiveAddress(centerAddress)}
+                </p>
+              </motion.div>
+            )}
+            
             <motion.div 
               animate={{ y: isDragging ? -12 : 0 }} 
               transition={{ type: "spring", stiffness: 300 }}
@@ -1804,9 +1993,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 )}
               </div>
               
-              {/* Pin Needle */}
+              {/* Pin Needle - النقطة السفلية من الدبوس */}
               <div 
-                className={`w-0 h-0 mx-auto -mt-1 ${isPickup ? '' : ''}`}
+                className={`w-0 h-0 mx-auto -mt-1`}
                 style={{
                   borderLeft: '10px solid transparent',
                   borderRight: '10px solid transparent',
@@ -1815,7 +2004,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 }}
               />
               
-              {/* Shadow dot */}
+              {/* Shadow dot - للتأثير البصري */}
               <motion.div 
                 animate={{ scale: isDragging ? 0.5 : 1, opacity: isDragging ? 0.2 : 0.4 }} 
                 className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-2 bg-black/50 rounded-full blur-sm" 
@@ -1879,13 +2068,17 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             lng={centerLng}
             placeholder={isPickup ? "اختر موقع الانطلاق" : "اختر الوجهة"}
             onClick={() => {}} // الخريطة تتحكم بهذا
+            isPickup={isPickup}
+            onCurrentLocationClick={() => {
+              // استخدام manualGeolocateMain لتحديد الموقع الحالي
+              manualGeolocateMain();
+            }}
             onClear={() => {
                setCenterAddress(null);
                (window as any).__setCenterLat?.(null);
                (window as any).__setCenterLng?.(null);
               setManualAddress(null);
             }}
-            isPickup={isPickup}
             className="mb-3 pointer-events-auto"
           />
 
@@ -1899,19 +2092,84 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               placeholder={isPickup ? "ابحث عن موقع الانطلاق..." : "ابحث عن الوجهة..."}
             />
 
-            {searchQuery && (
-              <DynamicSearchResults
-                query={searchQuery}
-                results={predictions}
-                isSearching={isSearching}
-                isLoadingDetails={isLoadingDetails}
-                onSelect={async (placeId) => {
-                  const placeDetails = await getPlaceDetails(placeId);
-                  if (!placeDetails) return;
+            <DynamicSearchResults
+              query={searchQuery}
+              results={predictions}
+              recentSearches={recentSearches}
+              isSearching={isSearching}
+              isLoadingDetails={isLoadingDetails}
+              onSelect={async (placeId) => {
+                const placeDetails = await getPlaceDetails(placeId);
+                if (!placeDetails) return;
 
+                // حفظ البحث الناجح
+                addRecentSearch({
+                  mainText: placeDetails.name,
+                  secondaryText: placeDetails.address,
+                  address: placeDetails.address,
+                  lat: placeDetails.lat,
+                  lng: placeDetails.lng,
+                });
+
+                const geofenceCheck = await checkDestinationGeofence(
+                  placeDetails.lat,
+                  placeDetails.lng,
+                  mapToken
+                );
+                if (!geofenceCheck.allowed) {
+                  setGeofenceResult(geofenceCheck);
+                  setShowGeofenceAlert(true);
+                  return;
+                }
+
+                if (map.current) {
+                  map.current.panTo({
+                    lat: placeDetails.lat,
+                    lng: placeDetails.lng,
+                  });
+                  map.current.setZoom(16);
+                }
+                
+                // ✨ بناء عنوان ذكي = اسم المكان + المدينة (بدون Plus Code)
+                let descriptiveAddress = placeDetails.name || placeDetails.address;
+                
+                // محاولة استخراج المدينة من formatted_address
+                const addressParts = placeDetails.address
+                  .split(/[،,]/)
+                  .map(p => p.trim())
+                  .filter(p => p.length > 0);
+                
+                // حذف Plus Code إذا وجد
+                const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
+                const cleanParts = addressParts.filter(p => !plusCodeRegex.test(p));
+                
+                // استخراج المدينة (آخر جزء عادةً، بدون "محافظة" أو "العراق")
+                const city = cleanParts
+                  .reverse()
+                  .find(p => !p.includes("محافظة") && p !== "العراق");
+                
+                // بناء العنوان النهائي
+                if (placeDetails.name && city && placeDetails.name !== city) {
+                  descriptiveAddress = `${placeDetails.name}، ${city}`;
+                } else if (placeDetails.name) {
+                  descriptiveAddress = placeDetails.name;
+                } else {
+                  descriptiveAddress = cleanParts.slice(0, 2).join('، ') || placeDetails.address;
+                }
+                
+                console.log("✅ Built descriptive address from search:", descriptiveAddress);
+                
+                // ✨ استخدم setManualAddress بدلاً من setCenterAddress
+                setManualAddress(descriptiveAddress);
+                
+                checkServiceArea(placeDetails.lat, placeDetails.lng);
+                setSearchQuery("");
+                }}
+                onSelectRecent={async (search) => {
+                  // عند اختيار بحث سابق
                   const geofenceCheck = await checkDestinationGeofence(
-                    placeDetails.lat,
-                    placeDetails.lng,
+                    search.lat,
+                    search.lng,
                     mapToken
                   );
                   if (!geofenceCheck.allowed) {
@@ -1922,50 +2180,19 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
                   if (map.current) {
                     map.current.panTo({
-                      lat: placeDetails.lat,
-                      lng: placeDetails.lng,
+                      lat: search.lat,
+                      lng: search.lng,
                     });
                     map.current.setZoom(16);
                   }
                   
-                  // ✨ بناء عنوان ذكي = اسم المكان + المدينة (بدون Plus Code)
-                  let descriptiveAddress = placeDetails.name || placeDetails.address;
-                  
-                  // محاولة استخراج المدينة من formatted_address
-                  const addressParts = placeDetails.address
-                    .split(/[،,]/)
-                    .map(p => p.trim())
-                    .filter(p => p.length > 0);
-                  
-                  // حذف Plus Code إذا وجد
-                  const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
-                  const cleanParts = addressParts.filter(p => !plusCodeRegex.test(p));
-                  
-                  // استخراج المدينة (آخر جزء عادةً، بدون "محافظة" أو "العراق")
-                  const city = cleanParts
-                    .reverse()
-                    .find(p => !p.includes("محافظة") && p !== "العراق");
-                  
-                  // بناء العنوان النهائي
-                  if (placeDetails.name && city && placeDetails.name !== city) {
-                    descriptiveAddress = `${placeDetails.name}، ${city}`;
-                  } else if (placeDetails.name) {
-                    descriptiveAddress = placeDetails.name;
-                  } else {
-                    descriptiveAddress = cleanParts.slice(0, 2).join('، ') || placeDetails.address;
-                  }
-                  
-                  console.log("✅ Built descriptive address from search:", descriptiveAddress);
-                  
-                  // ✨ استخدم setManualAddress بدلاً من setCenterAddress
-                  setManualAddress(descriptiveAddress);
-                  
-                  checkServiceArea(placeDetails.lat, placeDetails.lng);
+                  setManualAddress(search.address);
+                  checkServiceArea(search.lat, search.lng);
                   setSearchQuery("");
                 }}
+                onRemoveRecent={removeRecentSearch}
                 maxResults={6}
               />
-            )}
           </div>
 
           {/* 🟢 المفضلة في جميع المراحل - الانطلاق والوجهة */}

@@ -80,6 +80,7 @@ export const useOptimizedNearbyDrivers = (
   const lastFetchRef = useRef<number>(0);
   const driversCache = useRef<Map<string, DriverLocation>>(new Map());
   const throttleRef = useRef<NodeJS.Timeout | null>(null);
+  const fallbackLogShownRef = useRef(false);
 
   // Memoize filtered drivers based on vehicle type and distance
   const filteredDrivers = useMemo(() => {
@@ -225,9 +226,10 @@ export const useOptimizedNearbyDrivers = (
 
       // Add fallback fake drivers for development if no real drivers found
       if (newLocations.length === 0 && pickupCoords) {
-        console.log(
-          "No drivers found, adding fallback drivers for development"
-        );
+        if (!fallbackLogShownRef.current) {
+          console.log("No drivers found, adding fallback drivers for development");
+          fallbackLogShownRef.current = true;
+        }
         const fallbackDrivers = [
           {
             id: "dev-1",

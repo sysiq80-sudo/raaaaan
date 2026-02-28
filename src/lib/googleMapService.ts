@@ -402,46 +402,62 @@ export const getDirections = async (
 
   const directionsService = new google.maps.DirectionsService();
 
-  try {
-    const request: google.maps.DirectionsRequest = {
-      origin: new google.maps.LatLng(origin.lat, origin.lng),
-      destination: new google.maps.LatLng(destination.lat, destination.lng),
-      travelMode: google.maps.TravelMode.DRIVING,
-      waypoints: waypoints?.map((w) => ({
-        location: new google.maps.LatLng(w.lat, w.lng),
-        stopover: true,
-      })),
-    };
+  return Promise.race([
+    new Promise<{
+      distance: string;
+      duration: string;
+      distanceMeters: number;
+      durationSeconds: number;
+      route: Array<{ lat: number; lng: number }>;
+    } | null>(async (resolve, reject) => {
+      try {
+        const request: google.maps.DirectionsRequest = {
+          origin: new google.maps.LatLng(origin.lat, origin.lng),
+          destination: new google.maps.LatLng(destination.lat, destination.lng),
+          travelMode: google.maps.TravelMode.DRIVING,
+          waypoints: waypoints?.map((w) => ({
+            location: new google.maps.LatLng(w.lat, w.lng),
+            stopover: true,
+          })),
+        };
 
-    const result = await directionsService.route(request);
+        const result = await directionsService.route(request);
 
-    if (result.routes && result.routes.length > 0) {
-      const route = result.routes[0];
-      const leg = route.legs[0];
+        if (result.routes && result.routes.length > 0) {
+          const route = result.routes[0];
+          const leg = route.legs[0];
 
-      // Extract route coordinates
-      const routeCoordinates: Array<{ lat: number; lng: number }> = [];
-      route.overview_path.forEach((point) => {
-        routeCoordinates.push({
-          lat: point.lat(),
-          lng: point.lng(),
-        });
-      });
+          // Extract route coordinates
+          const routeCoordinates: Array<{ lat: number; lng: number }> = [];
+          route.overview_path.forEach((point) => {
+            routeCoordinates.push({
+              lat: point.lat(),
+              lng: point.lng(),
+            });
+          });
 
-      return {
-        distance: leg.distance?.text || "",
-        duration: leg.duration?.text || "",
-        distanceMeters: leg.distance?.value || 0,
-        durationSeconds: leg.duration?.value || 0,
-        route: routeCoordinates,
-      };
-    }
-
+          resolve({
+            distance: leg.distance?.text || "",
+            duration: leg.duration?.text || "",
+            distanceMeters: leg.distance?.value || 0,
+            durationSeconds: leg.duration?.value || 0,
+            route: routeCoordinates,
+          });
+        } else {
+          resolve(null);
+        }
+      } catch (error) {
+        console.error("Directions error:", error);
+        reject(error);
+      }
+    }),
+    new Promise<null>((_, reject) =>
+      setTimeout(() => reject(new Error("Directions timeout")), 10000)
+    )
+  ]).catch((error) => {
+    console.error("Directions failed:", error);
     return null;
-  } catch (error) {
-    console.error("Directions error:", error);
-    return null;
-  }
+  });
 };
 
 /**

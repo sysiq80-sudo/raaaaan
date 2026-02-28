@@ -109,6 +109,8 @@
       "rlig" 1,
       "calt" 1;
     line-height: 1.5; /* Better line height for readability */
+    touch-action: pan-y;
+    user-select: none;
   }
 
   /* Responsive text scaling */
@@ -442,6 +444,26 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(160 100% 45% / 0.6);
+}
+
+/* ✅ Safe-area CSS helpers for notches, home indicators */
+.safe-area-top {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+.safe-area-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.safe-area-pb {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+.safe-area-inset {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 /* Phone mockup shadows */

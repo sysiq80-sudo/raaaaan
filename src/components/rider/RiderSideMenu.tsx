@@ -56,7 +56,7 @@ const MenuLink = ({
   <Link
     to={href}
     onClick={onClick}
-    className="relative flex items-center gap-3 p-3 rounded-lg transition-all duration-300 group"
+    className="relative flex items-center gap-2.5 pr-1 pl-3 py-2.5 rounded-lg transition-all duration-300 group"
   >
     {/* Animated Glass Background - يظهر فقط عند التفعيل */}
     <motion.div
@@ -89,7 +89,7 @@ const MenuLink = ({
     {/* Content Layer - يبقى فوق الزجاج دائماً */}
     <motion.span
       className={cn(
-        "text-muted-foreground/50 transition-all duration-300 relative z-10",
+        "text-muted-foreground/50 transition-all duration-300 relative z-10 order-2",
         isActive && "text-white scale-140 drop-shadow-[0_0_12px_rgba(0,0,0,0.8)]"
       )}
       animate={{
@@ -101,7 +101,7 @@ const MenuLink = ({
     
     <motion.span
       className={cn(
-        "transition-all duration-300 font-medium relative z-10",
+        "transition-all duration-300 font-medium relative z-10 flex-1 text-right order-1",
         isActive ? "text-white font-bold text-base" : "text-foreground"
       )}
       animate={{
@@ -150,12 +150,12 @@ const RiderSideMenu = ({
       onClick={handleClose}
     >
       <div
-        className="absolute top-0 right-0 h-full w-72 bg-card shadow-xl p-6 animate-slide-in-right"
+        className="absolute top-0 right-0 h-full w-72 bg-card shadow-xl p-4 animate-slide-in-right"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-5 pb-4 border-b border-border">
+        <div className="mb-3 pb-3 border-b border-border">
           {user ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center flex-row-reverse gap-3">
               {/* صورة المستخدم أو أيقونة افتراضية */}
               <div className="w-11 h-11 rounded-full bg-[#00E676]/15 flex items-center justify-center flex-shrink-0 border border-[#00E676]/30">
                 {user.user_metadata?.avatar_url ? (
@@ -168,7 +168,7 @@ const RiderSideMenu = ({
                   <UserCircle2 className="w-6 h-6 text-[#00E676]" />
                 )}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 text-right">
                 <p className="font-bold text-foreground truncate">
                   {user.user_metadata?.full_name || "مستخدم ران"}
                 </p>
@@ -181,17 +181,17 @@ const RiderSideMenu = ({
             <Link
               to="/auth"
               onClick={handleClose}
-              className="flex items-center gap-3 p-3 rounded-lg bg-[#00E676]/10 border border-[#00E676]/20 hover:bg-[#00E676]/20 transition-colors"
+              className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[#00E676]/10 border border-[#00E676]/20 hover:bg-[#00E676]/20 transition-colors"
             >
+              <span className="text-[#00E676] font-semibold flex-1 text-right">تسجيل الدخول</span>
               <LogIn className="w-5 h-5 text-[#00E676]" />
-              <span className="text-[#00E676] font-semibold">تسجيل الدخول</span>
             </Link>
           )}
         </div>
 
         {/* Status icons & notifications - moved into side menu */}
         {user && (
-          <div className="mb-4 flex items-center justify-between px-1">
+          <div className="mb-3 flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               {user && <RiderNotificationsBell userId={user.id} />}
             </div>
@@ -203,10 +203,10 @@ const RiderSideMenu = ({
 
         {/* Driver Mode Switch — يظهر دائماً للمستخدم المسجل */}
         {user && (
-          <div className="mb-4">
+          <div className="mb-3">
             <Button
               variant="outline"
-              className="w-full justify-start gap-3 border-[#00E676]/40 text-[#00E676] hover:bg-[#00E676]/10 h-12 text-base font-bold rounded-xl"
+              className="w-full justify-between gap-2.5 border-[#00E676]/40 text-[#00E676] hover:bg-[#00E676]/10 h-11 text-sm font-bold rounded-xl text-right"
               onClick={async () => {
                 try {
                   const success = await switchToDriver();
@@ -229,7 +229,7 @@ const RiderSideMenu = ({
           </div>
         )}
 
-        <nav className="space-y-2">
+        <nav className="space-y-1">
           <MenuLink
             icon={<History className="w-5 h-5" />}
             label="رحلاتي"
@@ -263,10 +263,10 @@ const RiderSideMenu = ({
           />
 
           {/* خيارات الواجهة */}
-          <div className="pt-3 border-t border-border space-y-2">
+          <div className="pt-2 border-t border-border space-y-1">
             <button
               onClick={toggleBottomNav}
-              className="flex items-center gap-3 w-full p-3 rounded-md text-foreground hover:bg-accent transition-colors"
+              className="flex items-center gap-2.5 w-full pr-1 pl-3 py-2.5 rounded-md text-foreground hover:bg-accent transition-colors"
             >
               <span className="text-muted-foreground">
                 {bottomNavEnabled ? (
@@ -291,20 +291,13 @@ const RiderSideMenu = ({
           {/* Map provider setting removed per design */}
 
           {/* قسم المعلومات */}
-          <div className="pt-3 border-t border-border space-y-2">
-            <MenuLink
-              icon={<MessageSquare className="w-5 h-5" />}
-              label="تواصل معنا"
-              href="/contact"
-              onClick={handleClose}
-              isActive={isActiveLink("/contact")}
-            />
+          <div className="pt-2 border-t border-border space-y-1">
             <MenuLink
               icon={<HelpCircle className="w-5 h-5" />}
-              label="المساعدة والدعم"
+              label="الاتصال و المساعدة"
               href="/help"
               onClick={handleClose}
-              isActive={isActiveLink("/help")}
+              isActive={isActiveLink("/help") || isActiveLink("/contact")}
             />
             <MenuLink
               icon={<Info className="w-5 h-5" />}
@@ -316,7 +309,7 @@ const RiderSideMenu = ({
           </div>
 
           {user && (
-            <div className="pt-4 border-t border-border">
+            <div className="pt-3 border-t border-border">
               <button
                 onClick={async () => {
                   handleClose();
@@ -327,10 +320,10 @@ const RiderSideMenu = ({
                     navigate("/auth");
                   }
                 }}
-                className="flex items-center gap-3 w-full p-3 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
+                className="flex items-center gap-2.5 w-full pr-1 pl-3 py-2.5 rounded-md text-destructive hover:bg-destructive/10 transition-colors text-right"
               >
+                <span className="flex-1 text-right">تسجيل الخروج</span>
                 <LogOut className="w-5 h-5" />
-                <span>تسجيل الخروج</span>
               </button>
             </div>
           )}

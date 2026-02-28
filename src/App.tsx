@@ -22,8 +22,7 @@ const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const TrackRide = lazy(() => import("./pages/TrackRide"));
 const About = lazy(() => import("./pages/About"));
-const Help = lazy(() => import("./pages/Help"));
-const ContactUs = lazy(() => import("./pages/ContactUs"));
+const HelpAndContact = lazy(() => import("./pages/HelpAndContact"));
 const PaymentResult = lazy(() => import("./pages/payment/PaymentResult"));
 
 // ØµÙØ­Ø§Øª Ø§Ù„Ø±Ø§ÙƒØ¨ - ØªØ­Ù…ÙŠÙ„ ÙƒØ³ÙˆÙ„ (Ù„Ø§ ÙŠØ­Ù…Ù„Ù‡Ø§ Ø§Ù„Ø³Ø§Ø¦Ù‚ Ø£Ùˆ Ø§Ù„Ø£Ø¯Ù…Ù†)
@@ -177,8 +176,8 @@ const AppRoutes = () => {
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/about" element={<About />} />
-        <Route path="/help" element={<Help />} />
-        <Route path="/contact" element={<ContactUs />} />
+        <Route path="/help" element={<HelpAndContact />} />
+        <Route path="/contact" element={<HelpAndContact />} />
         <Route
           path="/track/:token"
           element={
@@ -250,8 +249,8 @@ const AppRoutes = () => {
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/about" element={<About />} />
-        <Route path="/help" element={<Help />} />
-        <Route path="/contact" element={<ContactUs />} />
+        <Route path="/help" element={<HelpAndContact />} />
+        <Route path="/contact" element={<HelpAndContact />} />
         {/* âœ… Redirect to onboarding if user tries other routes without completing it */}
         <Route path="*" element={<Navigate to="/onboarding" replace={false} />} />
       </Routes>
@@ -289,8 +288,8 @@ const AppRoutes = () => {
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/about" element={<About />} />
-            <Route path="/help" element={<Help />} />
-            <Route path="/contact" element={<ContactUs />} />
+            <Route path="/help" element={<HelpAndContact />} />
+            <Route path="/contact" element={<HelpAndContact />} />
             <Route
               path="/track/:token"
               element={

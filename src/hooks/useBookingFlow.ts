@@ -52,7 +52,7 @@ export const useBookingFlow = () => {
           { lat: dropoffLocation.lat, lng: dropoffLocation.lng }
         );
 
-        if (result && result.route) {
+        if (result && result.route && result.distanceMeters > 0) {
           console.log("✅ Route received, distance:", result.distance, "duration:", result.duration);
           // ✅ استخدام القيم الرقمية بدلاً من تحليل النص المحلي (قد يكون بالعربية)
           const distanceKm = result.distanceMeters / 1000;
@@ -79,7 +79,27 @@ export const useBookingFlow = () => {
             console.log("✅ Map bounds fitted");
           }
         } else {
-          console.error("❌ No route data received");
+          console.warn("⚠️ No route data received, using fallback distance calculation");
+          // Fallback: Calculate straight-line distance (Haversine formula)
+          const R = 6371; // Earth's radius in km
+          const dLat = (dropoffLocation.lat - pickupLocation.lat) * Math.PI / 180;
+          const dLng = (dropoffLocation.lng - pickupLocation.lng) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(pickupLocation.lat * Math.PI / 180) * Math.cos(dropoffLocation.lat * Math.PI / 180) *
+                    Math.sin(dLng/2) * Math.sin(dLng/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          const distanceKm = R * c;
+          const estimatedDurationMin = Math.ceil(distanceKm / 2.5 * 60); // Assume 2.5 km/min avg speed
+          
+          console.log("📏 Fallback distance calculated:", Math.round(distanceKm * 10) / 10, "km");
+          setRouteDistance(Math.round(distanceKm * 10) / 10);
+          setRouteDuration(estimatedDurationMin);
+          
+          toast({
+            title: "المسار التقريبي ⚠️",
+            description: "تم استخدام مسافة تقريبية بسبب عدم توفر التفاصيل الدقيقة",
+            variant: "default",
+          });
         }
       } catch (error) {
         console.error("❌ Error fetching route:", error);

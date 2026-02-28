@@ -85,6 +85,8 @@ export const RideWaitingScreen = ({
     tahmid: 0,
   });
   const [lastTappedDhikr, setLastTappedDhikr] = useState<string | null>(null);
+  const [reMatchCount, setReMatchCount] = useState(0); // عدد مرات إعادة المطابقة
+  const [isReMatching, setIsReMatching] = useState(false); // حالة إعادة المطابقة
   const { toast } = useToast();
   const driverFoundTimeoutRef = useRef<number | null>(null);
   const mountedRef = useRef(true); // ✅ FIX: تتبع حالة المكون
@@ -462,6 +464,64 @@ export const RideWaitingScreen = ({
     return () => {};
   }, [rideId, driverFoundInProgress, toast, onCancel]);
 
+  // ═══ إعادة المطابقة الدورية — استدعاء match-ride كل 60 ثانية ═══
+  // يبقي الطلب فعالاً حتى لو رفض كل السائقين
+  useEffect(() => {
+    // لا تعيد المطابقة إذا تم قبول السائق أو إلغاء أو انتهاء المهلة
+    if (rideStatus !== "pending" || driverFoundInProgress || hasAutoCancelled) return;
+
+    const RE_MATCH_INTERVAL_MS = 60_000; // 60 ثانية
+    const INITIAL_DELAY_MS = 45_000; // تأخير أولي 45 ثانية لإعطاء الجولات الأولى فرصتها
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let intervalId: ReturnType<typeof setInterval>;
+
+    const triggerReMatch = async () => {
+      if (!mountedRef.current) return;
+      // تحقق أن الرحلة لا تزال pending
+      try {
+        const { data: currentRide } = await supabase
+          .from("rides")
+          .select("status")
+          .eq("id", rideId)
+          .single();
+
+        if (currentRide?.status !== "pending") {
+          console.log("[RideWaiting] ⏭️ Re-match skipped — ride is now", currentRide?.status);
+          return;
+        }
+
+        console.log("[RideWaiting] 🔄 Triggering re-match for ride", rideId);
+        setIsReMatching(true);
+        setReMatchCount(prev => prev + 1);
+
+        // استدعاء match-ride مع flag إعادة المطابقة
+        await supabase.functions.invoke("match-ride", {
+          body: { rideId, re_match: true },
+        });
+
+        console.log("[RideWaiting] ✅ Re-match invoked successfully");
+      } catch (err) {
+        console.warn("[RideWaiting] ⚠️ Re-match error (non-blocking):", err);
+      } finally {
+        if (mountedRef.current) {
+          setIsReMatching(false);
+        }
+      }
+    };
+
+    // تأخير أولي ثم تكرار كل 60 ثانية
+    timeoutId = setTimeout(() => {
+      triggerReMatch(); // أول إعادة مطابقة
+      intervalId = setInterval(triggerReMatch, RE_MATCH_INTERVAL_MS);
+    }, INITIAL_DELAY_MS);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [rideId, rideStatus, driverFoundInProgress, hasAutoCancelled]);
+
   // Handle cancel button click - show dialog
   const handleCancelClick = () => {
     console.log("[RideWaiting] ❌ Cancel button clicked - opening dialog");
@@ -809,6 +869,23 @@ export const RideWaitingScreen = ({
                       "لا تزال نبحث عن سائق آخر، يرجى الانتظار قليلاً..."}
                     {reassignmentCount >= 3 &&
                       "آخر محاولة للعثور على سائق متاح..."}
+                  </p>
+                </div>
+              )}
+              {/* ✅ مؤشر إعادة المطابقة النشطة */}
+              {isReMatching && (
+                <div className="mt-2 p-2 bg-primary/10 border border-primary/30 rounded-lg flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
+                  <p className="text-xs text-primary font-medium">
+                    توسيع نطاق البحث عن سائقين...
+                  </p>
+                </div>
+              )}
+              {/* ✅ عداد محاولات إعادة المطابقة */}
+              {reMatchCount > 0 && !isReMatching && rideStatus === "pending" && (
+                <div className="mt-1">
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    🔄 تم إعادة البحث {reMatchCount} {reMatchCount === 1 ? 'مرة' : 'مرات'} — الطلب لا يزال فعالاً
                   </p>
                 </div>
               )}

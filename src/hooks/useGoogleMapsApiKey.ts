@@ -32,32 +32,7 @@ export const useGoogleMapsApiKey = () => {
     }
 
     try {
-      // Try to get API key from Supabase Edge Function
-      const response = await fetch(
-        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/google-maps-proxy?action=get-api-key`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.apiKey) {
-          const fetchedApiKey = data.apiKey;
-
-          // Update cache
-          cachedApiKey = fetchedApiKey;
-          cacheTimestamp = now;
-
-          setApiKey(fetchedApiKey);
-          return fetchedApiKey;
-        }
-      }
-
-      // Fallback to database if function fails
+      // جلب المفتاح من app_settings مباشرة (مع fallback إلى env)
       const { data } = await supabase
         .from("app_settings")
         .select("value")
@@ -87,7 +62,7 @@ export const useGoogleMapsApiKey = () => {
       setApiKey(fetchedApiKey);
       return fetchedApiKey;
     } catch (error) {
-      console.error("Error fetching Google Maps API key:", error);
+      console.warn("Google Maps API key fallback used:", error);
       setApiKey(DEFAULT_API_KEY);
       return DEFAULT_API_KEY;
     } finally {

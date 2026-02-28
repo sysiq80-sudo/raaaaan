@@ -45,11 +45,11 @@ const RiderBottomNav = () => {
     <AnimatePresence mode="wait">
       {bottomNavEnabled && (
         <>
-          {/* Spacer */}
+          {/* Spacer - 80px to match fixed nav height */}
           <motion.div
             key="nav-spacer"
             initial={{ height: 0 }}
-            animate={{ height: 100 }}
+            animate={{ height: 80 }}
             exit={{ height: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 30, mass: 0.8 }}
             className="w-full"
