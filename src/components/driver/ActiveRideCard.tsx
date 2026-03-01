@@ -937,6 +937,9 @@ export const ActiveRideCard = ({
         throw new Error("فشل تحديث الحالة — تحقق من الاتصال وأعد المحاولة");
       }
 
+      // ✅ تحديث الحالة المحلية فوراً (بدون انتظار realtime)
+      setActiveRide(prev => prev ? { ...prev, status: "arrived" } : null);
+
       // ⚡ THEN broadcast (best-effort — لا يمنع الاستمرار)
       notifyRider("driver_arrived", "السائق وصل لموقعك!", {
         riderName: riderInfo?.full_name,
@@ -976,6 +979,9 @@ export const ActiveRideCard = ({
         .eq("id", activeRide.id);
 
       if (error) throw error;
+
+      // ✅ تحديث الحالة المحلية فوراً (بدون انتظار realtime)
+      setActiveRide(prev => prev ? { ...prev, status: "in_progress", started_at: new Date().toISOString() } : null);
 
       // ⚡ THEN broadcast (best-effort)
       notifyRider("ride_started", "الرحلة بدأت!", {
