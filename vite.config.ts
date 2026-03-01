@@ -21,6 +21,15 @@ export default defineConfig(({ mode }) => ({
   build: {
     target: "es2020",
     sourcemap: false,
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        drop_console: mode === "production",
+        drop_debugger: true,
+        passes: 2,
+      },
+    },
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -39,9 +48,5 @@ export default defineConfig(({ mode }) => ({
         },
       },
     },
-  },
-  // إزالة console.log في بيئة الإنتاج
-  esbuild: {
-    drop: mode === "production" ? ["console", "debugger"] : [],
   },
 }));

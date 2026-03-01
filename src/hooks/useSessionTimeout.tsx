@@ -177,8 +177,8 @@ export const useSessionTimeout = (config: Partial<SessionConfig> = {}): SessionH
 
       toast.success('تم تسجيل الخروج بنجاح');
 
-      // Redirect to login
-      window.location.href = '/login';
+      // Redirect to auth
+      window.location.href = '/auth';
     } catch (error) {
       console.error('[Session] Logout failed:', error);
       toast.error('فشل في تسجيل الخروج');

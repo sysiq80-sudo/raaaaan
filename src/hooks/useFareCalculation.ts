@@ -37,8 +37,8 @@ export const useFareCalculation = (
     distanceKm: number,
     vehicle: VehicleType,
   ): FareBreakdown => {
-    const baseFare = 2500;
-    const perKmRate = 550;
+    const baseFare = 2000;
+    const perKmRate = 500;
     const vehicleMultipliers: Record<VehicleType, number> = {
       economy: 1,
       comfort: 1.3,

@@ -27,7 +27,8 @@ const Auth = () => {
   const { toast } = useToast();
 
   // حدد وجهة إعادة التوجيه بعد تسجيل الدخول
-  const redirectTo = (location.state as { from?: string })?.from || "/rider";
+  const searchParams = new URLSearchParams(location.search);
+  const redirectTo = (location.state as { from?: string })?.from || searchParams.get('redirect') || "/rider";
 
   // Step management
   const [step, setStep] = useState<AuthStep>("phone");

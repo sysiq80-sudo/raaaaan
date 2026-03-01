@@ -285,7 +285,7 @@ const DriverSideMenu = ({
           <MenuLink icon={<Gift className="w-5 h-5" />} label="المكافآت والحوافز" href="/driver/incentives" onClick={onClose} />
           <MenuLink icon={<BarChart3 className="w-5 h-5" />} label="الإحصائيات" href="/driver/statistics" onClick={onClose} />
           <MenuLink icon={<Settings className="w-5 h-5" />} label="الإعدادات" href="/driver/settings" onClick={onClose} />
-          <MenuLink icon={<Phone className="w-5 h-5" />} label="الدعم الفني" href="/driver/support" onClick={onClose} />
+          <MenuLink icon={<Phone className="w-5 h-5" />} label="الدعم الفني" href="/help" onClick={onClose} />
           
           <div className="pt-4 border-t border-border">
             <button 

@@ -56,7 +56,6 @@ import { useOfflineMode } from "@/hooks/useOfflineMode";
 const RideWaitingScreen = lazy(() => import("@/components/rider/RideWaitingScreen"));
 const LiveRideTracker = lazy(() => import("@/components/rider/LiveRideTracker"));
 const RideCompletedScreen = lazy(() => import("@/components/rider/RideCompletedScreen"));
-const RideRatingScreen = lazy(() => import("@/components/rider/RideRatingScreen"));
 // ✅ Removed: OnboardingFlow is now handled by AppRoutes routing
 
 // Loading skeleton — uses premium SplashScreen
@@ -1011,7 +1010,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         variant: "destructive"
       });
       if (navigate) {
-        navigate("/auth?redirect=/go");
+        navigate("/auth?redirect=/rider/go");
       }
       return;
     }
@@ -1210,9 +1209,10 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         estimated_fare: roundFare(fareBreakdown?.total_fare || 0),
         distance_km: routeDistance ? Number(routeDistance.toFixed(2)) : null,
         duration_minutes: routeDuration ? Math.round(routeDuration) : null,
-        status: "pending",
-        trip_type: "app",
-      } as any]).select().single();
+        status: "pending" as const,
+        trip_type: "app" as const,
+        region_id: fareBreakdown?.region_id || null,
+      }]).select().single();
       if (error) throw error;
 
       setIgnorePolling?.(false);
@@ -1240,7 +1240,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         vehicle_type: ride.vehicle_type,
         driver_id: ride.driver_id,
         created_at: ride.created_at,
-        completed_at: ride.completed_at
+        completed_at: ride.completed_at,
+        payment_method: ride.payment_method
       });
 
       // Show waiting screen
@@ -1293,6 +1294,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               driver_id: fallbackRide.driver_id,
               created_at: fallbackRide.created_at,
               completed_at: fallbackRide.completed_at,
+              payment_method: fallbackRide.payment_method,
             });
             setShowWaitingScreen(true);
             return;
@@ -1328,25 +1330,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   //     </Suspense>;
   // }
 
-  // ✅ FIX: عرض شاشة التقييم أولاً عند إكمال الرحلة (ربط showRatingScreen بشكل صحيح)
-  if (showCompletedScreen && completedRide && !showRatingScreen) {
-    // عرض شاشة التقييم أولاً
-    return <Suspense fallback={<ScreenSkeleton />}>
-      <RideRatingScreen
-        rideId={completedRide.id}
-        driverId={completedRide.driver_id}
-        driverName={completedRide.driver_name || "السائق"}
-        fare={completedRide.final_fare || completedRide.estimated_fare || 0}
-        onClose={() => {
-          // بعد التقييم → عرض الملخص
-          setShowRatingScreen(true);
-        }}
-      />
-    </Suspense>;
-  }
-
-  // عرض شاشة الملخص بعد التقييم
-  if (showRatingScreen && showCompletedScreen && completedRide) {
+  // ✅ عرض شاشة الإكمال مع التقييم المدمج (SmartRatingFlow) عند إتمام الرحلة
+  if (showCompletedScreen && completedRide) {
     return <Suspense fallback={<ScreenSkeleton />}>
         <RideCompletedScreen ride={{
         id: completedRide.id,
@@ -1356,7 +1341,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         estimated_fare: completedRide.estimated_fare,
         distance_km: completedRide.distance_km,
         duration_minutes: completedRide.duration_minutes,
-        driver_id: completedRide.driver_id
+        driver_id: completedRide.driver_id,
+        payment_method: completedRide.payment_method
       }} driverName={completedRide.driver_name || "السائق"} onClose={() => {
         console.log('🎉 [RideCompleted] onClose -> clearing completed ride and resetting booking/map');
         setShowRatingScreen(false);

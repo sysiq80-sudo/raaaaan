@@ -566,11 +566,44 @@ export const RideWaitingScreen = ({
       })
       .eq("id", rideId);
     if (!error) {
+      // خصم غرامة الإلغاء من محفظة الراكب إن وُجدت
+      if (cancellationFee > 0) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("id, wallet_balance")
+              .eq("user_id", user.id)
+              .single();
+
+            if (profile && (profile.wallet_balance || 0) >= cancellationFee) {
+              const newBalance = (profile.wallet_balance || 0) - cancellationFee;
+              await supabase
+                .from("profiles")
+                .update({ wallet_balance: newBalance })
+                .eq("id", profile.id);
+
+              await supabase.from("wallet_transactions").insert({
+                user_id: user.id,
+                amount: -cancellationFee,
+                type: "cancellation_fee",
+                description: `غرامة إلغاء رحلة #${rideId.substring(0, 8)}`,
+                reference_id: rideId,
+                balance_after: newBalance,
+              });
+            }
+          }
+        } catch (feeError) {
+          console.error("[RideWaiting] Failed to deduct cancellation fee:", feeError);
+        }
+      }
+
       setShowCancelDialog(false);
       if (cancellationFee > 0) {
         toast({
           title: "تم إلغاء الرحلة",
-          description: `تم خصم غرامة إلغاء: ${cancellationFee.toLocaleString()} د.ع`,
+          description: `تم خصم غرامة إلغاء: ${cancellationFee.toLocaleString()} د.ع من محفظتك`,
           variant: "destructive",
         });
       } else {

@@ -20,6 +20,7 @@ interface RideCompletedScreenProps {
     distance_km: number | null;
     duration_minutes: number | null;
     driver_id: string | null;
+    payment_method?: string | null;
   };
   driverName: string;
   onClose: () => void;
@@ -92,7 +93,9 @@ export const RideCompletedScreen = ({
                 <Wallet className="w-4 h-4 text-green-500" />
               </div>
               <span className="text-xs text-muted-foreground">الدفع</span>
-              <span className="text-sm font-medium">نقداً</span>
+              <span className="text-sm font-medium">
+                {ride.payment_method === 'wallet' ? 'المحفظة' : ride.payment_method === 'card' ? 'البطاقة' : 'نقداً'}
+              </span>
             </div>
           </div>
         </div>

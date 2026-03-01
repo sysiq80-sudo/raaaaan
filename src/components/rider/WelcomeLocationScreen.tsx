@@ -5,7 +5,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getGeocoder } from "@/lib/googleMapService";
 import { Search, MapPin, Star, Clock, Home, Briefcase, ChevronDown, Loader2, X, Building2, Menu, Gift, Crown, MapPinned, Coffee, LandmarkIcon, GraduationCap, Sparkles, ChevronLeft } from "lucide-react";
@@ -539,20 +538,18 @@ const WelcomeLocationScreen = ({
             </div>
           </motion.div>}
 
-        {/* Referral Banner */}
+        {/* Referral Banner - قريباً */}
         <motion.div variants={itemVariants}>
-          <Link to="/rider/referrals">
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-                <Gift className="w-6 h-6 text-primary" />
-              </div>
-              <div className="flex-1">
-                <p className="font-bold text-sm">ادعُ أصدقاءك واربح!</p>
-                <p className="text-xs text-muted-foreground">احصل على 5,000 د.ع لكل صديق</p>
-              </div>
-              <ChevronLeft className="w-5 h-5 text-primary" />
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 flex items-center gap-4 opacity-75 cursor-default">
+            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+              <Gift className="w-6 h-6 text-primary" />
             </div>
-          </Link>
+            <div className="flex-1">
+              <p className="font-bold text-sm">ادعُ أصدقاءك واربح!</p>
+              <p className="text-xs text-muted-foreground">قريباً - احصل على 5,000 د.ع لكل صديق</p>
+            </div>
+            <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full font-medium">قريباً</span>
+          </div>
         </motion.div>
       </motion.div>
     </motion.div>;

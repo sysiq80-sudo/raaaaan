@@ -639,8 +639,8 @@ export const RideRequestCard = ({
   };
 
   // Empty state - searching for rides
-  if (!isOnline || !pendingRide) {
-    if (isOnline && !pendingRide) {
+  if (!isOnline || isPaused || !pendingRide) {
+    if (isOnline && !isPaused && !pendingRide) {
       return (
         <motion.div
           initial={{ opacity: 0, y: 20 }}

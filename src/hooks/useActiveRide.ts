@@ -28,6 +28,7 @@ export interface ActiveRide {
   completed_at: string | null;
   driver_rating?: number | null;
   driver_name?: string | null;
+  payment_method?: string | null;
 }
 
 export const useActiveRide = (userId: string | null) => {
@@ -70,6 +71,7 @@ export const useActiveRide = (userId: string | null) => {
       created_at: rideData.created_at,
       completed_at: rideData.completed_at,
       driver_rating: rideData.driver_rating,
+      payment_method: rideData.payment_method,
     }),
     []
   );

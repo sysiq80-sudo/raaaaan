@@ -56,7 +56,7 @@ export function DriverAlerts({
         title: "في انتظار الموافقة",
         message: "حسابك قيد المراجعة من قبل الإدارة. سيتم تفعيلك قريباً.",
         actionText: "عرض الحالة",
-        actionRoute: "/driver/status",
+        actionRoute: "/driver/application-status",
         icon: <ShieldAlert className="h-4 w-4 text-orange-500" />,
       });
     }

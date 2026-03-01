@@ -40,18 +40,18 @@ const DriverAuth = lazy(() => import("./pages/driver/DriverAuth"));
 const DriverRegister = lazy(() => import("./pages/driver/DriverRegister"));
 const DriverCompleteRegistration = lazy(() => import("./pages/driver/DriverCompleteRegistration"));
 const DriverApplicationStatus = lazy(() => import("./pages/driver/DriverApplicationStatus"));
-import DriverRides from "./pages/driver/DriverRides";
+const DriverRides = lazy(() => import("./pages/driver/DriverRides"));
 const DriverSettings = lazy(() => import("./pages/driver/DriverSettings"));
-import DriverStatistics from "./pages/driver/DriverStatistics";
-import DriverProfile from "./pages/driver/DriverProfile";
+const DriverStatistics = lazy(() => import("./pages/driver/DriverStatistics"));
+const DriverProfile = lazy(() => import("./pages/driver/DriverProfile"));
 const DriverIncentives = lazy(() => import("./pages/driver/DriverIncentives"));
-import DriverFinance from "./pages/driver/DriverFinance";
+const DriverFinance = lazy(() => import("./pages/driver/DriverFinance"));
 const DriverSubscription = lazy(() => import("./pages/driver/DriverSubscription"));
 const DriverGuide = lazy(() => import("./pages/driver/DriverGuide"));
 
 // Layout components
 const RiderLayout = lazy(() => import("./components/rider/RiderLayout"));
-import DriverLayout from "./components/driver/DriverLayout";
+const DriverLayout = lazy(() => import("./components/driver/DriverLayout"));
 
 // ØµÙØ­Ø§Øª Ø§Ù„Ø£Ø¯Ù…Ù† - ØªØ­Ù…ÙŠÙ„ ÙƒØ³ÙˆÙ„ (Ù„Ø§ ÙŠØ­Ù…Ù„Ù‡Ø§ Ø§Ù„Ø±Ø§ÙƒØ¨ Ø£Ùˆ Ø§Ù„Ø³Ø§Ø¦Ù‚)
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -96,7 +96,16 @@ const AdminMessengerAccounts = lazy(() => import("./pages/admin/AdminMessengerAc
 const AdminDeveloperSettings = lazy(() => import("./pages/admin/AdminDeveloperSettings"));
 const AdminSecuritySettings = lazy(() => import("./pages/admin/AdminSecuritySettings"));
 const AdminWithdrawals = lazy(() => import("./pages/admin/AdminWithdrawals"));
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,           // 30 ثانية — لا يعيد الجلب إذا البيانات حديثة
+      gcTime: 5 * 60_000,          // 5 دقائق — يحتفظ بالكاش
+      refetchOnWindowFocus: false,  // لا يعيد الجلب عند العودة للتبويب
+      retry: 1,                    // محاولة واحدة فقط بدل 3
+    },
+  },
+});
 
 // Ù…Ø³Ø§Ø¹Ø¯: ÙƒØ´Ù Ø§Ù„Ø¬ÙˆØ§Ù„
 const isMobileDevice = () => {
@@ -137,9 +146,20 @@ const AppRoutes = () => {
   // Minimum splash screen display (1.2 seconds — سريع على الجوال)
   const [minSplashDone, setMinSplashDone] = useState(false);
   useEffect(() => {
-    const timer = setTimeout(() => setMinSplashDone(true), 1200);
+    const timer = setTimeout(() => setMinSplashDone(true), 600);
     return () => clearTimeout(timer);
   }, []);
+
+  // Prefetch أهم الصفحات بعد 3 ثوانٍ لتسريع التنقل
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (userRole === 'driver') {
+        import("./pages/driver/DriverRides");
+        import("./pages/driver/DriverProfile");
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [userRole]);
 
   // Show splash while auth is loading OR minimum time hasn't passed
   if (isLoading || !minSplashDone) {
