@@ -32,6 +32,7 @@ import { FloatingTripBubble } from "@/components/driver/FloatingTripBubble";
 import { ExternalNavigationModal } from "@/components/driver/ExternalNavigationModal";
 import DriverSideMenu from "@/components/driver/DriverSideMenu";
 import { initAudioContext, cleanupAudioContext } from "@/lib/audioContext";
+import { useDriverStore } from "@/stores/driverStore";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
 import logo from "@/assets/logo.png";
@@ -89,6 +90,7 @@ const DriverHome = () => {
   const [isCancellingRide, setIsCancellingRide] = useState(false);
   const watchIdRef = useRef<number | null>(null);
   const locationUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
   const [rating, setRating] = useState(5.0);
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [adminActivated, setAdminActivated] = useState(true);
@@ -120,12 +122,12 @@ const DriverHome = () => {
       }
 
       const { error } = await supabase
-        .from("rides")
+        .from("rides" as any)
         .update({
           status: "cancelled",
           cancelled_by: "driver",
           cancellation_reason: "ألغى السائق الرحلة",
-        })
+        } as any)
         .eq("id", rides[0].id);
 
       if (error) throw error;
@@ -361,6 +363,91 @@ const DriverHome = () => {
       stopLocationTracking();
     }
   }, [isOnline, hasActiveRide, driverId, startLocationTracking, stopLocationTracking]);
+
+  // 💓 Heartbeat — نبض كل 30 ثانية لمنع الجلسات الشبحية
+  useEffect(() => {
+    if (!isOnline || !driverId) {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+      return;
+    }
+
+    const sendHeartbeat = async () => {
+      try {
+        await supabase
+          .from("drivers")
+          .update({ updated_at: new Date().toISOString() })
+          .eq("id", driverId);
+      } catch (err) {
+        console.error("Heartbeat error:", err);
+      }
+    };
+
+    // نبضة فورية عند الاتصال
+    sendHeartbeat();
+
+    heartbeatRef.current = setInterval(sendHeartbeat, 30000);
+
+    return () => {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+    };
+  }, [isOnline, driverId]);
+
+  // 🚪 beforeunload — ضبط offline عند إغلاق التبويب
+  useEffect(() => {
+    if (!driverId) return;
+
+    const handleBeforeUnload = () => {
+      if (!isOnline) return;
+
+      // استخدام sendBeacon لضمان وصول الطلب حتى لو أُغلق التبويب
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      if (!supabaseUrl || !supabaseKey) return;
+
+      const url = `${supabaseUrl}/rest/v1/drivers?id=eq.${driverId}`;
+      const body = JSON.stringify({
+        is_online: false,
+        is_available: false,
+        updated_at: new Date().toISOString(),
+      });
+
+      // fetch مع keepalive لضمان وصول الطلب عند إغلاق التبويب
+      try {
+        fetch(url, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": supabaseKey,
+            "Authorization": `Bearer ${supabaseKey}`,
+            "Prefer": "return=minimal",
+          },
+          body,
+          keepalive: true, // يضمن إكمال الطلب حتى بعد إغلاق الصفحة
+        });
+      } catch {
+        // صامت — أفضل جهد
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [driverId, isOnline]);
+
+  // 🔄 مزامنة driverStore مع الحالة المحلية
+  useEffect(() => {
+    const store = useDriverStore.getState();
+    store.setOnline(isOnline);
+    store.setAvailable(isOnline && !isPaused);
+    if (currentLocation) {
+      store.setLocation(currentLocation);
+    }
+  }, [isOnline, isPaused, currentLocation]);
 
   // عند وجود رحلة نشطة: إلغاء وضع "مشغول" تلقائياً
   // يُعالج حالة التعارض بين تحميل بيانات السائق (is_available=false) وتحميل الرحلة النشطة
@@ -795,11 +882,11 @@ const DriverHome = () => {
               />
             </div>
 
-            {/* ═══ Driver Control Center — Centered on screen ═══ */}
+            {/* ═══ Driver Control Center — Centered with gap for blue marker ═══ */}
             <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
               
               <div className="relative flex flex-col items-center gap-3 w-full max-w-sm px-4">
-                {/* 1️⃣ Top: DutyToggle — Large circular power button */}
+                {/* 1️⃣ DutyToggle — Power button */}
                 <div className="pointer-events-auto">
                   <DutyToggle
                     isOnline={isOnline}
@@ -813,7 +900,10 @@ const DriverHome = () => {
                   />
                 </div>
 
-                {/* 2️⃣ Middle: StatusSearchBar — Pause icon + status text (only when online) */}
+                {/* فراغ 6% من طول الشاشة لظهور دائرة الموقع الفعلي */}
+                <div style={{ height: '6vh' }} />
+
+                {/* 2️⃣ StatusSearchBar — only when online */}
                 {isOnline && (
                   <div className="w-full pointer-events-auto">
                     <StatusSearchBar
@@ -829,7 +919,7 @@ const DriverHome = () => {
                   </div>
                 )}
 
-                {/* 3️⃣ Bottom: Action cards — Searching indicator / Active ride / Ride request */}
+                {/* 3️⃣ Action cards — Active ride / Ride request */}
                 <div className="w-full pointer-events-auto flex flex-col gap-2">
                   {/* Active Ride Card */}
                   {!isMinimized && (
@@ -845,7 +935,7 @@ const DriverHome = () => {
                     />
                   )}
 
-                  {/* Ride Request Card — "جاري البحث عن الطلبات" or ride details */}
+                  {/* Ride Request Card */}
                   {!isMinimized && (
                     <RideRequestCard
                       driverId={driverId}
@@ -858,7 +948,6 @@ const DriverHome = () => {
                         console.log(
                           "[DriverHome] Ride accepted — triggering ActiveRideCard refresh"
                         );
-                        // إلغاء حالة "مشغول" فوراً — السائق في رحلة وليس متوقفاً يدوياً
                         setIsPaused(false);
                         setRideAcceptedTrigger(prev => prev + 1);
                       }}

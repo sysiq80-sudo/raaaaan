@@ -183,8 +183,7 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
           toast.error('فشل في حفظ البيانات: ' + (saveErr.message || 'خطأ غير معروف'));
           return;
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: nameErr } = await updateWorkflow(currentWorkflowId, { name: workflowName, trigger_type: detectedTriggerType } as any);
+        const { error: nameErr } = await updateWorkflow(currentWorkflowId, { name: workflowName, trigger_type: detectedTriggerType });
         if (nameErr) {
           console.error('[handleSave] updateWorkflow error:', nameErr);
         }
@@ -225,8 +224,21 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
       message_content: 'test message',
       phone: '07800000000',
     });
-    if (error) toast.error('فشل التشغيل: ' + error.message);
-    else toast.success(`تم التشغيل — ${data?.workflows?.[0]?.steps || 0} خطوات`);
+    if (error) {
+      toast.error('فشل التشغيل: ' + (error.message || 'تحقق من تشغيل Edge Function run-visual-workflow'));
+      setShowLogs(true);
+      return;
+    }
+    if (data && typeof data === 'object' && 'ok' in data && !(data as { ok?: boolean }).ok) {
+      const errMsg = (data as { error?: string }).error || 'خطأ من الخادم';
+      toast.error('فشل التشغيل: ' + errMsg);
+      setShowLogs(true);
+      return;
+    }
+    const workflows = (data as { workflows?: Array<{ steps?: number; error?: string }> })?.workflows;
+    const first = workflows?.[0];
+    if (first?.error) toast.error('انتهى التشغيل بخطأ: ' + first.error);
+    else toast.success(`تم التشغيل — ${first?.steps ?? 0} خطوات`);
     setShowLogs(true);
   }, [currentWorkflowId, testRunWorkflow]);
 
@@ -356,7 +368,18 @@ export function VisualWorkflowBuilder({ workflowId, onBack }: VisualWorkflowBuil
     );
   }
 
-  // ═══════ Builder View ═══════
+  // ═══════ Builder View — loading workflow when opened by ID ═══════
+  if (currentWorkflowId && workflowsLoading && workflows.length === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <div className="text-center text-muted-foreground">
+          <p className="font-medium">جارٍ تحميل التدفق...</p>
+          <p className="text-sm mt-1">انتظر قليلاً</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Toolbar */}

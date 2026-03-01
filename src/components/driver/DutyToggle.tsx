@@ -91,22 +91,41 @@ const DutyToggle = ({
           borderColor: "border-[#00E676]/50",
         }
     : {
-        // حالة عدم الاتصال (Offline)
-        bg: "bg-gradient-to-br from-gray-600 to-gray-700",
-        glow: "shadow-[0_0_20px_rgba(107,114,128,0.3)]",
-        ringColor: "border-gray-500/20",
-        pulseColor: "bg-gray-500/10",
-        textColor: "text-gray-400",
+        // حالة عدم الاتصال (Offline) - أصفر
+        bg: "bg-gradient-to-br from-yellow-500 to-yellow-600",
+        glow: "shadow-[0_0_20px_rgba(234,179,8,0.3)]",
+        ringColor: "border-yellow-500/20",
+        pulseColor: "bg-yellow-500/10",
+        textColor: "text-yellow-400",
         label: "غير متصل",
         sublabel: isApproved ? "اضغط للاتصال" : "حسابك غير معتمد بعد",
         icon: WifiOff,
-        borderColor: "border-gray-500/30",
+        borderColor: "border-yellow-500/30",
       };
 
   const StatusIcon = stateConfig.icon;
 
   return (
     <div className="flex flex-col items-center gap-3">
+      {/* حالة الاتصال فوق الزر */}
+      <motion.div
+        className="text-center"
+        animate={{ opacity: isLoading ? 0.5 : 1 }}
+      >
+        <motion.div
+          key={stateConfig.label}
+          initial={{ y: -5, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.3 }}
+          className="flex items-center justify-center gap-1.5"
+        >
+          <StatusIcon className={cn("w-4 h-4", stateConfig.textColor)} />
+          <span className={cn("text-sm font-bold", stateConfig.textColor)}>
+            {stateConfig.label}
+          </span>
+        </motion.div>
+      </motion.div>
+
       {/* الزر الرئيسي العائم */}
       <div className="relative">
         {/* Pulse rings - فقط عند الاتصال الكامل (ليس عند الإيقاف المؤقت) */}
@@ -222,56 +241,12 @@ const DutyToggle = ({
         </motion.button>
       </div>
 
-      {/* Pause/Resume Button - يظهر فقط عند الاتصال */}
-      <AnimatePresence>
-        {isOnline && !isLoading && (
-          <motion.button
-            initial={{ opacity: 0, y: -10, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.8 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            onClick={handlePausePress}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300",
-              "border shadow-md active:scale-95",
-              isPaused 
-                ? "bg-[#00E676]/15 text-[#00E676] border-[#00E676]/30 hover:bg-[#00E676]/25" 
-                : "bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25"
-            )}
-            aria-label={isPaused ? "استئناف" : "إيقاف مؤقت"}
-          >
-            {isPaused ? (
-              <>
-                <Wifi className="w-3.5 h-3.5" />
-                <span>استئناف</span>
-              </>
-            ) : (
-              <>
-                <PauseCircle className="w-3.5 h-3.5" />
-                <span>إيقاف مؤقت</span>
-              </>
-            )}
-          </motion.button>
-        )}
-      </AnimatePresence>
 
-      {/* Status Label */}
+      {/* Status Sublabel */}
       <motion.div
         className="text-center"
         animate={{ opacity: isLoading ? 0.5 : 1 }}
       >
-        <motion.div
-          key={stateConfig.label}
-          initial={{ y: 5, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.3 }}
-          className="flex items-center justify-center gap-1.5"
-        >
-          <StatusIcon className={cn("w-4 h-4", stateConfig.textColor)} />
-          <span className={cn("text-sm font-bold", stateConfig.textColor)}>
-            {stateConfig.label}
-          </span>
-        </motion.div>
         <p className="text-[11px] text-muted-foreground mt-0.5 max-w-[160px]">
           {stateConfig.sublabel}
         </p>

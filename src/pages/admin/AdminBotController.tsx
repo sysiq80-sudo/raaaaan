@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ interface BotConfig {
 }
 
 const AdminBotController: React.FC = () => {
+  const navigate = useNavigate();
   const [config, setConfig] = useState<BotConfig>({
     mode: 'hardcoded',
     active_workflow_id: null,
@@ -29,36 +31,50 @@ const AdminBotController: React.FC = () => {
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Load config from system_configs table
   const loadConfig = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sb = supabase as any;
-      const { data, error } = await sb
+      const { data, error } = await supabase
         .from('system_configs')
         .select('key_value')
         .eq('key_name', 'bot_controller_mode')
         .maybeSingle();
 
-      if (!error && data?.key_value) {
-        try {
-          setConfig(JSON.parse(data.key_value) as BotConfig);
-        } catch { /* invalid JSON, keep defaults */ }
+      if (error) {
+        setLoadError(error.message || 'فشل تحميل الإعدادات');
+        toast.error('فشل تحميل إعدادات البوت: ' + (error.message || 'تحقق من صلاحيات المدير'));
+        setLoading(false);
+        return;
       }
 
-      // Load available workflows
-      const { data: wfData } = await sb
+      if (data?.key_value) {
+        try {
+          setConfig(JSON.parse(data.key_value) as BotConfig);
+        } catch {
+          /* invalid JSON, keep defaults */
+        }
+      }
+
+      const { data: wfData, error: wfError } = await supabase
         .from('visual_workflows')
         .select('id, name, is_active')
         .order('created_at', { ascending: false });
 
+      if (wfError) {
+        toast.error('فشل تحميل قائمة التدفقات: ' + wfError.message);
+      }
       setWorkflows(wfData || []);
     } catch (err) {
-      console.error('Failed to load bot config:', err);
+      const msg = err instanceof Error ? err.message : 'خطأ غير متوقع';
+      setLoadError(msg);
+      toast.error('فشل تحميل إعدادات البوت: ' + msg);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => { loadConfig(); }, [loadConfig]);
@@ -66,26 +82,24 @@ const AdminBotController: React.FC = () => {
   const saveConfig = async (newConfig: BotConfig) => {
     setSaving(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sb = supabase as any;
-
-      // Check if row already exists
-      const { data: existing } = await sb
+      const { data: existing, error: fetchError } = await supabase
         .from('system_configs')
         .select('id')
         .eq('key_name', 'bot_controller_mode')
         .maybeSingle();
 
+      if (fetchError) throw fetchError;
+
       const jsonValue = JSON.stringify(newConfig);
 
-      if (existing) {
-        const { error } = await sb
+      if (existing?.id) {
+        const { error } = await supabase
           .from('system_configs')
           .update({ key_value: jsonValue })
           .eq('id', existing.id);
         if (error) throw error;
       } else {
-        const { error } = await sb
+        const { error } = await supabase
           .from('system_configs')
           .insert({
             key_name: 'bot_controller_mode',
@@ -98,10 +112,11 @@ const AdminBotController: React.FC = () => {
       }
 
       setConfig(newConfig);
+      setLoadError(null);
       toast.success('تم حفظ إعدادات البوت ✅');
-    } catch (err) {
-      toast.error('فشل في حفظ الإعدادات');
-      console.error('saveConfig error:', err);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'خطأ غير معروف';
+      toast.error('فشل في حفظ الإعدادات: ' + message);
     } finally {
       setSaving(false);
     }
@@ -139,6 +154,21 @@ const AdminBotController: React.FC = () => {
   return (
     <AdminLayout title="البوت المتحكم" subtitle="التحكم بطريقة عمل بوت الواتساب">
       <div className="space-y-6 max-w-3xl">
+
+        {loadError && (
+          <Card className="border-destructive/50 bg-destructive/5">
+            <CardContent className="py-3 flex items-center justify-between gap-3">
+              <p className="text-sm text-destructive">{loadError}</p>
+              <Button variant="outline" size="sm" onClick={loadConfig} disabled={loading}>
+                إعادة المحاولة
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {loading && (
+          <div className="text-center py-4 text-muted-foreground text-sm">جارٍ التحميل...</div>
+        )}
 
         {/* Current Status */}
         <Card className={`border-2 ${activeMode.bgColor}`}>
@@ -249,7 +279,10 @@ const AdminBotController: React.FC = () => {
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
                   <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
                   <p className="text-xs text-amber-700">
-                    لا توجد تدفقات مرئية بعد. <a href="/admin/workflows" className="underline font-medium">أنشئ واحداً الآن</a>
+                    لا توجد تدفقات مرئية بعد.{' '}
+                    <button type="button" onClick={() => navigate('/admin/workflows')} className="underline font-medium">
+                      أنشئ واحداً الآن
+                    </button>
                   </p>
                 </div>
               )}
@@ -266,15 +299,15 @@ const AdminBotController: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
-            <Button variant="outline" onClick={() => window.location.href = '/admin/workflows'}>
+            <Button variant="outline" onClick={() => navigate('/admin/workflows')}>
               <GitBranch className="h-4 w-4 me-2" />
               فتح محرر التدفقات
             </Button>
-            <Button variant="outline" onClick={() => window.location.href = '/admin/bot-customers'}>
+            <Button variant="outline" onClick={() => navigate('/admin/bot-customers')}>
               <Bot className="h-4 w-4 me-2" />
               عملاء البوت
             </Button>
-            <Button variant="outline" onClick={() => window.location.href = '/admin/documentation'}>
+            <Button variant="outline" onClick={() => navigate('/admin/documentation')}>
               <Code className="h-4 w-4 me-2" />
               التوثيق
             </Button>

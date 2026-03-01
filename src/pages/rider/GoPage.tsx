@@ -19,6 +19,8 @@ import StaticMapPlaceholder from "@/components/common/StaticMapPlaceholder";
 import RiderNotificationsBell from "@/components/rider/RiderNotificationsBell";
 import { motion, AnimatePresence } from "framer-motion";
 import { roundFare } from "@/lib/constants";
+import { logger } from "@/lib/logger";
+import { showErrorToast } from "@/lib/toastHelpers";
 
 import { checkDestinationGeofence, type GeofenceResult } from "@/lib/geofencing";
 import { getGeocoder } from "@/lib/googleMapService";
@@ -224,7 +226,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     setShowCompletedScreen,
     handleRideCompletion,
     checkActiveRideConflict,
-    clearCompletedRide
+    clearCompletedRide,
+    setIgnorePolling,
   } = useRideTracking(userId);
 
   // Local state
@@ -422,19 +425,10 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     }
   }, [fareError, toast]);
 
-  // 🔍 Debug fare calculation state
+  // Debug fare calculation (dev only — logger skips in production)
   useEffect(() => {
-    if (pickupLocation && dropoffLocation && routeDistance) {
-      console.log('🔍 DEBUG Fare Calculation:', {
-        pickupLocation,
-        dropoffLocation,
-        routeDistance,
-        selectedVehicle,
-        fareLoading,
-        fareError,
-        fareBreakdown: fareBreakdown ? { total_fare: fareBreakdown.total_fare, formatted_fare: fareBreakdown.formatted_fare } : null,
-        buttonDisabled: fareLoading || !fareBreakdown
-      });
+    if (pickupLocation && dropoffLocation && routeDistance && import.meta.env.DEV) {
+      logger.debug("GoPage", "Fare state", { routeDistance, selectedVehicle, fareLoading: !!fareBreakdown });
     }
   }, [pickupLocation, dropoffLocation, routeDistance, selectedVehicle, fareLoading, fareError, fareBreakdown]);
 
@@ -880,7 +874,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
   // Reset booking state
   const resetBooking = useCallback(() => {
-    console.log("🔄 [resetBooking] Starting reset process...");
+    logger.debug("GoPage", "resetBooking: starting");
     
     // Clear all booking-related state
     setPickupLocation(null);
@@ -908,7 +902,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       if (!map.current) return;
 
       try {
-        console.log("🗺️ [resetBooking] Starting map reset...");
+        logger.debug("GoPage", "resetBooking: map reset start");
 
         // ✅ Step 1: إظهار container الخريطة أولاً
         if (mapContainer.current) {
@@ -927,7 +921,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         if (window.google?.maps?.event) {
           window.google.maps.event.trigger(map.current, "resize");
         }
-        console.log("✅ [resetBooking] Map resized");
+        logger.debug("GoPage", "resetBooking: map resized");
 
         // ✅ Step 5: إعادة توسيط الخريطة
         if (userLocation) {
@@ -945,14 +939,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           }, 400);
         }
 
-        console.log("✅ [resetBooking] Map reset complete");
+        logger.debug("GoPage", "resetBooking: map reset complete");
 
         toast({
           title: "جاهز لرحلة جديدة",
           description: "يمكنك الآن طلب رحلة جديدة",
         });
       } catch (error) {
-        console.error("❌ [resetBooking] Map reset failed:", error);
+        logger.error("GoPage", "resetBooking: map reset failed", error);
         toast({
           title: "خطأ في إعادة تعيين الخريطة",
           description: "حاول تحديث الصفحة",
@@ -1194,6 +1188,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     }
 
     // ✅ إنشاء الحجز بدون حالة انتظار
+    setIgnorePolling?.(true); // تجنب سباق مع polling في useActiveRide
     try {
       const {
         data: ride,
@@ -1215,9 +1210,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         estimated_fare: roundFare(fareBreakdown?.total_fare || 0),
         distance_km: routeDistance ? Number(routeDistance.toFixed(2)) : null,
         duration_minutes: routeDuration ? Math.round(routeDuration) : null,
-        status: "pending"
+        status: "pending",
+        trip_type: "app",
       } as any]).select().single();
       if (error) throw error;
+
+      setIgnorePolling?.(false);
 
       // Set active ride for tracking
       const pickupLoc = ride.pickup_location as unknown as {
@@ -1262,7 +1260,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       });
       // ✅ لا toasts - الشاشة نفسها تعرض حالة البحث
     } catch (error: any) {
-      console.error("❌ Booking error:", error);
+      setIgnorePolling?.(false);
 
       // Fallback: إذا انتهت مهلة الإنشاء، افحص إن كانت الرحلة أُنشئت فعلاً بالخلفية
       const errorMessage = String(error?.message || "");
@@ -1304,12 +1302,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         }
       }
 
-      // فقط في حالة الخطأ نعرض toast
-      toast({
-        title: "فشل الحجز",
-        description: error.message || "حدث خطأ غير متوقع",
-        variant: "destructive"
-      });
+      logger.error("GoPage", "Booking failed", error);
+      showErrorToast(toast, "فشل الحجز", error?.message || "حدث خطأ غير متوقع");
     }
     } finally {
       setIsBooking(false);

@@ -1174,17 +1174,38 @@ export const ActiveRideCard = ({
       playSound("cancelled");
       vibrate(VibrationPatterns.cancelled);
 
-      // ✅ DB Update FIRST (reliable REST)
+      // محاولة التحديث مع كل الحقول (as any لتجاوز TypeScript strict)
       const { error } = await supabase
-        .from("rides")
+        .from("rides" as any)
         .update({
           status: "cancelled",
           cancelled_by: "driver",
           cancellation_reason: "ألغى السائق الرحلة",
-        })
+        } as any)
         .eq("id", activeRide.id);
 
-      if (error) throw error;
+      if (error) {
+        console.warn("[CancelRide] Full update failed:", error.message, error.code);
+
+        // محاولة بديلة: تحديث الحالة فقط
+        const { error: minError } = await supabase
+          .from("rides" as any)
+          .update({ status: "cancelled" } as any)
+          .eq("id", activeRide.id);
+
+        if (minError) {
+          console.warn("[CancelRide] Minimal update failed:", minError.message);
+
+          // محاولة أخيرة عبر RPC
+          const { error: rpcError } = await supabase.rpc("update_driver_response" as any, {
+            p_ride_id: activeRide.id,
+            p_driver_id: driverId,
+            p_response: "cancelled",
+          });
+
+          if (rpcError) throw rpcError;
+        }
+      }
 
       // ⚡ THEN broadcast (best-effort)
       notifyRider("ride_cancelled_by_driver", "ألغى السائق الرحلة").catch(() => { });
@@ -1196,9 +1217,10 @@ export const ActiveRideCard = ({
 
       setActiveRide(null);
     } catch (error: any) {
+      console.error("[CancelRide] All attempts failed:", error);
       toast({
-        title: "خطأ",
-        description: error.message,
+        title: "خطأ في إلغاء الرحلة",
+        description: error.message || "حدث خطأ، حاول مرة أخرى",
         variant: "destructive",
       });
     } finally {

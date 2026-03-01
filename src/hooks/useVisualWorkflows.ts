@@ -200,24 +200,27 @@ export function useVisualWorkflows() {
   const fetchWorkflows = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
-      .from('visual_workflows' as any)
+      .from('visual_workflows')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) console.error('[useVisualWorkflows] fetchWorkflows error:', error);
-    setWorkflows((data as any as VisualWorkflow[]) || []);
+    if (error) {
+      console.error('[useVisualWorkflows] fetchWorkflows error:', error);
+    }
+    setWorkflows((data as VisualWorkflow[]) || []);
     setLoading(false);
   }, []);
 
   const fetchExecutions = useCallback(async (workflowId?: string, limit = 50) => {
     setExecutionsLoading(true);
     let query = supabase
-      .from('workflow_executions' as any)
+      .from('workflow_executions')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(limit);
     if (workflowId) query = query.eq('workflow_id', workflowId);
-    const { data } = await query;
-    setExecutions((data as any as WorkflowExecution[]) || []);
+    const { data, error } = await query;
+    if (error) console.error('[useVisualWorkflows] fetchExecutions error:', error);
+    setExecutions((data as WorkflowExecution[]) || []);
     setExecutionsLoading(false);
   }, []);
 
@@ -229,38 +232,33 @@ export function useVisualWorkflows() {
     trigger_type: string;
     graph_data: { nodes: Node[]; edges: Edge[] };
   }) => {
-    console.log('[useVisualWorkflows] Creating workflow:', workflow.name);
     const { data, error } = await supabase
-      .from('visual_workflows' as any)
-      .insert({ ...workflow, is_active: false } as any)
+      .from('visual_workflows')
+      .insert({
+        name: workflow.name,
+        description: workflow.description ?? null,
+        trigger_type: workflow.trigger_type,
+        graph_data: workflow.graph_data,
+        is_active: false,
+      })
       .select()
       .single();
-    if (error) {
-      console.error('[useVisualWorkflows] createWorkflow error:', error);
-    } else {
-      console.log('[useVisualWorkflows] Workflow created:', data);
-      await fetchWorkflows();
-    }
-    return { data: data as any as VisualWorkflow | null, error };
+    if (!error) await fetchWorkflows();
+    return { data: data as VisualWorkflow | null, error };
   }, [fetchWorkflows]);
 
   const updateWorkflow = useCallback(async (id: string, updates: Partial<VisualWorkflow>) => {
-    console.log('[useVisualWorkflows] Updating workflow:', id, updates);
     const { error } = await supabase
-      .from('visual_workflows' as any)
-      .update(updates as any)
+      .from('visual_workflows')
+      .update(updates)
       .eq('id', id);
-    if (error) {
-      console.error('[useVisualWorkflows] updateWorkflow error:', error);
-    } else {
-      await fetchWorkflows();
-    }
+    if (!error) await fetchWorkflows();
     return { error };
   }, [fetchWorkflows]);
 
   const deleteWorkflow = useCallback(async (id: string) => {
     const { error } = await supabase
-      .from('visual_workflows' as any)
+      .from('visual_workflows')
       .delete()
       .eq('id', id);
     if (!error) await fetchWorkflows();
@@ -268,20 +266,20 @@ export function useVisualWorkflows() {
   }, [fetchWorkflows]);
 
   const toggleWorkflow = useCallback(async (id: string, is_active: boolean) => {
-    return updateWorkflow(id, { is_active } as any);
+    return updateWorkflow(id, { is_active });
   }, [updateWorkflow]);
 
   const saveGraphData = useCallback(async (id: string, nodes: Node[], edges: Edge[]) => {
-    return updateWorkflow(id, { graph_data: { nodes, edges } } as any);
+    return updateWorkflow(id, { graph_data: { nodes, edges } });
   }, [updateWorkflow]);
 
   const fetchStepLogs = useCallback(async (executionId: string) => {
     const { data } = await supabase
-      .from('workflow_step_logs' as any)
+      .from('workflow_step_logs')
       .select('*')
       .eq('execution_id', executionId)
       .order('step_order', { ascending: true });
-    return (data as any as WorkflowStepLog[]) || [];
+    return (data as WorkflowStepLog[]) || [];
   }, []);
 
   const testRunWorkflow = useCallback(async (workflowId: string, mockData?: Record<string, any>) => {
