@@ -20,7 +20,8 @@ import {
   Users,
   DollarSign,
   TrendingUp,
-  Calendar
+  Calendar,
+  BookOpen
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useAuth } from "@/contexts/AuthContext";
@@ -274,6 +275,7 @@ const DriverSideMenu = ({
         )}
 
         <nav className="space-y-2">
+          <MenuLink icon={<BookOpen className="w-5 h-5 text-amber-500" />} label="خاص لعائلة ران" href="/driver/guide" onClick={onClose} />
           <MenuLink icon={<UserCircle className="w-5 h-5" />} label="الملف الشخصي" href="/driver/profile" onClick={onClose} />
           {driverStatus !== 'approved' && (
             <MenuLink icon={<FileSearch className="w-5 h-5" />} label="حالة الطلب" href="/driver/application-status" onClick={onClose} />

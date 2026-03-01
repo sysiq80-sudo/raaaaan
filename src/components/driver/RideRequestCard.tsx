@@ -44,6 +44,7 @@ interface RideRequestCardProps {
   isPaused?: boolean;
   driverLocation?: { lat: number; lng: number } | null;
   onRideAccepted?: () => void;
+  onRideRequestVisible?: (visible: boolean) => void;
   maxPickupRadius?: number;
 }
 
@@ -79,14 +80,29 @@ export const RideRequestCard = ({
   isPaused = false,
   driverLocation,
   onRideAccepted,
+  onRideRequestVisible,
   maxPickupRadius = 10,
 }: RideRequestCardProps) => {
   const { toast } = useToast();
   const [pendingRide, setPendingRide] = useState<PendingRide | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionType, setActionType] = useState<"accept" | "reject" | null>(null);
-  const [timeLeft, setTimeLeft] = useState(30);
+  const TIMER_DURATION = 30; // ثانية
+  const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
   const previousRideIdRef = useRef<string | null>(null);
+  // قفل لمنع التداخل أثناء القبول/الرفض
+  const actionInProgressRef = useRef(false);
+
+  // حساب الوقت المتبقي من created_at بدلاً من إعادة العد من 30
+  const calcTimeLeft = useCallback((createdAt: string): number => {
+    const elapsed = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000);
+    return Math.max(0, TIMER_DURATION - elapsed);
+  }, []);
+
+  // إبلاغ الأب عند ظهور/إخفاء بطاقة الطلب
+  useEffect(() => {
+    onRideRequestVisible?.(!!pendingRide);
+  }, [pendingRide, onRideRequestVisible]);
 
   // ✨ Cooldown: الرحلات المتخطاة تختفي 60 ثانية
   const skippedRidesRef = useRef<Record<string, number>>({});
@@ -179,6 +195,11 @@ export const RideRequestCard = ({
   }, [driverId]);
 
   const fetchPendingRides = useCallback(async () => {
+    // لا تبحث أثناء القبول/الرفض — منع التداخل
+    if (actionInProgressRef.current) {
+      logger.debug("RideRequestCard", "⏳ Action in progress — skipping fetch");
+      return;
+    }
     // لا تبحث عن رحلات إذا كان السائق غير متصل أو في وضع الإيقاف المؤقت
     if (!isOnline || isPaused) {
       setPendingRide(null);
@@ -190,8 +211,8 @@ export const RideRequestCard = ({
       const searchLocation = searchFromDropoff && activeRideDropoff ? activeRideDropoff : driverLocation;
       const searchLabel = searchFromDropoff && activeRideDropoff ? 'موقع الوجهة' : 'الموقع الحالي';
 
-      // First try with location-based RPC if we have search location
-      if (searchLocation) {
+      // Try with location-based RPC ONLY if we have a valid location
+      if (searchLocation && searchLocation.lat && searchLocation.lng) {
         logger.debug("RideRequestCard", `🔍 البحث من: ${searchLabel}`, {
           search_lat: searchLocation.lat,
           search_lng: searchLocation.lng,
@@ -200,50 +221,56 @@ export const RideRequestCard = ({
           searching_from_dropoff: searchFromDropoff,
         });
 
-        const { data, error } = await supabase.rpc("get_nearby_pending_rides", {
-          driver_lat: searchLocation.lat,
-          driver_lng: searchLocation.lng,
-          max_radius_km: maxPickupRadius,
-          driver_vehicle_type: (vehicleType || "economy") as "economy" | "comfort" | "premium" | "women_only",
-        });
+        try {
+          const { data, error } = await supabase.rpc("get_nearby_pending_rides", {
+            driver_lat: searchLocation.lat,
+            driver_lng: searchLocation.lng,
+            max_radius_km: maxPickupRadius,
+            driver_vehicle_type: (vehicleType || "economy") as "economy" | "comfort" | "premium" | "women_only",
+          });
 
-        if (!error && data && data.length > 0) {
-          const ride = data[0];
-          const newRide: PendingRide = {
-            id: ride.id,
-            pickup_location: ride.pickup_location as { lat: number; lng: number },
-            dropoff_location: ride.dropoff_location as { lat: number; lng: number },
-            pickup_address: ride.pickup_address,
-            dropoff_address: ride.dropoff_address,
-            estimated_fare: ride.estimated_fare,
-            distance_km: ride.distance_km ? Number(ride.distance_km) : null,
-            duration_minutes: ride.duration_minutes,
-            vehicle_type: ride.vehicle_type || "economy",
-            created_at: ride.created_at,
-            rider_id: ride.rider_id || "",
-            surge_multiplier: (ride as any).surge_multiplier ?? undefined,
-          };
-          
-          // تخطي الرحلات في cooldown
-          if (!isRideVisible(newRide.id)) {
-            logger.debug("RideRequestCard", `⛔ Ride ${newRide.id.substring(0, 8)} in cooldown, skipping`);
-            setPendingRide(null);
+          if (!error && data && data.length > 0) {
+            const ride = data[0];
+            const newRide: PendingRide = {
+              id: ride.id,
+              pickup_location: ride.pickup_location as { lat: number; lng: number },
+              dropoff_location: ride.dropoff_location as { lat: number; lng: number },
+              pickup_address: ride.pickup_address,
+              dropoff_address: ride.dropoff_address,
+              estimated_fare: ride.estimated_fare,
+              distance_km: ride.distance_km ? Number(ride.distance_km) : null,
+              duration_minutes: ride.duration_minutes,
+              vehicle_type: ride.vehicle_type || "economy",
+              created_at: ride.created_at,
+              rider_id: ride.rider_id || "",
+              surge_multiplier: (ride as any).surge_multiplier ?? undefined,
+            };
+            
+            // تخطي الرحلات في cooldown
+            if (!isRideVisible(newRide.id)) {
+              logger.debug("RideRequestCard", `⛔ Ride ${newRide.id.substring(0, 8)} in cooldown, skipping`);
+              setPendingRide(null);
+              return;
+            }
+
+            // Play sound only for NEW rides
+            if (previousRideIdRef.current !== newRide.id) {
+              playNotificationSound();
+              if ("vibrate" in navigator) {
+                navigator.vibrate([300, 100, 300, 100, 400]);
+              }
+              previousRideIdRef.current = newRide.id;
+            }
+            
+            setPendingRide(newRide);
+            setTimeLeft(calcTimeLeft(newRide.created_at));
             return;
           }
-
-          // Play sound only for NEW rides
-          if (previousRideIdRef.current !== newRide.id) {
-            playNotificationSound();
-            if ("vibrate" in navigator) {
-              navigator.vibrate([300, 100, 300, 100, 400]);
-            }
-            previousRideIdRef.current = newRide.id;
-          }
-          
-          setPendingRide(newRide);
-          setTimeLeft(30);
-          return;
+        } catch (rpcError) {
+          logger.error("RideRequestCard", "RPC error, falling through to fallback", rpcError);
         }
+      } else {
+        logger.debug("RideRequestCard", "📍 الموقع غير متاح — استخدام البحث العام");
       }
 
       // Fallback: Search for any pending ride that matches vehicle type
@@ -293,7 +320,7 @@ export const RideRequestCard = ({
           }
           
           setPendingRide(newRide);
-          setTimeLeft(30);
+          setTimeLeft(calcTimeLeft(newRide.created_at));
           return;
         }
       }
@@ -303,7 +330,7 @@ export const RideRequestCard = ({
       logger.error("RideRequestCard", "Error fetching rides", error);
       setPendingRide(null);
     }
-  }, [isOnline, isPaused, vehicleType, driverLocation, maxPickupRadius, canDriverServeRide, searchFromDropoff, activeRideDropoff, isRideVisible]);
+  }, [isOnline, isPaused, vehicleType, driverLocation, maxPickupRadius, canDriverServeRide, searchFromDropoff, activeRideDropoff, isRideVisible, calcTimeLeft]);
 
   // الـ Ref يتابع دائماً آخر نسخة من fetchPendingRides بدون إعادة الاشتراك
   useEffect(() => {
@@ -328,7 +355,53 @@ export const RideRequestCard = ({
           filter: "status=eq.pending",
         },
         (payload) => {
-          logger.debug("RideRequestCard", "⚡ New ride INSERT (pending)", payload.new?.id);
+          // لا تتدخل أثناء عملية قبول/رفض
+          if (actionInProgressRef.current) return;
+          
+          const rideData = payload.new;
+          logger.debug("RideRequestCard", "⚡ New ride INSERT (pending)", rideData?.id);
+          
+          // بناء الرحلة مباشرة من البيانات الواردة لعرضها فوراً
+          if (rideData && rideData.id && rideData.status === 'pending' && !rideData.driver_id) {
+            const directRide: PendingRide = {
+              id: rideData.id,
+              pickup_location: rideData.pickup_location as { lat: number; lng: number },
+              dropoff_location: rideData.dropoff_location as { lat: number; lng: number },
+              pickup_address: rideData.pickup_address || '',
+              dropoff_address: rideData.dropoff_address || '',
+              estimated_fare: rideData.estimated_fare || 0,
+              distance_km: rideData.distance_km ? Number(rideData.distance_km) : null,
+              duration_minutes: rideData.duration_minutes || null,
+              vehicle_type: rideData.vehicle_type || "economy",
+              created_at: rideData.created_at || new Date().toISOString(),
+              rider_id: rideData.rider_id || "",
+              surge_multiplier: rideData.surge_multiplier ?? undefined,
+            };
+            
+            // فحص cooldown
+            const skippedTime = skippedRidesRef.current[directRide.id];
+            const inCooldown = skippedTime && (Date.now() - skippedTime < 60000);
+            
+            if (!inCooldown) {
+              logger.debug("RideRequestCard", "✅ عرض الطلب فوراً من الـ Realtime payload");
+              
+              // تشغيل الصوت
+              if (previousRideIdRef.current !== directRide.id) {
+                playNotificationSound();
+                if ("vibrate" in navigator) {
+                  navigator.vibrate([300, 100, 300, 100, 400]);
+                }
+                previousRideIdRef.current = directRide.id;
+              }
+              
+              setPendingRide(directRide);
+              const elapsed = Math.floor((Date.now() - new Date(directRide.created_at).getTime()) / 1000);
+              setTimeLeft(Math.max(0, 30 - elapsed));
+              return;
+            }
+          }
+          
+          // Fallback — جلب من قاعدة البيانات
           fetchPendingRidesRef.current();
         }
       )
@@ -341,11 +414,57 @@ export const RideRequestCard = ({
           table: "rides",
         },
         (payload) => {
+          // لا تتدخل أثناء عملية قبول/رفض
+          if (actionInProgressRef.current) return;
+          
           const oldStatus = (payload.old as Record<string, unknown>)?.status;
           const newStatus = (payload.new as Record<string, unknown>)?.status;
-          // فقط عندما تتحول الحالة إلى pending
-          if (newStatus === 'pending' && oldStatus !== 'pending') {
-            logger.debug("RideRequestCard", `⚡ Ride UPDATE to pending (${oldStatus} → ${newStatus})`, payload.new?.id);
+          const rideData = payload.new;
+
+          // عندما تتحول الحالة إلى pending — عرض فوري
+          if (newStatus === 'pending' && oldStatus !== 'pending' && rideData) {
+            logger.debug("RideRequestCard", `⚡ Ride UPDATE to pending (${oldStatus} → ${newStatus})`, rideData.id);
+            
+            if (rideData.id && !rideData.driver_id) {
+              const directRide: PendingRide = {
+                id: rideData.id as string,
+                pickup_location: rideData.pickup_location as { lat: number; lng: number },
+                dropoff_location: rideData.dropoff_location as { lat: number; lng: number },
+                pickup_address: (rideData.pickup_address as string) || '',
+                dropoff_address: (rideData.dropoff_address as string) || '',
+                estimated_fare: (rideData.estimated_fare as number) || 0,
+                distance_km: rideData.distance_km ? Number(rideData.distance_km) : null,
+                duration_minutes: (rideData.duration_minutes as number) || null,
+                vehicle_type: (rideData.vehicle_type as string) || "economy",
+                created_at: (rideData.created_at as string) || new Date().toISOString(),
+                rider_id: (rideData.rider_id as string) || "",
+                surge_multiplier: (rideData as Record<string, unknown>).surge_multiplier as number ?? undefined,
+              };
+              
+              const skippedTime = skippedRidesRef.current[directRide.id];
+              const inCooldown = skippedTime && (Date.now() - skippedTime < 60000);
+              
+              if (!inCooldown) {
+                if (previousRideIdRef.current !== directRide.id) {
+                  playNotificationSound();
+                  if ("vibrate" in navigator) {
+                    navigator.vibrate([300, 100, 300, 100, 400]);
+                  }
+                  previousRideIdRef.current = directRide.id;
+                }
+                setPendingRide(directRide);
+                const elapsed = Math.floor((Date.now() - new Date(directRide.created_at).getTime()) / 1000);
+                setTimeLeft(Math.max(0, 30 - elapsed));
+                return;
+              }
+            }
+            
+            fetchPendingRidesRef.current();
+          }
+          
+          // عندما تتغير الحالة من pending لأي شيء آخر — إزالة البطاقة
+          if (oldStatus === 'pending' && newStatus !== 'pending') {
+            logger.debug("RideRequestCard", `🔄 Ride no longer pending (${oldStatus} → ${newStatus})`);
             fetchPendingRidesRef.current();
           }
         }
@@ -388,20 +507,14 @@ export const RideRequestCard = ({
     return () => clearInterval(pollInterval);
   }, [isOnline, isPaused]); // ← deps ثابتة
 
-  // Countdown timer effect
+  // Countdown timer effect — visual only, لا يخفي البطاقة
   useEffect(() => {
     if (!pendingRide) return;
-    const currentRideId = pendingRide.id;
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
-        if (prev <= 1) {
-          // انتهى الوقت — أضف للـ cooldown حتى لا تعود فوراً
-          skippedRidesRef.current[currentRideId] = Date.now();
-          console.log(`⏰ Ride ${currentRideId.substring(0, 8)} timed out, cooldown 60s`);
-          setPendingRide(null);
-          previousRideIdRef.current = null;
-          fetchPendingRidesRef.current();
-          return 30;
+        if (prev <= 0) {
+          // انتهى الوقت — يبقى الطلب ظاهراً حتى يتخذ السائق إجراء أو يُلغي الراكب
+          return 0;
         }
         return prev - 1;
       });
@@ -410,19 +523,52 @@ export const RideRequestCard = ({
   }, [pendingRide]);
 
   const handleAccept = async () => {
-    if (!pendingRide || loading) return; // منع الضغط المزدوج
+    if (!pendingRide || loading || actionInProgressRef.current) return; // منع الضغط المزدوج
+    actionInProgressRef.current = true;
     setLoading(true);
     setActionType("accept");
-    try {
-      // المحاولة 1: RPC الآمن
-      const { error } = await supabase.rpc("accept_ride_safely", {
-        p_ride_id: pendingRide.id,
-        p_driver_id: driverId,
-      });
 
-      if (error) {
-        // Fallback: تحديث مباشر عبر REST إذا فشل الـ RPC
-        console.warn("accept_ride_safely RPC failed, falling back to direct update:", error.message);
+    // Safety timeout — لا يبقى بحالة loading أكثر من 15 ثانية
+    const safetyTimer = setTimeout(() => {
+      console.error("[RideRequestCard] ⚠️ Accept safety timeout — resetting loading state");
+      actionInProgressRef.current = false;
+      setLoading(false);
+      setActionType(null);
+      toast({
+        title: "انتهت المهلة",
+        description: "حاول مرة أخرى",
+        variant: "destructive",
+      });
+    }, 15000);
+
+    try {
+      // المحاولة 1: RPC الآمن مع timeout
+      let rpcSucceeded = false;
+      try {
+        const rpcPromise = supabase.rpc("accept_ride_safely", {
+          p_ride_id: pendingRide.id,
+          p_driver_id: driverId,
+        });
+
+        // Timeout 10 ثواني للـ RPC
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("RPC timeout")), 10000)
+        );
+
+        const { error } = await Promise.race([rpcPromise, timeoutPromise]) as { error: any };
+
+        if (!error) {
+          rpcSucceeded = true;
+        } else {
+          console.warn("accept_ride_safely RPC failed:", error.message);
+        }
+      } catch (rpcErr: any) {
+        console.warn("accept_ride_safely RPC error/timeout:", rpcErr?.message);
+      }
+
+      // المحاولة 2: Fallback — تحديث مباشر عبر REST
+      if (!rpcSucceeded) {
+        console.log("[RideRequestCard] Trying direct update fallback...");
         const { error: directError } = await supabase
           .from('rides')
           .update({
@@ -431,17 +577,22 @@ export const RideRequestCard = ({
             matched_at: new Date().toISOString(),
           })
           .eq('id', pendingRide.id)
-          .eq('status', 'pending') // حماية: فقط إذا لا تزال pending
-          .is('driver_id', null);  // حماية: لم يقبلها سائق آخر
+          .eq('status', 'pending')
+          .is('driver_id', null);
 
-        if (directError) throw directError;
+        if (directError) {
+          throw directError;
+        }
       }
 
+      clearTimeout(safetyTimer);
       toast({ title: "✅ تم القبول", description: "تم قبول الطلب بنجاح" });
       onRideAccepted?.();
       setPendingRide(null);
       previousRideIdRef.current = null;
     } catch (e: any) {
+      clearTimeout(safetyTimer);
+      console.error("[RideRequestCard] Accept error:", e);
       toast({
         title: "خطأ",
         description: e?.message || "تم قبول الطلب من سائق آخر",
@@ -449,13 +600,16 @@ export const RideRequestCard = ({
       });
       fetchPendingRidesRef.current();
     } finally {
+      clearTimeout(safetyTimer);
+      actionInProgressRef.current = false;
       setLoading(false);
       setActionType(null);
     }
   };
 
   const handleReject = async () => {
-    if (!pendingRide || loading) return; // منع الضغط المزدوج
+    if (!pendingRide || loading || actionInProgressRef.current) return; // منع الضغط المزدوج
+    actionInProgressRef.current = true;
     setLoading(true);
     setActionType("reject");
 
@@ -478,6 +632,7 @@ export const RideRequestCard = ({
     }
 
     toast({ title: "تم التخطي", description: "سيتم عرض الطلب التالي" });
+    actionInProgressRef.current = false;
     setLoading(false);
     setActionType(null);
     fetchPendingRidesRef.current();
@@ -593,7 +748,7 @@ export const RideRequestCard = ({
                 }`}
               >
                 <Timer className="w-3.5 h-3.5" />
-                <span className="font-mono tabular-nums">{timeLeft}ث</span>
+                <span className="font-mono tabular-nums">{timeLeft > 0 ? `${timeLeft}ث` : 'بانتظار'}</span>
               </motion.div>
             </div>
 
@@ -621,18 +776,18 @@ export const RideRequestCard = ({
                 {pendingRide.distance_km && (
                   <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg px-2.5 py-1.5">
                     <Route className="w-3.5 h-3.5 text-blue-500" />
-                    <span className="text-xs font-bold text-foreground">{pendingRide.distance_km.toFixed(1)} كم</span>
+                    <span className="text-xs font-bold text-blue-700 dark:text-blue-300">{pendingRide.distance_km.toFixed(1)} كم</span>
                   </div>
                 )}
                 {pendingRide.duration_minutes && (
                   <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg px-2.5 py-1.5">
                     <Clock className="w-3.5 h-3.5 text-amber-500" />
-                    <span className="text-xs font-bold text-foreground">{pendingRide.duration_minutes} دقيقة</span>
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-300">{pendingRide.duration_minutes} دقيقة</span>
                   </div>
                 )}
                 <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg px-2.5 py-1.5">
                   <Car className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-xs font-bold text-foreground">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     {getVehicleIcon(pendingRide.vehicle_type)} {getVehicleTypeName(pendingRide.vehicle_type)}
                   </span>
                 </div>
@@ -653,13 +808,13 @@ export const RideRequestCard = ({
                 <div className="flex-1 flex flex-col justify-between gap-2 min-w-0">
                   <div>
                     <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold uppercase tracking-wider mb-0.5">نقطة الانطلاق</p>
-                    <p className="text-sm font-medium text-foreground line-clamp-1">
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200 line-clamp-1">
                       {pendingRide.pickup_address || "موقع الانطلاق"}
                     </p>
                   </div>
                   <div>
                     <p className="text-[10px] text-red-500 dark:text-red-400 font-semibold uppercase tracking-wider mb-0.5">الوجهة</p>
-                    <p className="text-sm font-medium text-foreground line-clamp-1">
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200 line-clamp-1">
                       {pendingRide.dropoff_address || "الوجهة"}
                     </p>
                   </div>

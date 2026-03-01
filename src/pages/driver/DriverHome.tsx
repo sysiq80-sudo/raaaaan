@@ -95,6 +95,7 @@ const DriverHome = () => {
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [adminActivated, setAdminActivated] = useState(true);
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
+  const [hasRideRequest, setHasRideRequest] = useState(false);
 
   // 🔒 Driver Mode — منع التمرير على مستوى الصفحة
   useEffect(() => {
@@ -886,38 +887,42 @@ const DriverHome = () => {
             <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
               
               <div className="relative flex flex-col items-center gap-3 w-full max-w-sm px-4">
-                {/* 1️⃣ DutyToggle — Power button */}
-                <div className="pointer-events-auto">
-                  <DutyToggle
+
+                {/* 1️⃣ DutyToggle — الزر الكبير (يختفي عند ورود طلب) */}
+                {!hasRideRequest && (
+                  <>
+                    <div className="pointer-events-auto">
+                      <DutyToggle
+                        isOnline={isOnline}
+                        isPaused={isPaused}
+                        isLoading={onlineToggleLoading}
+                        isSearching={isSearching}
+                        driverStatus={driverStatus}
+                        locationTracking={locationTracking}
+                        onToggle={handleOnlineToggle}
+                        onPauseToggle={handlePauseToggle}
+                      />
+                    </div>
+
+                    {/* فراغ لظهور دائرة الموقع الفعلي */}
+                    <div style={{ height: '6vh' }} />
+                  </>
+                )}
+
+                {/* 2️⃣ StatusSearchBar — شريط حالة (زر power يظهر فقط عند ورود طلب) */}
+                <div className="w-full pointer-events-auto">
+                  <StatusSearchBar
                     isOnline={isOnline}
                     isPaused={isPaused}
-                    isLoading={onlineToggleLoading}
                     isSearching={isSearching}
-                    driverStatus={driverStatus}
+                    onToggleOnline={handleOnlineToggle}
+                    onTogglePause={handlePauseToggle}
+                    isLoading={onlineToggleLoading}
                     locationTracking={locationTracking}
-                    onToggle={handleOnlineToggle}
-                    onPauseToggle={handlePauseToggle}
+                    driverStatus={driverStatus}
+                    showPowerButton={hasRideRequest}
                   />
                 </div>
-
-                {/* فراغ 6% من طول الشاشة لظهور دائرة الموقع الفعلي */}
-                <div style={{ height: '6vh' }} />
-
-                {/* 2️⃣ StatusSearchBar — only when online */}
-                {isOnline && (
-                  <div className="w-full pointer-events-auto">
-                    <StatusSearchBar
-                      isOnline={isOnline}
-                      isPaused={isPaused}
-                      isSearching={isSearching}
-                      onToggleOnline={handleOnlineToggle}
-                      onTogglePause={handlePauseToggle}
-                      isLoading={onlineToggleLoading}
-                      locationTracking={locationTracking}
-                      driverStatus={driverStatus}
-                    />
-                  </div>
-                )}
 
                 {/* 3️⃣ Action cards — Active ride / Ride request */}
                 <div className="w-full pointer-events-auto flex flex-col gap-2">
@@ -944,6 +949,7 @@ const DriverHome = () => {
                       isPaused={isPaused}
                       driverLocation={currentLocation}
                       maxPickupRadius={maxPickupRadius}
+                      onRideRequestVisible={setHasRideRequest}
                       onRideAccepted={() => {
                         console.log(
                           "[DriverHome] Ride accepted — triggering ActiveRideCard refresh"
