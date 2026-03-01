@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { logger } from "@/lib/logger";
 import {
   playSound,
   vibrate,
   VibrationPatterns,
   showNotification,
 } from "@/utils/rideNotificationSounds";
+
+const LOG_CONTEXT = "useActiveRide";
 
 export interface ActiveRide {
   id: string;
@@ -37,7 +40,13 @@ export const useActiveRide = (userId: string | null) => {
   const [showCompletedScreen, setShowCompletedScreen] = useState(false);
   const previousStatusRef = useRef<string | null>(null);
   const activeRideIdRef = useRef<string | null>(null);
-  // When true, skip polling/checking to avoid race with booking flow
+
+  /**
+   * ignorePolling: يُفعّل عند بدء حجز من التطبيق (GoPage) لتجنب سباق مع استعلامات التتبع.
+   * يُلغى عند ظهور الرحلة (Realtime/INSERT) أو عند إلغاء الحجز.
+   * لا تغيّر ترتيب استدعاء setIgnorePolling(true) قبل insert و setIgnorePolling(false) بعد ظهور الرحلة
+   * وإلا قد لا تتحدث واجهة الراكب. انظر useRideTracking و GoPage.
+   */
   const ignorePollingRef = useRef(false);
   const setIgnorePolling = useCallback((v: boolean) => {
     ignorePollingRef.current = v;
@@ -68,12 +77,7 @@ export const useActiveRide = (userId: string | null) => {
   // Handle ride status change with notifications
   const handleStatusChange = useCallback(
     (newStatus: string, previousStatus: string | null, updatedRide: any) => {
-      console.log(
-        "[useActiveRide] Status changed:",
-        previousStatus,
-        "->",
-        newStatus
-      );
+      logger.debug(LOG_CONTEXT, "Status changed", { previousStatus, newStatus });
 
       if (newStatus === "cancelled" || newStatus === "completed") {
         // حفظ الرحلة المكتملة قبل مسحها لعرض شاشة التقييم
@@ -84,11 +88,11 @@ export const useActiveRide = (userId: string | null) => {
           const isEmergency = updatedRide.emergency_completed === true;
           
           if (isEmergency) {
-            console.log("🚨 Emergency completed - skipping rating screen");
+            logger.debug(LOG_CONTEXT, "Emergency completed - skipping rating screen");
             setCompletedRide(null);
             setShowCompletedScreen(false);
           } else {
-            console.log("✅ Setting completed ride data for rating screen");
+            logger.debug(LOG_CONTEXT, "Setting completed ride data for rating screen");
             
             // ✅ FIX: جلب اسم السائق الحقيقي
             if (updatedRide.driver_id) {
@@ -145,7 +149,7 @@ export const useActiveRide = (userId: string | null) => {
               variant: "destructive",
             });
           } else {
-            console.log("🔇 Silent system cancellation - no notification");
+            logger.debug(LOG_CONTEXT, "Silent system cancellation - no notification");
           }
         }
         return;
@@ -153,9 +157,7 @@ export const useActiveRide = (userId: string | null) => {
 
       // Handle accepted status
       if (newStatus === "accepted" && previousStatus === "pending") {
-        console.log(
-          "[useActiveRide] 🎉 Driver accepted! Switching to live tracker"
-        );
+        logger.debug(LOG_CONTEXT, "Driver accepted - switching to live tracker");
 
         playSound("accepted");
         vibrate(VibrationPatterns.accepted);
@@ -224,11 +226,11 @@ export const useActiveRide = (userId: string | null) => {
 
     // Skip if external booking flow wants to disable polling (prevents race)
     if (ignorePollingRef.current) {
-      console.log('[useActiveRide] 🚧 Skipping checkActiveRide - ignorePolling is set');
+      logger.debug(LOG_CONTEXT, "Skipping checkActiveRide - ignorePolling is set");
       return;
     }
 
-    console.log('[useActiveRide] 🔍 Checking for active ride...');
+    logger.debug(LOG_CONTEXT, "Checking for active ride");
 
     const { data: rides, error } = await supabase
       .from("rides")
@@ -257,11 +259,11 @@ export const useActiveRide = (userId: string | null) => {
     } else {
       // If an external flow (booking) asked us to ignore polling, don't clear UI
       if (ignorePollingRef.current) {
-        console.log('[useActiveRide] 🚧 Found no ride but skipping clear - ignorePolling is set');
+        logger.debug(LOG_CONTEXT, "Found no ride but skipping clear - ignorePolling is set");
         return;
       }
 
-      console.log('[useActiveRide] ✅ No active ride found - clearing state');
+      logger.debug(LOG_CONTEXT, "No active ride found - clearing state");
       setActiveRide(null);
       setShowLiveTracker(false);
       setShowWaitingScreen(false);
@@ -296,7 +298,7 @@ export const useActiveRide = (userId: string | null) => {
           filter: `rider_id=eq.${userId}`,
         },
         (payload) => {
-          console.log("[useActiveRide] 📡 Realtime update received:", payload);
+          logger.debug(LOG_CONTEXT, "Realtime update received", payload);
 
           if (payload.eventType === "INSERT") {
             const newRide = payload.new as any;
@@ -315,7 +317,7 @@ export const useActiveRide = (userId: string | null) => {
 
             // تجاهل تحديثات الإلغاء للرحلات القديمة (ليست الرحلة النشطة الحالية)
             if (newStatus === "cancelled" && activeRide && updatedRide.id !== activeRide.id) {
-              console.log("🔇 Ignoring cancellation update for non-active ride:", updatedRide.id);
+              logger.debug(LOG_CONTEXT, "Ignoring cancellation update for non-active ride", updatedRide.id);
               return;
             }
 
@@ -328,7 +330,7 @@ export const useActiveRide = (userId: string | null) => {
         }
       )
       .subscribe((status) => {
-        console.log("[useActiveRide] Subscription status:", status);
+        logger.debug(LOG_CONTEXT, "Subscription status", status);
       });
 
     // Fallback polling - smart interval:
@@ -350,13 +352,11 @@ export const useActiveRide = (userId: string | null) => {
             .single();
 
           if (data && data.status !== previousStatusRef.current) {
-            console.log(
-              "[useActiveRide] 🔄 Poll detected status change:",
-              previousStatusRef.current,
-              "->",
-              data.status,
-              "emergency:", data.emergency_completed
-            );
+            logger.debug(LOG_CONTEXT, "Poll detected status change", {
+              previous: previousStatusRef.current,
+              new: data.status,
+              emergency: data.emergency_completed,
+            });
             checkActiveRide();
           }
         }

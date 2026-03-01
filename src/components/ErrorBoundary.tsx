@@ -18,6 +18,7 @@ import {
   User,
   Send,
   Download,
+  MapPin,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -44,7 +45,7 @@ interface State {
   isRetrying: boolean;
   userFeedback?: string;
   showFeedbackForm: boolean;
-  errorCategory: "network" | "auth" | "data" | "ui" | "unknown";
+  errorCategory: "network" | "auth" | "data" | "ui" | "map" | "unknown";
   recoveryAttempted: boolean;
 }
 
@@ -74,7 +75,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   private static categorizeError(
     error: Error,
-  ): "network" | "auth" | "data" | "ui" | "unknown" {
+  ): "network" | "auth" | "data" | "ui" | "map" | "unknown" {
     const message = error.message.toLowerCase();
     const stack = error.stack?.toLowerCase() || "";
 
@@ -98,6 +99,15 @@ class ErrorBoundary extends Component<Props, State> {
       message.includes("data")
     ) {
       return "data";
+    }
+    if (
+      message.includes("map") ||
+      message.includes("maps") ||
+      message.includes("geometry") ||
+      message.includes("geocod") ||
+      message.includes("خريطة")
+    ) {
+      return "map";
     }
     if (
       stack.includes("react") ||
@@ -286,6 +296,8 @@ class ErrorBoundary extends Component<Props, State> {
         return <User className="w-6 h-6 text-destructive" />;
       case "data":
         return <Bug className="w-6 h-6 text-destructive" />;
+      case "map":
+        return <MapPin className="w-6 h-6 text-destructive" />;
       default:
         return <AlertTriangle className="w-6 h-6 text-destructive" />;
     }
@@ -303,6 +315,8 @@ class ErrorBoundary extends Component<Props, State> {
         return "مشكلة في البيانات";
       case "ui":
         return "مشكلة في واجهة المستخدم";
+      case "map":
+        return "مشكلة في الخريطة";
       default:
         return "حدث خطأ";
     }
@@ -324,6 +338,8 @@ class ErrorBoundary extends Component<Props, State> {
         return "حدث خطأ في تحميل البيانات، يرجى المحاولة مرة أخرى";
       case "ui":
         return "حدث خطأ في عرض الصفحة، يرجى إعادة تحميلها";
+      case "map":
+        return "تعذر تحميل الخريطة أو المسار، تحقق من الاتصال أو حدّث الصفحة";
       default:
         return "نعتذر عن الإزعاج، حدث خطأ غير متوقع";
     }

@@ -1,6 +1,11 @@
 /**
  * ران - Hook تتبع الرحلة
  * يدير logic الرحلات النشطة والانتظار والتتبع المباشر
+ *
+ * ignorePolling (من useActiveRide):
+ * - يُفعّل من GoPage عند بدء الحجز (setIgnorePolling(true)) لتجنب سباق مع checkActiveRide.
+ * - يُلغى عند ظهور الرحلة عبر Realtime أو عند إلغاء الحجز (setIgnorePolling(false)).
+ * - setIgnorePolling مُصدّر هنا لاستخدامه من GoPage/useRideTracking عند بدء حجز جديد.
  */
 
 import { useCallback, useState } from "react";

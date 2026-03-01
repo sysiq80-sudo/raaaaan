@@ -9,7 +9,11 @@ import { useToast } from "./use-toast";
 import { getDirections, drawPolyline, ROUTE_STYLES } from "@/lib/googleMapService";
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { useGoogleMapsApiKey } from "./useGoogleMapsApiKey";
+import { logger } from "@/lib/logger";
+import { showErrorToast } from "@/lib/toastHelpers";
 import type { PaymentMethod } from "@/types/savedCards";
+
+const LOG_CONTEXT = "useBookingFlow";
 
 interface LocationType {
   lat: number;
@@ -41,19 +45,19 @@ export const useBookingFlow = () => {
   const fetchRouteAndDraw = useCallback(
     async (pickupLocation: LocationType, dropoffLocation: LocationType) => {
       if (!googleApiKey || !bookingMap.current) {
-        console.warn("⚠️ Cannot fetch route - missing map or API key");
+        logger.warn(LOG_CONTEXT, "Cannot fetch route - missing map or API key");
         return;
       }
 
       try {
-        console.log("🔍 Fetching route...");
+        logger.debug(LOG_CONTEXT, "Fetching route...");
         const result = await getDirections(
           { lat: pickupLocation.lat, lng: pickupLocation.lng },
           { lat: dropoffLocation.lat, lng: dropoffLocation.lng }
         );
 
         if (result && result.route && result.distanceMeters > 0) {
-          console.log("✅ Route received, distance:", result.distance, "duration:", result.duration);
+          logger.debug(LOG_CONTEXT, "Route received", { distance: result.distance, duration: result.duration });
           // ✅ استخدام القيم الرقمية بدلاً من تحليل النص المحلي (قد يكون بالعربية)
           const distanceKm = result.distanceMeters / 1000;
           const durationMin = Math.ceil(result.durationSeconds / 60);
@@ -61,9 +65,9 @@ export const useBookingFlow = () => {
           setRouteDuration(durationMin);
 
           // Draw route on booking map
-          console.log("🎨 Drawing polyline on map...");
+          logger.debug(LOG_CONTEXT, "Drawing polyline on map");
           drawPolyline(bookingMap.current, result.route, ROUTE_STYLES.main);
-          console.log("✅ Polyline drawn");
+          logger.debug(LOG_CONTEXT, "Polyline drawn");
 
           // Fit map to route bounds
           const bounds = new google.maps.LatLngBounds();
@@ -74,12 +78,12 @@ export const useBookingFlow = () => {
           bounds.extend(new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng));
           
           if (bookingMap.current) {
-            console.log("📍 Fitting map to bounds...");
+            logger.debug(LOG_CONTEXT, "Fitting map to bounds");
             bookingMap.current.fitBounds(bounds, 100);
-            console.log("✅ Map bounds fitted");
+            logger.debug(LOG_CONTEXT, "Map bounds fitted");
           }
         } else {
-          console.warn("⚠️ No route data received, using fallback distance calculation");
+          logger.warn(LOG_CONTEXT, "No route data received, using fallback distance calculation");
           // Fallback: Calculate straight-line distance (Haversine formula)
           const R = 6371; // Earth's radius in km
           const dLat = (dropoffLocation.lat - pickupLocation.lat) * Math.PI / 180;
@@ -91,7 +95,7 @@ export const useBookingFlow = () => {
           const distanceKm = R * c;
           const estimatedDurationMin = Math.ceil(distanceKm / 2.5 * 60); // Assume 2.5 km/min avg speed
           
-          console.log("📏 Fallback distance calculated:", Math.round(distanceKm * 10) / 10, "km");
+          logger.debug(LOG_CONTEXT, "Fallback distance calculated (km)", Math.round(distanceKm * 10) / 10);
           setRouteDistance(Math.round(distanceKm * 10) / 10);
           setRouteDuration(estimatedDurationMin);
           
@@ -102,12 +106,8 @@ export const useBookingFlow = () => {
           });
         }
       } catch (error) {
-        console.error("❌ Error fetching route:", error);
-        toast({
-          title: "خطأ في الاتجاهات",
-          description: "فشل في جلب المسار - تحقق من الإنترنت",
-          variant: "destructive",
-        });
+        logger.error(LOG_CONTEXT, "Error fetching route", error);
+        showErrorToast(toast, "خطأ في الاتجاهات", "فشل في جلب المسار - تحقق من الإنترنت");
       }
     },
     [googleApiKey, toast]
@@ -120,7 +120,7 @@ export const useBookingFlow = () => {
 
       // Prevent duplicate initialization
       if (bookingMap.current) {
-        console.log("✅ Booking map already initialized");
+        logger.debug(LOG_CONTEXT, "Booking map already initialized");
         return;
       }
 
@@ -128,7 +128,10 @@ export const useBookingFlow = () => {
       if (!window.google) {
         loadGoogleMaps(googleApiKey).then(() => {
           initializeBookingMap(pickupLocation, dropoffLocation);
-        }).catch(err => console.error("Booking map load error:", err));
+        }).catch((err) => {
+          logger.error(LOG_CONTEXT, "Booking map load error", err);
+          showErrorToast(toast, "خطأ في تحميل الخريطة", "تحقق من الاتصال أو حدّث الصفحة");
+        });
         return;
       }
 
@@ -137,7 +140,7 @@ export const useBookingFlow = () => {
         bookingMapContainer.current.style.backgroundColor = "#1a1a1a"; // 🌙 Dark background
       }
 
-      console.log("🗺️ Initializing booking map...");
+      logger.debug(LOG_CONTEXT, "Initializing booking map");
       
       // 🌙 Dark Mode Styling (same as location picker)
       const darkModeStyles = [
@@ -180,7 +183,7 @@ export const useBookingFlow = () => {
         zoomControl: true,
       });
 
-      console.log("✅ Booking map initialized with dark mode");
+      logger.debug(LOG_CONTEXT, "Booking map initialized with dark mode");
 
       // Add pickup marker
       const pickupMarker = new google.maps.Marker({
@@ -198,7 +201,7 @@ export const useBookingFlow = () => {
         zIndex: 100,
       });
       markersRef.current.push(pickupMarker); // ✅ FIX: تتبع العلامة للتنظيف
-      console.log("📍 Pickup marker added");
+      logger.debug(LOG_CONTEXT, "Pickup marker added");
 
       // Add dropoff marker
       const dropoffMarker = new google.maps.Marker({
@@ -216,7 +219,7 @@ export const useBookingFlow = () => {
         zIndex: 101,
       });
       markersRef.current.push(dropoffMarker); // ✅ FIX: تتبع العلامة للتنظيف
-      console.log("📍 Dropoff marker added");
+      logger.debug(LOG_CONTEXT, "Dropoff marker added");
 
       // Fetch and draw the route after map is fully loaded
       setTimeout(() => {

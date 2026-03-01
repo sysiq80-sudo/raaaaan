@@ -88,11 +88,12 @@ BEGIN
 END;
 $$;
 
--- ═══ 6. Store Supabase URL and anon key in system_configs (if not already) ═══
+-- ═══ 6. Store Supabase URL and anon key in system_configs (placeholders only — set real values via dashboard or env) ═══
+-- لا تخزين أسرار حقيقية في الـ migration؛ القيم الفعلية تُدرج من لوحة الإدارة أو سكربت تشغيل.
 INSERT INTO system_configs (category, key_name, key_value, description)
 VALUES 
-  ('system', 'SUPABASE_URL', 'https://wgolkcztdrwdphwjvqxt.supabase.co', 'Supabase project URL'),
-  ('system', 'SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo', 'Supabase anon key')
+  ('system', 'SUPABASE_URL', '', 'Supabase project URL — set via dashboard'),
+  ('system', 'SUPABASE_ANON_KEY', '', 'Supabase anon key — set via dashboard')
 ON CONFLICT (key_name) DO NOTHING;
 
 -- ═══ 7. Recreate WhatsApp trigger with dynamic URL + enriched payload ═══

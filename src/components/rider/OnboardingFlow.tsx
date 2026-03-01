@@ -2,6 +2,8 @@
  * ران - شاشة الترحيب الموحدة (GIF + نص متغير + طلب موقع)
  * GIF واحد يعمل باستمرار في الأعلى، مع نص يتبدل تلقائياً أسفله
  * يتوقف عند الخطوة الأخيرة ويطلب صلاحية الموقع
+ *
+ * v2 — ألوان واضحة ومتجاوبة مع الشاشات
  */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -126,7 +128,10 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] bg-[#1eb484] flex flex-col overflow-hidden"
+      className="fixed inset-0 z-[100] flex flex-col overflow-hidden"
+      style={{
+        background: "linear-gradient(180deg, #0f7a56 0%, #1eb484 40%, #16a376 100%)",
+      }}
     >
 
       {/* زر تخطي */}
@@ -142,7 +147,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
               variant="ghost"
               size="sm"
               onClick={handleSkip}
-              className="text-white/40 hover:text-white/70 text-sm"
+              className="text-white/70 hover:text-white hover:bg-white/10 text-sm"
             >
               تخطي
             </Button>
@@ -150,8 +155,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
         )}
       </AnimatePresence>
 
-      {/* === القسم العلوي: GIF ثابت يعمل باستمرار === */}
-      <div className="flex-shrink-0 flex items-center justify-center pt-16 pb-4 relative z-10">
+      {/* === القسم العلوي: GIF متجاوب === */}
+      <div className="flex-shrink-0 flex items-center justify-center pt-10 sm:pt-16 pb-2 sm:pb-4 relative z-10">
         <motion.div
           initial={{ opacity: 0, scale: 0.85 }}
           animate={{ opacity: gifLoaded ? 1 : 0, scale: gifLoaded ? 1 : 0.85 }}
@@ -159,20 +164,20 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
           className="relative"
         >
           {/* توهج خلف الـ GIF */}
-          <div className="absolute inset-0 bg-[#00E676]/[0.06] rounded-full blur-[60px] scale-125" />
+          <div className="absolute inset-0 bg-white/5 rounded-full blur-[60px] scale-125" />
           <img
             src={HERO_GIF}
             alt="RAAN"
             onLoad={() => setGifLoaded(true)}
-            className="w-[220px] h-[220px] object-contain relative z-10 drop-shadow-2xl"
+            className="w-[160px] h-[160px] sm:w-[220px] sm:h-[220px] object-contain relative z-10 drop-shadow-2xl"
             draggable={false}
           />
         </motion.div>
       </div>
 
       {/* === القسم الأوسط: النص المتبدل === */}
-      <div className="flex-1 flex flex-col items-center justify-start px-6 relative z-10 min-h-0">
-        <div className="w-full max-w-sm text-center h-28 flex items-start justify-center">
+      <div className="flex-1 flex flex-col items-center justify-start px-5 sm:px-6 relative z-10 min-h-0">
+        <div className="w-full max-w-sm text-center min-h-[6rem] sm:min-h-[7rem] flex items-start justify-center">
           <AnimatePresence mode="wait">
             <motion.div
               key={step.id}
@@ -181,10 +186,10 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.45, ease: "easeOut" }}
             >
-              <h1 className="text-2xl font-bold text-white mb-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-white mb-2 drop-shadow-sm">
                 {step.title}
               </h1>
-              <p className="text-white/45 text-base leading-relaxed whitespace-pre-line">
+              <p className="text-white/90 text-sm sm:text-base leading-relaxed whitespace-pre-line">
                 {step.description}
               </p>
             </motion.div>
@@ -193,9 +198,9 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
       </div>
 
       {/* === القسم السفلي: النقاط + شريط + أزرار === */}
-      <div className="flex-shrink-0 relative z-10 pb-8 safe-area-bottom">
+      <div className="flex-shrink-0 relative z-10 pb-6 sm:pb-8 safe-area-bottom">
         {/* مؤشر التقدم (النقاط) */}
-        <div className="flex justify-center gap-2 mb-5">
+        <div className="flex justify-center gap-2 mb-4 sm:mb-5">
           {ONBOARDING_STEPS.map((_, index) => (
             <motion.div
               key={index}
@@ -204,8 +209,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                 index === currentStep
                   ? "w-7 bg-[#00E676]"
                   : index < currentStep
-                  ? "w-1.5 bg-[#00E676]/40"
-                  : "w-1.5 bg-white/15"
+                  ? "w-1.5 bg-[#00E676]/50"
+                  : "w-1.5 bg-white/30"
               }`}
             />
           ))}
@@ -214,14 +219,14 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
         {/* شريط التقدم أثناء التقدم التلقائي */}
         <AnimatePresence>
           {isAutoAdvancing && !isLastStep && (
-            <div className="px-8 mb-5">
-              <div className="h-0.5 bg-white/10 rounded-full overflow-hidden">
+            <div className="px-8 mb-4 sm:mb-5">
+              <div className="h-0.5 bg-white/15 rounded-full overflow-hidden">
                 <motion.div
                   key={`progress-${currentStep}`}
                   initial={{ width: "0%" }}
                   animate={{ width: "100%" }}
                   transition={{ duration: STEP_DURATION / 1000, ease: "linear" }}
-                  className="h-full bg-[#00E676]/50 rounded-full"
+                  className="h-full bg-[#00E676]/60 rounded-full"
                 />
               </div>
             </div>
@@ -229,7 +234,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
         </AnimatePresence>
 
         {/* الأزرار */}
-        <div className="px-6">
+        <div className="px-5 sm:px-6">
           <AnimatePresence mode="wait">
             {isLastStep && !locationDenied && (
               <motion.div
@@ -242,7 +247,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                   size="lg"
                   onClick={requestLocationPermission}
                   disabled={isRequestingLocation}
-                  className="w-full h-14 rounded-2xl text-lg font-bold bg-[#00E676] hover:bg-[#00E676]/90 text-black shadow-lg shadow-[#00E676]/20 transition-all active:scale-[0.98]"
+                  className="w-full h-12 sm:h-14 rounded-2xl text-base sm:text-lg font-bold bg-[#00E676] hover:bg-[#00E676]/90 text-black shadow-lg shadow-[#00E676]/25 transition-all active:scale-[0.98]"
                 >
                   {isRequestingLocation ? (
                     <span className="flex items-center gap-2">
@@ -256,7 +261,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                     </span>
                   )}
                 </Button>
-                <p className="text-white/20 text-xs text-center mt-3">
+                <p className="text-white/60 text-xs text-center mt-3">
                   🔒 لن يتم مشاركة موقعك مع أي طرف ثالث
                 </p>
               </motion.div>
@@ -272,7 +277,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                 <Button
                   size="lg"
                   onClick={requestLocationPermission}
-                  className="w-full h-14 rounded-2xl text-lg font-bold bg-[#00E676] hover:bg-[#00E676]/90 text-black"
+                  className="w-full h-12 sm:h-14 rounded-2xl text-base sm:text-lg font-bold bg-[#00E676] hover:bg-[#00E676]/90 text-black"
                 >
                   <Settings className="w-5 h-5 ml-2" />
                   إعادة المحاولة
@@ -281,11 +286,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                   size="lg"
                   variant="ghost"
                   onClick={handleContinueWithoutLocation}
-                  className="w-full h-12 rounded-2xl text-base text-white/40 hover:text-white/60"
+                  className="w-full h-11 sm:h-12 rounded-2xl text-sm sm:text-base text-white/70 hover:text-white hover:bg-white/10"
                 >
                   المتابعة بدون موقع
                 </Button>
-                <p className="text-white/30 text-xs text-center">
+                <p className="text-white/60 text-xs text-center">
                   يمكنك تفعيل الموقع لاحقاً من إعدادات المتصفح
                 </p>
               </motion.div>
