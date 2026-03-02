@@ -558,6 +558,36 @@ export type Database = {
         }
         Relationships: []
       }
+      countries: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          name_ar: string
+          name_en: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          name_ar: string
+          name_en: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          name_ar?: string
+          name_en?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       delay_alerts: {
         Row: {
           actual_delay_minutes: number
@@ -636,6 +666,44 @@ export type Database = {
             columns: ["ride_id"]
             isOneToOne: false
             referencedRelation: "rides"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      districts: {
+        Row: {
+          created_at: string
+          governorate_id: string
+          id: string
+          is_active: boolean | null
+          name_ar: string
+          name_en: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          governorate_id: string
+          id?: string
+          is_active?: boolean | null
+          name_ar: string
+          name_en: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          governorate_id?: string
+          id?: string
+          is_active?: boolean | null
+          name_ar?: string
+          name_en?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "districts_governorate_id_fkey"
+            columns: ["governorate_id"]
+            isOneToOne: false
+            referencedRelation: "governorates"
             referencedColumns: ["id"]
           },
         ]
@@ -1868,6 +1936,7 @@ export type Database = {
           capital_city: string | null
           code: string
           coordinates: Json | null
+          country_id: string | null
           created_at: string
           id: string
           is_active: boolean | null
@@ -1882,6 +1951,7 @@ export type Database = {
           capital_city?: string | null
           code: string
           coordinates?: Json | null
+          country_id?: string | null
           created_at?: string
           id?: string
           is_active?: boolean | null
@@ -1896,6 +1966,7 @@ export type Database = {
           capital_city?: string | null
           code?: string
           coordinates?: Json | null
+          country_id?: string | null
           created_at?: string
           id?: string
           is_active?: boolean | null
@@ -1905,7 +1976,15 @@ export type Database = {
           population?: number | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "governorates_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ip_rate_limits: {
         Row: {
