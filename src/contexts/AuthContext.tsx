@@ -89,19 +89,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Detect user role (admin, rider, or driver)
   const detectUserRole = useCallback(async (userId: string): Promise<UserRole> => {
     try {
-      // 1. تحقق من صلاحية المدير أولاً عبر جدول user_roles
-      const { data: adminRole } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .maybeSingle();
+      // 1. تحقق من نوع الإيميل: حسابات الهاتف لا يُسمح لها بدور admin أبداً
+      // دخول الأدمن يكون فقط عبر إيميل حقيقي من صفحة /admin/login
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const email = authUser?.email || "";
+      const isPhoneAccount = (
+        email.endsWith("@raan.app") ||
+        email.endsWith("@driver.raan.app") ||
+        email.endsWith("@whatsapp.raan.app")
+      );
 
-      if (adminRole) {
-        return "admin";
+      if (!isPhoneAccount) {
+        // 2. فقط للإيميلات الحقيقية: تحقق من صلاحية المدير عبر جدول user_roles
+        const { data: adminRole } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .eq("role", "admin")
+          .maybeSingle();
+
+        if (adminRole) {
+          return "admin";
+        }
       }
 
-      // 2. تحقق إذا كان المستخدم سائق
+      // 3. تحقق إذا كان المستخدم سائق
       const { data: driver } = await supabase
         .from("drivers")
         .select("status")
