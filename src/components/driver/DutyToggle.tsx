@@ -265,8 +265,8 @@ const DutyToggle = ({
         </motion.button>
       </div>
 
-      {/* ═══ الشريط الموحد — يظهر فقط عندما السائق معتمد (فعال) ═══ */}
-      {isApproved && (
+      {/* ═══ الشريط الموحد — يظهر فقط عندما السائق معتمد وليس هناك طلب رحلة نشط ═══ */}
+      {isApproved && !hasRideRequest && (
       <Card className="border-none shadow-lg rounded-2xl overflow-hidden w-full max-w-sm">
         <CardContent className="p-0">
           {/* البحث: يظهر فقط عندما السائق متصل كاملاً و يبحث و معتمد (فعال) و ليس هناك طلب نشط */}
