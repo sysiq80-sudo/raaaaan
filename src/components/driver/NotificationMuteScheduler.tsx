@@ -10,9 +10,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { useNotificationMuteSettings } from "@/stores/driverStore";
+import {
+  useNotificationMuteMode,
+  useMuteScheduleStart,
+  useMuteScheduleEnd,
+  useMuteDays,
+  useNotificationVolume,
+  useIsMutedNow,
+  useSetNotificationMuteMode,
+  useSetMuteSchedule,
+  useSetNotificationVolume,
+  useDriverStore,
+} from "@/stores/driverStore";
 import { saveNotificationPreferences, type MuteMode } from "@/services/driverNotificationService";
-import { useDriverStore } from "@/stores/driverStore";
 import {
   Bell,
   BellOff,
@@ -38,17 +48,17 @@ const DAYS_AR = [
 
 export const NotificationMuteScheduler = ({ driverId }: NotificationMuteSchedulerProps) => {
   const { toast } = useToast();
-  const {
-    notificationMuteMode,
-    muteScheduleStart,
-    muteScheduleEnd,
-    muteDays,
-    notificationVolume,
-    isMutedNow,
-    setNotificationMuteMode,
-    setMuteSchedule,
-    setNotificationVolume,
-  } = useNotificationMuteSettings();
+  
+  // Use individual selectors to avoid infinite loop
+  const notificationMuteMode = useNotificationMuteMode();
+  const muteScheduleStart = useMuteScheduleStart();
+  const muteScheduleEnd = useMuteScheduleEnd();
+  const muteDays = useMuteDays();
+  const notificationVolume = useNotificationVolume();
+  const isMutedNow = useIsMutedNow();
+  const setNotificationMuteMode = useSetNotificationMuteMode();
+  const setMuteSchedule = useSetMuteSchedule();
+  const setNotificationVolume = useSetNotificationVolume();
 
   const store = useDriverStore.getState();
   const [saving, setSaving] = useState(false);
@@ -61,7 +71,7 @@ export const NotificationMuteScheduler = ({ driverId }: NotificationMuteSchedule
       setCurrentlyMuted(isMutedNow());
     }, 30000); // كل 30 ثانية
     return () => clearInterval(interval);
-  }, [isMutedNow, notificationMuteMode, muteScheduleStart, muteScheduleEnd, muteDays]);
+  }, [notificationMuteMode, muteScheduleStart, muteScheduleEnd, muteDays]); // isMutedNow removed — it's a stable function
 
   // حفظ التفضيلات في قاعدة البيانات
   const savePreferences = useCallback(async () => {

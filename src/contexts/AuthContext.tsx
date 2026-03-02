@@ -48,7 +48,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
+  const [isOnboardingComplete, setIsOnboardingComplete] = useState(
+    () => localStorage.getItem("raan_onboarding_completed") === "true"
+  );
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
   
   // Session state
@@ -66,11 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return newId;
   }, []);
 
-  // Check onboarding status
-  useEffect(() => {
-    const status = localStorage.getItem("raan_onboarding_completed") === "true";
-    setIsOnboardingComplete(status);
-  }, []);
+  // ✅ تم نقل قراءة حالة onboarding إلى useState initializer لمنع الوميض
 
   // Check location permission
   useEffect(() => {
@@ -253,6 +251,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!isMounted) return;
         console.log("[AuthContext] Auth event:", event);
         clearTimeout(safetyTimer);
+
+        // ✅ عند تحديث التوكن فقط: حدّث الـ user بدون إعادة كشف الدور
+        if (event === "TOKEN_REFRESHED" && session?.user) {
+          const currentUserId = user?.id;
+          if (currentUserId && currentUserId === session.user.id) {
+            console.log("[AuthContext] TOKEN_REFRESHED for same user — skipping role re-detection");
+            setUser(session.user);
+            if (isMounted) setIsLoading(false);
+            return;
+          }
+        }
 
         if (!authResolved || event !== "INITIAL_SESSION") {
           // For INITIAL_SESSION, mark as resolved so getSession fallback skips

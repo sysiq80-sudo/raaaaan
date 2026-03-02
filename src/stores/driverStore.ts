@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 
 // أنواع البيانات
 interface Location {
@@ -371,16 +372,35 @@ export const useDriverSettings = () => useDriverStore((state) => ({
     vibrationEnabled: state.vibrationEnabled,
 }));
 
-export const useNotificationMuteSettings = () => useDriverStore((state) => ({
-    notificationMuteMode: state.notificationMuteMode,
-    muteScheduleStart: state.muteScheduleStart,
-    muteScheduleEnd: state.muteScheduleEnd,
-    muteDays: state.muteDays,
-    notificationVolume: state.notificationVolume,
-    isMutedNow: state.isMutedNow,
-    setNotificationMuteMode: state.setNotificationMuteMode,
-    setMuteSchedule: state.setMuteSchedule,
-    setNotificationVolume: state.setNotificationVolume,
-}));
+// Notification mute selectors - split for stability
+export const useNotificationMuteMode = () => useDriverStore((state) => state.notificationMuteMode);
+export const useMuteScheduleStart = () => useDriverStore((state) => state.muteScheduleStart);
+export const useMuteScheduleEnd = () => useDriverStore((state) => state.muteScheduleEnd);
+export const useMuteDays = () => useDriverStore((state) => state.muteDays);
+export const useNotificationVolume = () => useDriverStore((state) => state.notificationVolume);
+export const useIsMutedNow = () => useDriverStore((state) => state.isMutedNow);
+export const useSetNotificationMuteMode = () => useDriverStore((state) => state.setNotificationMuteMode);
+export const useSetMuteSchedule = () => useDriverStore((state) => state.setMuteSchedule);
+export const useSetNotificationVolume = () => useDriverStore((state) => state.setNotificationVolume);
+
+/**
+ * @deprecated Use individual selectors instead (useNotificationMuteMode, useMuteDays, etc.)
+ * This combined selector can cause infinite loops. Use useShallow if you need it:
+ * const settings = useDriverStore(useShallow(state => ({ ... })))
+ */
+export const useNotificationMuteSettings = () => {
+    console.warn('useNotificationMuteSettings is deprecated - use individual selectors or useShallow');
+    return useDriverStore(useShallow((st) => ({
+        notificationMuteMode: st.notificationMuteMode,
+        muteScheduleStart: st.muteScheduleStart,
+        muteScheduleEnd: st.muteScheduleEnd,
+        muteDays: st.muteDays,
+        notificationVolume: st.notificationVolume,
+        isMutedNow: st.isMutedNow,
+        setNotificationMuteMode: st.setNotificationMuteMode,
+        setMuteSchedule: st.setMuteSchedule,
+        setNotificationVolume: st.setNotificationVolume,
+    })));
+};
 
 export default useDriverStore;

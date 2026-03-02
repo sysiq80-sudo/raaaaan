@@ -1004,15 +1004,35 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     }
 
     if (!userId) {
-      toast({
-        title: "يجب تسجيل الدخول",
-        description: "الرجاء تسجيل الدخول للحجز",
-        variant: "destructive"
-      });
-      if (navigate) {
-        navigate("/auth?redirect=/rider/go");
+      // ✅ محاولة إعادة جلب الجلسة قبل التوجيه لصفحة الدخول
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id) {
+          console.log("✅ Session refreshed — proceeding with booking");
+          // userId ستتحدث عبر onAuthStateChange، نكمل الحجز مباشرة
+          // لا نحتاج إعادة التوجيه
+        } else {
+          toast({
+            title: "يجب تسجيل الدخول",
+            description: "الرجاء تسجيل الدخول للحجز",
+            variant: "destructive"
+          });
+          if (navigate) {
+            navigate("/auth?redirect=/rider/go");
+          }
+          return;
+        }
+      } catch {
+        toast({
+          title: "يجب تسجيل الدخول",
+          description: "الرجاء تسجيل الدخول للحجز",
+          variant: "destructive"
+        });
+        if (navigate) {
+          navigate("/auth?redirect=/rider/go");
+        }
+        return;
       }
-      return;
     }
 
     // Check if there's already an active ride in local state

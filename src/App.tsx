@@ -118,26 +118,28 @@ const isMobileDevice = () => {
 
 const LoadingFallback = () => <SplashScreen />;
 
-const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Sonner />
-          <ConnectionStatus />
-          <PWAInstallPrompt />
-          <BrowserRouter
-            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-          >
-            <Suspense fallback={<LoadingFallback />}>
-              <AppRoutes />
-            </Suspense>
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
-    </QueryClientProvider>
-  </ErrorBoundary>
-);
+const App = () => {
+  return (
+    <ErrorBoundary>
+      <TooltipProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <Sonner />
+            <ConnectionStatus />
+            <PWAInstallPrompt />
+            <BrowserRouter
+              future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+            >
+              <Suspense fallback={<LoadingFallback />}>
+                <AppRoutes />
+              </Suspense>
+            </BrowserRouter>
+          </AuthProvider>
+        </QueryClientProvider>
+      </TooltipProvider>
+    </ErrorBoundary>
+  );
+};
 
 // Separate AppRoutes component to use useAuth hook
 const AppRoutes = () => {

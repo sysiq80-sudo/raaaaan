@@ -21,14 +21,16 @@ export const useRiderData = () => {
   } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Fetch user ID and basic info
+  // Fetch user ID and basic info + listen for auth changes
   useEffect(() => {
+    let mounted = true;
+
     const fetchUserData = async () => {
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (session?.user) {
+        if (mounted && session?.user) {
           setUser(session.user);
           setUserId(session.user.id);
         }
@@ -37,6 +39,25 @@ export const useRiderData = () => {
       }
     };
     fetchUserData();
+
+    // ✅ الإصغاء لتغييرات المصادقة لمنع userId من أن يصبح قديماً
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      if (session?.user) {
+        setUser(session.user);
+        setUserId(session.user.id);
+      } else if (_event === "SIGNED_OUT") {
+        setUser(null);
+        setUserId(null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   // No need to fetch Mapbox token anymore - using Google Maps API

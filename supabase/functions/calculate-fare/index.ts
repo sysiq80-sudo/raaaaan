@@ -137,14 +137,27 @@ serve(async (req) => {
       driver_id,
     });
 
-    // Fetch fare calculation settings
-    const { data: fareSettingsData } = await supabase
-      .from("app_settings")
-      .select("value")
-      .eq("key", "fare_calculation")
-      .single();
+    // ⚡ تنفيذ الاستعلامات الثلاثة بالتوازي لتسريع حساب السعر
+    const [fareSettingsResult, vehicleTypeResult, regionsResult] = await Promise.all([
+      supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "fare_calculation")
+        .single(),
+      supabase
+        .from("vehicle_types")
+        .select("multiplier, commission_rate, min_fare")
+        .eq("id", vehicle_type)
+        .eq("is_active", true)
+        .single(),
+      supabase
+        .from("regions")
+        .select("*")
+        .eq("is_active", true)
+        .order("name_ar", { ascending: true }),
+    ]);
 
-    const fareSettings = fareSettingsData?.value || {
+    const fareSettings = fareSettingsResult.data?.value || {
       service_fee_percentage: 5,
       min_service_fee: 500,
       surge_pricing_enabled: true,
@@ -153,23 +166,11 @@ serve(async (req) => {
       tier_discounts_enabled: true,
     };
 
-    // Get vehicle type multiplier from database
-    const { data: vehicleTypeData } = await supabase
-      .from("vehicle_types")
-      .select("multiplier, commission_rate, min_fare")
-      .eq("id", vehicle_type)
-      .eq("is_active", true)
-      .single();
+    const vehicleMultiplier = vehicleTypeResult.data?.multiplier || 1.0;
+    const vehicleMinFare = vehicleTypeResult.data?.min_fare || 2000;
 
-    const vehicleMultiplier = vehicleTypeData?.multiplier || 1.0;
-    const vehicleMinFare = vehicleTypeData?.min_fare || 2000;
-
-    // Find the region based on pickup location — sort by name for deterministic fallback
-    const { data: regions, error: regionsError } = await supabase
-      .from("regions")
-      .select("*")
-      .eq("is_active", true)
-      .order("name_ar", { ascending: true });
+    const regions = regionsResult.data;
+    const regionsError = regionsResult.error;
 
     if (regionsError) {
       console.error("Error fetching regions:", regionsError);

@@ -89,15 +89,20 @@ export const useFareCalculation = (
         return;
       }
 
-      setFareLoading(true);
       setFareError(null);
 
+      // ⚡ عرض تقدير محلي فوري حتى يأتي الرد من السيرفر
+      const localEstimate = estimateFareLocally(routeDistance, selectedVehicle);
+      setFareBreakdown(localEstimate);
+      lastSuccessfulFareRef.current = localEstimate;
+      setFareLoading(true);
+
       try {
-        // Set a timeout to prevent infinite loading (20 seconds)
+        // Set a timeout to prevent infinite loading (3 seconds — local estimate already shown)
         const timeoutPromise = new Promise((_, reject) => {
           timeoutRef.current = setTimeout(() => {
             reject(new Error('Fare calculation timeout'));
-          }, 20000);
+          }, 3000);
         });
 
         const invokePromise = (async () => {
@@ -139,18 +144,9 @@ export const useFareCalculation = (
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        console.error('❌ Error calculating fare:', errorMsg);
-        setFareError(errorMsg);
-
-        // لا تمسح الأجرة السابقة عند timeout/خطأ عابر — للحفاظ على قابلية الحجز
-        if (lastSuccessfulFareRef.current) {
-          setFareBreakdown(lastSuccessfulFareRef.current);
-        } else if (routeDistance !== null && routeDistance !== undefined) {
-          // Fallback محلي إذا لا توجد أجرة سابقة
-          setFareBreakdown(estimateFareLocally(routeDistance, selectedVehicle));
-        } else {
-          setFareBreakdown(null);
-        }
+        console.warn('⚠️ Fare from server failed, using local estimate:', errorMsg);
+        // التقدير المحلي مُعين مسبقاً — لا داعي لإعادة الحساب
+        setFareError(null); // لا تعرض خطأ للمستخدم، التقدير موجود
       } finally {
         setFareLoading(false);
         if (timeoutRef.current) {

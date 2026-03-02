@@ -222,9 +222,13 @@ export const useBookingFlow = () => {
       logger.debug(LOG_CONTEXT, "Dropoff marker added");
 
       // Fetch and draw the route after map is fully loaded
-      setTimeout(() => {
+      if (bookingMap.current) {
+        google.maps.event.addListenerOnce(bookingMap.current, 'idle', () => {
+          fetchRouteAndDraw(pickupLocation, dropoffLocation);
+        });
+      } else {
         fetchRouteAndDraw(pickupLocation, dropoffLocation);
-      }, 300);
+      }
     },
     [googleApiKey, fetchRouteAndDraw]
   );

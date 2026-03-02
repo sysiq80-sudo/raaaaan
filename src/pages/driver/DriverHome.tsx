@@ -25,10 +25,10 @@ import { DriverStats } from "@/components/driver/DriverStats";
 import { RecentRides } from "@/components/driver/RecentRides";
 import { NotificationSetup } from "@/components/driver/NotificationSetup";
 import { NotificationsBell } from "@/components/driver/NotificationsBell";
-import { StatusSearchBar } from "@/components/driver/StatusSearchBar";
 import DutyToggle from "@/components/driver/DutyToggle";
 import { NewRideAlert } from "@/components/driver/NewRideAlert";
 import { FloatingTripBubble } from "@/components/driver/FloatingTripBubble";
+import { RewardsSidePanel } from "@/components/driver/RewardsSidePanel";
 import { ExternalNavigationModal } from "@/components/driver/ExternalNavigationModal";
 import DriverSideMenu from "@/components/driver/DriverSideMenu";
 import { initAudioContext, cleanupAudioContext } from "@/lib/audioContext";
@@ -54,6 +54,8 @@ const DriverHome = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [rewardsOpen, setRewardsOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [driverId, setDriverId] = useState<string | null>(null);
@@ -102,6 +104,12 @@ const DriverHome = () => {
     document.body.classList.add('driver-mode');
     return () => document.body.classList.remove('driver-mode');
   }, []);
+
+  // تحديث حالة البحث بناءً على حالة السائق
+  useEffect(() => {
+    // السائق يبحث عن طلبات عندما يكون متصلاً وغير مشغول وليس لديه رحلة نشطة
+    setIsSearching(isOnline && !isPaused && !hasActiveRide);
+  }, [isOnline, isPaused, hasActiveRide]);
 
   // إلغاء الرحلة من FloatingTripBubble
   const handleCancelRideFromBubble = async () => {
@@ -805,17 +813,29 @@ const DriverHome = () => {
       {/* ═══ Header — Glassmorphism floating bar + Safe Area for Capacitor ═══ */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/60 backdrop-blur-xl border-b border-white/5" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="container flex items-center justify-between h-14">
-          {/* Menu Button */}
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="relative bg-white/10 backdrop-blur-md p-2.5 rounded-full border border-white/10 active:scale-95 transition-transform"
-          >
-            {menuOpen ? (
-              <X className="w-5 h-5 text-white" />
-            ) : (
-              <Menu className="w-5 h-5 text-white" />
-            )}
-          </button>
+          {/* ═══ Left: Notification Icons ═══ */}
+          <div className="flex items-center gap-2.5">
+            {/* Icon 1: General Notifications — Bell */}
+            <NotificationsBell driverId={driverId} isOpen={notificationsOpen} onToggle={() => { setNotificationsOpen(!notificationsOpen); setRewardsOpen(false); setMenuOpen(false); }} />
+
+            {/* Icon 2: Rewards & Company Alerts — Golden Gift */}
+            <button
+              onClick={() => { setRewardsOpen(!rewardsOpen); setNotificationsOpen(false); setMenuOpen(false); }}
+              className="relative bg-black/40 backdrop-blur-md p-2.5 rounded-full border border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)] active:scale-95 transition-transform"
+            >
+              <Gift className="w-5 h-5 text-amber-400" />
+              {/* Pulse ring when there are alerts */}
+              {(!isProfileComplete || !adminActivated || driverStatus === 'pending') && (
+                <span className="absolute inset-0 rounded-full border-2 border-amber-400/60 animate-ping" />
+              )}
+              {/* Orange count badge */}
+              {(!isProfileComplete || !adminActivated || driverStatus === 'pending') && (
+                <span className="absolute -top-1 -left-1 w-4.5 h-4.5 min-w-[18px] bg-amber-500 text-black font-bold rounded-full text-[10px] flex items-center justify-center border-2 border-black">
+                  !
+                </span>
+              )}
+            </button>
+          </div>
 
           {/* Logo + Wake Lock indicator */}
           <div className="flex items-center gap-2">
@@ -829,29 +849,17 @@ const DriverHome = () => {
             )}
           </div>
 
-          {/* ═══ Dual Notification Icons ═══ */}
-          <div className="flex items-center gap-2.5">
-            {/* Icon 1: Rewards & Company Alerts — Golden Gift */}
-            <button
-              onClick={() => navigate('/driver/incentives')}
-              className="relative bg-black/40 backdrop-blur-md p-2.5 rounded-full border border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)] active:scale-95 transition-transform"
-            >
-              <Gift className="w-5 h-5 text-amber-400" />
-              {/* Pulse ring when there are alerts */}
-              {(!isProfileComplete || !adminActivated || driverStatus === 'pending') && (
-                <span className="absolute inset-0 rounded-full border-2 border-amber-400/60 animate-ping" />
-              )}
-              {/* Orange count badge */}
-              {(!isProfileComplete || !adminActivated || driverStatus === 'pending') && (
-                <span className="absolute -top-1 -right-1 w-4.5 h-4.5 min-w-[18px] bg-amber-500 text-black font-bold rounded-full text-[10px] flex items-center justify-center border-2 border-black">
-                  !
-                </span>
-              )}
-            </button>
-
-            {/* Icon 2: General Notifications — Bell */}
-            <NotificationsBell driverId={driverId} />
-          </div>
+          {/* Menu Button — Right side */}
+          <button
+            onClick={() => { setMenuOpen(!menuOpen); setNotificationsOpen(false); setRewardsOpen(false); }}
+            className="relative bg-white/10 backdrop-blur-md p-2.5 rounded-full border border-white/10 active:scale-95 transition-transform"
+          >
+            {menuOpen ? (
+              <X className="w-5 h-5 text-white" />
+            ) : (
+              <Menu className="w-5 h-5 text-white" />
+            )}
+          </button>
         </div>
       </header>
 
@@ -867,6 +875,13 @@ const DriverHome = () => {
         driverStatus={driverStatus}
         vehicleType={vehicleType}
         rating={rating}
+        driverId={driverId}
+      />
+
+      {/* Rewards Side Panel — from LEFT */}
+      <RewardsSidePanel
+        isOpen={rewardsOpen}
+        onClose={() => setRewardsOpen(false)}
         driverId={driverId}
       />
 
@@ -888,39 +903,21 @@ const DriverHome = () => {
               
               <div className="relative flex flex-col items-center gap-3 w-full max-w-sm px-4">
 
-                {/* 1️⃣ DutyToggle — الزر الكبير (يختفي عند ورود طلب) */}
-                {!hasRideRequest && (
-                  <>
-                    <div className="pointer-events-auto">
-                      <DutyToggle
-                        isOnline={isOnline}
-                        isPaused={isPaused}
-                        isLoading={onlineToggleLoading}
-                        isSearching={isSearching}
-                        driverStatus={driverStatus}
-                        locationTracking={locationTracking}
-                        onToggle={handleOnlineToggle}
-                        onPauseToggle={handlePauseToggle}
-                      />
-                    </div>
-
-                    {/* فراغ لظهور دائرة الموقع الفعلي */}
-                    <div style={{ height: '6vh' }} />
-                  </>
-                )}
-
-                {/* 2️⃣ StatusSearchBar — شريط حالة (زر power يظهر فقط عند ورود طلب) */}
-                <div className="w-full pointer-events-auto">
-                  <StatusSearchBar
+                {/* 1️⃣ DutyToggle — الزر الكبير مع شريط الحالة الموحد ═══ */}
+                <div className="pointer-events-auto">
+                  <DutyToggle
                     isOnline={isOnline}
                     isPaused={isPaused}
-                    isSearching={isSearching}
-                    onToggleOnline={handleOnlineToggle}
-                    onTogglePause={handlePauseToggle}
                     isLoading={onlineToggleLoading}
-                    locationTracking={locationTracking}
+                    isSearching={isSearching}
                     driverStatus={driverStatus}
+                    locationTracking={locationTracking}
+                    onToggle={handleOnlineToggle}
+                    onPauseToggle={handlePauseToggle}
+                    hasRideRequest={hasRideRequest}
                     showPowerButton={hasRideRequest}
+                    driverLocation={currentLocation}
+                    maxPickupRadius={maxPickupRadius}
                   />
                 </div>
 
@@ -940,7 +937,7 @@ const DriverHome = () => {
                     />
                   )}
 
-                  {/* Ride Request Card */}
+                  {/* Ride Request Card — يبقى mounted دائماً لمنع إعادة الاشتراك */}
                   {!isMinimized && (
                     <RideRequestCard
                       driverId={driverId}

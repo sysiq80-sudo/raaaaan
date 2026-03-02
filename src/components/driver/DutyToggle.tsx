@@ -9,11 +9,12 @@
  * 3. Offline (رمادي) - غير متصل
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Power, Loader2, WifiOff, Wifi, Shield, PauseCircle, Coffee } from "lucide-react";
+import { Power, Loader2, WifiOff, Wifi, Shield, PauseCircle, Coffee, Search, Navigation } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { initAudioContext, resumeAudioContext } from "@/lib/audioContext";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface DutyToggleProps {
   isOnline: boolean;
@@ -24,6 +25,10 @@ interface DutyToggleProps {
   locationTracking: boolean;
   onToggle: (online: boolean) => Promise<void>;
   onPauseToggle: () => Promise<void>;
+  hasRideRequest?: boolean;
+  showPowerButton?: boolean;
+  driverLocation?: { lat: number; lng: number } | null;
+  maxPickupRadius?: number;
 }
 
 const DutyToggle = ({
@@ -35,8 +40,27 @@ const DutyToggle = ({
   locationTracking,
   onToggle,
   onPauseToggle,
+  hasRideRequest = false,
+  showPowerButton = false,
+  driverLocation = null,
+  maxPickupRadius = 10,
 }: DutyToggleProps) => {
   const [pressing, setPressing] = useState(false);
+  const [pulse, setPulse] = useState(false);
+
+  // Pulse animation for search state
+  useEffect(() => {
+    if (!isSearching) {
+      setPulse(false);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setPulse((prev) => !prev);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isSearching]);
 
   const isDisabled = isLoading || driverStatus !== "approved";
   const isApproved = driverStatus === "approved";
@@ -78,7 +102,7 @@ const DutyToggle = ({
           icon: Coffee,
           borderColor: "border-amber-500/50",
         }
-      : {
+        : {
           // حالة الاتصال الكامل (Online)
           bg: "bg-gradient-to-br from-[#00E676] to-[#00C853]",
           glow: "shadow-[0_0_40px_rgba(0,230,118,0.5)]",
@@ -98,7 +122,7 @@ const DutyToggle = ({
         pulseColor: "bg-yellow-500/10",
         textColor: "text-yellow-400",
         label: "غير متصل",
-        sublabel: isApproved ? "اضغط للاتصال" : "حسابك غير معتمد بعد",
+        sublabel: isApproved ? "اضغط للاتصال والبحث عن طلبات" : "حسابك غير معتمد بعد",
         icon: WifiOff,
         borderColor: "border-yellow-500/30",
       };
@@ -106,7 +130,7 @@ const DutyToggle = ({
   const StatusIcon = stateConfig.icon;
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-4">
       {/* حالة الاتصال فوق الزر */}
       <motion.div
         className="text-center"
@@ -164,8 +188,8 @@ const DutyToggle = ({
         <motion.div
           className={cn(
             "absolute inset-[-8px] rounded-full blur-xl transition-colors duration-500",
-            isOnline 
-              ? isPaused ? "bg-amber-500/20" : "bg-[#00E676]/25" 
+            isOnline
+              ? isPaused ? "bg-amber-500/20" : "bg-[#00E676]/25"
               : "bg-gray-500/10"
           )}
           animate={{
@@ -241,6 +265,172 @@ const DutyToggle = ({
         </motion.button>
       </div>
 
+      {/* ═══ الشريط الموحد — يظهر فقط عندما السائق معتمد (فعال) ═══ */}
+      {isApproved && (
+      <Card className="border-none shadow-lg rounded-2xl overflow-hidden w-full max-w-sm">
+        <CardContent className="p-0">
+          {/* البحث: يظهر فقط عندما السائق متصل كاملاً و يبحث و معتمد (فعال) */}
+          {isOnline && !isPaused && isSearching && !isDisabled ? (
+            // ═══ حالة البحث — شريط البحث الموحد ═══
+            <div className="relative overflow-hidden bg-card/95 backdrop-blur-md p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                    className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"
+                  >
+                    <Navigation className="w-5 h-5 text-primary" />
+                  </motion.div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground truncate">
+                      جاري البحث عن الطلبات
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {driverLocation ? `📍 نطاق: ${maxPickupRadius} كم` : 'جاري تحديد الموقع...'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Pulse dots */}
+                <div className="flex items-center gap-1.5 mr-2">
+                  <motion.div
+                    animate={{ scale: [1, 1.4, 1], opacity: [0.5, 1, 0.5] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    className="w-2 h-2 rounded-full bg-emerald-500"
+                  />
+                  <motion.div
+                    animate={{ scale: [1, 1.4, 1], opacity: [0.5, 1, 0.5] }}
+                    transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+                    className="w-2 h-2 rounded-full bg-emerald-500"
+                  />
+                  <motion.div
+                    animate={{ scale: [1, 1.4, 1], opacity: [0.5, 1, 0.5] }}
+                    transition={{ duration: 1.5, repeat: Infinity, delay: 0.6 }}
+                    className="w-2 h-2 rounded-full bg-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            // ═══ حالة الحالة العادية — معلومات + أزرار ═══
+            <div
+              className={`transition-all duration-300 ${
+                isOnline
+                  ? isPaused
+                    ? "bg-gradient-to-r from-amber-900/20 via-amber-800/5 to-background"
+                    : "bg-gradient-to-r from-emerald-900/20 via-emerald-800/5 to-background"
+                  : "bg-gradient-to-r from-slate-800/30 via-slate-800/10 to-background"
+              }`}
+            >
+              <div className="flex items-center justify-between px-4 py-3 gap-3">
+
+                {/* ═══ زر Power الصغير (فقط عند ورود طلب) ═══ */}
+                {showPowerButton && hasRideRequest && (
+                  <button
+                    onClick={handlePress}
+                    disabled={isDisabled}
+                    className={`
+                      relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 shrink-0
+                      ${isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer active:scale-90"}
+                      ${
+                        isOnline
+                          ? isPaused
+                            ? "bg-gradient-to-br from-amber-500 to-orange-600 shadow-md shadow-amber-500/30"
+                            : "bg-gradient-to-br from-emerald-500 to-green-600 shadow-md shadow-emerald-500/30"
+                          : "bg-gradient-to-br from-slate-500 to-slate-600 shadow-md shadow-slate-500/20"
+                      }
+                    `}
+                    aria-label={isOnline ? "قطع الاتصال" : "الاتصال"}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 text-white animate-spin" />
+                    ) : isOnline && isPaused ? (
+                      <Coffee className="w-4 h-4 text-white" />
+                    ) : (
+                      <Power className={`w-4 h-4 ${isOnline ? "text-white" : "text-slate-300"}`} />
+                    )}
+
+                    {/* Pulse ring when online */}
+                    {isOnline && !isPaused && !isLoading && (
+                      <span className="absolute inset-0 rounded-xl border-2 border-emerald-400/40 animate-ping" />
+                    )}
+                  </button>
+                )}
+
+                {/* ═══ معلومات الحالة (الوسط) ═══ */}
+                <div className="flex-1 flex flex-col items-center justify-center min-w-0 px-2">
+                  {/* Label + icon */}
+                  <div className="flex items-center gap-1.5">
+                    {isOnline ? (
+                      isPaused ? <Coffee className={`w-3.5 h-3.5 ${stateConfig.textColor}`} /> : <Wifi className={`w-3.5 h-3.5 ${stateConfig.textColor}`} />
+                    ) : (
+                      <WifiOff className={`w-3.5 h-3.5 ${stateConfig.textColor}`} />
+                    )}
+                    <span className={`text-sm font-bold ${stateConfig.textColor}`}>
+                      {stateConfig.label}
+                    </span>
+                  </div>
+
+                  {/* Sublabel */}
+                  <div className="mt-1">
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-1.5 h-1.5 rounded-full bg-amber-500 ${pulse ? "opacity-100" : "opacity-40"} transition-opacity`} />
+                      <span className="text-[11px] text-amber-400/80 font-medium">
+                        {stateConfig.sublabel}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ═══ زر الإيقاف المؤقت (يمين) ═══ */}
+                {isOnline && (
+                  <button
+                    onClick={handlePausePress}
+                    className={`
+                      flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all duration-300 shrink-0 text-xs font-semibold
+                      ${
+                        isPaused
+                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25"
+                          : "bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25"
+                    }
+                  `}
+                    aria-label={isPaused ? "استئناف" : "إيقاف مؤقت"}
+                  >
+                    {isPaused ? (
+                      <>
+                        <Wifi className="w-3.5 h-3.5" />
+                        استئناف
+                      </>
+                    ) : (
+                      <>
+                        <PauseCircle className="w-3.5 h-3.5" />
+                        إيقاف
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* أيقونة بحث عندما يكون غير متصل */}
+                {!isOnline && !hasRideRequest && (
+                  <div className="text-muted-foreground/30 shrink-0 pr-1">
+                    <Search className="w-4 h-4" />
+                  </div>
+                )}
+              </div>
+
+              {/* Thin Border Bottom */}
+              {isOnline && (isPaused ? (
+                <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-500/60 to-transparent" />
+              ) : (
+                <div className="h-0.5 bg-gradient-to-r from-transparent via-emerald-500/60 to-transparent animate-pulse" />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      )}
 
       {/* Status Sublabel */}
       <motion.div

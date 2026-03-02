@@ -563,38 +563,12 @@ export default function DriverFinance() {
           </Card>
         )}
 
-        {/* Time-based Stats */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <Card className="border-border/50">
-            <CardContent className="p-3 text-center">
-              <p className="text-lg font-bold text-foreground">{(stats?.todayEarnings || 0).toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground">اليوم</p>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50">
-            <CardContent className="p-3 text-center">
-              <p className="text-lg font-bold text-foreground">{(stats?.weekEarnings || 0).toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground">الأسبوع</p>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50">
-            <CardContent className="p-3 text-center">
-              <p className="text-lg font-bold text-foreground">{(stats?.monthEarnings || 0).toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground">الشهر</p>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Tabs */}
         <Tabs defaultValue="earnings" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-4">
+          <TabsList className="grid w-full grid-cols-4 mb-4">
             <TabsTrigger value="earnings" className="text-xs gap-1">
               <DollarSign className="w-3 h-3" />
               الأرباح
-            </TabsTrigger>
-            <TabsTrigger value="rides" className="text-xs gap-1">
-              <Car className="w-3 h-3" />
-              الرحلات
             </TabsTrigger>
             <TabsTrigger value="transactions" className="text-xs gap-1">
               <History className="w-3 h-3" />
@@ -656,83 +630,6 @@ export default function DriverFinance() {
                 </div>
               </Button>
             </div>
-          </TabsContent>
-
-          {/* Rides Tab - with financial details */}
-          <TabsContent value="rides" className="space-y-3">
-            {rides.length === 0 ? (
-              <Card className="border-dashed border-2 border-border/50">
-                <CardContent className="p-8 text-center">
-                  <Car className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground">لا توجد رحلات بعد</p>
-                </CardContent>
-              </Card>
-            ) : (
-              rides.map((ride) => {
-                const fare = ride.final_fare || ride.estimated_fare || 0;
-                const commission = Math.round(fare * commissionRate / 100);
-                const driverShare = fare - commission;
-                
-                return (
-                  <Card key={ride.id} className="overflow-hidden hover:shadow-md transition-shadow border-border/50">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          {getPaymentMethodIcon(ride.payment_method)}
-                          <Badge variant="outline" className="text-xs">{getPaymentMethodName(ride.payment_method)}</Badge>
-                        </div>
-                        <Badge variant={ride.status === 'completed' ? 'outline' : 'destructive'} className="text-xs">
-                          {ride.status === 'completed' ? 'مكتملة' : 'ملغاة'}
-                        </Badge>
-                      </div>
-                      
-                      <div className="space-y-1 mb-3">
-                        <div className="flex items-start gap-2">
-                          <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                          <p className="text-sm text-foreground truncate">{ride.pickup_address || "نقطة الانطلاق"}</p>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <div className="w-2 h-2 rounded-full bg-destructive mt-2 flex-shrink-0" />
-                          <p className="text-sm text-foreground truncate">{ride.dropoff_address || "الوجهة"}</p>
-                        </div>
-                      </div>
-
-                      {/* Financial Breakdown */}
-                      {ride.status === 'completed' && (
-                        <div className="bg-secondary/50 rounded-lg p-3 space-y-2">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">إجمالي الأجرة</span>
-                            <span className="font-medium">{fare.toLocaleString()} د.ع</span>
-                          </div>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">العمولة ({commissionRate}%{tierDiscount > 0 ? ` بعد خصم ${tierDiscount}%` : ''})</span>
-                            <span className="text-orange-600">-{commission.toLocaleString()} د.ع</span>
-                          </div>
-                          <div className="border-t border-border pt-2 flex items-center justify-between">
-                            <span className="font-medium text-foreground">صافي الربح</span>
-                            <span className="font-bold text-green-600">{driverShare.toLocaleString()} د.ع</span>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {ride.distance_km?.toFixed(1) || "0"} كم
-                        </span>
-                        <span>
-                          {ride.completed_at ? format(new Date(ride.completed_at), "d MMM HH:mm", { locale: ar }) : "-"}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })
-            )}
-            
-            <Button variant="outline" className="w-full" onClick={() => navigate('/driver/rides')}>
-              عرض جميع الرحلات
-            </Button>
           </TabsContent>
 
           {/* Transactions Tab */}
