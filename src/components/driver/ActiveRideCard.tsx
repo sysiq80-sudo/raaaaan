@@ -1685,13 +1685,16 @@ export const ActiveRideCard = ({
                   variant="outline"
                   size="sm"
                   className="h-8 text-xs px-3 whitespace-nowrap bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/20"
-                  onClick={() =>
+                  onClick={() => {
+                    const colorMsg = activeRide.vehicle_type
+                      ? `ابحث عن سيارة ${activeRide.vehicle_type === "economy" ? "اقتصادية" : activeRide.vehicle_type === "comfort" ? "مريحة" : "فاخرة"} بالقرب منك`
+                      : "السيارة بالقرب منك - ابحث عني!";
                     sendQuickMessageToRider(
                       "driver_car_color",
-                      "السيارة بالقرب منك - ابحث عني!",
+                      colorMsg,
                       "✅ تم إبلاغ الراكب",
-                    )
-                  }
+                    );
+                  }}
                 >
                   🎨 لون السيارة
                 </Button>
