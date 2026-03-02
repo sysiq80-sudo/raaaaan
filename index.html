@@ -40,6 +40,21 @@
     <!-- Font Loading (IBM Plex Sans Arabic) -->
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@100;200;300;400;500;600;700&display=swap" rel="stylesheet">
     
+    <!-- Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com https://us.i.posthog.com https://cdn.tailwindcss.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: https: blob:;
+      connect-src 'self' https://wgolkcztdrwdphwjvqxt.supabase.co https://maps.googleapis.com https://maps.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com https://us.i.posthog.com https://www.facebook.com https://storage.googleapis.com wss://wgolkcztdrwdphwjvqxt.supabase.co;
+      frame-src 'self' https://*.loom.com https://*.lovable.app https://*.lovableproject.com https://*.vimeo.com https://*.youtube.com https://app.chatwoot.com https://app.hubspot.com https://auth.lovable.dev https://forms.hsforms.com https://js.stripe.com https://meetings.hubspot.com https://player.vimeo.com https://share.hsforms.com https://www.google.com https://www.youtube.com https://www.facebook.com;
+      form-action 'self' https://*.hsforms.com https://forms.hubspot.com https://www.google.com;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+    ">
+    
     <!-- Open Graph Meta Tags (Social Media Sharing) -->
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="ar_IQ" />
