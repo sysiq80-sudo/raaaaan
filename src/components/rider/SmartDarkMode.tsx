@@ -43,10 +43,10 @@ export const SmartDarkModeProvider: React.FC<SmartDarkModeProviderProps> = ({ ch
     const detectAmbientLight = () => {
       if ('ambientLight' in navigator) {
         // @ts-expect-error - Ambient Light API
-        navigator.ambientLight.addEventListener('reading', (event) => {
-          // @ts-expect-error — Ambient Light reading event non-standard
-          const isDark = illuminance < 10;
-          setAmbientLight({ level: Math.min(illuminance, 100), isDark });
+        navigator.ambientLight.addEventListener('reading', (event: any) => {
+          const lux = event.illuminance ?? 50;
+          const isDark = lux < 10;
+          setAmbientLight({ level: Math.min(lux, 100), isDark });
         });
       } else {
         // Fallback: use time-based detection

@@ -569,7 +569,7 @@ export const RideRequestCard = ({
           supabase.rpc("accept_ride_safely", {
             p_ride_id: pendingRide.id,
             p_driver_id: driverId,
-          })
+          }) as any
         )) as { error?: any };
 
         if (!error) {
@@ -594,7 +594,7 @@ export const RideRequestCard = ({
             })
             .eq('id', pendingRide.id)
             .eq('status', 'pending')
-            .is('driver_id', null)
+            .is('driver_id', null) as any
         )) as { error?: any };
 
         if (directError) {

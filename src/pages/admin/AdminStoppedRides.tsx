@@ -86,7 +86,6 @@ const AdminStoppedRides = () => {
 
   const fetchStoppedRides = async () => {
     try {
-      // @ts-expect-error - Table will be created by migration
       const { data, error } = await supabase
         .from('dual_stop_alerts')
         .select(`
@@ -133,7 +132,6 @@ const AdminStoppedRides = () => {
 
   const handleResolve = async (alertId: string) => {
     try {
-      // @ts-expect-error - Table will be created by migration
       const { error } = await supabase
         .from('dual_stop_alerts')
         .update({ resolved_at: new Date().toISOString() })

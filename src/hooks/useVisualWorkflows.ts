@@ -206,7 +206,7 @@ export function useVisualWorkflows() {
     if (error) {
       console.error('[useVisualWorkflows] fetchWorkflows error:', error);
     }
-    setWorkflows((data as VisualWorkflow[]) || []);
+    setWorkflows((data as unknown as VisualWorkflow[]) || []);
     setLoading(false);
   }, []);
 
@@ -238,19 +238,19 @@ export function useVisualWorkflows() {
         name: workflow.name,
         description: workflow.description ?? null,
         trigger_type: workflow.trigger_type,
-        graph_data: workflow.graph_data,
+        graph_data: workflow.graph_data as any,
         is_active: false,
       })
       .select()
       .single();
     if (!error) await fetchWorkflows();
-    return { data: data as VisualWorkflow | null, error };
+    return { data: data as unknown as VisualWorkflow | null, error };
   }, [fetchWorkflows]);
 
   const updateWorkflow = useCallback(async (id: string, updates: Partial<VisualWorkflow>) => {
     const { error } = await supabase
       .from('visual_workflows')
-      .update(updates)
+      .update(updates as any)
       .eq('id', id);
     if (!error) await fetchWorkflows();
     return { error };

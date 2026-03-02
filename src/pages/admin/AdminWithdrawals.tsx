@@ -72,8 +72,8 @@ export default function AdminWithdrawals() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // @ts-expect-error — withdrawal_requests table exists via migration
-      const { data, error } = await supabase
+      const { data, error } = await (supabase
+        .from("withdrawal_requests" as any) as any)
         .from("withdrawal_requests")
         .select("*")
         .order("created_at", { ascending: false });
@@ -176,8 +176,8 @@ export default function AdminWithdrawals() {
         }
       }
 
-      // @ts-expect-error — withdrawal_requests table exists via migration
-      const { error } = await supabase
+      const { error } = await (supabase
+        .from("withdrawal_requests" as any) as any)
         .from("withdrawal_requests")
         .update(updates)
         .eq("id", selectedRequest.id);

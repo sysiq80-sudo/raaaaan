@@ -86,13 +86,13 @@ export const subscribeToPushNotifications = async (driverId: string): Promise<Pu
 
   try {
     // Check existing subscription
-    let subscription = await registration.pushManager.getSubscription();
+    let subscription = await (registration as any).pushManager.getSubscription();
     
     if (!subscription) {
       // Create new subscription with VAPID key
       const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
       
-      subscription = await registration.pushManager.subscribe({
+      subscription = await (registration as any).pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: vapidPublicKey
       });
@@ -133,7 +133,7 @@ export const unsubscribeFromPushNotifications = async (driverId: string): Promis
   if (!registration) return false;
 
   try {
-    const subscription = await registration.pushManager.getSubscription();
+    const subscription = await (registration as any).pushManager.getSubscription();
     if (subscription) {
       // Remove from server
       const json = subscription.toJSON();
@@ -164,7 +164,7 @@ export const getPushSubscriptionData = async (): Promise<PushSubscriptionData | 
   if (!registration) return null;
 
   try {
-    const subscription = await registration.pushManager.getSubscription();
+    const subscription = await (registration as any).pushManager.getSubscription();
     if (!subscription) return null;
 
     const json = subscription.toJSON();
@@ -231,7 +231,7 @@ export const isPushNotificationEnabled = async (): Promise<boolean> => {
   const registration = await getServiceWorkerRegistration();
   if (!registration) return false;
 
-  const subscription = await registration.pushManager.getSubscription();
+  const subscription = await (registration as any).pushManager.getSubscription();
   return !!subscription;
 };
 
