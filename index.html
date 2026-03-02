@@ -43,16 +43,30 @@
     <!-- Content Security Policy -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com https://us.i.posthog.com https://cdn.tailwindcss.com;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com https://us.i.posthog.com https://cdn.tailwindcss.com;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: https: blob:;
-      connect-src 'self' https://wgolkcztdrwdphwjvqxt.supabase.co https://maps.googleapis.com https://maps.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com https://us.i.posthog.com https://www.facebook.com https://storage.googleapis.com wss://wgolkcztdrwdphwjvqxt.supabase.co;
+      connect-src 'self'
+        https://wgolkcztdrwdphwjvqxt.supabase.co
+        wss://wgolkcztdrwdphwjvqxt.supabase.co
+        https://*.supabase.co
+        https://*.googleapis.com
+        https://*.gstatic.com
+        https://maps.googleapis.com
+        https://maps.gstatic.com
+        https://places.googleapis.com
+        https://fcm.googleapis.com
+        https://storage.googleapis.com
+        https://fonts.googleapis.com
+        https://www.google-analytics.com
+        https://www.googletagmanager.com
+        https://us.i.posthog.com
+        https://www.facebook.com;
       frame-src 'self' https://*.loom.com https://*.lovable.app https://*.lovableproject.com https://*.vimeo.com https://*.youtube.com https://app.chatwoot.com https://app.hubspot.com https://auth.lovable.dev https://forms.hsforms.com https://js.stripe.com https://meetings.hubspot.com https://player.vimeo.com https://share.hsforms.com https://www.google.com https://www.youtube.com https://www.facebook.com;
       form-action 'self' https://*.hsforms.com https://forms.hubspot.com https://www.google.com;
       object-src 'none';
       base-uri 'self';
-      form-action 'self';
     ">
     
     <!-- Open Graph Meta Tags (Social Media Sharing) -->
