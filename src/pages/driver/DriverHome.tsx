@@ -708,7 +708,7 @@ const DriverHome = () => {
         .eq("id", driverId);
     }
     await supabase.auth.signOut();
-    navigate("/");
+    navigate("/auth", { replace: true });
   };
 
   const getVehicleTypeName = (type: string | null) => {

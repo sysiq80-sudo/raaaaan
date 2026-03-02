@@ -145,7 +145,7 @@ const Auth = () => {
     }
   };
 
-  // Handle login with password - try both rider and driver domains
+  // Handle login with password - rider domain only (@raan.app)
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
@@ -160,7 +160,8 @@ const Auth = () => {
     try {
       const cleanedPhone = phoneInput.replace(/\D/g, "");
       const phoneFormats = formatPhoneForLookup(phoneInput);
-      const domains = ["@raan.app", "@driver.raan.app"];
+      // الراكب يسجل دخول فقط عبر @raan.app - لا يسمح بنطاقات السائق أو الأدمن
+      const domains = ["@raan.app"];
 
       // Generate all possible email combinations
       const emailsToTry: string[] = [];

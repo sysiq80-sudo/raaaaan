@@ -259,7 +259,7 @@ const DriverSettings = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/");
+    navigate("/auth", { replace: true });
   };
 
   if (loading) {

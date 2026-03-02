@@ -116,7 +116,7 @@ const RiderSettingsPage: React.FC = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/");
+    navigate("/auth", { replace: true });
   };
 
   const toggleDarkMode = () => {
@@ -319,7 +319,7 @@ const RiderSettingsPage: React.FC = () => {
                             description: "تم حذف حسابك وجميع بياناتك بنجاح",
                           });
                           await supabase.auth.signOut();
-                          navigate("/");
+                          navigate("/auth", { replace: true });
                         } catch (err: any) {
                           toast({
                             title: "خطأ",
