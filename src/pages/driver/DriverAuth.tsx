@@ -173,6 +173,8 @@ const DriverAuth = () => {
 
         if (!signInError && data.user) {
           signInSuccess = true;
+          // حفظ دور السائق فوراً لضمان توجيهه لشاشة السائق
+          localStorage.setItem("raan_current_role", "driver");
           console.log("Login successful with:", phoneEmail);
           toast({
             title: "مرحباً بك كابتن!",

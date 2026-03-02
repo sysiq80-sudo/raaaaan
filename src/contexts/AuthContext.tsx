@@ -99,8 +99,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email.endsWith("@whatsapp.raan.app")
       );
 
+      // 2. حسابات نطاق السائق: تحقق من جدول drivers مباشرة وأعد دور "driver"
+      const isDriverDomain = email.endsWith("@driver.raan.app");
+
       if (!isPhoneAccount) {
-        // 2. فقط للإيميلات الحقيقية: تحقق من صلاحية المدير عبر جدول user_roles
+        // فقط للإيميلات الحقيقية: تحقق من صلاحية المدير عبر جدول user_roles
         const { data: adminRole } = await supabase
           .from("user_roles")
           .select("role")
@@ -122,7 +125,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (driver) {
         setCanSwitchToDriver(driver.status === "approved");
-        return "rider"; // الدور الافتراضي راكب مع إمكانية التبديل للسائق
+        // حساب نطاق السائق أو سائق معتمد → دور السائق مباشرة
+        if (isDriverDomain || driver.status === "approved") {
+          return "driver";
+        }
+        return "rider"; // سائق غير معتمد → راكب مؤقتاً
       }
 
       return "rider"; // Default
@@ -209,6 +216,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const role = await detectUserRole(session.user.id);
           if (isMounted) {
             setUserRole(role);
+            // مزامنة localStorage مع الدور المكتشف
+            if (role === "driver") {
+              localStorage.setItem("raan_current_role", "driver");
+            }
             // استعادة الدور المحفوظ في localStorage إذا متاح
             // مع إعادة التحقق من حالة السائق لمنع استخدام دور قديم
             const savedRole = localStorage.getItem("raan_current_role");
