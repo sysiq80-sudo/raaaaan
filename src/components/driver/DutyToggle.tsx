@@ -9,9 +9,9 @@
  * 3. Offline (رمادي) - غير متصل
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Power, Loader2, WifiOff, Wifi, Shield, PauseCircle, Coffee, Search, Navigation } from "lucide-react";
+import { Power, Loader2, WifiOff, Wifi, Shield, PauseCircle, Coffee, Navigation } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { initAudioContext, resumeAudioContext } from "@/lib/audioContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -46,21 +46,6 @@ const DutyToggle = ({
   maxPickupRadius = 10,
 }: DutyToggleProps) => {
   const [pressing, setPressing] = useState(false);
-  const [pulse, setPulse] = useState(false);
-
-  // Pulse animation for search state
-  useEffect(() => {
-    if (!isSearching) {
-      setPulse(false);
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setPulse((prev) => !prev);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isSearching]);
 
   const isDisabled = isLoading || driverStatus !== "approved";
   const isApproved = driverStatus === "approved";
@@ -130,29 +115,11 @@ const DutyToggle = ({
   const StatusIcon = stateConfig.icon;
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      {/* حالة الاتصال فوق الزر */}
-      <motion.div
-        className="text-center"
-        animate={{ opacity: isLoading ? 0.5 : 1 }}
-      >
-        <motion.div
-          key={stateConfig.label}
-          initial={{ y: -5, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.3 }}
-          className="flex items-center justify-center gap-1.5"
-        >
-          <StatusIcon className={cn("w-4 h-4", stateConfig.textColor)} />
-          <span className={cn("text-sm font-bold", stateConfig.textColor)}>
-            {stateConfig.label}
-          </span>
-        </motion.div>
-      </motion.div>
+    <div className="flex flex-col items-center gap-3">
 
-      {/* الزر الرئيسي العائم */}
+      {/* ═══ الزر الرئيسي ═══ */}
       <div className="relative">
-        {/* Pulse rings - فقط عند الاتصال الكامل (ليس عند الإيقاف المؤقت) */}
+        {/* Pulse rings */}
         <AnimatePresence>
           {isOnline && !isPaused && !isLoading && (
             <>
@@ -172,7 +139,6 @@ const DutyToggle = ({
               />
             </>
           )}
-          {/* Slow pulse ring for paused state */}
           {isOnline && isPaused && !isLoading && (
             <motion.div
               key="ring-paused"
@@ -184,13 +150,11 @@ const DutyToggle = ({
           )}
         </AnimatePresence>
 
-        {/* Glow Background */}
+        {/* Glow */}
         <motion.div
           className={cn(
             "absolute inset-[-8px] rounded-full blur-xl transition-colors duration-500",
-            isOnline
-              ? isPaused ? "bg-amber-500/20" : "bg-[#00E676]/25"
-              : "bg-gray-500/10"
+            isOnline ? (isPaused ? "bg-amber-500/20" : "bg-[#00E676]/25") : "bg-gray-500/10"
           )}
           animate={{
             scale: isOnline && !isPaused ? [1, 1.15, 1] : 1,
@@ -205,242 +169,152 @@ const DutyToggle = ({
           disabled={isDisabled}
           whileTap={{ scale: isDisabled ? 1 : 0.9 }}
           whileHover={{ scale: isDisabled ? 1 : 1.05 }}
-          animate={{
-            scale: pressing ? 0.92 : 1,
-          }}
+          animate={{ scale: pressing ? 0.92 : 1 }}
           transition={{ type: "spring", stiffness: 400, damping: 20 }}
           className={cn(
             "relative z-10 w-20 h-20 rounded-full flex items-center justify-center transition-all duration-500",
-            stateConfig.bg,
-            stateConfig.glow,
+            stateConfig.bg, stateConfig.glow,
             isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer active:scale-95",
-            "border-2",
-            stateConfig.borderColor
+            "border-2", stateConfig.borderColor
           )}
           aria-label={isOnline ? (isPaused ? "استئناف استقبال الطلبات" : "قطع الاتصال") : "الاتصال واستقبال الطلبات"}
           aria-pressed={isOnline}
         >
           <AnimatePresence mode="wait">
             {isLoading ? (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0, rotate: -180 }}
-                animate={{ opacity: 1, rotate: 0 }}
-                exit={{ opacity: 0, rotate: 180 }}
-                transition={{ duration: 0.3 }}
-              >
+              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <Loader2 className="w-8 h-8 text-white animate-spin" />
               </motion.div>
             ) : isPaused && isOnline ? (
-              <motion.div
-                key="paused"
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.5 }}
-                transition={{ type: "spring", stiffness: 500, damping: 25 }}
-              >
+              <motion.div key="paused" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ type: "spring", stiffness: 500, damping: 25 }}>
                 <Coffee className="w-8 h-8 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]" strokeWidth={2.5} />
               </motion.div>
             ) : (
-              <motion.div
-                key="power"
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.5 }}
-                transition={{ type: "spring", stiffness: 500, damping: 25 }}
-              >
-                <Power className={cn(
-                  "w-8 h-8 transition-colors duration-300",
-                  isOnline ? "text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" : "text-gray-300"
-                )} strokeWidth={2.5} />
+              <motion.div key="power" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ type: "spring", stiffness: 500, damping: 25 }}>
+                <Power className={cn("w-8 h-8 transition-colors duration-300", isOnline ? "text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" : "text-gray-300")} strokeWidth={2.5} />
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* Inner ring highlight */}
-          <div className={cn(
-            "absolute inset-1 rounded-full border transition-colors duration-500",
-            isOnline ? (isPaused ? "border-white/15" : "border-white/20") : "border-white/5"
-          )} />
+          <div className={cn("absolute inset-1 rounded-full border transition-colors duration-500", isOnline ? (isPaused ? "border-white/15" : "border-white/20") : "border-white/5")} />
         </motion.button>
       </div>
 
-      {/* ═══ الشريط الموحد — يظهر فقط عندما السائق معتمد وليس هناك طلب رحلة نشط ═══ */}
+      {/* ═══ كارد الحالة — يختفي بالكامل عند ورود طلب رحلة ═══ */}
       {isApproved && !hasRideRequest && (
-      <Card className="border-none shadow-lg rounded-2xl overflow-hidden w-full max-w-sm">
-        <CardContent className="p-0">
-          {/* البحث: يظهر فقط عندما السائق متصل كاملاً و يبحث و معتمد (فعال) و ليس هناك طلب نشط */}
-          {isOnline && !isPaused && isSearching && !isDisabled && !hasRideRequest ? (
-            // ═══ حالة البحث — شريط البحث الموحد ═══
-            <div className="relative overflow-hidden bg-card/95 backdrop-blur-md p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 flex-1">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                    className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"
-                  >
-                    <Navigation className="w-5 h-5 text-primary" />
-                  </motion.div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={isOnline ? (isPaused ? "paused" : isSearching ? "searching" : "online") : "offline"}
+            initial={{ opacity: 0, y: 6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="w-full max-w-sm"
+          >
+            <Card className="border border-border/30 shadow-md rounded-2xl overflow-hidden">
+              <CardContent className="p-0">
 
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-foreground truncate">
-                      جاري البحث عن الطلبات
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {driverLocation ? `📍 نطاق: ${maxPickupRadius} كم` : 'جاري تحديد الموقع...'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Pulse dots */}
-                <div className="flex items-center gap-1.5 mr-2">
-                  <motion.div
-                    animate={{ scale: [1, 1.4, 1], opacity: [0.5, 1, 0.5] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    className="w-2 h-2 rounded-full bg-emerald-500"
-                  />
-                  <motion.div
-                    animate={{ scale: [1, 1.4, 1], opacity: [0.5, 1, 0.5] }}
-                    transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
-                    className="w-2 h-2 rounded-full bg-emerald-500"
-                  />
-                  <motion.div
-                    animate={{ scale: [1, 1.4, 1], opacity: [0.5, 1, 0.5] }}
-                    transition={{ duration: 1.5, repeat: Infinity, delay: 0.6 }}
-                    className="w-2 h-2 rounded-full bg-emerald-500"
-                  />
-                </div>
-              </div>
-            </div>
-          ) : (
-            // ═══ حالة الحالة العادية — معلومات + أزرار ═══
-            <div
-              className={`transition-all duration-300 ${
-                isOnline
-                  ? isPaused
-                    ? "bg-gradient-to-r from-amber-900/20 via-amber-800/5 to-background"
-                    : "bg-gradient-to-r from-emerald-900/20 via-emerald-800/5 to-background"
-                  : "bg-gradient-to-r from-slate-800/30 via-slate-800/10 to-background"
-              }`}
-            >
-              <div className="flex items-center justify-between px-4 py-3 gap-3">
-
-                {/* ═══ زر Power الصغير (فقط عند ورود طلب) ═══ */}
-                {showPowerButton && hasRideRequest && (
-                  <button
-                    onClick={handlePress}
-                    disabled={isDisabled}
-                    className={`
-                      relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 shrink-0
-                      ${isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer active:scale-90"}
-                      ${
-                        isOnline
-                          ? isPaused
-                            ? "bg-gradient-to-br from-amber-500 to-orange-600 shadow-md shadow-amber-500/30"
-                            : "bg-gradient-to-br from-emerald-500 to-green-600 shadow-md shadow-emerald-500/30"
-                          : "bg-gradient-to-br from-slate-500 to-slate-600 shadow-md shadow-slate-500/20"
-                      }
-                    `}
-                    aria-label={isOnline ? "قطع الاتصال" : "الاتصال"}
-                  >
-                    {isLoading ? (
-                      <Loader2 className="w-4 h-4 text-white animate-spin" />
-                    ) : isOnline && isPaused ? (
-                      <Coffee className="w-4 h-4 text-white" />
-                    ) : (
-                      <Power className={`w-4 h-4 ${isOnline ? "text-white" : "text-slate-300"}`} />
-                    )}
-
-                    {/* Pulse ring when online */}
-                    {isOnline && !isPaused && !isLoading && (
-                      <span className="absolute inset-0 rounded-xl border-2 border-emerald-400/40 animate-ping" />
-                    )}
-                  </button>
-                )}
-
-                {/* ═══ معلومات الحالة (الوسط) ═══ */}
-                <div className="flex-1 flex flex-col items-center justify-center min-w-0 px-2">
-                  {/* Label + icon */}
-                  <div className="flex items-center gap-1.5">
-                    {isOnline ? (
-                      isPaused ? <Coffee className={`w-3.5 h-3.5 ${stateConfig.textColor}`} /> : <Wifi className={`w-3.5 h-3.5 ${stateConfig.textColor}`} />
-                    ) : (
-                      <WifiOff className={`w-3.5 h-3.5 ${stateConfig.textColor}`} />
-                    )}
-                    <span className={`text-sm font-bold ${stateConfig.textColor}`}>
-                      {stateConfig.label}
-                    </span>
-                  </div>
-
-                  {/* Sublabel */}
-                  <div className="mt-1">
-                    <div className="flex items-center gap-1.5">
-                      <div className={`w-1.5 h-1.5 rounded-full bg-amber-500 ${pulse ? "opacity-100" : "opacity-40"} transition-opacity`} />
-                      <span className="text-[11px] text-amber-400/80 font-medium">
-                        {stateConfig.sublabel}
-                      </span>
+                {/* ── حالة البحث الفعّال ── */}
+                {isOnline && !isPaused && isSearching && !isDisabled ? (
+                  <div className="px-4 py-3 bg-emerald-950/30">
+                    <div className="flex items-center gap-3">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                        className="w-9 h-9 rounded-full bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0"
+                      >
+                        <Navigation className="w-4 h-4 text-emerald-400" />
+                      </motion.div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-emerald-300 leading-tight">جاري البحث عن طلبات</p>
+                        <p className="text-xs text-emerald-400/60 mt-0.5">
+                          {driverLocation ? `نطاق ${maxPickupRadius} كم` : "جاري تحديد الموقع..."}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {[0, 0.25, 0.5].map((delay, i) => (
+                          <motion.div
+                            key={i}
+                            animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
+                            transition={{ duration: 1.2, repeat: Infinity, delay }}
+                            className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                          />
+                        ))}
+                      </div>
                     </div>
+                    <div className="mt-2.5 h-px bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent" />
                   </div>
-                </div>
 
-                {/* ═══ زر الإيقاف المؤقت (يمين) ═══ */}
-                {isOnline && (
-                  <button
-                    onClick={handlePausePress}
-                    className={`
-                      flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all duration-300 shrink-0 text-xs font-semibold
-                      ${
-                        isPaused
-                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25"
-                          : "bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25"
-                    }
-                  `}
-                    aria-label={isPaused ? "استئناف" : "إيقاف مؤقت"}
-                  >
-                    {isPaused ? (
-                      <>
-                        <Wifi className="w-3.5 h-3.5" />
-                        استئناف
-                      </>
-                    ) : (
-                      <>
+                /* ── متصل لكن لم يبدأ البحث بعد ── */
+                ) : isOnline && !isPaused ? (
+                  <div className="px-4 py-3 bg-emerald-950/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0">
+                        <Wifi className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-emerald-300 leading-tight">متصل</p>
+                        <p className="text-xs text-emerald-400/60 mt-0.5">
+                          {locationTracking ? "جاهز لاستقبال الطلبات" : "جاري تفعيل الموقع..."}
+                        </p>
+                      </div>
+                      <button
+                        onClick={handlePausePress}
+                        disabled={isDisabled}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/25 text-amber-400 text-xs font-semibold hover:bg-amber-500/25 active:scale-95 transition-all shrink-0"
+                        aria-label="إيقاف مؤقت"
+                      >
                         <PauseCircle className="w-3.5 h-3.5" />
                         إيقاف
-                      </>
-                    )}
-                  </button>
-                )}
+                      </button>
+                    </div>
+                  </div>
 
-                {/* أيقونة بحث عندما يكون غير متصل */}
-                {!isOnline && !hasRideRequest && (
-                  <div className="text-muted-foreground/30 shrink-0 pr-1">
-                    <Search className="w-4 h-4" />
+                /* ── إيقاف مؤقت ── */
+                ) : isOnline && isPaused ? (
+                  <div className="px-4 py-3 bg-amber-950/25">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-amber-500/15 border border-amber-500/25 flex items-center justify-center shrink-0">
+                        <Coffee className="w-4 h-4 text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-amber-300 leading-tight">إيقاف مؤقت</p>
+                        <p className="text-xs text-amber-400/60 mt-0.5">لن تصلك طلبات جديدة</p>
+                      </div>
+                      <button
+                        onClick={handlePausePress}
+                        disabled={isDisabled}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/25 active:scale-95 transition-all shrink-0"
+                        aria-label="استئناف"
+                      >
+                        <Wifi className="w-3.5 h-3.5" />
+                        استئناف
+                      </button>
+                    </div>
+                    <div className="mt-2.5 h-px bg-gradient-to-r from-transparent via-amber-500/35 to-transparent" />
+                  </div>
+
+                /* ── غير متصل ── */
+                ) : (
+                  <div className="px-4 py-3 bg-slate-800/25">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-slate-500/15 border border-slate-500/20 flex items-center justify-center shrink-0">
+                        <WifiOff className="w-4 h-4 text-slate-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-slate-300 leading-tight">غير متصل</p>
+                        <p className="text-xs text-slate-400/60 mt-0.5">
+                          {isApproved ? "اضغط الزر للاتصال" : "حسابك غير معتمد بعد"}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
 
-              {/* Thin Border Bottom */}
-              {isOnline && (isPaused ? (
-                <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-500/60 to-transparent" />
-              ) : (
-                <div className="h-0.5 bg-gradient-to-r from-transparent via-emerald-500/60 to-transparent animate-pulse" />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </AnimatePresence>
       )}
-
-      {/* Status Sublabel */}
-      <motion.div
-        className="text-center"
-        animate={{ opacity: isLoading ? 0.5 : 1 }}
-      >
-        <p className="text-[11px] text-muted-foreground mt-0.5 max-w-[160px]">
-          {stateConfig.sublabel}
-        </p>
-      </motion.div>
 
       {/* حالة غير معتمد */}
       {!isApproved && (

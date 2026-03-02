@@ -104,11 +104,6 @@ export const RideRequestCard = ({
     return Math.max(0, TIMER_DURATION - elapsed);
   }, []);
 
-  // إبلاغ الأب عند ظهور/إخفاء بطاقة الطلب
-  useEffect(() => {
-    onRideRequestVisible?.(pendingRides.length > 0);
-  }, [pendingRides.length, onRideRequestVisible]);
-
   // ✨ Cooldown: الرحلات المتخطاة تختفي 60 ثانية
   const skippedRidesRef = useRef<Record<string, number>>({});
 
@@ -291,14 +286,12 @@ export const RideRequestCard = ({
 
       // ═══ تحديث الحالة ═══
       if (collected.length > 0) {
-        // صوت فقط إذا ظهرت رحلة جديدة في الأول
         const firstId = collected[0].id;
         if (previousRideIdRef.current !== firstId) {
           playNotificationSound();
           if ("vibrate" in navigator) navigator.vibrate([300, 100, 300, 100, 400]);
           previousRideIdRef.current = firstId;
         }
-        // إعادة ضبط المؤشر إذا تغيرت القائمة
         setPendingRides(prev => {
           const prevIds = prev.map(r => r.id).join();
           const newIds = collected.map(r => r.id).join();
@@ -306,13 +299,16 @@ export const RideRequestCard = ({
           return collected;
         });
         setTimeLeft(calcTimeLeft(collected[0].created_at));
+        onRideRequestVisible?.(true);
       } else {
         setPendingRides([]);
         previousRideIdRef.current = null;
+        onRideRequestVisible?.(false);
       }
     } catch (error) {
       logger.error("RideRequestCard", "Error fetching rides", error);
       setPendingRides([]);
+      onRideRequestVisible?.(false);
     }
   }, [isOnline, isPaused, vehicleType, driverLocation, maxPickupRadius, canDriverServeRide, searchFromDropoff, activeRideDropoff, isRideVisible, calcTimeLeft]);
 
@@ -399,9 +395,14 @@ export const RideRequestCard = ({
                   if ("vibrate" in navigator) navigator.vibrate([300, 100, 300, 100, 400]);
                   previousRideIdRef.current = directRide.id;
                 }
-                setPendingRide(directRide);
+                setPendingRides(prev => {
+                  const alreadyIn = prev.some(r => r.id === directRide.id);
+                  if (alreadyIn) return prev;
+                  return [directRide, ...prev].slice(0, 5);
+                });
                 const elapsed = Math.floor((Date.now() - new Date(directRide.created_at).getTime()) / 1000);
                 setTimeLeft(Math.max(0, 30 - elapsed));
+                onRideRequestVisible?.(true);
                 return;
               }
             }
@@ -441,9 +442,14 @@ export const RideRequestCard = ({
                     if ("vibrate" in navigator) navigator.vibrate([300, 100, 300, 100, 400]);
                     previousRideIdRef.current = directRide.id;
                   }
-                  setPendingRide(directRide);
+                  setPendingRides(prev => {
+                    const alreadyIn = prev.some(r => r.id === directRide.id);
+                    if (alreadyIn) return prev;
+                    return [directRide, ...prev].slice(0, 5);
+                  });
                   const elapsed = Math.floor((Date.now() - new Date(directRide.created_at).getTime()) / 1000);
                   setTimeLeft(Math.max(0, 30 - elapsed));
+                  onRideRequestVisible?.(true);
                   return;
                 }
               }
@@ -481,6 +487,7 @@ export const RideRequestCard = ({
   useEffect(() => {
     if (!isOnline || isPaused) {
       setPendingRides([]);
+      onRideRequestVisible?.(false);
       return;
     }
 
@@ -580,10 +587,10 @@ export const RideRequestCard = ({
 
       toast({ title: "✅ تم القبول", description: "تم قبول الطلب بنجاح" });
       onRideAccepted?.();
-      // امسح كل الطلبات بعد القبول
       setPendingRides([]);
       setCurrentIndex(0);
       previousRideIdRef.current = null;
+      onRideRequestVisible?.(false);
     } catch (e: any) {
       console.error("[RideRequestCard] Accept error:", e);
       const message = e?.message || "تم قبول الطلب من سائق آخر";
@@ -596,6 +603,7 @@ export const RideRequestCard = ({
       setPendingRides([]);
       setCurrentIndex(0);
       previousRideIdRef.current = null;
+      onRideRequestVisible?.(false);
       fetchPendingRidesRef.current();
     } finally {
       clearTimeout(safetyTimer);
@@ -621,6 +629,8 @@ export const RideRequestCard = ({
       if (next.length > 0) setTimeLeft(calcTimeLeft(next[Math.min(currentIndex, next.length - 1)].created_at));
       return next;
     });
+    // إذا كانت هذه آخر رحلة → أبلغ الأب الفوري
+    if (pendingRides.length <= 1) onRideRequestVisible?.(false);
 
     try {
       await supabase.rpc("update_driver_response", {
