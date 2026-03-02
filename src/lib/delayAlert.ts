@@ -58,7 +58,6 @@ export const checkAndSendDelayAlert = async (
   }
 
   // التحقق من عدم إرسال تنبيهات متكررة (خلال 5 دقائق الأخيرة)
-  // @ts-expect-error — delay_alerts table exists via migration
   const { data: recentAlerts } = await supabase
     .from("delay_alerts")
     .select("id, created_at")
@@ -71,7 +70,6 @@ export const checkAndSendDelayAlert = async (
   }
 
   // حفظ التنبيه في قاعدة البيانات
-  // @ts-expect-error — delay_alerts table exists via migration
   const { error } = await supabase.from("delay_alerts").insert({
     ride_id: rideId,
     driver_id: driverId,
@@ -215,7 +213,6 @@ export const createDelayAlertsTable = async () => {
 export const getRideDelayAlerts = async (
   rideId: string
 ): Promise<DelayAlert[]> => {
-  // @ts-expect-error — delay_alerts table exists via migration
   const { data, error } = await supabase
     .from("delay_alerts")
     .select("*")
@@ -235,7 +232,6 @@ export const getRideDelayAlerts = async (
  * TODO: تفعيل بعد تنفيذ migration
  */
 export const getDriverDelayStats = async (driverId: string) => {
-  // @ts-expect-error — delay_alerts table exists via migration
   const { data, error } = await supabase
     .from("delay_alerts")
     .select("actual_delay_minutes")

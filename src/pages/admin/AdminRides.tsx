@@ -132,10 +132,10 @@ const AdminRides = () => {
           description: "فشل في حذف الرحلة: " + error.message,
           variant: "destructive",
         });
-      } else if (data && !data.success) {
+      } else if (data && !(data as any).success) {
         toast({
           title: "خطأ",
-          description: data.error || "فشل في حذف الرحلة",
+          description: (data as any).error || "فشل في حذف الرحلة",
           variant: "destructive",
         });
       } else {

@@ -96,7 +96,6 @@ const AdminComplaints = () => {
   const fetchComplaints = async () => {
     try {
       setLoading(true);
-      // @ts-expect-error - Table will be created by migration
       const { data, error } = await supabase
         .from('ride_complaints')
         .select(`
@@ -179,7 +178,6 @@ const AdminComplaints = () => {
 
     try {
       // تنفيذ القرار المالي
-      // @ts-expect-error - Function will be created by migration
       const { data: result, error: execError } = await supabase
         .rpc('execute_financial_decision', {
           p_complaint_id: selectedComplaint.id,
@@ -219,7 +217,6 @@ const AdminComplaints = () => {
 
   const handleReject = async (complaintId: string) => {
     try {
-      // @ts-expect-error - Table will be created by migration
       const { error } = await supabase
         .from('ride_complaints')
         .update({

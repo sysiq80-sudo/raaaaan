@@ -584,7 +584,7 @@ export const RideWaitingScreen = ({
                 .update({ wallet_balance: newBalance })
                 .eq("id", profile.id);
 
-              await supabase.from("wallet_transactions").insert({
+              await (supabase.from("wallet_transactions" as any) as any).insert({
                 user_id: user.id,
                 amount: -cancellationFee,
                 type: "cancellation_fee",

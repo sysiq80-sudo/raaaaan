@@ -237,8 +237,8 @@ export const checkServerRateLimit = async (
   resetTime: number | null;
 }> => {
   try {
-    const { data, error } = await supabase
-      .from("rate_limits")
+    const { data, error } = await (supabase
+      .from("rate_limits" as any) as any)
       .select("*")
       .eq("key", key)
       .eq("user_id", userId)

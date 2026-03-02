@@ -71,7 +71,7 @@ export const StatusSearchBar = ({
     if (isDisabled || !isOnline) return;
     // Haptic feedback for pause
     if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
-    await onPauseToggle();
+    await onTogglePause();
   };
 
   // الحالة الرئيسية: 3 حالات - متصل / مشغول / غير متصل

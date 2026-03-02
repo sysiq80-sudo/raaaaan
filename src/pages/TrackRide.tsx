@@ -256,13 +256,13 @@ export default function TrackRide() {
           .eq("ride_id", ride.id)
           .maybeSingle();
 
-        if (data?.location) {
-          const loc = typeof data.location === "string"
-            ? JSON.parse(data.location)
-            : data.location;
+        if ((data as any)?.location) {
+          const loc = typeof (data as any).location === "string"
+            ? JSON.parse((data as any).location)
+            : (data as any).location;
           if (loc?.lat && loc?.lng) {
             setDriverLiveLocation({ lat: loc.lat, lng: loc.lng });
-            setLastUpdate(data.updated_at);
+            setLastUpdate((data as any).updated_at);
           }
         }
       } catch {

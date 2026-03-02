@@ -132,8 +132,8 @@ export const useTOTPBackupCodes = (userId: string) => {
       );
 
       // حفظ الأكواد في قاعدة البيانات
-      const { data, error } = await supabase
-        .from("backup_codes")
+      const { data, error } = await (supabase
+        .from("backup_codes" as any) as any)
         .insert(
           codes.map((code) => ({
             user_id: userId,
@@ -148,8 +148,8 @@ export const useTOTPBackupCodes = (userId: string) => {
       setBackupCodes(data || []);
 
       // إلغاء صلاحية الأكواد القديمة
-      await supabase
-        .from("backup_codes")
+      await (supabase
+        .from("backup_codes" as any) as any)
         .update({ used: true })
         .eq("user_id", userId)
         .lt(
@@ -173,8 +173,8 @@ export const useTOTPBackupCodes = (userId: string) => {
       setError(null);
 
       try {
-        const { data, error } = await supabase
-          .from("backup_codes")
+        const { data, error } = await (supabase
+          .from("backup_codes" as any) as any)
           .select("*")
           .eq("user_id", userId)
           .eq("code", code.toUpperCase())
@@ -186,13 +186,13 @@ export const useTOTPBackupCodes = (userId: string) => {
         }
 
         // تحديث حالة الكود ليصبح مستخدماً
-        await supabase
-          .from("backup_codes")
+        await (supabase
+          .from("backup_codes" as any) as any)
           .update({ used: true })
           .eq("id", data.id);
 
         // تحديث حالة MFA للمستخدم
-        await supabase.from("user_mfa_settings").upsert({
+        await (supabase.from("user_mfa_settings" as any) as any).upsert({
           user_id: userId,
           backup_code_used: true,
           last_verification: new Date().toISOString(),
@@ -212,8 +212,8 @@ export const useTOTPBackupCodes = (userId: string) => {
   // تحميل الأكواد الاحتياطية النشطة
   const loadBackupCodes = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("backup_codes")
+      const { data, error } = await (supabase
+        .from("backup_codes" as any) as any)
         .select("*")
         .eq("user_id", userId)
         .eq("used", false)
@@ -250,8 +250,8 @@ export const useMFASettings = (userId: string) => {
   // تحميل إعدادات MFA
   const loadSettings = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("user_mfa_settings")
+      const { data, error } = await (supabase
+        .from("user_mfa_settings" as any) as any)
         .select("*")
         .eq("user_id", userId)
         .single();
@@ -278,7 +278,7 @@ export const useMFASettings = (userId: string) => {
       setError(null);
 
       try {
-        const { error } = await supabase.from("user_mfa_settings").upsert({
+        const { error } = await (supabase.from("user_mfa_settings" as any) as any).upsert({
           user_id: userId,
           mfa_required: enabled,
           updated_at: new Date().toISOString(),
@@ -305,13 +305,13 @@ export const useMFASettings = (userId: string) => {
 
     try {
       // حذف جميع إعدادات MFA
-      await supabase.from("user_mfa_settings").delete().eq("user_id", userId);
+      await (supabase.from("user_mfa_settings" as any) as any).delete().eq("user_id", userId);
 
       // حذف جميع الأكواد الاحتياطية
-      await supabase.from("backup_codes").delete().eq("user_id", userId);
+      await (supabase.from("backup_codes" as any) as any).delete().eq("user_id", userId);
 
       // حذف جلسات MFA النشطة
-      await supabase.from("mfa_sessions").delete().eq("user_id", userId);
+      await (supabase.from("mfa_sessions" as any) as any).delete().eq("user_id", userId);
 
       setSettings({
         phone_verified: false,
