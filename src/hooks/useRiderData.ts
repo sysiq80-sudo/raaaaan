@@ -43,8 +43,6 @@ export const useRiderData = () => {
   // This is kept for compatibility but now just initializes as ready
   useEffect(() => {
     let mounted = true;
-    const retryCount = 0;
-    const maxRetries = 3;
 
     const initializeMapToken = () => {
       if (mounted) {

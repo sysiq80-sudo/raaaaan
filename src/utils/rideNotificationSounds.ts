@@ -211,8 +211,9 @@ export const vibrate = (pattern: number[]) => {
   // Dynamically import to avoid circular deps
   import('../lib/userGestureTracker').then(({ safeVibrate }) => {
     safeVibrate(pattern);
-  }).catch(() => {
+  }).catch((err) => {
     // Silently fail — browser blocks vibrate before user interaction
+    console.debug('Vibrate skipped (no user gesture yet):', err);
   });
 };
 

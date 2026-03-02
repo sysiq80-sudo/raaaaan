@@ -177,6 +177,10 @@ export default function AdminWithdrawals() {
       }
 
       // @ts-expect-error — withdrawal_requests table exists via migration
+      const { error } = await supabase
+        .from("withdrawal_requests")
+        .update(updates)
+        .eq("id", selectedRequest.id);
 
       if (error) throw error;
 

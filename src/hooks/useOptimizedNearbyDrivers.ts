@@ -122,7 +122,7 @@ export const useOptimizedNearbyDrivers = (
         women_only: 0,
       };
 
-      const newLocations: DriverLocation[] = [];
+      let newLocations: DriverLocation[] = [];
       const newCache = new Map<string, DriverLocation>();
 
       // Fetch real drivers only if enabled
