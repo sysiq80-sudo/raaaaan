@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -38,7 +37,7 @@ export const PushNotificationSetup = ({ userId, userType }: PushNotificationSetu
       // التحقق من وجود subscription
       if ('serviceWorker' in navigator && Notification.permission === 'granted') {
         const registration = await navigator.serviceWorker.ready;
-        const subscription = await (registration as any).pushManager.getSubscription();
+        const subscription = await (registration as ServiceWorkerRegistration & { pushManager: PushManager }).pushManager.getSubscription();
         setIsSubscribed(!!subscription);
       }
     } catch (error) {
@@ -179,7 +178,7 @@ export const PushNotificationSetup = ({ userId, userType }: PushNotificationSetu
   const urlBase64ToUint8Array = (base64String: string) => {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding)
-      .replace(/\-/g, '+')
+      .replace(/-/g, '+')
       .replace(/_/g, '/');
     const rawData = window.atob(base64);
     const outputArray = new Uint8Array(rawData.length);

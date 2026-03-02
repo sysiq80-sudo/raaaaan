@@ -42,10 +42,9 @@ export const SmartDarkModeProvider: React.FC<SmartDarkModeProviderProps> = ({ ch
   useEffect(() => {
     const detectAmbientLight = () => {
       if ('ambientLight' in navigator) {
-        // @ts-ignore - Ambient Light API
+        // @ts-expect-error - Ambient Light API
         navigator.ambientLight.addEventListener('reading', (event) => {
-          // @ts-ignore
-          const illuminance = event.target?.illuminance || 50;
+          // @ts-expect-error — Ambient Light reading event non-standard
           const isDark = illuminance < 10;
           setAmbientLight({ level: Math.min(illuminance, 100), isDark });
         });
@@ -68,7 +67,7 @@ export const SmartDarkModeProvider: React.FC<SmartDarkModeProviderProps> = ({ ch
     const detectBattery = async () => {
       if ('getBattery' in navigator) {
         try {
-          // @ts-ignore - Battery API
+          // @ts-expect-error - Battery API
           const battery = await navigator.getBattery();
           setBatteryLevel(battery.level * 100);
           setIsPowerSaving(battery.level < 0.2); // Less than 20%

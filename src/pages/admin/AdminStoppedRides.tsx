@@ -86,7 +86,7 @@ const AdminStoppedRides = () => {
 
   const fetchStoppedRides = async () => {
     try {
-      // @ts-ignore - Table will be created by migration
+      // @ts-expect-error - Table will be created by migration
       const { data, error } = await supabase
         .from('dual_stop_alerts')
         .select(`
@@ -111,7 +111,7 @@ const AdminStoppedRides = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      // @ts-ignore - Type will match after migration
+      // @ts-expect-error - Type will match after migration
       setAlerts(data || []);
     } catch (error: any) {
       console.error('Error fetching stopped rides:', error);
@@ -133,7 +133,7 @@ const AdminStoppedRides = () => {
 
   const handleResolve = async (alertId: string) => {
     try {
-      // @ts-ignore - Table will be created by migration
+      // @ts-expect-error - Table will be created by migration
       const { error } = await supabase
         .from('dual_stop_alerts')
         .update({ resolved_at: new Date().toISOString() })

@@ -683,7 +683,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             });
             
             if (result.results && result.results.length > 0) {
-              let finalAddress = result.results[0].formatted_address;
+              const finalAddress = result.results[0].formatted_address;
               let poiName: string | null = null;
               
               // Step 2: Try to get POI name using Place.searchNearby (New API)
@@ -772,7 +772,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
               // بديل: تنظيف formatted_address عند الحاجة
               if (!priorityAddress) {
-                let addressParts = finalAddress
+                const addressParts = finalAddress
                   .split(/[،,]/)
                   .map(p => p.trim())
                   .filter(p => p.length > 0 && !plusCodeRegex.test(p));

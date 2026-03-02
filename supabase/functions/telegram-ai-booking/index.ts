@@ -628,7 +628,7 @@ async function resolveRamadiLocation(query: string, userLat = 33.4233, userLng =
 
   // ── الاستراتيجية 2: Google Geocoding مباشرة
   console.log("[geocode] Nominatim failed, trying Google Geocoding...");
-  let params = new URLSearchParams({
+  const params = new URLSearchParams({
     address: cleanQuery,
     key: GOOGLE_MAPS_KEY,
     language: "ar",

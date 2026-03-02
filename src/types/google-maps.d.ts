@@ -708,14 +708,11 @@ declare global {
           radius?: number;
         }
 
-        interface HeatmapLayer {
+        class HeatmapLayer {
+          constructor(options?: HeatmapLayerOptions);
           setData(data: Array<LatLng | { lat: number; lng: number }>): void;
           setMap(map: Map | null): void;
           setOptions(options: HeatmapLayerOptions): void;
-        }
-
-        class HeatmapLayer {
-          constructor(options?: HeatmapLayerOptions);
         }
       }
     }

@@ -296,7 +296,7 @@ serve(async (req) => {
         .limit(1)
         .single();
 
-      let baseRate = walletSettings?.default_commission_rate ?? 15;
+      const baseRate = walletSettings?.default_commission_rate ?? 15;
 
       // 7b. Fetch driver's commission tier discount
       let tierDiscount = 0;

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // ران RAAN - Multi-Factor Authentication (MFA)
 // نظام التحقق الثنائي العامل مع SMS OTP و TOTP
 

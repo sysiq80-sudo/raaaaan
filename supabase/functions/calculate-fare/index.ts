@@ -312,7 +312,7 @@ serve(async (req) => {
     const subtotal = baseFare + distanceFare + waitingFare;
 
     // Apply vehicle multiplier
-    let vehicleAdjustedFare = Math.round(subtotal * vehicleMultiplier);
+    const vehicleAdjustedFare = Math.round(subtotal * vehicleMultiplier);
 
     // Apply surge multiplier
     const surgeAdjustedFare = Math.round(vehicleAdjustedFare * surgeMultiplier);

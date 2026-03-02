@@ -261,7 +261,7 @@ async function executeAction(
         }));
         const body = config.message || config.body || 'اختر خيار';
 
-        let query = supabase.from('whatsapp_accounts').select('*').eq('is_active', true);
+        const query = supabase.from('whatsapp_accounts').select('*').eq('is_active', true);
         const { data: account } = await query.limit(1).maybeSingle();
         if (!account) return { success: false, error: 'No WA account' };
 
@@ -289,7 +289,7 @@ async function executeAction(
         const sections = config.sections || [{ title: 'خيارات', rows: config.items || [] }];
         const body = config.message || config.body || 'اختر من القائمة';
 
-        let query = supabase.from('whatsapp_accounts').select('*').eq('is_active', true);
+        const query = supabase.from('whatsapp_accounts').select('*').eq('is_active', true);
         const { data: account } = await query.limit(1).maybeSingle();
         if (!account) return { success: false, error: 'No WA account' };
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Service Worker Registration and Push Notification Utilities
 // Enhanced with Topic Subscriptions, Offline Queue, and Analytics
 import { supabase } from "@/integrations/supabase/client";

@@ -1,4 +1,4 @@
-// @ts-ignore
+// @ts-expect-error — DOMPurify types may not be fully aligned
 import DOMPurify from "dompurify";
 import { z } from "zod";
 

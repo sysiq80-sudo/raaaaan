@@ -96,7 +96,7 @@ const AdminComplaints = () => {
   const fetchComplaints = async () => {
     try {
       setLoading(true);
-      // @ts-ignore - Table will be created by migration
+      // @ts-expect-error - Table will be created by migration
       const { data, error } = await supabase
         .from('ride_complaints')
         .select(`
@@ -118,7 +118,7 @@ const AdminComplaints = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      // @ts-ignore - Type will match after migration
+      // @ts-expect-error - Type will match after migration
       setComplaints(data || []);
     } catch (error: any) {
       console.error('Error fetching complaints:', error);
@@ -179,7 +179,7 @@ const AdminComplaints = () => {
 
     try {
       // تنفيذ القرار المالي
-      // @ts-ignore - Function will be created by migration
+      // @ts-expect-error - Function will be created by migration
       const { data: result, error: execError } = await supabase
         .rpc('execute_financial_decision', {
           p_complaint_id: selectedComplaint.id,
@@ -219,7 +219,7 @@ const AdminComplaints = () => {
 
   const handleReject = async (complaintId: string) => {
     try {
-      // @ts-ignore - Table will be created by migration
+      // @ts-expect-error - Table will be created by migration
       const { error } = await supabase
         .from('ride_complaints')
         .update({

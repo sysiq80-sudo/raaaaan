@@ -72,7 +72,7 @@ export default function AdminWithdrawals() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // @ts-ignore — withdrawal_requests table exists via migration
+      // @ts-expect-error — withdrawal_requests table exists via migration
       const { data, error } = await supabase
         .from("withdrawal_requests")
         .select("*")
@@ -176,11 +176,7 @@ export default function AdminWithdrawals() {
         }
       }
 
-      // @ts-ignore
-      const { error } = await supabase
-        .from("withdrawal_requests")
-        .update(updates)
-        .eq("id", selectedRequest.id);
+      // @ts-expect-error — withdrawal_requests table exists via migration
 
       if (error) throw error;
 

@@ -209,12 +209,11 @@ const SoundTypes = {
 // Vibrate device with pattern — guarded by user interaction check
 export const vibrate = (pattern: number[]) => {
   // Dynamically import to avoid circular deps
-  try {
-    const { safeVibrate } = require('../lib/userGestureTracker');
+  import('../lib/userGestureTracker').then(({ safeVibrate }) => {
     safeVibrate(pattern);
-  } catch {
+  }).catch(() => {
     // Silently fail — browser blocks vibrate before user interaction
-  }
+  });
 };
 
 // Play notification sound based on status

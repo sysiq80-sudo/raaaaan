@@ -307,7 +307,7 @@ export default function DriverFinance() {
       if (wSettings) setMinWithdrawal(Number(wSettings.min_withdrawal_amount) || 10000);
 
       // Fetch withdrawal requests
-      // @ts-ignore — withdrawal_requests table exists via migration
+      // @ts-expect-error — withdrawal_requests table exists via migration
       const { data: wRequests } = await supabase
         .from('withdrawal_requests')
         .select('*')
@@ -369,7 +369,7 @@ export default function DriverFinance() {
     }
     setWithdrawing(true);
     try {
-      // @ts-ignore — withdrawal_requests table exists via migration
+      // @ts-expect-error — withdrawal_requests table exists via migration
       const { error } = await supabase.from("withdrawal_requests").insert({
         driver_id: driverId,
         wallet_id: walletId,
