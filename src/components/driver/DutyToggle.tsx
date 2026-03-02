@@ -269,8 +269,8 @@ const DutyToggle = ({
       {isApproved && (
       <Card className="border-none shadow-lg rounded-2xl overflow-hidden w-full max-w-sm">
         <CardContent className="p-0">
-          {/* البحث: يظهر فقط عندما السائق متصل كاملاً و يبحث و معتمد (فعال) */}
-          {isOnline && !isPaused && isSearching && !isDisabled ? (
+          {/* البحث: يظهر فقط عندما السائق متصل كاملاً و يبحث و معتمد (فعال) و ليس هناك طلب نشط */}
+          {isOnline && !isPaused && isSearching && !isDisabled && !hasRideRequest ? (
             // ═══ حالة البحث — شريط البحث الموحد ═══
             <div className="relative overflow-hidden bg-card/95 backdrop-blur-md p-4">
               <div className="flex items-center justify-between">
