@@ -513,91 +513,116 @@ export const RideRequestCard = ({
   }, [pendingRide?.id, calcTimeLeft]);
 
   const handleAccept = async () => {
-    if (!pendingRide || loading || actionInProgressRef.current) return; // منع الضغط المزدوج
+    if (!pendingRide || loading || actionInProgressRef.current) return;
     actionInProgressRef.current = true;
     setLoading(true);
     setActionType("accept");
 
-    const SAFETY_TIMEOUT_MS = 12000; // لا نترك الزر عالقاً أكثر من 12 ثانية
-    const REQUEST_TIMEOUT_MS = 10000; // مهلة استجابة الـ RPC
-
-    // Safety timeout — لا يبقى بحالة loading أكثر من 15 ثانية
-    const safetyTimer = setTimeout(() => {
-      console.error("[RideRequestCard] ⚠️ Accept safety timeout — resetting loading state");
-      actionInProgressRef.current = false;
-      setLoading(false);
-      setActionType(null);
-      toast({
-        title: "انتهت المهلة",
-        description: "حاول مرة أخرى",
-        variant: "destructive",
-      });
-    }, SAFETY_TIMEOUT_MS);
-
-    // Helper: يضيف مهلة قسرية لأي طلب
-    const runWithTimeout = async <T,>(promise: Promise<T>) => {
-      return Promise.race<T | never>([
-        promise,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("timeout")), REQUEST_TIMEOUT_MS)
-        ),
-      ]);
-    };
+    const rideId = pendingRide.id;
+    let acceptSucceeded = false;
 
     try {
-      // المحاولة 1: RPC الآمن مع timeout
-      let rpcSucceeded = false;
-      try {
-        const { error } = (await runWithTimeout(
-          supabase.rpc("accept_ride_safely", {
-            p_ride_id: pendingRide.id,
-            p_driver_id: driverId,
-          }) as any
-        )) as { error?: any };
+      // ═══ محاولة 1: RPC + Fallback بتايمر واحد شامل ═══
+      await new Promise<void>((resolve, reject) => {
+        // تايمر واحد يغطي الكل — 12 ثانية
+        const masterTimer = setTimeout(() => {
+          reject(new Error("timeout_all"));
+        }, 12000);
 
-        if (!error) {
-          rpcSucceeded = true;
-        } else {
-          throw error;
-        }
-      } catch (rpcErr: any) {
-        console.warn("accept_ride_safely RPC error/timeout:", rpcErr?.message);
-      }
+        const done = (ok: boolean, err?: unknown) => {
+          clearTimeout(masterTimer);
+          if (ok) { acceptSucceeded = true; resolve(); }
+          else reject(err);
+        };
 
-      // المحاولة 2: Fallback — تحديث مباشر عبر REST مع نفس المهلة
-      if (!rpcSucceeded) {
-        logger.info("RideRequestCard", "Trying direct update fallback...");
-        const { error: directError } = (await runWithTimeout(
-          supabase
-            .from('rides')
-            .update({
-              status: 'accepted',
-              driver_id: driverId,
-              matched_at: new Date().toISOString(),
-            })
-            .eq('id', pendingRide.id)
-            .eq('status', 'pending')
-            .is('driver_id', null) as any
-        )) as { error?: any };
+        // RPC الآمن — يبدأ فوراً
+        (supabase.rpc("accept_ride_safely", {
+          p_ride_id: rideId,
+          p_driver_id: driverId,
+        }) as unknown as Promise<{ data: { success: boolean; error?: string } | null; error: { message: string } | null }>)
+          .then((r) => {
+            if (!acceptSucceeded) {
+              if (r?.error) {
+                // خطأ HTTP — نتركه للـ fallback
+                console.warn("[RideRequestCard] RPC HTTP error:", r.error.message);
+              } else if (r?.data?.success === false) {
+                // الـ function نفذت لكن رفضت الطلب (مثل: is_available=false)
+                console.warn("[RideRequestCard] RPC business error:", r.data.error);
+                // لا نستدعي done(true) — نترك الـ fallback يحاول
+              } else if (r?.data?.success === true) {
+                // نجاح حقيقي
+                done(true);
+              }
+            }
+          })
+          .catch(() => { /* تجاهل، الـ fallback يتكفل */ });
 
-        if (directError) {
-          throw directError;
-        }
-      }
+        // Fallback مباشر — بعد 800ms
+        setTimeout(async () => {
+          if (acceptSucceeded) return;
+          logger.info("RideRequestCard", "🔄 Direct update fallback running...");
+          try {
+            const { error } = await supabase
+              .from('rides')
+              .update({
+                status: 'accepted',
+                driver_id: driverId,
+                matched_at: new Date().toISOString(),
+              })
+              .eq('id', rideId)
+              .eq('status', 'pending');
 
+            if (!acceptSucceeded) {
+              if (error) done(false, new Error(error.message));
+              else done(true);
+            }
+          } catch (e) {
+            if (!acceptSucceeded) done(false, e);
+          }
+        }, 800);
+      });
+
+      // ═══ نجح ═══
       toast({ title: "✅ تم القبول", description: "تم قبول الطلب بنجاح" });
       onRideAccepted?.();
       setPendingRides([]);
       setCurrentIndex(0);
       previousRideIdRef.current = null;
       onRideRequestVisible?.(false);
-    } catch (e: any) {
+
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn("[RideRequestCard] Accept failed:", msg);
+
+      // ═══ آخر محاولة: تحقق مباشر من DB ═══
+      // (قد تكون الرحلة قُبلت فعلاً والـ response فقط تأخرت)
+      try {
+        const { data: rideState } = await supabase
+          .from('rides')
+          .select('status, driver_id')
+          .eq('id', rideId)
+          .maybeSingle();
+
+        if (rideState?.status === 'accepted' && rideState?.driver_id === driverId) {
+          console.log("[RideRequestCard] ✅ Ride was accepted silently — UI showing success");
+          toast({ title: "✅ تم القبول", description: "تم قبول الطلب بنجاح" });
+          onRideAccepted?.();
+          setPendingRides([]);
+          setCurrentIndex(0);
+          previousRideIdRef.current = null;
+          onRideRequestVisible?.(false);
+          return;
+        }
+      } catch {
+        // تجاهل خطأ التحقق
+      }
+
+      // ═══ فشل حقيقي ═══
       console.error("[RideRequestCard] Accept error:", e);
-      const message = e?.message || "تم قبول الطلب من سائق آخر";
-      const isTaken = typeof message === "string" && /already|taken|assigned/i.test(message);
+      const isTaken = /already|taken|assigned/i.test(msg);
       toast({
-        title: isTaken ? "سبق قبول الطلب" : "خطأ",
-        description: isTaken ? "تم قبول الطلب من سائق آخر" : message,
+        title: isTaken ? "سبق قبول الطلب" : "خطأ في القبول",
+        description: isTaken ? "تم قبول الطلب من سائق آخر" : "تعذّر قبول الطلب، حاول مرة أخرى",
         variant: "destructive",
       });
       setPendingRides([]);
@@ -606,12 +631,12 @@ export const RideRequestCard = ({
       onRideRequestVisible?.(false);
       fetchPendingRidesRef.current();
     } finally {
-      clearTimeout(safetyTimer);
       actionInProgressRef.current = false;
       setLoading(false);
       setActionType(null);
     }
   };
+
 
   const handleReject = async () => {
     if (!pendingRide || loading || actionInProgressRef.current) return;
@@ -658,211 +683,177 @@ export const RideRequestCard = ({
     <AnimatePresence mode="wait">
       <motion.div
         key={pendingRide.id}
-        initial={{ opacity: 0, y: 60, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -40, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
         transition={{ type: "spring", stiffness: 300, damping: 28 }}
-        className="w-full"
+        className="fixed inset-0 z-50 flex flex-col pointer-events-none"
+        dir="rtl"
       >
-        <div className="relative overflow-hidden rounded-2xl bg-card shadow-2xl border border-border/40">
+        {/* ════════════════════════════════════════════
+             الجزء ١: كارد البيانات — وسط الشاشة
+             ════════════════════════════════════════════ */}
+        <div className="flex-1 flex items-center justify-center px-4 pointer-events-none">
+          <div className="w-full max-w-sm bg-slate-900/95 backdrop-blur-lg rounded-3xl shadow-2xl shadow-black/40 border border-slate-700/50 pointer-events-auto overflow-hidden">
 
-          {/* ═══ Timer Progress Bar — Top ═══ */}
-          <div className="h-1 bg-muted/30">
-            <motion.div
-              initial={{ width: "100%" }}
-              animate={{ width: `${timerPercent}%` }}
-              transition={{ duration: 0.5, ease: "linear" }}
-              className={`h-full rounded-full transition-colors duration-300 ${
-                isUrgent
-                  ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
-                  : "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.3)]"
-              }`}
-            />
-          </div>
-
-          <div className="p-4 space-y-3">
-
-            {/* ═══ Header: طلب جديد + عداد الطلبات + Timer ═══ */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <motion.div
-                  animate={{ rotate: [0, 15, -15, 0] }}
-                  transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 2 }}
-                >
-                  <Sparkles className="w-5 h-5 text-amber-500" />
-                </motion.div>
-                <span className="font-bold text-base text-foreground">طلب جديد!</span>
-                {/* عداد الطلبات المتعددة */}
-                {total > 1 && (
-                  <div className="flex items-center gap-1 bg-blue-500/15 border border-blue-500/30 rounded-full px-2 py-0.5">
-                    <Layers className="w-3 h-3 text-blue-400" />
-                    <span className="text-xs font-bold text-blue-400">{currentIndex + 1}/{total}</span>
-                  </div>
-                )}
-              </div>
-
+            {/* Timer Progress Bar */}
+            <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden mx-5 mt-3">
               <motion.div
-                animate={isUrgent ? { scale: [1, 1.1, 1] } : {}}
-                transition={{ duration: 0.5, repeat: Infinity }}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
-                  isUrgent
-                    ? "bg-red-500/15 text-red-500 border border-red-500/30"
-                    : "bg-slate-100 dark:bg-slate-800 text-muted-foreground border border-border/50"
-                }`}
-              >
-                <Timer className="w-3.5 h-3.5" />
-                <span className="font-mono tabular-nums">{timeLeft > 0 ? `${timeLeft}ث` : 'بانتظار'}</span>
-              </motion.div>
+                initial={{ width: "100%" }}
+                animate={{ width: `${timerPercent}%` }}
+                transition={{ duration: 0.5, ease: "linear" }}
+                className={`h-full rounded-full ${isUrgent ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.3)]"}`}
+              />
             </div>
 
-            {/* ═══ Hero: Fare + Stats ═══ */}
-            <div className="flex items-center gap-3">
-              {/* الأجرة — العنصر الرئيسي */}
-              <div className="flex-1 relative bg-emerald-50 dark:bg-emerald-950/30 rounded-xl p-3 border border-emerald-200/50 dark:border-emerald-800/30">
-                <div className="flex items-baseline gap-1.5">
-                  <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400 self-center" />
-                  <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums tracking-tight">
-                    {roundFare(pendingRide.estimated_fare || 0).toLocaleString()}
-                  </span>
-                  <span className="text-xs text-emerald-600/70 dark:text-emerald-400/70 font-medium">د.ع</span>
+            <div className="px-5 pt-4 pb-4 space-y-3">
+              {/* هيدر */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <motion.div animate={{ rotate: [0, 15, -15, 0] }} transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 2 }}>
+                    <Sparkles className="w-5 h-5 text-amber-400" />
+                  </motion.div>
+                  <span className="font-bold text-base text-white">طلب جديد!</span>
+                  {total > 1 && (
+                    <div className="flex items-center gap-1 bg-blue-500/20 border border-blue-500/30 rounded-full px-2 py-0.5">
+                      <Layers className="w-3 h-3 text-blue-400" />
+                      <span className="text-xs font-bold text-blue-400">{currentIndex + 1}/{total}</span>
+                    </div>
+                  )}
                 </div>
-                {pendingRide.surge_multiplier && pendingRide.surge_multiplier > 1 && (
-                  <span className="absolute -top-2 -left-2 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 shadow-lg shadow-amber-500/30">
-                    <Zap className="w-2.5 h-2.5" />
-                    x{pendingRide.surge_multiplier.toFixed(1)}
-                  </span>
-                )}
-              </div>
-
-              {/* المسافة + المدة + النوع */}
-              <div className="flex flex-col gap-1.5">
-                {pendingRide.distance_km && (
-                  <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg px-2.5 py-1.5">
-                    <Route className="w-3.5 h-3.5 text-blue-500" />
-                    <span className="text-xs font-bold text-blue-700 dark:text-blue-300">{pendingRide.distance_km.toFixed(1)} كم</span>
-                  </div>
-                )}
-                {pendingRide.duration_minutes && (
-                  <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg px-2.5 py-1.5">
-                    <Clock className="w-3.5 h-3.5 text-amber-500" />
-                    <span className="text-xs font-bold text-amber-700 dark:text-amber-300">{pendingRide.duration_minutes} دقيقة</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg px-2.5 py-1.5">
-                  <Car className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    {getVehicleIcon(pendingRide.vehicle_type)} {getVehicleTypeName(pendingRide.vehicle_type)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* ═══ Route Line: Pickup → Dropoff ═══ */}
-            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-3 border border-border/30">
-              <div className="flex gap-3">
-                {/* Vertical Route Line */}
-                <div className="flex flex-col items-center pt-1">
-                  <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-emerald-200 dark:border-emerald-800 shadow-sm" />
-                  <div className="w-0.5 flex-1 bg-gradient-to-b from-emerald-400 to-red-400 my-1 min-h-[20px]" />
-                  <div className="w-3 h-3 rounded-full bg-red-500 border-2 border-red-200 dark:border-red-800 shadow-sm" />
-                </div>
-
-                {/* Addresses */}
-                <div className="flex-1 flex flex-col justify-between gap-2 min-w-0">
-                  <div>
-                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold uppercase tracking-wider mb-0.5">نقطة الانطلاق</p>
-                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200 line-clamp-1">
-                      {pendingRide.pickup_address || "موقع الانطلاق"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-red-500 dark:text-red-400 font-semibold uppercase tracking-wider mb-0.5">الوجهة</p>
-                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200 line-clamp-1">
-                      {pendingRide.dropoff_address || "الوجهة"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ═══ تنقل بين الطلبات إذا كانت متعددة ═══ */}
-            {total > 1 && (
-              <div className="flex items-center justify-between px-1">
-                <button
-                  onClick={() => setCurrentIndex(i => Math.max(0, i - 1))}
-                  disabled={currentIndex === 0}
-                  className="flex items-center gap-1 text-xs text-muted-foreground disabled:opacity-30 px-2 py-1 rounded-lg hover:bg-muted/50 transition-colors"
-                  title="الطلب السابق"
+                <motion.div
+                  animate={isUrgent ? { scale: [1, 1.1, 1] } : {}}
+                  transition={{ duration: 0.5, repeat: Infinity }}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
+                    isUrgent ? "bg-red-500/15 text-red-400 border border-red-500/30" : "bg-slate-800 text-slate-300 border border-slate-600/50"
+                  }`}
                 >
-                  <ChevronRight className="w-4 h-4" />
-                  السابق
-                </button>
-                {/* نقاط التنقل */}
-                <div className="flex gap-1.5">
-                  {pendingRides.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setCurrentIndex(i)}
-                      title={`طلب ${i + 1}`}
-                      className={`w-2 h-2 rounded-full transition-all duration-200 ${
-                        i === currentIndex ? "bg-primary w-4" : "bg-muted-foreground/30"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <button
-                  onClick={() => setCurrentIndex(i => Math.min(total - 1, i + 1))}
-                  disabled={currentIndex === total - 1}
-                  className="flex items-center gap-1 text-xs text-muted-foreground disabled:opacity-30 px-2 py-1 rounded-lg hover:bg-muted/50 transition-colors"
-                  title="الطلب التالي"
-                >
-                  التالي
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
+                  <Timer className="w-3.5 h-3.5" />
+                  <span className="font-mono tabular-nums">{timeLeft > 0 ? `${timeLeft}ث` : 'بانتظار'}</span>
+                </motion.div>
               </div>
-            )}
 
-            {/* ═══ Action Buttons ═══ */}
-            <div className="flex gap-3 pt-1">
-              {/* زر التخطي */}
+              {/* الأجرة + الإحصائيات */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 relative bg-emerald-950/40 rounded-xl p-3 border border-emerald-700/30">
+                  <div className="flex items-baseline gap-1.5">
+                    <Wallet className="w-4 h-4 text-emerald-400 self-center" />
+                    <span className="text-2xl font-black text-emerald-400 tabular-nums tracking-tight">
+                      {roundFare(pendingRide.estimated_fare || 0).toLocaleString()}
+                    </span>
+                    <span className="text-xs text-emerald-400/70 font-medium">د.ع</span>
+                  </div>
+                  {pendingRide.surge_multiplier && pendingRide.surge_multiplier > 1 && (
+                    <span className="absolute -top-2 -left-2 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 shadow-lg shadow-amber-500/30">
+                      <Zap className="w-2.5 h-2.5" />
+                      x{pendingRide.surge_multiplier.toFixed(1)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {pendingRide.distance_km && (
+                    <div className="flex items-center gap-1.5 bg-slate-800 rounded-lg px-2.5 py-1.5">
+                      <Route className="w-3.5 h-3.5 text-blue-400" />
+                      <span className="text-xs font-bold text-blue-300">{pendingRide.distance_km.toFixed(1)} كم</span>
+                    </div>
+                  )}
+                  {pendingRide.duration_minutes && (
+                    <div className="flex items-center gap-1.5 bg-slate-800 rounded-lg px-2.5 py-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="text-xs font-bold text-amber-300">{pendingRide.duration_minutes} دقيقة</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1.5 bg-slate-800 rounded-lg px-2.5 py-1.5">
+                    <Car className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-xs font-bold text-slate-300">
+                      {getVehicleIcon(pendingRide.vehicle_type)} {getVehicleTypeName(pendingRide.vehicle_type)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* العناوين — Timeline عمودي */}
+              <div className="bg-slate-800/60 rounded-xl p-3 border border-slate-700/30">
+                <div className="flex gap-3">
+                  <div className="flex flex-col items-center pt-1">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-emerald-800 shadow-sm" />
+                    <div className="w-0.5 flex-1 bg-gradient-to-b from-emerald-400 to-red-400 my-1 min-h-[20px]" />
+                    <div className="w-3 h-3 rounded-full bg-red-500 border-2 border-red-800 shadow-sm" />
+                  </div>
+                  <div className="flex-1 flex flex-col justify-between gap-2 min-w-0">
+                    <div>
+                      <p className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider mb-0.5">نقطة الانطلاق</p>
+                      <p className="text-sm font-medium text-slate-200 line-clamp-1">{pendingRide.pickup_address || "موقع الانطلاق"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-0.5">الوجهة</p>
+                      <p className="text-sm font-medium text-slate-200 line-clamp-1">{pendingRide.dropoff_address || "الوجهة"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* تنقل بين الطلبات */}
+              {total > 1 && (
+                <div className="flex items-center justify-between px-1">
+                  <button onClick={() => setCurrentIndex(i => Math.max(0, i - 1))} disabled={currentIndex === 0}
+                    className="flex items-center gap-1 text-xs text-slate-400 disabled:opacity-30 px-2 py-1 rounded-lg hover:bg-slate-800 transition-colors" title="الطلب السابق">
+                    <ChevronRight className="w-4 h-4" />السابق
+                  </button>
+                  <div className="flex gap-1.5">
+                    {pendingRides.map((_, i) => (
+                      <button key={i} onClick={() => setCurrentIndex(i)} title={`طلب ${i + 1}`}
+                        className={`w-2 h-2 rounded-full transition-all duration-200 ${i === currentIndex ? "bg-emerald-500 w-4" : "bg-slate-600"}`}
+                      />
+                    ))}
+                  </div>
+                  <button onClick={() => setCurrentIndex(i => Math.min(total - 1, i + 1))} disabled={currentIndex === total - 1}
+                    className="flex items-center gap-1 text-xs text-slate-400 disabled:opacity-30 px-2 py-1 rounded-lg hover:bg-slate-800 transition-colors" title="الطلب التالي">
+                    التالي<ChevronLeft className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ════════════════════════════════════════════
+             الجزء ٢: أزرار الإجراءات — ملاصقة لأسفل الشاشة
+             ════════════════════════════════════════════ */}
+        <div className="pointer-events-auto bg-slate-900/98 backdrop-blur-lg border-t border-slate-700/50" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div className="flex">
+            {/* تخطي — 30% */}
+            <Button
+              variant="outline"
+              className="flex-[0.3] h-16 rounded-none text-base font-bold text-slate-400 hover:text-red-400 hover:bg-red-500/10 border-0 border-r border-slate-700 bg-slate-800 transition-all duration-200 touch-manipulation active:opacity-80"
+              onClick={() => { stopRideAlert(); handleReject(); }}
+              disabled={loading}
+            >
+              {loading && actionType === "reject" ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <><X className="w-5 h-5 ml-1.5" />تخطي</>
+              )}
+            </Button>
+
+            {/* قبول — 70% */}
+            <motion.div
+              animate={{ boxShadow: ["0 0 0 0 rgba(16,185,129,0)", "0 0 0 10px rgba(16,185,129,0.15)", "0 0 0 0 rgba(16,185,129,0)"] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="flex-[0.7] rounded-none"
+            >
               <Button
-                variant="outline"
-                className="h-14 px-5 text-sm font-semibold text-slate-400 hover:text-red-500 hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl border-border/50 transition-all duration-200 touch-manipulation"
-                onClick={() => { stopRideAlert(); handleReject(); }}
+                className="w-full h-16 text-lg font-black bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white rounded-none transition-all duration-200 touch-manipulation active:opacity-90"
+                onClick={() => { stopRideAlert(); handleAccept(); }}
                 disabled={loading}
               >
-                {loading && actionType === "reject" ? (
+                {loading && actionType === "accept" ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <>
-                    <X className="w-5 h-5 ml-1.5" />
-                    تخطي
-                  </>
+                  <><Check className="w-5 h-5 ml-2" />قبول الرحلة</>
                 )}
               </Button>
-
-              {/* زر القبول — Hero */}
-              <motion.div
-                animate={{ boxShadow: ["0 0 0 0 rgba(16,185,129,0)", "0 0 0 8px rgba(16,185,129,0.15)", "0 0 0 0 rgba(16,185,129,0)"] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="flex-1 rounded-xl"
-              >
-                <Button
-                  className="w-full h-14 text-base font-black bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-500/25 transition-all duration-200 touch-manipulation active:scale-[0.97]"
-                  onClick={() => { stopRideAlert(); handleAccept(); }}
-                  disabled={loading}
-                >
-                  {loading && actionType === "accept" ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <>
-                      <Check className="w-5 h-5 ml-2" />
-                      قبول الرحلة
-                    </>
-                  )}
-                </Button>
-              </motion.div>
-            </div>
+            </motion.div>
           </div>
         </div>
       </motion.div>

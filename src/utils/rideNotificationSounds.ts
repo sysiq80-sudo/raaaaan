@@ -1,6 +1,8 @@
 // Unified Ride Notification Sounds & Vibration Patterns
 // This file centralizes all audio and vibration logic for the ride system
 
+import { getAudioContext } from "@/lib/audioContext";
+
 export const VibrationPatterns = {
   accepted: [200, 100, 200],
   arrived: [300, 100, 300, 100, 300, 100, 500],
@@ -220,16 +222,12 @@ export const vibrate = (pattern: number[]) => {
 // Play notification sound based on status
 export const playSound = (type: keyof typeof SoundTypes) => {
   try {
-    const AudioContextClass =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof window.AudioContext })
-        .webkitAudioContext;
-    if (!AudioContextClass) return;
+    // استخدم السياق المشترك — يُحظر تلقائياً إذا لم يتفاعل المستخدم بعد
+    const ctx = getAudioContext();
+    if (!ctx || ctx.state === 'closed') return;
 
-    const ctx = new AudioContextClass();
-
-    // Resume context if suspended (required by browser autoplay policy)
-    if (ctx.state === "suspended") {
+    // استئناف إذا معلق
+    if (ctx.state === 'suspended') {
       ctx.resume().catch(() => {});
     }
 
@@ -253,7 +251,7 @@ export const playSound = (type: keyof typeof SoundTypes) => {
         osc.type = oscType;
         osc.start(startTime);
         osc.stop(startTime + duration);
-      } catch (e) {
+      } catch {
         // Ignore if audio blocked
       }
     };
@@ -262,9 +260,7 @@ export const playSound = (type: keyof typeof SoundTypes) => {
     gainNode.gain.value = 0.6;
 
     SoundTypes[type](playTone, now, gainNode);
-
-    setTimeout(() => ctx.close(), 2000);
-  } catch (e) {
+  } catch {
     // Silently fail - audio not available or blocked
   }
 };
@@ -339,20 +335,18 @@ const _activeAlerts = new Map<string, ActiveAlert>();
 export const playLoopingAlert = (rideId: string): void => {
   if (_activeAlerts.has(rideId)) return; // already running
 
-  const AudioContextClass =
-    window.AudioContext ||
-    (window as unknown as { webkitAudioContext: typeof window.AudioContext })
-      .webkitAudioContext;
-  if (!AudioContextClass) return;
-
-  const ctx = new AudioContextClass();
+  // استخدم السياق المشترك — لا يعمل بدون تفاعل مستخدم
+  const ctx = getAudioContext();
+  if (!ctx || ctx.state === 'closed') {
+    console.debug('[Sound] AudioContext not ready — skipping looping alert');
+    return;
+  }
   if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
   const playOneCycle = (): void => {
     const frequencies = [659, 880, 1_319, 880, 1_319] as const;
     let offset = 0;
 
-    // Max volume
     const gainNode = ctx.createGain();
     gainNode.gain.value = 1.0;
     gainNode.connect(ctx.destination);
@@ -368,14 +362,14 @@ export const playLoopingAlert = (rideId: string): void => {
     });
   };
 
-  playOneCycle(); // immediate first ping
+  playOneCycle();
 
   const intervalId = setInterval(() => {
     playOneCycle();
     vibrate([250, 80, 250, 80, 500]);
   }, 3_000);
 
-  vibrate([250, 80, 250, 80, 500]); // vibrate on first ping too
+  vibrate([250, 80, 250, 80, 500]);
 
   _activeAlerts.set(rideId, { intervalId });
   console.log('[Sound] Looping alert started for ride', rideId);

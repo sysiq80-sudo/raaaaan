@@ -330,27 +330,23 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
             </div>
           </div>
         `;
-        pickupMarkerRef.current = new google.maps.marker.AdvancedMarkerElement
-          ? new google.maps.Marker({
-              position: ride.pickup_location,
-              map: map.current,
-              icon: {
-                url: "data:image/svg+xml," + encodeURIComponent(`
-                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-                    <defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00d9a5"/><stop offset="100%" stop-color="#00b389"/></linearGradient></defs>
-                    <circle cx="20" cy="20" r="18" fill="url(#pg)" stroke="white" stroke-width="3"/>
-                    <circle cx="20" cy="20" r="6" fill="none" stroke="white" stroke-width="2"/>
-                    <circle cx="20" cy="20" r="2" fill="white"/>
-                  </svg>
-                `),
-                scaledSize: new google.maps.Size(40, 40),
-                anchor: new google.maps.Point(20, 20),
-              },
-            })
-          : new google.maps.Marker({
-              position: ride.pickup_location,
-              map: map.current,
-            });
+        const hasAdvancedMarker = !!window.google?.maps?.marker?.AdvancedMarkerElement;
+        pickupMarkerRef.current = new google.maps.Marker({
+            position: ride.pickup_location,
+            map: map.current,
+            icon: hasAdvancedMarker ? {
+              url: "data:image/svg+xml," + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+                  <defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00d9a5"/><stop offset="100%" stop-color="#00b389"/></linearGradient></defs>
+                  <circle cx="20" cy="20" r="18" fill="url(#pg)" stroke="white" stroke-width="3"/>
+                  <circle cx="20" cy="20" r="6" fill="none" stroke="white" stroke-width="2"/>
+                  <circle cx="20" cy="20" r="2" fill="white"/>
+                </svg>
+              `),
+              scaledSize: new google.maps.Size(40, 40),
+              anchor: new google.maps.Point(20, 20),
+            } : undefined,
+          });
 
         // إضافة علامة الوجهة (أزرق)
         dropoffMarkerRef.current = new google.maps.Marker({

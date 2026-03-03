@@ -14,7 +14,7 @@ const DriverLayout: React.FC<DriverLayoutProps> = ({ children }) => {
   return (
     <>
       {children}
-      <DriverBottomNav />
+      {/* <DriverBottomNav /> — مخفية مؤقتاً */}
     </>
   );
 };

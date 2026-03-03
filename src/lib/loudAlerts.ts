@@ -1,23 +1,17 @@
 /**
  * ران - نظام التنبيهات الصوتية القوية للسائق (Loud Audio Alert System)
- * 
+ *
  * يشغل صوت تنبيه عالي ومتكرر عند وصول طلب رحلة جديد
- * يتجاوز قيود كتم الصوت في المتصفح عبر تهيئة AudioContext من تفاعل المستخدم
- * 
- * الميزات:
- * - صوت تنبيه قوي (gain عالي)
- * - تكرار متعدد (3 مقاطع) لضمان انتباه السائق
- * - استخدام AudioContext + HTML5 Audio كـ fallback
- * - اهتزاز الجهاز مع الصوت
- * - إيقاف يدوي عند التفاعل
+ * يستخدم AudioContext المشترك (لا ينشئ واحداً جديداً) لتجنب حظر المتصفح
  */
 
 import { logger } from "@/lib/logger";
+import { getAudioContext } from "@/lib/audioContext";
 
 // ═══ الثوابت ═══
-const ALERT_REPEAT_COUNT = 3; // عدد تكرارات التنبيه
+const ALERT_REPEAT_COUNT = 3;       // عدد تكرارات التنبيه
 const ALERT_REPEAT_INTERVAL = 2000; // ms بين كل تكرار
-const MAX_ALERT_DURATION = 30000; // أقصى مدة للتنبيه (30 ثانية)
+const MAX_ALERT_DURATION = 30000;   // أقصى مدة للتنبيه (30 ثانية)
 
 // ═══ حالة مشتركة ═══
 let alertIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -26,12 +20,17 @@ let isAlertActive = false;
 
 /**
  * تشغيل صوت تنبيه عالي وحاد — لحن "سي سي سي" تصاعدي مع ذبذبة FM
- * يستخدم AudioContext المشترك من audioContext.ts أو ينشئ واحد جديد
+ * يستخدم AudioContext المشترك من audioContext.ts (لا ينشئ واحداً جديداً)
  */
 export const playLoudAlert = (audioCtx?: AudioContext | null): void => {
   try {
-    const ctx = audioCtx || new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-    
+    // استخدم السياق المُمرر أو المشترك — لا ننشئ واحداً جديداً
+    const ctx = audioCtx ?? getAudioContext();
+    if (!ctx || ctx.state === "closed") {
+      logger.debug("LoudAlerts", "AudioContext للصوت غير جاهز — تخطي");
+      return;
+    }
+
     if (ctx.state === "suspended") {
       ctx.resume().catch(() => {});
     }
@@ -44,34 +43,32 @@ export const playLoudAlert = (audioCtx?: AudioContext | null): void => {
 
     let offset = 0;
     frequencies.forEach((freq, i) => {
-      // Main oscillator
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      
+
       osc.connect(gain);
       gain.connect(ctx.destination);
-      
+
       osc.type = "square"; // موجة مربعة = صوت أعلى وأوضح
       osc.frequency.value = freq;
-      
-      // Gain عالي مع envelope
+
       gain.gain.setValueAtTime(0, now + offset);
-      gain.gain.linearRampToValueAtTime(0.7, now + offset + 0.02); // صعود سريع
+      gain.gain.linearRampToValueAtTime(0.7, now + offset + 0.02);
       gain.gain.setValueAtTime(0.7, now + offset + durations[i] - 0.05);
-      gain.gain.linearRampToValueAtTime(0, now + offset + durations[i]); // هبوط
-      
+      gain.gain.linearRampToValueAtTime(0, now + offset + durations[i]);
+
       osc.start(now + offset);
       osc.stop(now + offset + durations[i]);
-      
-      offset += durations[i] + 0.05; // فجوة صغيرة بين النغمات
+
+      offset += durations[i] + 0.05;
     });
 
-    // ═══ نغمة ثانية طويلة (سرينة) — بعد 0.3 ثانية ═══
+    // ═══ نغمة ثانية طويلة (سرينة) ═══
     const sirenOsc = ctx.createOscillator();
     const sirenGain = ctx.createGain();
     sirenOsc.connect(sirenGain);
     sirenGain.connect(ctx.destination);
-    sirenOsc.type = "sawtooth"; // موجة منشارية = صوت حاد جداً
+    sirenOsc.type = "sawtooth";
     sirenOsc.frequency.setValueAtTime(800, now + offset);
     sirenOsc.frequency.linearRampToValueAtTime(1500, now + offset + 0.4);
     sirenOsc.frequency.linearRampToValueAtTime(800, now + offset + 0.8);
@@ -92,7 +89,6 @@ export const playLoudAlert = (audioCtx?: AudioContext | null): void => {
  * تشغيل اهتزاز قوي ومتكرر
  */
 export const vibrateStrong = (): void => {
-  // Only vibrate after user has interacted with the page (browser policy)
   import('./userGestureTracker').then(({ safeVibrate }) => {
     safeVibrate([400, 150, 400, 150, 600]);
   }).catch(() => { /* ignore */ });
@@ -100,21 +96,17 @@ export const vibrateStrong = (): void => {
 
 /**
  * بدء تنبيه متكرر عند طلب رحلة جديد
- * يكرر الصوت والاهتزاز حتى يتفاعل السائق أو ينتهي الوقت
  */
 export const startRideAlert = (audioCtx?: AudioContext | null): void => {
-  // أوقف أي تنبيه سابق
   stopRideAlert();
-  
+
   isAlertActive = true;
   let repeatCount = 0;
 
-  // تشغيل فوري
   playLoudAlert(audioCtx);
   vibrateStrong();
   repeatCount++;
 
-  // تكرار
   alertIntervalId = setInterval(() => {
     if (!isAlertActive || repeatCount >= ALERT_REPEAT_COUNT) {
       stopRideAlert();
@@ -125,7 +117,6 @@ export const startRideAlert = (audioCtx?: AudioContext | null): void => {
     repeatCount++;
   }, ALERT_REPEAT_INTERVAL);
 
-  // حد أقصى للتنبيه
   alertTimeoutId = setTimeout(() => {
     stopRideAlert();
   }, MAX_ALERT_DURATION);
@@ -138,7 +129,7 @@ export const startRideAlert = (audioCtx?: AudioContext | null): void => {
  */
 export const stopRideAlert = (): void => {
   isAlertActive = false;
-  
+
   if (alertIntervalId) {
     clearInterval(alertIntervalId);
     alertIntervalId = null;
@@ -147,8 +138,7 @@ export const stopRideAlert = (): void => {
     clearTimeout(alertTimeoutId);
     alertTimeoutId = null;
   }
-  
-  // إيقاف الاهتزاز
+
   if ("vibrate" in navigator) {
     navigator.vibrate(0);
   }

@@ -26,6 +26,7 @@ interface DutyToggleProps {
   onToggle: (online: boolean) => Promise<void>;
   onPauseToggle: () => Promise<void>;
   hasRideRequest?: boolean;
+  hasActiveRide?: boolean;
   showPowerButton?: boolean;
   driverLocation?: { lat: number; lng: number } | null;
   maxPickupRadius?: number;
@@ -41,6 +42,7 @@ const DutyToggle = ({
   onToggle,
   onPauseToggle,
   hasRideRequest = false,
+  hasActiveRide = false,
   showPowerButton = false,
   driverLocation = null,
   maxPickupRadius = 10,
@@ -117,8 +119,9 @@ const DutyToggle = ({
   return (
     <div className="flex flex-col items-center gap-3">
 
-      {/* ═══ الزر الرئيسي ═══ */}
-      <div className="relative">
+      {/* ═══ الزر الرئيسي — يختفي عند وجود رحلة نشطة ═══ */}
+      {!hasActiveRide && (
+        <div className="relative">
         {/* Pulse rings */}
         <AnimatePresence>
           {isOnline && !isPaused && !isLoading && (
@@ -198,9 +201,10 @@ const DutyToggle = ({
           <div className={cn("absolute inset-1 rounded-full border transition-colors duration-500", isOnline ? (isPaused ? "border-white/15" : "border-white/20") : "border-white/5")} />
         </motion.button>
       </div>
+      )}
 
-      {/* ═══ كارد الحالة — يختفي بالكامل عند ورود طلب رحلة ═══ */}
-      {isApproved && !hasRideRequest && (
+      {/* ═══ كارد الحالة — يختفي بالكامل عند ورود طلب رحلة أو رحلة نشطة ═══ */}
+      {isApproved && !hasRideRequest && !hasActiveRide && (
         <AnimatePresence mode="wait">
           <motion.div
             key={isOnline ? (isPaused ? "paused" : isSearching ? "searching" : "online") : "offline"}

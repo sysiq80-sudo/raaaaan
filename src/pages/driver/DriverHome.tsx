@@ -80,6 +80,7 @@ const DriverHome = () => {
   const [activeRideData, setActiveRideData] = useState<any>(null);
   const [riderName, setRiderName] = useState<string>("الراكب");
   const [riderRating, setRiderRating] = useState<number | undefined>(undefined);
+  const [riderPhone, setRiderPhone] = useState<string | null>(null);
   const [locationTracking, setLocationTracking] = useState(false);
   const [onlineToggleLoading, setOnlineToggleLoading] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -898,12 +899,9 @@ const DriverHome = () => {
               />
             </div>
 
-            {/* ═══ Driver Control Center — Centered with gap for blue marker ═══ */}
-            <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
-              
+            {/* ═══ Driver Control Center — Centered DutyToggle ═══ */}
+            <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
               <div className="relative flex flex-col items-center gap-3 w-full max-w-sm px-4">
-
-                {/* 1️⃣ DutyToggle — الزر الكبير مع شريط الحالة الموحد ═══ */}
                 <div className="pointer-events-auto">
                   <DutyToggle
                     isOnline={isOnline}
@@ -920,74 +918,49 @@ const DriverHome = () => {
                     maxPickupRadius={maxPickupRadius}
                   />
                 </div>
-
-                {/* 3️⃣ Action cards — Active ride / Ride request */}
-                <div className="w-full pointer-events-auto flex flex-col gap-2">
-                  {/* Active Ride Card */}
-                  {!isMinimized && (
-                    <ActiveRideCard
-                      driverId={driverId}
-                      driverLocation={currentLocation}
-                      refreshTrigger={rideAcceptedTrigger}
-                      onMinimize={() => setIsMinimized(true)}
-                      onNavigationClick={(lat, lng, label) => {
-                        setNavigationDestination({ lat, lng });
-                        setShowNavigationModal(true);
-                      }}
-                    />
-                  )}
-
-                  {/* Ride Request Card — يبقى mounted دائماً لمنع إعادة الاشتراك */}
-                  {!isMinimized && (
-                    <RideRequestCard
-                      driverId={driverId}
-                      vehicleType={vehicleType}
-                      isOnline={isOnline}
-                      isPaused={isPaused}
-                      driverLocation={currentLocation}
-                      maxPickupRadius={maxPickupRadius}
-                      onRideRequestVisible={setHasRideRequest}
-                      onRideAccepted={() => {
-                        console.log(
-                          "[DriverHome] Ride accepted — triggering ActiveRideCard refresh"
-                        );
-                        setIsPaused(false);
-                        setRideAcceptedTrigger(prev => prev + 1);
-                      }}
-                    />
-                  )}
-                </div>
               </div>
             </div>
 
-            {/* Floating Trip Bubble - shown when minimized */}
-            {isMinimized && (
-              <FloatingTripBubble
-                isMinimized={isMinimized}
-                onToggleMinimize={() => setIsMinimized(false)}
-                notificationCount={notificationCount}
-                onCallClick={() => {
-                  toast({
-                    title: "اتصال",
-                    description: "يمكنك الاتصال بالراكب"
-                  });
-                }}
-                onChatClick={() => {
-                  toast({
-                    title: "محادثة",
-                    description: "فتح الدردشة"
-                  });
-                }}
-                onCancelClick={() => setShowCancelConfirm(true)}
-                passengerName={riderName}
-                passengerRating={riderRating}
-              >
-                <div className="text-sm text-slate-300 space-y-2">
-                  {/* Content will show here when expanded */}
-                  <p>الرحلة نشطة - اسحب الأيقونة لنقلها</p>
-                </div>
-              </FloatingTripBubble>
-            )}
+            {/* ═══ Sticky Action Bar — Fixed Bottom (Uber-style) ═══ */}
+            <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+              <div className="w-full max-w-lg mx-auto pointer-events-auto">
+                {/* Active Ride Card */}
+                {!isMinimized && (
+                  <ActiveRideCard
+                    driverId={driverId}
+                    driverLocation={currentLocation}
+                    refreshTrigger={rideAcceptedTrigger}
+                    onMinimize={() => setIsMinimized(true)}
+                    onNavigationClick={(lat, lng, label) => {
+                      setNavigationDestination({ lat, lng });
+                      setShowNavigationModal(true);
+                    }}
+                  />
+                )}
+
+                {/* Ride Request Card */}
+                {!isMinimized && (
+                  <RideRequestCard
+                    driverId={driverId}
+                    vehicleType={vehicleType}
+                    isOnline={isOnline}
+                    isPaused={isPaused}
+                    driverLocation={currentLocation}
+                    maxPickupRadius={maxPickupRadius}
+                    onRideRequestVisible={setHasRideRequest}
+                    onRideAccepted={() => {
+                      console.log(
+                        "[DriverHome] Ride accepted — triggering ActiveRideCard refresh"
+                      );
+                      setIsPaused(false);
+                      setRideAcceptedTrigger(prev => prev + 1);
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+
+
 
             {/* Navigation Modal */}
             <ExternalNavigationModal

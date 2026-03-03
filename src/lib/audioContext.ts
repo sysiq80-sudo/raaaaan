@@ -12,6 +12,17 @@ let sharedAudioContext: AudioContext | null = null;
 let isInitialized = false;
 
 /**
+ * إرجاع السياق الحالي فقط بدون إنشاء جديد
+ * (آمن للاستخدام خارج تفاعل المستخدم)
+ */
+export const getAudioContext = (): AudioContext | null => {
+  if (!isInitialized || !sharedAudioContext || sharedAudioContext.state === 'closed') {
+    return null;
+  }
+  return sharedAudioContext;
+};
+
+/**
  * تهيئة AudioContext - يجب استدعاؤها خلال تفاعل المستخدم (click/tap)
  * مثل: ضغط زر "Go Online" أو أي زر آخر
  */

@@ -81,14 +81,19 @@ const SmartRatingFlow = ({
 
   const currentMessage = ratingMessages[displayRating as keyof typeof ratingMessages];
 
-  // Trigger confetti on mount
+  // Trigger confetti on mount (useWorker: false to avoid CSP blob: worker violation)
   useEffect(() => {
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#00d9a5', '#00b389', '#fbbf24', '#f59e0b']
-    });
+    try {
+      const fire = confetti.create(undefined, { useWorker: false, resize: true });
+      fire({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#00d9a5', '#00b389', '#fbbf24', '#f59e0b']
+      });
+    } catch {
+      // confetti غير متاح أو محجوب بـ CSP — تجاهل بصمت
+    }
   }, []);
 
   const handleAnswer = (answer: boolean) => {

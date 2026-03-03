@@ -35,7 +35,7 @@ export const FloatingTripBubble = ({
   passengerName,
   passengerRating,
 }: FloatingTripBubbleProps) => {
-  const [position, setPosition] = useState({ x: 20, y: 80 });
+  const [position, setPosition] = useState({ x: 20, y: Math.round(window.innerHeight / 2 - 60) });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);

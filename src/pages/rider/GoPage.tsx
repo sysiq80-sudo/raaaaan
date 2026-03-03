@@ -984,353 +984,330 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     setIsBooking(true);
 
     try {
-    const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
-      return await Promise.race([
-        promise,
-        new Promise<T>((_, reject) =>
-          setTimeout(() => reject(new Error(`انتهت مهلة ${label}`)), ms)
-        ),
-      ]);
-    };
+      const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+        return await Promise.race([
+          promise,
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error(`انتهت مهلة ${label}`)), ms)
+          ),
+        ]);
+      };
 
-    // التحقق من الاتصال بالإنترنت
-    if (!isOnline) {
-      toast({
-        title: "لا يوجد اتصال بالإنترنت",
-        description: "تحقق من اتصالك بالإنترنت وحاول مرة أخرى",
-        variant: "destructive"
-      });
-      return;
-    }
+      // التحقق من الاتصال بالإنترنت
+      if (!isOnline) {
+        console.warn('🚫 handleBookRide: no internet');
+        toast({
+          title: "لا يوجد اتصال بالإنترنت",
+          description: "تحقق من اتصالك بالإنترنت وحاول مرة أخرى",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    if (!userId) {
-      // ✅ محاولة إعادة جلب الجلسة قبل التوجيه لصفحة الدخول
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.id) {
-          console.log("✅ Session refreshed — proceeding with booking");
-          // userId ستتحدث عبر onAuthStateChange، نكمل الحجز مباشرة
-          // لا نحتاج إعادة التوجيه
-        } else {
+      if (!userId) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id) {
+            console.log("✅ Session refreshed — proceeding with booking");
+          } else {
+            toast({
+              title: "يجب تسجيل الدخول",
+              description: "الرجاء تسجيل الدخول للحجز",
+              variant: "destructive"
+            });
+            if (navigate) navigate("/auth?redirect=/rider/go");
+            return;
+          }
+        } catch {
           toast({
             title: "يجب تسجيل الدخول",
             description: "الرجاء تسجيل الدخول للحجز",
             variant: "destructive"
           });
-          if (navigate) {
-            navigate("/auth?redirect=/rider/go");
-          }
+          if (navigate) navigate("/auth?redirect=/rider/go");
           return;
         }
-      } catch {
+      }
+
+      if (activeRide && activeRide.status !== "completed" && activeRide.status !== "cancelled") {
         toast({
-          title: "يجب تسجيل الدخول",
-          description: "الرجاء تسجيل الدخول للحجز",
+          title: "لديك رحلة نشطة",
+          description: "الرجاء إنهاء الرحلة الحالية قبل حجز رحلة جديدة",
           variant: "destructive"
         });
-        if (navigate) {
-          navigate("/auth?redirect=/rider/go");
-        }
+        setShowWaitingScreen(true);
         return;
       }
-    }
 
-    // Check if there's already an active ride in local state
-    if (activeRide && activeRide.status !== "completed" && activeRide.status !== "cancelled") {
-      toast({
-        title: "لديك رحلة نشطة",
-        description: "الرجاء إنهاء الرحلة الحالية قبل حجز رحلة جديدة",
-        variant: "destructive"
-      });
-      setShowWaitingScreen(true);
-      return;
-    }
-
-    if (!pickupLocation || !dropoffLocation) {
-      toast({
-        title: "معلومات ناقصة",
-        description: "الرجاء تحديد نقطة الانطلاق والوجهة",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Check if pickup location is in service area
-    try {
-      const pickupServiceCheck = await withTimeout(
-        checkServiceArea(pickupLocation.lat, pickupLocation.lng),
-        5000,
-        "التحقق من منطقة خدمة موقع الانطلاق"
-      );
-      if (pickupServiceCheck && !pickupServiceCheck.in_service) {
+      if (!pickupLocation || !dropoffLocation) {
+        console.warn('🚫 handleBookRide: missing pickup/dropoff');
         toast({
-          title: "⚠️ موقع الانطلاق خارج منطقة الخدمة",
-          description: pickupServiceCheck.nearest_region 
-            ? `أقرب منطقة خدمة: ${pickupServiceCheck.nearest_region.name_ar} (${pickupServiceCheck.nearest_region.distance_km} كم)`
-            : "الرجاء اختيار موقع داخل مناطق الخدمة المتاحة",
+          title: "معلومات ناقصة",
+          description: "الرجاء تحديد نقطة الانطلاق والوجهة",
           variant: "destructive"
         });
         return;
       }
 
-      // Check if dropoff location is in service area
-      const dropoffServiceCheck = await withTimeout(
-        checkServiceArea(dropoffLocation.lat, dropoffLocation.lng),
-        5000,
-        "التحقق من منطقة خدمة الوجهة"
-      );
-      if (dropoffServiceCheck && !dropoffServiceCheck.in_service) {
-        toast({
-          title: "⚠️ الوجهة خارج منطقة الخدمة",
-          description: dropoffServiceCheck.nearest_region 
-            ? `أقرب منطقة خدمة: ${dropoffServiceCheck.nearest_region.name_ar} (${dropoffServiceCheck.nearest_region.distance_km} كم)`
-            : "الرجاء اختيار وجهة داخل مناطق الخدمة المتاحة",
-          variant: "destructive"
-        });
-        return;
-      }
-    } catch (error) {
-      console.error("Service area check error:", error);
-      // Continue with booking if service check fails
-    }
-
-    // Check fare
-    const totalFare = fareBreakdown?.total_fare || 0;
-    if (totalFare <= 0) {
-      toast({
-        title: "خطأ في حساب السعر",
-        description: "الرجاء إعادة المحاولة",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // التحقق من رصيد المحفظة إذا كان الدفع بالمحفظة
-    if (paymentMethod === "wallet") {
+      console.log('✅ handleBookRide: locations OK, checking service area...');
       try {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("wallet_balance")
-          .eq("user_id", userId)
-          .single();
-        
-        const walletBalance = profile?.wallet_balance || 0;
-        if (walletBalance < totalFare) {
+        const pickupServiceCheck = await withTimeout(
+          checkServiceArea(pickupLocation.lat, pickupLocation.lng),
+          3000,
+          "التحقق من منطقة خدمة موقع الانطلاق"
+        );
+        if (pickupServiceCheck && !pickupServiceCheck.in_service) {
+          console.warn('🚫 handleBookRide: pickup outside service area');
           toast({
-            title: "رصيد غير كافٍ",
-            description: `رصيد المحفظة: ${walletBalance.toLocaleString()} د.ع - الأجرة المتوقعة: ${totalFare.toLocaleString()} د.ع`,
+            title: "⚠️ موقع الانطلاق خارج منطقة الخدمة",
+            description: pickupServiceCheck.nearest_region 
+              ? `أقرب منطقة خدمة: ${pickupServiceCheck.nearest_region.name_ar} (${pickupServiceCheck.nearest_region.distance_km} كم)`
+              : "الرجاء اختيار موقع داخل مناطق الخدمة المتاحة",
             variant: "destructive"
           });
-          setPaymentSheetOpen(true);
+          return;
+        }
+
+        const dropoffServiceCheck = await withTimeout(
+          checkServiceArea(dropoffLocation.lat, dropoffLocation.lng),
+          3000,
+          "التحقق من منطقة خدمة الوجهة"
+        );
+        if (dropoffServiceCheck && !dropoffServiceCheck.in_service) {
+          console.warn('🚫 handleBookRide: dropoff outside service area');
+          toast({
+            title: "⚠️ الوجهة خارج منطقة الخدمة",
+            description: dropoffServiceCheck.nearest_region 
+              ? `أقرب منطقة خدمة: ${dropoffServiceCheck.nearest_region.name_ar} (${dropoffServiceCheck.nearest_region.distance_km} كم)`
+              : "الرجاء اختيار وجهة داخل مناطق الخدمة المتاحة",
+            variant: "destructive"
+          });
           return;
         }
       } catch (error) {
-        console.error("Wallet balance check error:", error);
+        console.error("Service area check error:", error);
+        // Continue with booking if service check fails
       }
-    }
 
-    // Save last ride for quick rebooking
-    saveLastRide({
-      pickupAddress: pickupLocation.address,
-      pickupLat: pickupLocation.lat,
-      pickupLng: pickupLocation.lng,
-      dropoffAddress: dropoffLocation.address,
-      dropoffLat: dropoffLocation.lat,
-      dropoffLng: dropoffLocation.lng,
-      vehicleType: selectedVehicle,
-      timestamp: Date.now()
-    });
-    
-    // ═══════════════════════════════════
-    // 🛡️ التحقق من حدود الرحلات
-    // ═══════════════════════════════════
-    try {
-      const { data: secData } = await supabase
-        .from("app_settings")
-        .select("value")
-        .eq("key", "security_settings")
-        .maybeSingle();
-
-      const maxActive = (secData?.value as any)?.max_active_rides_per_user ?? 3;
-      const cooldown = (secData?.value as any)?.ride_creation_cooldown_seconds ?? 60;
-
-      // فحص الرحلات النشطة (تجاهل pending القديمة > 10 دقائق لأنها غالباً عالقة)
-      const { data: activeRidesRaw } = await supabase
-        .from("rides")
-        .select("id, status, created_at")
-        .eq("rider_id", userId)
-        .in("status", ["pending", "accepted", "in_progress", "arrived"])
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      const now = Date.now();
-      const activeCount = (activeRidesRaw || []).filter((ride: any) => {
-        if (ride.status === "pending") {
-          const ageMinutes = (now - new Date(ride.created_at).getTime()) / 60000;
-          return ageMinutes <= 10;
-        }
-        return true;
-      }).length;
-
-      if (activeCount >= maxActive) {
+      // Check fare — استخدم التقدير المحلي إذا لم يأتِ السيرفر
+      const totalFare = fareBreakdown?.total_fare || 0;
+      console.log('💰 handleBookRide: fare check', { totalFare, fareBreakdown: !!fareBreakdown, fareLoading });
+      if (totalFare <= 0) {
+        console.warn('🚫 handleBookRide: totalFare is 0');
         toast({
-          title: "لديك رحلات نشطة بالفعل",
-          description: `الحد الأقصى ${maxActive} رحلات نشطة في وقت واحد`,
-          variant: "destructive",
+          title: "خطأ في حساب السعر",
+          description: "الرجاء إعادة المحاولة",
+          variant: "destructive"
         });
         return;
       }
+      console.log('✅ handleBookRide: fare OK, proceeding to create ride...');
 
-      // فحص فترة الانتظار بين الرحلات
-      const { data: lastRide } = await supabase
-        .from("rides")
-        .select("created_at")
-        .eq("rider_id", userId)
-        .not("status", "in", '("cancelled","completed")')
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Wallet balance check
+      if (paymentMethod === "wallet") {
+        try {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("wallet_balance")
+            .eq("user_id", userId)
+            .single();
+          
+          const walletBalance = profile?.wallet_balance || 0;
+          if (walletBalance < totalFare) {
+            toast({
+              title: "رصيد غير كافٍ",
+              description: `رصيد المحفظة: ${walletBalance.toLocaleString()} د.ع - الأجرة المتوقعة: ${totalFare.toLocaleString()} د.ع`,
+              variant: "destructive"
+            });
+            setPaymentSheetOpen(true);
+            return;
+          }
+        } catch (error) {
+          console.error("Wallet balance check error:", error);
+        }
+      }
 
-      if (lastRide) {
-        const elapsed = (Date.now() - new Date(lastRide.created_at).getTime()) / 1000;
-        if (elapsed < cooldown) {
+      // Save last ride
+      saveLastRide({
+        pickupAddress: pickupLocation.address,
+        pickupLat: pickupLocation.lat,
+        pickupLng: pickupLocation.lng,
+        dropoffAddress: dropoffLocation.address,
+        dropoffLat: dropoffLocation.lat,
+        dropoffLng: dropoffLocation.lng,
+        vehicleType: selectedVehicle,
+        timestamp: Date.now()
+      });
+      
+      // Ride limits check
+      try {
+        const { data: secData } = await supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", "security_settings")
+          .maybeSingle();
+
+        const maxActive = (secData?.value as any)?.max_active_rides_per_user ?? 3;
+        const cooldown = (secData?.value as any)?.ride_creation_cooldown_seconds ?? 60;
+
+        const { data: activeRidesRaw } = await supabase
+          .from("rides")
+          .select("id, status, created_at")
+          .eq("rider_id", userId)
+          .in("status", ["pending", "accepted", "in_progress", "arrived"])
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        const now = Date.now();
+        const activeCount = (activeRidesRaw || []).filter((ride: any) => {
+          if (ride.status === "pending") {
+            const ageMinutes = (now - new Date(ride.created_at).getTime()) / 60000;
+            return ageMinutes <= 10;
+          }
+          return true;
+        }).length;
+
+        if (activeCount >= maxActive) {
           toast({
-            title: "يرجى الانتظار",
-            description: `انتظر ${Math.ceil(cooldown - elapsed)} ثانية قبل إنشاء رحلة جديدة`,
+            title: "لديك رحلات نشطة بالفعل",
+            description: `الحد الأقصى ${maxActive} رحلات نشطة في وقت واحد`,
             variant: "destructive",
           });
           return;
         }
-      }
-    } catch (e) {
-      console.warn("⚠️ Failed to check ride limits, continuing:", e);
-    }
 
-    // ✅ إنشاء الحجز بدون حالة انتظار
-    setIgnorePolling?.(true); // تجنب سباق مع polling في useActiveRide
-    try {
-      const {
-        data: ride,
-        error
-      } = await supabase.from("rides").insert([{
-        rider_id: userId,
-        pickup_location: {
-          lat: pickupLocation.lat,
-          lng: pickupLocation.lng
-        },
-        dropoff_location: {
-          lat: dropoffLocation.lat,
-          lng: dropoffLocation.lng
-        },
-        pickup_address: pickupLocation.address,
-        dropoff_address: dropoffLocation.address,
-        vehicle_type: selectedVehicle,
-        payment_method: mapPaymentToDb(paymentMethod),
-        estimated_fare: roundFare(fareBreakdown?.total_fare || 0),
-        distance_km: routeDistance ? Number(routeDistance.toFixed(2)) : null,
-        duration_minutes: routeDuration ? Math.round(routeDuration) : null,
-        status: "pending" as const,
-        trip_type: "app" as const,
-        region_id: fareBreakdown?.region_id || null,
-      }]).select().single();
-      if (error) throw error;
+        const { data: lastRide } = await supabase
+          .from("rides")
+          .select("created_at")
+          .eq("rider_id", userId)
+          .not("status", "in", '("cancelled","completed")')
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      setIgnorePolling?.(false);
-
-      // Set active ride for tracking
-      const pickupLoc = ride.pickup_location as unknown as {
-        lat: number;
-        lng: number;
-      };
-      const dropoffLoc = ride.dropoff_location as unknown as {
-        lat: number;
-        lng: number;
-      };
-      setActiveRide({
-        id: ride.id,
-        pickup_location: pickupLoc,
-        dropoff_location: dropoffLoc,
-        pickup_address: ride.pickup_address,
-        dropoff_address: ride.dropoff_address,
-        status: ride.status,
-        estimated_fare: ride.estimated_fare,
-        final_fare: ride.final_fare,
-        distance_km: ride.distance_km,
-        duration_minutes: ride.duration_minutes,
-        vehicle_type: ride.vehicle_type,
-        driver_id: ride.driver_id,
-        created_at: ride.created_at,
-        completed_at: ride.completed_at,
-        payment_method: ride.payment_method
-      });
-
-      // Show waiting screen
-      setShowWaitingScreen(true);
-
-      // Trigger ride matching in background (بدون انتظار لتجنب تعليق الواجهة)
-      withTimeout(
-        supabase.functions.invoke("match-ride", {
-          body: {
-            rideId: ride.id
-          }
-        }),
-        8000,
-        "مطابقة السائق"
-      ).catch((matchErr) => {
-        console.warn("⚠️ match-ride background error:", matchErr);
-      });
-      // ✅ لا toasts - الشاشة نفسها تعرض حالة البحث
-    } catch (error: any) {
-      setIgnorePolling?.(false);
-
-      // Fallback: إذا انتهت مهلة الإنشاء، افحص إن كانت الرحلة أُنشئت فعلاً بالخلفية
-      const errorMessage = String(error?.message || "");
-      if (errorMessage.includes("انتهت مهلة إنشاء الرحلة")) {
-        try {
-          const { data: fallbackRide } = await supabase
-            .from("rides")
-            .select("*")
-            .eq("rider_id", userId)
-            .eq("status", "pending")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (fallbackRide) {
-            const pickupLoc = fallbackRide.pickup_location as unknown as { lat: number; lng: number };
-            const dropoffLoc = fallbackRide.dropoff_location as unknown as { lat: number; lng: number };
-            setActiveRide({
-              id: fallbackRide.id,
-              pickup_location: pickupLoc,
-              dropoff_location: dropoffLoc,
-              pickup_address: fallbackRide.pickup_address,
-              dropoff_address: fallbackRide.dropoff_address,
-              status: fallbackRide.status,
-              estimated_fare: fallbackRide.estimated_fare,
-              final_fare: fallbackRide.final_fare,
-              distance_km: fallbackRide.distance_km,
-              duration_minutes: fallbackRide.duration_minutes,
-              vehicle_type: fallbackRide.vehicle_type,
-              driver_id: fallbackRide.driver_id,
-              created_at: fallbackRide.created_at,
-              completed_at: fallbackRide.completed_at,
-              payment_method: fallbackRide.payment_method,
+        if (lastRide) {
+          const elapsed = (Date.now() - new Date(lastRide.created_at).getTime()) / 1000;
+          if (elapsed < cooldown) {
+            toast({
+              title: "يرجى الانتظار",
+              description: `انتظر ${Math.ceil(cooldown - elapsed)} ثانية قبل إنشاء رحلة جديدة`,
+              variant: "destructive",
             });
-            setShowWaitingScreen(true);
             return;
           }
-        } catch (fallbackError) {
-          console.warn("⚠️ Fallback pending ride check failed:", fallbackError);
         }
+      } catch (e) {
+        console.warn("⚠️ Failed to check ride limits, continuing:", e);
       }
 
-      logger.error("GoPage", "Booking failed", error);
-      showErrorToast(toast, "فشل الحجز", error?.message || "حدث خطأ غير متوقع");
-    }
+      // Create the ride
+      setIgnorePolling?.(true);
+      try {
+        const {
+          data: ride,
+          error
+        } = await supabase.from("rides").insert([{
+          rider_id: userId,
+          pickup_location: { lat: pickupLocation.lat, lng: pickupLocation.lng },
+          dropoff_location: { lat: dropoffLocation.lat, lng: dropoffLocation.lng },
+          pickup_address: pickupLocation.address,
+          dropoff_address: dropoffLocation.address,
+          vehicle_type: selectedVehicle,
+          payment_method: mapPaymentToDb(paymentMethod),
+          estimated_fare: roundFare(fareBreakdown?.total_fare || 0),
+          distance_km: routeDistance ? Number(routeDistance.toFixed(2)) : null,
+          duration_minutes: routeDuration ? Math.round(routeDuration) : null,
+          status: "pending" as const,
+          trip_type: "app" as const,
+          region_id: fareBreakdown?.region_id || null,
+        }]).select().single();
+        if (error) throw error;
+
+        setIgnorePolling?.(false);
+
+        const pickupLoc = ride.pickup_location as unknown as { lat: number; lng: number };
+        const dropoffLoc = ride.dropoff_location as unknown as { lat: number; lng: number };
+        setActiveRide({
+          id: ride.id,
+          pickup_location: pickupLoc,
+          dropoff_location: dropoffLoc,
+          pickup_address: ride.pickup_address,
+          dropoff_address: ride.dropoff_address,
+          status: ride.status,
+          estimated_fare: ride.estimated_fare,
+          final_fare: ride.final_fare,
+          distance_km: ride.distance_km,
+          duration_minutes: ride.duration_minutes,
+          vehicle_type: ride.vehicle_type,
+          driver_id: ride.driver_id,
+          created_at: ride.created_at,
+          completed_at: ride.completed_at,
+          payment_method: ride.payment_method
+        });
+
+        setShowWaitingScreen(true);
+
+        withTimeout(
+          supabase.functions.invoke("match-ride", { body: { rideId: ride.id } }),
+          8000,
+          "مطابقة السائق"
+        ).catch((matchErr) => {
+          console.warn("⚠️ match-ride background error:", matchErr);
+        });
+
+      } catch (error: any) {
+        setIgnorePolling?.(false);
+
+        const errorMessage = String(error?.message || "");
+        if (errorMessage.includes("انتهت مهلة إنشاء الرحلة")) {
+          try {
+            const { data: fallbackRide } = await supabase
+              .from("rides")
+              .select("*")
+              .eq("rider_id", userId)
+              .eq("status", "pending")
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (fallbackRide) {
+              const pickupLoc = fallbackRide.pickup_location as unknown as { lat: number; lng: number };
+              const dropoffLoc = fallbackRide.dropoff_location as unknown as { lat: number; lng: number };
+              setActiveRide({
+                id: fallbackRide.id,
+                pickup_location: pickupLoc,
+                dropoff_location: dropoffLoc,
+                pickup_address: fallbackRide.pickup_address,
+                dropoff_address: fallbackRide.dropoff_address,
+                status: fallbackRide.status,
+                estimated_fare: fallbackRide.estimated_fare,
+                final_fare: fallbackRide.final_fare,
+                distance_km: fallbackRide.distance_km,
+                duration_minutes: fallbackRide.duration_minutes,
+                vehicle_type: fallbackRide.vehicle_type,
+                driver_id: fallbackRide.driver_id,
+                created_at: fallbackRide.created_at,
+                completed_at: fallbackRide.completed_at,
+                payment_method: fallbackRide.payment_method,
+              });
+              setShowWaitingScreen(true);
+              return;
+            }
+          } catch (fallbackError) {
+            console.warn("⚠️ Fallback pending ride check failed:", fallbackError);
+          }
+        }
+
+        logger.error("GoPage", "Booking failed", error);
+        showErrorToast(toast, "فشل الحجز", error?.message || "حدث خطأ غير متوقع");
+      }
     } finally {
+      // ✅ دائماً نُعيد تفعيل الزر بغض النظر عن أي return مبكر
       setIsBooking(false);
     }
   };
+
+
   const isPickup = currentMode === "pickup";
   const isDropoff = currentMode === "dropoff";
   const isBookingMode = currentMode === "booking";
@@ -1709,16 +1686,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               <div className="px-1 mt-2">
                 <Button 
                   onClick={handleBookRide}
-                  disabled={fareLoading || !fareBreakdown || isBooking}
+                  disabled={!fareBreakdown || isBooking}
                   className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground"
                 >
                   <span className="flex items-center gap-3 justify-center">
-                    {fareLoading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>جاري حساب السعر...</span>
-                      </>
-                    ) : isBooking ? (
+                    {isBooking ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
                         <span>جاري إنشاء الحجز...</span>
@@ -1729,6 +1701,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                         <span>احجز الآن</span>
                         <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
                           {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
+                          {fareLoading && <Loader2 className="w-3 h-3 animate-spin inline mr-1" />}
                         </span>
                       </>
                     )}
@@ -1744,16 +1717,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               <div className="max-w-lg mx-auto">
                 <Button 
                   onClick={handleBookRide}
-                  disabled={fareLoading || !fareBreakdown || isBooking}
+                  disabled={!fareBreakdown || isBooking}
                   className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground"
                 >
                   <span className="flex items-center gap-3 justify-center">
-                    {fareLoading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>جاري حساب السعر...</span>
-                      </>
-                    ) : isBooking ? (
+                    {isBooking ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
                         <span>جاري إنشاء الحجز...</span>
@@ -1764,6 +1732,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                         <span>احجز الآن</span>
                         <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
                           {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
+                          {fareLoading && <Loader2 className="w-3 h-3 animate-spin inline mr-1" />}
                         </span>
                       </>
                     )}
@@ -1789,7 +1758,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             }
           }}
         />
-      </motion.div>;
+      </motion.div>
   }
 
   // Location picker screen

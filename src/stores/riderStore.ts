@@ -114,7 +114,7 @@ const initialState: RiderState = {
     activeRide: null,
     notificationsEnabled: true,
     soundsEnabled: true,
-    bottomNavEnabled: true,  // مُفعَّل افتراضياً لسهولة التنقل
+    bottomNavEnabled: false,  // مخفي افتراضياً — يمكن تفعيله من القائمة الجانبية
     mapProvider: 'google',  // Google Maps
     isLoading: false,
     showWelcomeScreen: true,

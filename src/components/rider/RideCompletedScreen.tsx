@@ -1,14 +1,14 @@
 import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import {
   CheckCircle,
-  MapPin,
   Route,
   Wallet,
   Clock,
+  Star,
 } from "lucide-react";
 import SmartRatingFlow from "./SmartRatingFlow";
 import confetti from "canvas-confetti";
+import { motion } from "framer-motion";
 
 interface RideCompletedScreenProps {
   ride: {
@@ -33,105 +33,142 @@ export const RideCompletedScreen = ({
 }: RideCompletedScreenProps) => {
   // Trigger confetti on mount
   useEffect(() => {
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ["#00d9a5", "#00b389", "#fbbf24", "#f59e0b"],
-    });
+    const duration = 2500;
+    const end = Date.now() + duration;
+    const frame = () => {
+      confetti({
+        particleCount: 3,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: ["#10b981", "#06b6d4", "#fbbf24"],
+      });
+      confetti({
+        particleCount: 3,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: ["#10b981", "#06b6d4", "#fbbf24"],
+      });
+      if (Date.now() < end) requestAnimationFrame(frame);
+    };
+    frame();
   }, []);
 
   const fare = ride.final_fare || ride.estimated_fare || 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col" dir="rtl">
-      {/* Header with success animation */}
-      <div className="bg-gradient-to-b from-green-500/20 to-transparent pt-10 pb-6 px-6">
-        <div className="text-center space-y-3">
-          <div className="w-16 h-16 mx-auto rounded-full bg-green-500/20 flex items-center justify-center animate-in zoom-in-50 duration-500">
-            <CheckCircle className="w-10 h-10 text-green-500" />
-          </div>
-          <h1 className="text-xl font-bold text-foreground">
-            الحمد لله على السلامة! 🤲
-          </h1>
-          <p className="text-muted-foreground text-sm">شكراً لاستخدامك ران</p>
-        </div>
-      </div>
+    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col h-[100dvh] overflow-hidden" dir="rtl">
 
-      {/* Content */}
-      <div className="flex-1 px-6 py-4 space-y-5 overflow-y-auto">
-        {/* Fare Summary */}
-        <div className="bg-card rounded-md p-4 shadow-lg border border-border space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">المبلغ الإجمالي</span>
-            <span className="text-2xl font-bold text-primary">
-              {fare.toLocaleString()} د.ع
-            </span>
-          </div>
+      {/* ═══ خلفية متدرجة مع Pattern ═══ */}
+      <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/50 via-slate-950 to-slate-950 pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="border-t border-border pt-3 grid grid-cols-3 gap-2 text-center">
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <Route className="w-4 h-4 text-primary" />
-              </div>
-              <span className="text-xs text-muted-foreground">المسافة</span>
-              <span className="text-sm font-medium">
-                {(ride.distance_km || 0).toFixed(1)} كم
-              </span>
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <Clock className="w-4 h-4 text-primary" />
-              </div>
-              <span className="text-xs text-muted-foreground">المدة</span>
-              <span className="text-sm font-medium">
-                {ride.duration_minutes || 0} دقيقة
-              </span>
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center">
-                <Wallet className="w-4 h-4 text-green-500" />
-              </div>
-              <span className="text-xs text-muted-foreground">الدفع</span>
-              <span className="text-sm font-medium">
-                {ride.payment_method === 'wallet' ? 'المحفظة' : ride.payment_method === 'card' ? 'البطاقة' : 'نقداً'}
-              </span>
-            </div>
-          </div>
+      {/* ═══ المحتوى القابل للسحب ═══ */}
+      <div className="relative flex-1 flex flex-col overflow-y-auto scrollbar-hide">
+
+        {/* ═══ الهيدر — أيقونة النجاح ═══ */}
+        <div className="pt-12 pb-6 px-6 text-center space-y-4 shrink-0">
+          <motion.div
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.2 }}
+            className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center shadow-[0_0_40px_rgba(16,185,129,0.3)]"
+          >
+            <CheckCircle className="w-10 h-10 text-white" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="space-y-1"
+          >
+            <h1 className="text-2xl font-black text-white">
+              الحمد لله على السلامة! 🤲
+            </h1>
+            <p className="text-slate-400 text-sm">شكراً لاستخدامك ران</p>
+          </motion.div>
         </div>
 
-        {/* Trip Summary - Compact */}
-        <div className="bg-card rounded-md p-3 border border-border">
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-full bg-primary" />
-              <div className="w-0.5 h-6 bg-border" />
-              <div className="w-2.5 h-2.5 rounded-full bg-destructive" />
-            </div>
-            <div className="flex-1 min-w-0 space-y-2">
-              <p className="text-sm text-foreground truncate">
-                {ride.pickup_address}
-              </p>
-              <p className="text-sm text-foreground truncate">
-                {ride.dropoff_address}
+        {/* ═══ كارد ملخص الأجرة ═══ */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+          className="px-5 mb-4 shrink-0"
+        >
+          <div className="bg-slate-900/80 backdrop-blur-md rounded-[1.5rem] border border-slate-700/40 p-5 shadow-[0_8px_32px_rgba(16,185,129,0.08)]">
+            {/* المبلغ */}
+            <div className="text-center mb-4">
+              <p className="text-xs text-slate-400 mb-1">المبلغ الإجمالي</p>
+              <p className="text-3xl font-black text-emerald-400 tabular-nums">
+                {fare.toLocaleString()} <span className="text-lg">د.ع</span>
               </p>
             </div>
+
+            {/* شارات المعلومات */}
+            <div className="flex items-center justify-center gap-3">
+              <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-full px-3 py-2">
+                <Route className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="text-xs font-bold text-slate-300">
+                  {(ride.distance_km || 0).toFixed(1)} كم
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-full px-3 py-2">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-xs font-bold text-slate-300">
+                  {ride.duration_minutes || 0} دقيقة
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-full px-3 py-2">
+                <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs font-bold text-slate-300">
+                  {ride.payment_method === "wallet" ? "محفظة" : ride.payment_method === "card" ? "بطاقة" : "نقداً"}
+                </span>
+              </div>
+            </div>
+
+            {/* المسار */}
+            <div className="mt-4 pt-4 border-t border-slate-700/40">
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col items-center gap-0.5 shrink-0">
+                  <div className="w-3 h-3 rounded-full bg-cyan-500 border-2 border-cyan-800" />
+                  <div className="w-0.5 h-5 bg-gradient-to-b from-cyan-500 to-red-500" />
+                  <div className="w-3 h-3 rounded-full bg-red-500/70 border-2 border-red-800/50" />
+                </div>
+                <div className="flex-1 min-w-0 space-y-3">
+                  <p className="text-sm text-slate-300 truncate">{ride.pickup_address}</p>
+                  <p className="text-sm text-slate-300 truncate">{ride.dropoff_address}</p>
+                </div>
+              </div>
+            </div>
           </div>
+        </motion.div>
 
-        </div>
+        {/* ═══ كارد التقييم ═══ */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9 }}
+          className="px-5 pb-8 flex-1"
+        >
+          <div className="bg-slate-900/80 backdrop-blur-md rounded-[1.5rem] border border-slate-700/40 p-5 shadow-[0_8px_32px_rgba(16,185,129,0.08)]">
+            <div className="flex items-center gap-2 mb-4">
+              <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
+              <h2 className="text-base font-bold text-white">قيّم تجربتك مع {driverName}</h2>
+            </div>
+            <SmartRatingFlow
+              rideId={ride.id}
+              driverId={ride.driver_id}
+              driverName={driverName}
+              onComplete={onClose}
+              onSkip={onClose}
+            />
+          </div>
+        </motion.div>
 
-        {/* Smart Rating Flow */}
-        <div className="bg-card rounded-md p-5 border border-border">
-          <SmartRatingFlow
-            rideId={ride.id}
-            driverId={ride.driver_id}
-            driverName={driverName}
-            onComplete={onClose}
-            onSkip={onClose}
-          />
-        </div>
       </div>
-
     </div>
   );
 };

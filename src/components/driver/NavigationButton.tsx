@@ -78,31 +78,29 @@ export const NavigationButton = ({
   };
 
   return (
-    <div className={`flex gap-2 ${className}`}>
-      {/* Main navigation button - Prominent green */}
-      <Button 
-        className={`flex-1 gap-3 bg-green-600 hover:bg-green-700 text-white shadow-lg ${
-          size === "compact" ? "h-11 text-sm" : "h-14 text-lg"
+    <div className={`flex h-full ${className ?? ""}`}>
+      {/* Main navigation button */}
+      <button
+        className={`flex-1 flex flex-col items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-none touch-manipulation transition-colors ${
+          size === "compact" ? "text-xs" : "text-sm"
         }`}
         onClick={handleQuickNav}
       >
-        <Navigation className={size === "compact" ? "w-4 h-4" : "w-6 h-6"} />
-        {label}
-      </Button>
+        <Navigation className={size === "compact" ? "w-5 h-5" : "w-6 h-6"} />
+        <span className="font-bold">{label}</span>
+      </button>
 
-      {/* Dropdown for app selection */}
+      {/* Dropdown for app selection — only when no modal */}
       {!onOpenModal && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              className={`border-2 border-green-600 text-green-600 hover:bg-green-50 ${
-                size === "compact" ? "h-11 w-11" : "h-14 w-14"
+            <button
+              className={`flex items-center justify-center bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white border-r-0 border-l border-blue-500/50 rounded-none touch-manipulation transition-colors ${
+                size === "compact" ? "w-9" : "w-12"
               }`}
             >
               <ChevronDown className={size === "compact" ? "w-4 h-4" : "w-5 h-5"} />
-            </Button>
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {Object.entries(navApps).map(([key, app]) => (
