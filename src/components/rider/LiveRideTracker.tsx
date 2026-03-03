@@ -39,6 +39,7 @@ import {
   Bell,
   Timer,
   Navigation,
+  Check,
 } from "lucide-react";
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
 import StatusIcons from "@/components/common/StatusIcons";
@@ -1043,34 +1044,35 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
       {/* Arrived Alert - Outside Bottom Sheet */}
       {ride.status === "arrived" && (
-        <div className="px-4 pb-2">
-          <div
-            className={`bg-green-500/10 backdrop-blur-2xl border border-green-500/30 rounded-2xl p-3 shadow-2xl ${
-              showArrivedAlert ? "animate-bounce" : ""
-            }`}
-          >
-            <div className="flex items-center gap-2 overflow-x-auto">
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="w-10 h-10 rounded-full bg-green-500/20 backdrop-blur-sm flex items-center justify-center animate-bounce border-2 border-green-500/40">
-                  <Bell className="w-5 h-5 text-green-600" />
+        <div className="px-3 pb-3 fixed bottom-[calc(100vh-200px)] left-0 right-0 z-40 animate-in slide-in-from-bottom-4">
+          <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-xl border-2 border-green-400/60 rounded-3xl p-4 shadow-2xl">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 1 }}
+                  className="w-12 h-12 rounded-full bg-green-500/30 backdrop-blur-sm flex items-center justify-center border-2 border-green-400 shadow-lg"
+                >
+                  <Bell className="w-6 h-6 text-green-500" />
+                </motion.div>
+                <div>
+                  <p className="font-bold text-base text-green-600">🎉 السائق وصل!</p>
+                  <p className="text-xs text-green-600/80 font-medium">اخرج الآن - السائق في انتظارك</p>
                 </div>
-                <span className="font-bold text-sm text-green-600 whitespace-nowrap">
-                  🔔 السائق وصل! اخرج الآن
-                </span>
               </div>
 
-              <div className="flex gap-2 shrink-0">
+              <div className="flex gap-2 flex-wrap">
                 <Button
-                  size="sm"
-                  className="bg-green-500 text-white hover:bg-green-600 font-bold h-10 text-xs shadow-lg whitespace-nowrap"
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 font-bold shadow-lg text-sm h-11 rounded-xl"
                   onClick={handleOnMyWay}
                 >
-                  🚶 أنا قادم
+                  <Check className="w-4 h-4 ml-2" />
+                  أنا قادم
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="bg-green-500/10 border-green-500/30 text-green-600 hover:bg-green-500/20 font-medium h-10 text-xs whitespace-nowrap"
+                  className="flex-1 bg-green-500/10 border-2 border-green-400/50 text-green-600 hover:bg-green-500/20 font-medium shadow-md h-11 rounded-xl"
                   onClick={() =>
                     sendQuickMessage(
                       "rider_wait_moment",
@@ -1080,20 +1082,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
                   }
                 >
                   ⏱️ انتظرني دقيقة
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="bg-green-500/10 border-green-500/30 text-green-600 hover:bg-green-500/20 font-medium h-10 text-xs whitespace-nowrap"
-                  onClick={() =>
-                    sendQuickMessage(
-                      "rider_where_are_you",
-                      "✅ تم إرسال السؤال",
-                      "السائق سيوضح موقعه"
-                    )
-                  }
-                >
-                  📍 أين موقعك؟
                 </Button>
               </div>
             </div>
@@ -1185,41 +1173,77 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           </div>
         </div>
 
-        {/* Quick Reply Buttons for Accepted Status */}
-        {ride.status === "accepted" && (
+        {/* Quick Reply Buttons for Accepted & Arrived Status */}
+        {(ride.status === "accepted" || ride.status === "arrived") && (
           <div className="pt-3 border-t border-border">
-            <p className="text-xs text-muted-foreground mb-2 text-center">
-              رسائل سريعة للسائق:
+            <p className="text-xs text-muted-foreground mb-3 text-center font-semibold">
+              {ride.status === "accepted" ? "رسائل سريعة للسائق" : "تواصل مع السائق"}
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-blue-500/10 border-blue-500/30 text-blue-600 hover:bg-blue-500/20 font-medium"
-                onClick={() =>
-                  sendQuickMessage(
-                    "rider_waiting",
-                    "✅ تم إبلاغ السائق",
-                    "السائق يعلم أنك بالانتظار"
-                  )
-                }
-              >
-                👋 أنا بالانتظار
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/20 font-medium"
-                onClick={() =>
-                  sendQuickMessage(
-                    "rider_where_are_you",
-                    "✅ تم إرسال السؤال",
-                    "السائق سيوضح موقعه"
-                  )
-                }
-              >
-                📍 أين وصلت؟
-              </Button>
+              {ride.status === "accepted" && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-blue-500/10 border-2 border-blue-400/50 text-blue-600 hover:bg-blue-500/20 font-medium shadow-sm h-10 rounded-xl px-4"
+                    onClick={() =>
+                      sendQuickMessage(
+                        "rider_waiting",
+                        "✅ تم إبلاغ السائق",
+                        "السائق يعلم أنك بالانتظار"
+                      )
+                    }
+                  >
+                    👋 أنا بالانتظار
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-amber-500/10 border-2 border-amber-400/50 text-amber-600 hover:bg-amber-500/20 font-medium shadow-sm h-10 rounded-xl px-4"
+                    onClick={() =>
+                      sendQuickMessage(
+                        "rider_where_are_you",
+                        "✅ تم إرسال السؤال",
+                        "السائق سيوضح موقعه"
+                      )
+                    }
+                  >
+                    📍 أين وصلت؟
+                  </Button>
+                </>
+              )}
+              {ride.status === "arrived" && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-purple-500/10 border-2 border-purple-400/50 text-purple-600 hover:bg-purple-500/20 font-medium shadow-sm h-10 rounded-xl px-4"
+                    onClick={() =>
+                      sendQuickMessage(
+                        "rider_where_are_you",
+                        "✅ تم إرسال السؤال",
+                        "السائق سيوضح موقعه"
+                      )
+                    }
+                  >
+                    📍 أين موقعك؟
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-orange-500/10 border-2 border-orange-400/50 text-orange-600 hover:bg-orange-500/20 font-medium shadow-sm h-10 rounded-xl px-4"
+                    onClick={() =>
+                      sendQuickMessage(
+                        "rider_wait_moment",
+                        "✅ تم إبلاغ السائق",
+                        "السائق سينتظرك قليلاً"
+                      )
+                    }
+                  >
+                    ⏱️ انتظرني قليلاً
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         )}
