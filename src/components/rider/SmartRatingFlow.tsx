@@ -247,16 +247,16 @@ const SmartRatingFlow = ({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 pt-4">
+        <div className="space-y-3 pt-4">
           <Button
             variant="outline"
-            className="flex-1"
+            className="w-full h-12 rounded-none"
             onClick={onSkip}
           >
             تخطي
           </Button>
           <Button
-            className="flex-1 gap-2"
+            className="w-full h-12 rounded-none gap-2"
             onClick={() => setStep('questions')}
           >
             التالي
@@ -307,31 +307,31 @@ const SmartRatingFlow = ({
             <p className="text-xs text-muted-foreground">{currentQuestion.category}</p>
 
             {/* Answer buttons */}
-            <div className="flex gap-4 mt-6 justify-center">
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => handleAnswer(false)}
-                className="flex-1 max-w-[140px] gap-2 h-14 text-base border-destructive/30 hover:bg-destructive/10 hover:border-destructive"
-              >
-                <ThumbsDown className="w-5 h-5 text-destructive" />
-                لا
-              </Button>
+            <div className="space-y-3 mt-6">
               <Button
                 variant="outline"
                 size="lg"
                 onClick={() => handleAnswer(true)}
-                className="flex-1 max-w-[140px] gap-2 h-14 text-base border-green-500/30 hover:bg-green-500/10 hover:border-green-500"
+                className="w-full h-14 text-base border-green-500/30 hover:bg-green-500/10 hover:border-green-500 rounded-none"
               >
-                <ThumbsUp className="w-5 h-5 text-green-500" />
+                <ThumbsUp className="w-5 h-5 text-green-500 mr-2" />
                 نعم
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => handleAnswer(false)}
+                className="w-full h-14 text-base border-destructive/30 hover:bg-destructive/10 hover:border-destructive rounded-none"
+              >
+                <ThumbsDown className="w-5 h-5 text-destructive mr-2" />
+                لا
               </Button>
             </div>
           </motion.div>
         </AnimatePresence>
 
         {/* Skip questions */}
-        <div className="text-center">
+        <div className="pt-2">
           <Button
             variant="ghost"
             size="sm"
@@ -342,7 +342,7 @@ const SmartRatingFlow = ({
                 handleSubmit();
               }
             }}
-            className="text-muted-foreground"
+            className="w-full h-10 rounded-none text-muted-foreground"
           >
             تخطي الأسئلة
           </Button>
@@ -370,17 +370,17 @@ const SmartRatingFlow = ({
         />
         <p className="text-xs text-muted-foreground text-left">{comment.length}/500</p>
 
-        <div className="flex gap-3">
+        <div className="space-y-3">
           <Button
             variant="outline"
-            className="flex-1"
+            className="w-full h-12 rounded-none"
             onClick={handleSubmit}
             disabled={loading}
           >
             تخطي
           </Button>
           <Button
-            className="flex-1 gap-2"
+            className="w-full h-12 rounded-none gap-2"
             onClick={handleSubmit}
             disabled={loading}
           >

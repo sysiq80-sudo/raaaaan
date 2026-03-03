@@ -1134,13 +1134,13 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
             <p className="text-xs text-muted-foreground mb-3 text-center font-semibold">
               {ride.status === "accepted" ? "رسائل سريعة للسائق" : "تواصل مع السائق"}
             </p>
-            <div className="flex flex-wrap gap-2 justify-center">
+            <div className="space-y-2">
               {ride.status === "accepted" && (
                 <>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="bg-blue-500/10 border-2 border-blue-400/50 text-blue-600 hover:bg-blue-500/20 font-medium shadow-sm h-10 rounded-xl px-4"
+                    className="w-full bg-blue-500/10 border-2 border-blue-400/50 text-blue-600 hover:bg-blue-500/20 font-medium shadow-sm h-12 rounded-none px-4"
                     onClick={() =>
                       sendQuickMessage(
                         "rider_waiting",
@@ -1154,7 +1154,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="bg-amber-500/10 border-2 border-amber-400/50 text-amber-600 hover:bg-amber-500/20 font-medium shadow-sm h-10 rounded-xl px-4"
+                    className="w-full bg-amber-500/10 border-2 border-amber-400/50 text-amber-600 hover:bg-amber-500/20 font-medium shadow-sm h-12 rounded-none px-4"
                     onClick={() =>
                       sendQuickMessage(
                         "rider_where_are_you",
@@ -1172,7 +1172,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="bg-purple-500/10 border-2 border-purple-400/50 text-purple-600 hover:bg-purple-500/20 font-medium shadow-sm h-10 rounded-xl px-4"
+                    className="w-full bg-purple-500/10 border-2 border-purple-400/50 text-purple-600 hover:bg-purple-500/20 font-medium shadow-sm h-12 rounded-none px-4"
                     onClick={() =>
                       sendQuickMessage(
                         "rider_where_are_you",
@@ -1186,7 +1186,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="bg-orange-500/10 border-2 border-orange-400/50 text-orange-600 hover:bg-orange-500/20 font-medium shadow-sm h-10 rounded-xl px-4"
+                    className="w-full bg-orange-500/10 border-2 border-orange-400/50 text-orange-600 hover:bg-orange-500/20 font-medium shadow-sm h-12 rounded-none px-4"
                     onClick={() =>
                       sendQuickMessage(
                         "rider_wait_moment",
