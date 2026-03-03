@@ -594,8 +594,8 @@ export const RideRequestCard = ({
         throw new Error('لا توجد جلسة نشطة — يرجى إعادة تسجيل الدخول');
       }
 
-      const baseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-      const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+      const baseUrl = "https://wgolkcztdrwdphwjvqxt.supabase.co";
+      const apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo";
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'apikey': apiKey,

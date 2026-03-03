@@ -2,72 +2,13 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// القيم الافتراضية — تُستخدم مباشرة إذا لم تكن متغيرات البيئة متوفرة (مثل بيئة Lovable.dev)
+const SUPABASE_URL = "https://wgolkcztdrwdphwjvqxt.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo";
 
-// Use fallback values if environment variables are not set
-const finalSupabaseUrl = SUPABASE_URL || 'https://wgolkcztdrwdphwjvqxt.supabase.co';
-const finalSupabaseKey = SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo';
+console.log('✅ Supabase client initialized with URL:', SUPABASE_URL);
 
-// Validate environment variables with better error handling
-if (!finalSupabaseUrl) {
-  const errorMsg = '❌ VITE_SUPABASE_URL environment variable is required. Please check your .env file or environment configuration. For Lovable.dev: Go to Project Settings > Environment Variables and add VITE_SUPABASE_URL.';
-  console.error(errorMsg);
-  // In production, show a user-friendly error instead of crashing
-  if (typeof window !== 'undefined') {
-    document.body.innerHTML = `
-      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif; direction: rtl;">
-        <div style="text-align: center; padding: 20px; border: 1px solid #ccc; border-radius: 8px;">
-          <h2 style="color: #dc2626;">خطأ في التكوين</h2>
-          <p>يرجى التحقق من إعدادات قاعدة البيانات والمحاولة مرة أخرى.</p>
-          <p style="font-size: 12px; color: #666;">Error: Missing Supabase URL configuration</p>
-          <details style="margin-top: 10px; text-align: left;">
-            <summary style="cursor: pointer; color: #2563eb;">معلومات للمطورين</summary>
-            <p style="font-size: 11px; margin-top: 5px;">تأكد من وجود متغيرات البيئة التالية:</p>
-            <ul style="font-size: 11px; text-align: left;">
-              <li>VITE_SUPABASE_URL</li>
-              <li>VITE_SUPABASE_PUBLISHABLE_KEY</li>
-              <li>VITE_GOOGLE_MAPS_API_KEY</li>
-            </ul>
-          </details>
-        </div>
-      </div>
-    `;
-    throw new Error(errorMsg);
-  }
-  throw new Error(errorMsg);
-}
-
-if (!finalSupabaseKey) {
-  const errorMsg = '❌ VITE_SUPABASE_PUBLISHABLE_KEY environment variable is required. Please check your .env file or environment configuration. For Lovable.dev: Go to Project Settings > Environment Variables and add VITE_SUPABASE_PUBLISHABLE_KEY.';
-  console.error(errorMsg);
-  if (typeof window !== 'undefined') {
-    document.body.innerHTML = `
-      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif; direction: rtl;">
-        <div style="text-align: center; padding: 20px; border: 1px solid #ccc; border-radius: 8px;">
-          <h2 style="color: #dc2626;">خطأ في التكوين</h2>
-          <p>يرجى التحقق من إعدادات قاعدة البيانات والمحاولة مرة أخرى.</p>
-          <p style="font-size: 12px; color: #666;">Error: Missing Supabase API key configuration</p>
-          <details style="margin-top: 10px; text-align: left;">
-            <summary style="cursor: pointer; color: #2563eb;">معلومات للمطورين</summary>
-            <p style="font-size: 11px; margin-top: 5px;">تأكد من وجود متغيرات البيئة التالية:</p>
-            <ul style="font-size: 11px; text-align: left;">
-              <li>VITE_SUPABASE_URL</li>
-              <li>VITE_SUPABASE_PUBLISHABLE_KEY</li>
-              <li>VITE_GOOGLE_MAPS_API_KEY</li>
-            </ul>
-          </details>
-        </div>
-      </div>
-    `;
-    throw new Error(errorMsg);
-  }
-  throw new Error(errorMsg);
-}
-
-console.log('✅ Supabase client initialized with URL:', finalSupabaseUrl);
-
-export const supabase = createClient<Database>(finalSupabaseUrl, finalSupabaseKey, {
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
