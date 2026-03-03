@@ -1108,7 +1108,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
             </p>
           </div>
           <div className="flex items-start gap-3">
-            <div className="w-3 h-3 mt-1.5 rounded-full bg-blue-500" />
+            <div className="w-3 h-3 mt-1.5 rounded-full bg-green-500" />
             <p className="text-sm text-foreground flex-1">
               {ride.dropoff_address || "الوجهة"}
             </p>
