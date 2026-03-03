@@ -1043,53 +1043,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         )}
       </div>
 
-      {/* Arrived Alert - Outside Bottom Sheet */}
-      {ride.status === "arrived" && (
-        <div className="px-3 pb-3 fixed bottom-[calc(100vh-200px)] left-0 right-0 z-40 animate-in slide-in-from-bottom-4">
-          <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-xl border-2 border-green-400/60 rounded-3xl p-4 shadow-2xl">
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ repeat: Infinity, duration: 1 }}
-                  className="w-12 h-12 rounded-full bg-green-500/30 backdrop-blur-sm flex items-center justify-center border-2 border-green-400 shadow-lg"
-                >
-                  <Bell className="w-6 h-6 text-green-500" />
-                </motion.div>
-                <div>
-                  <p className="font-bold text-base text-green-600">🎉 السائق وصل!</p>
-                  <p className="text-xs text-green-600/80 font-medium">اخرج الآن - السائق في انتظارك</p>
-                </div>
-              </div>
-
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 font-bold shadow-lg text-sm h-11 rounded-xl"
-                  onClick={handleOnMyWay}
-                >
-                  <Check className="w-4 h-4 ml-2" />
-                  أنا قادم
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 bg-green-500/10 border-2 border-green-400/50 text-green-600 hover:bg-green-500/20 font-medium shadow-md h-11 rounded-xl"
-                  onClick={() =>
-                    sendQuickMessage(
-                      "rider_wait_moment",
-                      "✅ تم إبلاغ السائق",
-                      "السائق سينتظرك دقيقة"
-                    )
-                  }
-                >
-                  ⏱️ انتظرني دقيقة
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* In Progress Status - Outside Bottom Sheet */}
       {ride.status === "in_progress" && (
         <div className="px-4 pb-2">
