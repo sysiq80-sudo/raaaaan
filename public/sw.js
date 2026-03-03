@@ -800,8 +800,9 @@ async function handleStaticAsset(request) {
   } catch (error) {
     const cachedResponse = await cache.match(request);
     if (cachedResponse) return cachedResponse;
-    console.log('[SW] Static asset fetch failed:', url);
-    throw error;
+    // إرجاع استجابة فارغة بدلاً من throw — يمنع أخطاء الكونسول للأصول غير الحرجة مثل favicon
+    console.log('[SW] Static asset fetch failed (returning empty):', url);
+    return new Response('', { status: 200, headers: { 'Content-Type': 'image/x-icon' } });
   }
 }
 

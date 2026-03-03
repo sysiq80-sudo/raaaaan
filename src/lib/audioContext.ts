@@ -45,6 +45,8 @@ export const initAudioContext = (): AudioContext | null => {
 
     sharedAudioContext = new AudioCtx();
     isInitialized = true;
+    // تفعيل الاستئناف التلقائي عند العودة من الخلفية
+    setupAudioVisibilityHandler();
     logger.info("AudioContext", "✅ تم تهيئة AudioContext بنجاح");
     return sharedAudioContext;
   } catch (error) {
@@ -61,10 +63,26 @@ export const resumeAudioContext = async (): Promise<void> => {
   if (sharedAudioContext && sharedAudioContext.state === "suspended") {
     try {
       await sharedAudioContext.resume();
+      logger.debug("AudioContext", "✅ تم استئناف AudioContext المعلق");
     } catch {
       // صامت - ليس ضرورياً
     }
   }
+};
+
+/**
+ * مستمع تغيير الرؤية — يستأنف AudioContext تلقائياً عند العودة من الخلفية
+ * يُفعّل مرة واحدة فقط
+ */
+let visibilityListenerAdded = false;
+export const setupAudioVisibilityHandler = (): void => {
+  if (visibilityListenerAdded) return;
+  visibilityListenerAdded = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isInitialized) {
+      resumeAudioContext();
+    }
+  });
 };
 
 /**

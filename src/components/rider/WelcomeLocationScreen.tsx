@@ -314,6 +314,9 @@ const WelcomeLocationScreen = ({
       }
     }
   };
+  // حالة: هل الزر الثابت في الأسفل يجب أن يظهر (عندما يكون الوجهة محددة والموقع الحالي متاح)
+  const showConfirmButton = destinationSelected && userLocation;
+
   return <motion.div className="fixed inset-0 z-50 flex flex-col bg-background overflow-hidden" variants={containerVariants} initial="hidden" animate={isExiting ? "exit" : "visible"} exit="exit">
       {/* Header */}
       <motion.header className="relative z-20 px-4 pt-6 pb-4" variants={itemVariants}>
@@ -341,7 +344,7 @@ const WelcomeLocationScreen = ({
       </motion.header>
 
       {/* Main Content - Scrollable */}
-      <motion.div className="flex-1 overflow-y-auto px-4 pb-8 space-y-6" variants={itemVariants}>
+      <motion.div className="flex-1 overflow-y-auto px-4 space-y-6" style={{ paddingBottom: showConfirmButton ? '5rem' : '2rem' }} variants={itemVariants}>
         {/* ===== NEW FLOW: DESTINATION FIRST ===== */}
 
         {/* Show Destination Options FIRST (when destination NOT selected) */}
@@ -430,20 +433,8 @@ const WelcomeLocationScreen = ({
                 <h3 className="text-lg font-bold">من أين تنطلق؟</h3>
               </div>
 
-              {/* GPS Auto-selected Option */}
-              <motion.button onClick={() => {
-            // تأكيد الموقع الحالي والانتقال للحجز
-            if (userLocation && selectedDestination) {
-              setPickupLocation({
-                lat: userLocation.lat,
-                lng: userLocation.lng,
-                address: currentAddress
-              });
-              onPlaceSelect(selectedDestination);
-            }
-          }} className="w-full p-4 rounded-2xl bg-green-500/10 border-2 border-green-500/50 flex items-center gap-4 hover:bg-green-500/20 transition-all" whileTap={{
-            scale: 0.98
-          }}>
+              {/* GPS Auto-selected Option — مؤشر معلوماتي فقط، الزر الرئيسي في الأسفل */}
+              <div className="w-full p-4 rounded-2xl bg-green-500/10 border-2 border-green-500/50 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
                   <MapPinned className="w-6 h-6 text-white" />
                 </div>
@@ -454,10 +445,7 @@ const WelcomeLocationScreen = ({
                   </p>
                   <p className="text-sm text-foreground truncate">{currentAddress}</p>
                 </div>
-                <div className="px-4 py-2 rounded-xl bg-green-500 text-white font-bold text-sm">
-                  تأكيد
-                </div>
-              </motion.button>
+              </div>
 
               {/* Other Pickup Options */}
               <div className="space-y-2">
@@ -552,6 +540,47 @@ const WelcomeLocationScreen = ({
           </div>
         </motion.div>
       </motion.div>
+
+      {/* ════════════════════════════════════════
+           زر تأكيد موقع الانطلاق — ملاصق للأسفل
+           بنفس نمط أزرار شاشة السائق
+           ════════════════════════════════════════ */}
+      {showConfirmButton && (
+        <motion.div
+          initial={{ y: 80, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 80, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 350, damping: 30 }}
+          className="fixed bottom-0 inset-x-0 z-[60] bg-slate-900/98 backdrop-blur-lg border-t border-slate-700/50"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <motion.button
+            onClick={() => {
+              if (userLocation && selectedDestination) {
+                setPickupLocation({
+                  lat: userLocation.lat,
+                  lng: userLocation.lng,
+                  address: currentAddress
+                });
+                onPlaceSelect(selectedDestination);
+              }
+            }}
+            animate={{
+              boxShadow: [
+                "0 0 0 0 rgba(34,197,94,0)",
+                "0 0 0 12px rgba(34,197,94,0.2)",
+                "0 0 0 0 rgba(34,197,94,0)"
+              ]
+            }}
+            transition={{ duration: 2, repeat: Infinity }}
+            whileTap={{ scale: 0.98 }}
+            className="w-full h-16 flex items-center justify-center gap-3 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white text-lg font-black rounded-none touch-manipulation transition-all duration-200"
+          >
+            <MapPinned className="w-6 h-6" />
+            تأكيد موقع الانطلاق
+          </motion.button>
+        </motion.div>
+      )}
     </motion.div>;
 };
 export default WelcomeLocationScreen;

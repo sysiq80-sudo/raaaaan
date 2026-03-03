@@ -7,6 +7,7 @@
 
 import { logger } from "@/lib/logger";
 import { getAudioContext } from "@/lib/audioContext";
+import { safeVibrate } from "@/lib/userGestureTracker";
 
 // ═══ الثوابت ═══
 const ALERT_REPEAT_COUNT = 3;       // عدد تكرارات التنبيه
@@ -139,9 +140,8 @@ export const stopRideAlert = (): void => {
     alertTimeoutId = null;
   }
 
-  if ("vibrate" in navigator) {
-    navigator.vibrate(0);
-  }
+  // إيقاف الاهتزاز بأمان (يتجنب تحذير Intervention من المتصفح)
+  safeVibrate(0);
 };
 
 /**

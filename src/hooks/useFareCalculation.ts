@@ -98,11 +98,11 @@ export const useFareCalculation = (
       setFareLoading(true);
 
       try {
-        // Set a timeout to prevent infinite loading (3 seconds — local estimate already shown)
+        // Set a timeout to prevent infinite loading (5 seconds — allows cold-start of edge function)
         const timeoutPromise = new Promise((_, reject) => {
           timeoutRef.current = setTimeout(() => {
             reject(new Error('Fare calculation timeout'));
-          }, 3000);
+          }, 5000);
         });
 
         const invokePromise = (async () => {

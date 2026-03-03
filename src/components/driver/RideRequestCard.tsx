@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger";
 import { roundFare } from "@/lib/constants";
 import { playNotificationSound } from "@/lib/audioContext";
 import { stopRideAlert } from "@/lib/loudAlerts";
+import { safeVibrate } from "@/lib/userGestureTracker";
 import {
   Clock,
   Wallet,
@@ -110,6 +111,9 @@ export const RideRequestCard = ({
   // Track active ride to search from dropoff location
   const [activeRideDropoff, setActiveRideDropoff] = useState<{ lat: number; lng: number } | null>(null);
   const [searchFromDropoff, setSearchFromDropoff] = useState(false);
+  // عداد الاستعلامات الفارغة المتتالية — لتوسيع الفاصل الزمني (adaptive backoff)
+  const emptyPollCountRef = useRef(0);
+  const hasActiveRideRef = useRef(false);
 
   // Ref لـ fetchPendingRides — يمنع إعادة الاشتراك في Realtime مع كل تغيير موقع
   const fetchPendingRidesRef = useRef<() => void>(() => {});
@@ -167,7 +171,7 @@ export const RideRequestCard = ({
 
   // Monitor active ride to get dropoff location for smart search
   useEffect(() => {
-    if (!driverId) return;
+    if (!driverId || !isOnline) return;
 
     const checkActiveRide = async () => {
       try {
@@ -182,10 +186,12 @@ export const RideRequestCard = ({
           const dropoff = activeRide.dropoff_location as { lat: number; lng: number };
           setActiveRideDropoff(dropoff);
           setSearchFromDropoff(true);
+          hasActiveRideRef.current = true;
           logger.info('RideRequestCard', '🎯 البحث الذكي مُفعَّل - البحث من موقع الوجهة', dropoff);
         } else {
           setActiveRideDropoff(null);
           setSearchFromDropoff(false);
+          hasActiveRideRef.current = false;
         }
       } catch (error) {
         logger.error('RideRequestCard', 'Error checking active ride', error);
@@ -193,10 +199,11 @@ export const RideRequestCard = ({
     };
 
     checkActiveRide();
-    const interval = setInterval(checkActiveRide, 10000); // Check every 10 seconds
+    // فحص الرحلة النشطة كل 15 ثانية فقط (بدل 10) — لتقليل حمل قاعدة البيانات
+    const interval = setInterval(checkActiveRide, 15000);
 
     return () => clearInterval(interval);
-  }, [driverId]);
+  }, [driverId, isOnline]);
 
   const fetchPendingRides = useCallback(async () => {
     if (actionInProgressRef.current) return;
@@ -251,7 +258,7 @@ export const RideRequestCard = ({
         }
       }
 
-      // ═══ 2. Fallback عام إذا لم يُعد RPC نتائج ═══
+      // ═══ 2. Fallback عام إذا لم تُعد النتائج — يشمل: لا GPS، RPC رجع فارغ، أو RPC فشل ═══
       if (collected.length === 0) {
         logger.debug("RideRequestCard", "Using fallback query");
         const { data, error } = await supabase
@@ -286,10 +293,12 @@ export const RideRequestCard = ({
 
       // ═══ تحديث الحالة ═══
       if (collected.length > 0) {
+        // إعادة تعيين العداد عند وجود نتائج
+        emptyPollCountRef.current = 0;
         const firstId = collected[0].id;
         if (previousRideIdRef.current !== firstId) {
           playNotificationSound();
-          if ("vibrate" in navigator) navigator.vibrate([300, 100, 300, 100, 400]);
+          safeVibrate([300, 100, 300, 100, 400]);
           previousRideIdRef.current = firstId;
         }
         setPendingRides(prev => {
@@ -301,6 +310,8 @@ export const RideRequestCard = ({
         setTimeLeft(calcTimeLeft(collected[0].created_at));
         onRideRequestVisible?.(true);
       } else {
+        // زيادة عداد الاستعلامات الفارغة (يُستخدم في adaptive backoff)
+        emptyPollCountRef.current = Math.min(emptyPollCountRef.current + 1, 10);
         setPendingRides([]);
         previousRideIdRef.current = null;
         onRideRequestVisible?.(false);
@@ -392,7 +403,7 @@ export const RideRequestCard = ({
                 logger.debug("RideRequestCard", "✅ عرض الطلب فوراً من الـ Realtime payload");
                 if (previousRideIdRef.current !== directRide.id) {
                   playNotificationSound();
-                  if ("vibrate" in navigator) navigator.vibrate([300, 100, 300, 100, 400]);
+                  safeVibrate([300, 100, 300, 100, 400]);
                   previousRideIdRef.current = directRide.id;
                 }
                 setPendingRides(prev => {
@@ -439,7 +450,7 @@ export const RideRequestCard = ({
                 if (!inCooldown) {
                   if (previousRideIdRef.current !== directRide.id) {
                     playNotificationSound();
-                    if ("vibrate" in navigator) navigator.vibrate([300, 100, 300, 100, 400]);
+                    safeVibrate([300, 100, 300, 100, 400]);
                     previousRideIdRef.current = directRide.id;
                   }
                   setPendingRides(prev => {
@@ -494,12 +505,22 @@ export const RideRequestCard = ({
     // Fetch فوري
     fetchPendingRidesRef.current();
 
-    // Polling كل 5 ثواني عبر الـ ref
-    const pollInterval = setInterval(() => {
-      fetchPendingRidesRef.current();
-    }, 5000);
+    // ═══ Adaptive Polling: 15s عادي → 30s إذا لا طلبات لفترة ═══
+    // Realtime يغطي الطلبات الجديدة فوراً — الـ polling احتياطي فقط
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    const schedulePoll = () => {
+      // إذا 3+ استعلامات فارغة متتالية → وسّع الفاصل إلى 30 ثانية
+      const interval = emptyPollCountRef.current >= 3 ? 30000 : 15000;
+      pollTimer = setTimeout(() => {
+        fetchPendingRidesRef.current();
+        schedulePoll(); // جدولة الاستعلام التالي
+      }, interval);
+    };
+    schedulePoll();
 
-    return () => clearInterval(pollInterval);
+    return () => {
+      if (pollTimer) clearTimeout(pollTimer);
+    };
   }, [isOnline, isPaused]); // ← deps ثابتة
 
   // Countdown timer — يعتمد على الرحلة الحالية
@@ -512,90 +533,170 @@ export const RideRequestCard = ({
     return () => clearInterval(timer);
   }, [pendingRide?.id, calcTimeLeft]);
 
+  // 🛡️ Safety timeout — إذا بقي loading لأكثر من 20 ثانية، أعد الضبط تلقائياً
+  useEffect(() => {
+    if (!loading) return;
+    const safetyTimer = setTimeout(() => {
+      console.error("[RideRequestCard] ⚠️ Loading safety timeout (20s) — force-resetting");
+      actionInProgressRef.current = false;
+      setLoading(false);
+      setActionType(null);
+      // إعادة تمكين الأزرار
+      toast({ title: "تحذير", description: "انتهت مهلة العملية، يمكنك المحاولة مرة أخرى", variant: "destructive" });
+    }, 20000);
+    return () => clearTimeout(safetyTimer);
+  }, [loading]);
+
   const handleAccept = async () => {
+    // 🛡️ حماية إضافية: إعادة تعيين الحالة إذا كانت معلقة
+    if (loading && actionInProgressRef.current) {
+      console.warn("[RideRequestCard] ⚠️ Force resetting stuck loading state");
+      actionInProgressRef.current = false;
+      setLoading(false);
+      setActionType(null);
+      return;
+    }
+
     if (!pendingRide || loading || actionInProgressRef.current) return;
+
+    // 🛡️ التحقق من وجود driverId قبل المتابعة
+    if (!driverId) {
+      console.warn("[RideRequestCard] ⛔ handleAccept blocked — driverId is null");
+      toast({ title: "خطأ", description: "لم يتم تحميل بيانات السائق بعد، حاول مرة أخرى", variant: "destructive" });
+      return;
+    }
+
     actionInProgressRef.current = true;
     setLoading(true);
     setActionType("accept");
+    console.log("[RideRequestCard] 🚀 handleAccept started", { rideId: pendingRide.id, driverId });
 
     const rideId = pendingRide.id;
-    let acceptSucceeded = false;
+
+    // ═══ Helper: raw fetch مع AbortController (يلغي الطلب فعلياً عند timeout) ═══
+    const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs: number): Promise<Response> => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, { ...options, signal: controller.signal, cache: 'no-store' });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
+    };
 
     try {
-      // ═══ محاولة 1: RPC + Fallback بتايمر واحد شامل ═══
-      await new Promise<void>((resolve, reject) => {
-        // تايمر واحد يغطي الكل — 12 ثانية
-        const masterTimer = setTimeout(() => {
-          reject(new Error("timeout_all"));
-        }, 12000);
+      // ═══ 1. الحصول على token المصادقة ═══
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('لا توجد جلسة نشطة — يرجى إعادة تسجيل الدخول');
+      }
 
-        const done = (ok: boolean, err?: unknown) => {
-          clearTimeout(masterTimer);
-          if (ok) { acceptSucceeded = true; resolve(); }
-          else reject(err);
-        };
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'apikey': apiKey,
+        'Authorization': `Bearer ${session.access_token}`,
+        'Prefer': 'return=representation',
+        'X-Client-Info': 'raan-captain-app',
+      };
 
-        // RPC الآمن — يبدأ فوراً
-        (supabase.rpc("accept_ride_safely", {
-          p_ride_id: rideId,
-          p_driver_id: driverId,
-        }) as unknown as Promise<{ data: { success: boolean; error?: string } | null; error: { message: string } | null }>)
-          .then((r) => {
-            if (!acceptSucceeded) {
-              if (r?.error) {
-                // خطأ HTTP — نتركه للـ fallback
-                console.warn("[RideRequestCard] RPC HTTP error:", r.error.message);
-              } else if (r?.data?.success === false) {
-                // الـ function نفذت لكن رفضت الطلب (مثل: is_available=false)
-                console.warn("[RideRequestCard] RPC business error:", r.data.error);
-                // لا نستدعي done(true) — نترك الـ fallback يحاول
-              } else if (r?.data?.success === true) {
-                // نجاح حقيقي
-                done(true);
-              }
-            }
-          })
-          .catch(() => { /* تجاهل، الـ fallback يتكفل */ });
+      let acceptSucceeded = false;
 
-        // Fallback مباشر — بعد 800ms
-        setTimeout(async () => {
-          if (acceptSucceeded) return;
-          logger.info("RideRequestCard", "🔄 Direct update fallback running...");
-          try {
-            const { error } = await supabase
-              .from('rides')
-              .update({
+      // ═══ 2. محاولة RPC عبر raw fetch (تتجاوز مكتبة Supabase JS تماماً) ═══
+      console.log("[RideRequestCard] 🔷 [RAW FETCH] Trying RPC accept_ride_safely...");
+      try {
+        const rpcRes = await fetchWithTimeout(
+          `${baseUrl}/rest/v1/rpc/accept_ride_safely`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ p_ride_id: rideId, p_driver_id: driverId }),
+          },
+          12000
+        );
+
+        if (!rpcRes.ok) {
+          const errBody = await rpcRes.text();
+          console.warn("[RideRequestCard] RPC HTTP error:", rpcRes.status, errBody);
+          throw new Error(`RPC HTTP ${rpcRes.status}: ${errBody}`);
+        }
+
+        const rpcResult = await rpcRes.json();
+        console.log("[RideRequestCard] RPC result:", rpcResult);
+
+        if (rpcResult?.success) {
+          acceptSucceeded = true;
+          console.log("[RideRequestCard] ✅ RPC succeeded");
+        } else {
+          console.warn("[RideRequestCard] RPC returned failure:", rpcResult?.error);
+          throw new Error(rpcResult?.error || 'RPC returned failure');
+        }
+      } catch (rpcErr) {
+        const isAbort = rpcErr instanceof DOMException && rpcErr.name === 'AbortError';
+        console.warn("[RideRequestCard] RPC failed:", isAbort ? 'TIMEOUT (12s)' : rpcErr);
+      }
+
+      // ═══ 3. محاولة PATCH مباشر عبر raw fetch ═══
+      if (!acceptSucceeded) {
+        console.log("[RideRequestCard] 🔶 [RAW FETCH] Trying direct PATCH...");
+        try {
+          const patchRes = await fetchWithTimeout(
+            `${baseUrl}/rest/v1/rides?id=eq.${rideId}&status=eq.pending`,
+            {
+              method: 'PATCH',
+              headers,
+              body: JSON.stringify({
                 status: 'accepted',
                 driver_id: driverId,
                 matched_at: new Date().toISOString(),
-              })
-              .eq('id', rideId)
-              .eq('status', 'pending');
+              }),
+            },
+            12000
+          );
 
-            if (!acceptSucceeded) {
-              if (error) done(false, new Error(error.message));
-              else done(true);
-            }
-          } catch (e) {
-            if (!acceptSucceeded) done(false, e);
+          if (!patchRes.ok) {
+            const errBody = await patchRes.text();
+            console.error("[RideRequestCard] PATCH HTTP error:", patchRes.status, errBody);
+            throw new Error(`PATCH HTTP ${patchRes.status}: ${errBody}`);
           }
-        }, 800);
-      });
 
-      // ═══ نجح ═══
+          const rows = await patchRes.json();
+          console.log("[RideRequestCard] PATCH result:", rows);
+
+          if (Array.isArray(rows) && rows.length > 0 && rows[0].status === 'accepted') {
+            acceptSucceeded = true;
+            console.log("[RideRequestCard] ✅ Direct PATCH succeeded");
+          } else {
+            throw new Error('PATCH: no matching rows updated');
+          }
+        } catch (patchErr) {
+          const isAbort = patchErr instanceof DOMException && patchErr.name === 'AbortError';
+          console.error("[RideRequestCard] Direct PATCH failed:", isAbort ? 'TIMEOUT (12s)' : patchErr);
+          throw patchErr;
+        }
+      }
+
+      // ═══ تحقق نهائي ═══
+      if (!acceptSucceeded) {
+        throw new Error('All attempts failed');
+      }
+
+      console.log("[RideRequestCard] ✅ Accept completed successfully");
       toast({ title: "✅ تم القبول", description: "تم قبول الطلب بنجاح" });
       onRideAccepted?.();
       setPendingRides([]);
       setCurrentIndex(0);
       previousRideIdRef.current = null;
       onRideRequestVisible?.(false);
-
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn("[RideRequestCard] Accept failed:", msg);
+      console.error("[RideRequestCard] ❌ Accept failed:", msg);
 
-      // ═══ آخر محاولة: تحقق مباشر من DB ═══
-      // (قد تكون الرحلة قُبلت فعلاً والـ response فقط تأخرت)
+      // ═══ تحقق نهائي من DB — ربما نجح الطلب فعلاً لكن الاستجابة تأخرت ═══
       try {
         const { data: rideState } = await supabase
           .from('rides')
@@ -604,7 +705,7 @@ export const RideRequestCard = ({
           .maybeSingle();
 
         if (rideState?.status === 'accepted' && rideState?.driver_id === driverId) {
-          console.log("[RideRequestCard] ✅ Ride was accepted silently — UI showing success");
+          console.log("[RideRequestCard] ✅ Ride accepted silently — showing success");
           toast({ title: "✅ تم القبول", description: "تم قبول الطلب بنجاح" });
           onRideAccepted?.();
           setPendingRides([]);
@@ -613,13 +714,12 @@ export const RideRequestCard = ({
           onRideRequestVisible?.(false);
           return;
         }
-      } catch {
-        // تجاهل خطأ التحقق
+      } catch (verifyErr) {
+        console.warn("[RideRequestCard] DB verification also failed:", verifyErr);
       }
 
       // ═══ فشل حقيقي ═══
-      console.error("[RideRequestCard] Accept error:", e);
-      const isTaken = /already|taken|assigned/i.test(msg);
+      const isTaken = /already|taken|assigned|No rows|آخر|متاحة/i.test(msg);
       toast({
         title: isTaken ? "سبق قبول الطلب" : "خطأ في القبول",
         description: isTaken ? "تم قبول الطلب من سائق آخر" : "تعذّر قبول الطلب، حاول مرة أخرى",
@@ -629,8 +729,9 @@ export const RideRequestCard = ({
       setCurrentIndex(0);
       previousRideIdRef.current = null;
       onRideRequestVisible?.(false);
-      fetchPendingRidesRef.current();
     } finally {
+      // 🛡️ ضمان إعادة تعيين الحالة دائمًا
+      console.log("[RideRequestCard] 🏁 handleAccept finally — resetting state");
       actionInProgressRef.current = false;
       setLoading(false);
       setActionType(null);
@@ -670,6 +771,24 @@ export const RideRequestCard = ({
     setLoading(false);
     setActionType(null);
     if (pendingRides.length <= 1) fetchPendingRidesRef.current();
+  };
+
+  const handleAcceptClick = () => {
+    try {
+      stopRideAlert();
+    } catch (error) {
+      logger.warn("RideRequestCard", "stopRideAlert failed on accept", error);
+    }
+    void handleAccept();
+  };
+
+  const handleRejectClick = () => {
+    try {
+      stopRideAlert();
+    } catch (error) {
+      logger.warn("RideRequestCard", "stopRideAlert failed on reject", error);
+    }
+    void handleReject();
   };
 
   // Empty state — لا شيء يظهر
@@ -826,7 +945,7 @@ export const RideRequestCard = ({
             <Button
               variant="outline"
               className="flex-[0.3] h-16 rounded-none text-base font-bold text-slate-400 hover:text-red-400 hover:bg-red-500/10 border-0 border-r border-slate-700 bg-slate-800 transition-all duration-200 touch-manipulation active:opacity-80"
-              onClick={() => { stopRideAlert(); handleReject(); }}
+              onClick={handleRejectClick}
               disabled={loading}
             >
               {loading && actionType === "reject" ? (
@@ -844,7 +963,7 @@ export const RideRequestCard = ({
             >
               <Button
                 className="w-full h-16 text-lg font-black bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white rounded-none transition-all duration-200 touch-manipulation active:opacity-90"
-                onClick={() => { stopRideAlert(); handleAccept(); }}
+                onClick={handleAcceptClick}
                 disabled={loading}
               >
                 {loading && actionType === "accept" ? (

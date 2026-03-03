@@ -374,17 +374,10 @@ export const useLocationPicker = (
       return;
     }
 
-    // If map exists but container changed (due to screen switch), reinitialize
-    if (map.current && mapContainer.current) {
-      try {
-        const currentDiv = map.current.getDiv();
-        if (currentDiv !== mapContainer.current) {
-          console.warn("⚠️ Map container changed - reinitializing map");
-          map.current = null;
-        }
-      } catch {
-        map.current = null;
-      }
+    // ✅ عند تغيير reloadKey: دمّر الخريطة القديمة دائماً لإجبار إعادة التهيئة
+    if (map.current) {
+      console.log("🔄 reloadKey changed - destroying old map instance");
+      map.current = null;
     }
 
     // Prevent duplicate initialization
@@ -569,22 +562,82 @@ export const useLocationPicker = (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleMapsApiKey, reloadKey]); // Re-run when API key or reload key changes
 
-  // Smooth pan to user location when GPS resolves (separate from map init)
+  // ✅ إصلاح الخريطة البيضاء: trigger resize بعد كل تغيير في reloadKey
+  useEffect(() => {
+    if (reloadKey === undefined || reloadKey === 0) return;
+    const timer = setTimeout(() => {
+      if (map.current && window.google?.maps?.event) {
+        window.google.maps.event.trigger(map.current, "resize");
+        const center = map.current.getCenter();
+        if (center) map.current.setCenter(center);
+        console.log("🔄 Map resize triggered after reloadKey change");
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [reloadKey]);
+
+  const userMarkerRef = useRef<google.maps.Marker | null>(null);
+  const userAccuracyCircleRef = useRef<google.maps.Circle | null>(null);
+
   useEffect(() => {
     if (!map.current || !userLocation) return;
+    if (!window.google?.maps) return;
 
-    // ⚡ Smooth animated pan to user's real location
-    const target = new window.google.maps.LatLng(
-      userLocation.lat,
-      userLocation.lng,
-    );
+    // ⚡ Smooth pan لموقع المستخدم
+    const target = new window.google.maps.LatLng(userLocation.lat, userLocation.lng);
     map.current.panTo(target);
     map.current.setZoom(16);
-    console.log(
-      "🎯 Map panned to user location:",
-      userLocation.lat,
-      userLocation.lng,
-    );
+    console.log("🎯 Map panned to user location:", userLocation.lat, userLocation.lng);
+
+    // 🔵 الدائرة الزرقاء — google.maps.Marker مع SVG (لا يحتاج mapId)
+    const svgIcon = {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+        <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+          <!-- هالة شفافة خارجية -->
+          <circle cx="16" cy="16" r="15" fill="rgba(59,130,246,0.20)" />
+          <!-- حلقة بيضاء -->
+          <circle cx="16" cy="16" r="10" fill="#3b82f6" stroke="white" stroke-width="3"/>
+          <!-- نقطة مركزية بيضاء صغيرة -->
+          <circle cx="16" cy="16" r="3.5" fill="white"/>
+        </svg>
+      `)}`,
+      scaledSize: new google.maps.Size(32, 32),
+      anchor: new google.maps.Point(16, 16),
+    };
+
+    if (userMarkerRef.current) {
+      // تحديث الموضع فقط
+      userMarkerRef.current.setPosition({ lat: userLocation.lat, lng: userLocation.lng });
+    } else {
+      // إنشاء marker جديد
+      userMarkerRef.current = new google.maps.Marker({
+        position: { lat: userLocation.lat, lng: userLocation.lng },
+        map: map.current,
+        icon: svgIcon,
+        title: 'موقعي الحالي',
+        zIndex: 5,
+        clickable: false,
+        optimized: false,
+      });
+    }
+
+    // 🔵 دائرة دقة الموقع (نصف قطر صغير شفاف)
+    if (userAccuracyCircleRef.current) {
+      userAccuracyCircleRef.current.setCenter({ lat: userLocation.lat, lng: userLocation.lng });
+    } else {
+      userAccuracyCircleRef.current = new google.maps.Circle({
+        strokeColor: '#3b82f6',
+        strokeOpacity: 0.3,
+        strokeWeight: 1,
+        fillColor: '#3b82f6',
+        fillOpacity: 0.08,
+        map: map.current,
+        center: { lat: userLocation.lat, lng: userLocation.lng },
+        radius: 25, // 25 متر
+        clickable: false,
+        zIndex: 4,
+      });
+    }
   }, [userLocation]);
 
   // ✨ دالة لتعيين العنوان يدوياً (من البحث) مع منع reverseGeocode التلقائي

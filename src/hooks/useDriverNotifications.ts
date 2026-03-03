@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
-import { playNotificationSound } from "@/lib/audioContext";
+import { playNotificationSound, resumeAudioContext } from "@/lib/audioContext";
 import { isNativePlatform, onAppStateChange, showNativeNotification, nativeHaptic } from "@/lib/capacitorBridge";
 import { useDriverStore } from "@/stores/driverStore";
 import { 
@@ -22,46 +22,10 @@ interface NewRide {
   distance_km: number | null;
 }
 
-// Create audio context for notification sounds
+// تشغيل صوت الإشعار باستخدام AudioContext المشترك (بدون إنشاء سياق جديد)
 const createNotificationSound = () => {
-  try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    
-    const playTone = (frequency: number, duration: number, startTime: number) => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.value = frequency;
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0, startTime);
-      gainNode.gain.linearRampToValueAtTime(0.5, startTime + 0.05);
-      gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
-      
-      oscillator.start(startTime);
-      oscillator.stop(startTime + duration);
-    };
-
-    // Play an attention-grabbing notification melody
-    const now = audioContext.currentTime;
-    playTone(880, 0.12, now);        // A5
-    playTone(1108.73, 0.12, now + 0.12); // C#6
-    playTone(1318.51, 0.25, now + 0.24);  // E6
-    
-    // Repeat pattern
-    setTimeout(() => {
-      const now2 = audioContext.currentTime;
-      playTone(880, 0.12, now2);
-      playTone(1108.73, 0.12, now2 + 0.12);
-      playTone(1318.51, 0.25, now2 + 0.24);
-    }, 600);
-
-  } catch (e) {
-    console.log('Audio notification not supported');
-  }
+  // نستخدم الصوت المركزي من audioContext.ts بدلاً من إنشاء AudioContext منفصل
+  playNotificationSound();
 };
 
 // Vibration pattern for mobile — guarded by user-interaction policy
@@ -372,7 +336,7 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
             console.warn('⚠️ Realtime channel error — will retry in 3s');
             setTimeout(() => {
               supabase.removeChannel(ch);
-              createChannel();
+              channel = createChannel();
             }, 3000);
           }
         });
@@ -386,29 +350,22 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     const setupAppStateListener = async () => {
       cleanupAppState = await onAppStateChange((isActive) => {
         if (isActive) {
-          console.log('📱 التطبيق عاد للمقدمة — إعادة اتصال Realtime...');
+          console.log('📱 التطبيق عاد للمقدمة');
           
-          // إعادة إنشاء القناة لضمان اتصال جديد
-          try {
-            supabase.removeChannel(channel);
-          } catch (e) {
-            // تجاهل خطأ إزالة القناة القديمة
-          }
-          channel = createChannel();
-          
-          // استئناف AudioContext المعلق (مطلوب في الأجهزة المحمولة)
-          try {
-            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-            if (AudioCtx) {
-              const tempCtx = new AudioCtx();
-              if (tempCtx.state === 'suspended') {
-                tempCtx.resume();
-              }
-              tempCtx.close();
+          // إعادة إنشاء القناة فقط إذا كانت مقطوعة فعلاً
+          const channelState = (channel as any)?.state;
+          if (!channelState || channelState === 'closed' || channelState === 'errored') {
+            console.log('🔄 إعادة إنشاء قناة Realtime (كانت مقطوعة)');
+            try {
+              supabase.removeChannel(channel);
+            } catch (e) {
+              // تجاهل خطأ إزالة القناة القديمة
             }
-          } catch {
-            // تجاهل
+            channel = createChannel();
           }
+          
+          // استئناف AudioContext المشترك المعلق
+          resumeAudioContext();
         } else {
           console.log('📱 التطبيق ذهب للخلفية');
         }

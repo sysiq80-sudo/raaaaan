@@ -4,18 +4,17 @@
  * مستخرجة من GoPage.tsx لتقليل حجم الملف الأصلي
  */
 
-import React, { useRef } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import {
   Navigation,
   Clock,
   AlertTriangle,
   ChevronDown,
-  Zap,
   Menu,
   ArrowUpDown,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+
 import { supabase } from "@/integrations/supabase/client";
 import CompactVehicleSelector from "@/components/rider/CompactVehicleSelector";
 import PaymentMethodSheet from "@/components/rider/PaymentMethodSheet";
@@ -143,357 +142,201 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
   onSwapLocations,
   scheduleDialogRef,
 }) => {
+  // زر الحجز المشترك — HTML مباشر لضمان rounded-none حقيقي
+  const BookButton = (
+    <button
+      onClick={onBookRide}
+      disabled={fareLoading}
+      className="w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-60 active:brightness-90 transition-all"
+      style={{ borderRadius: 0 }}
+    >
+      <Navigation className="w-5 h-5 flex-shrink-0" />
+      <span>احجز الآن</span>
+      {fareBreakdown?.total_fare && (
+        <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold">
+          {roundFare(fareBreakdown.total_fare).toLocaleString()} د.ع
+        </span>
+      )}
+    </button>
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="h-screen bg-background flex flex-col overflow-hidden"
+      dir="rtl"
     >
       {/* مؤشر عدم الاتصال */}
       {!isOnline && (
-        <div className="absolute top-0 left-0 right-0 z-50 bg-destructive/90 backdrop-blur-md px-4 py-2 text-center text-sm font-medium text-destructive-foreground flex items-center justify-center gap-2">
+        <div className="shrink-0 bg-destructive/90 px-4 py-2 text-center text-sm font-medium text-destructive-foreground flex items-center justify-center gap-2">
           <AlertTriangle className="w-4 h-4" />
-          <span>أنت بدون إنترنت - بعض الميزات قد لا تعمل</span>
+          <span>أنت بدون إنترنت</span>
         </div>
       )}
 
-      {/* مؤشر التقدم */}
-      <div
-        className={`absolute left-0 right-0 z-50 px-4 pointer-events-none ${!isOnline ? "pt-14" : "pt-2"}`}
-      >
-        <div className="flex gap-2">
+      {/* ═══ الخريطة (40% من الشاشة) ═══ */}
+      <div className="relative shrink-0" style={{ height: '40%' }}>
+        <div ref={bookingMapContainer} className="absolute inset-0" />
+
+        {/* رأس شفاف فوق الخريطة */}
+        <div className="absolute top-3 left-0 right-0 px-3 flex items-center justify-between z-20 pointer-events-auto">
+          {/* مؤشر المسافة / الوقت */}
+          <div className="bg-card/85 backdrop-blur-md rounded-xl px-3 py-1.5 flex items-center gap-2 shadow border border-white/15">
+            <Navigation className="w-3.5 h-3.5 text-primary" />
+            <span className="text-sm font-bold">{routeDistance ? `${routeDistance.toFixed(1)} كم` : '---'}</span>
+            <div className="w-px h-4 bg-border/40" />
+            <Clock className="w-3.5 h-3.5 text-blue-500" />
+            <span className="text-sm font-bold">{routeDuration ? `${Math.round(routeDuration)} د` : '---'}</span>
+          </div>
+
+          {/* أزرار القائمة + الموقع */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onGeolocateBooking}
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-card/90 backdrop-blur-md text-primary shadow border border-primary/20"
+              title="موقعي"
+              aria-label="تحديد موقعي"
+            >
+              <Navigation className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => onMenuChange(true)}
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-card/90 backdrop-blur-md shadow border border-border/30"
+              aria-label="القائمة"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* شريط التقدم */}
+        <div className="absolute bottom-0 left-0 right-0 flex gap-1 px-3 pb-2 pointer-events-none z-20">
           <div className="flex-1 h-1 rounded-full bg-primary" />
           <div className="flex-1 h-1 rounded-full bg-accent" />
           <div className="flex-1 h-1 rounded-full bg-primary animate-pulse" />
         </div>
       </div>
 
-      {/* الرأس */}
-      <div
-        className={`absolute left-0 right-0 z-40 px-4 pointer-events-auto ${!isOnline ? "top-20" : "top-4"}`}
-      >
-        <div className="flex items-center justify-between gap-2">
-          {/* Left spacer */}
-          <div className="w-11" />
-
-          <div className="flex-1 flex items-center justify-center gap-2">
-            <motion.div
-              initial={{ y: -20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="bg-card/70 backdrop-blur-xl rounded-md px-3 py-2 flex items-center gap-3 shadow-lg border border-white/10"
-            >
-              <div className="flex items-center gap-1.5">
-                <Navigation className="w-3.5 h-3.5 text-primary" />
-                <span className="text-sm font-bold">
-                  {routeDistance ? `${routeDistance.toFixed(1)} كم` : "---"}
-                </span>
-              </div>
-              <div className="w-px h-4 bg-border/30" />
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" style={{ color: "#2A6CD5" }} />
-                <span className="text-sm font-bold">
-                  {routeDuration ? `${Math.round(routeDuration)} د` : "---"}
-                </span>
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Menu button on the RIGHT for RTL */}
-          <button
-            onClick={() => onMenuChange(true)}
-            className="w-11 h-11 flex items-center justify-center rounded-md bg-card/90 backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0"
-            aria-label="القائمة"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      {/* الخريطة - النصف العلوي */}
-      <div className="h-[45%] relative bg-gray-200">
-        <div
-          ref={bookingMapContainer}
-          className="absolute inset-0 bg-gray-100"
-        />
-        <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top pointer-events-auto">
-          <button
-            onClick={onGeolocateBooking}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
-            title="تحديد موقعي"
-            aria-label="تحديد موقعي"
-          >
-            <Navigation className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* التفاصيل - النصف السفلي */}
-      <div className="h-[55%] bg-background rounded-t-3xl -mt-4 relative z-10 flex flex-col shadow-[0_-10px_40px_rgba(0,0,0,0.15)]">
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-12 h-1.5 rounded-full bg-muted-foreground/25" />
+      {/* ═══ البانل السفلي (60% من الشاشة) بدون سكرول ═══ */}
+      <div className="flex-1 bg-background rounded-t-2xl -mt-3 z-10 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden min-h-0">
+        {/* شريط السحب */}
+        <div className="flex justify-center pt-2 pb-1 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
         </div>
 
-        <div
-          className={`flex-1 overflow-y-auto px-4 space-y-3 ${bottomNavEnabled ? "pb-40" : "pb-6"}`}
-        >
-          {/* ملخص المسار */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="bg-card rounded-2xl p-4 border border-border/30 shadow-sm"
-          >
-            <div className="flex gap-3">
-              <div className="flex flex-col items-center gap-0">
-                <div className="w-3 h-3 rounded-full bg-primary ring-4 ring-primary/20" />
-                <div
-                  className="w-0.5 flex-1 min-h-[32px]"
-                  style={{
-                    background:
-                      "linear-gradient(to bottom, hsl(var(--primary)), hsl(var(--muted)), #2A6CD5)",
-                  }}
-                />
-                <div
-                  className="w-3 h-3 rounded-full ring-4"
-                  style={
-                    {
-                      backgroundColor: "#2A6CD5",
-                      "--tw-ring-color": "rgba(42, 108, 213, 0.2)",
-                    } as any
-                  }
-                />
+        {/* المحتوى — يتوسع ليملأ المساحة المتاحة */}
+        <div className="flex-1 flex flex-col px-3 gap-2 min-h-0 pb-1">
+
+          {/* ─── ملخص المسار المضغوط ─── */}
+          <div className="shrink-0 bg-card rounded-xl px-3 py-2.5 border border-border/30">
+            <div className="flex items-stretch gap-3">
+              {/* خط المسار */}
+              <div className="flex flex-col items-center py-0.5 gap-0">
+                <div className="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-primary/25" />
+                <div className="w-px flex-1 min-h-[18px] bg-gradient-to-b from-primary via-border to-blue-500 my-0.5" />
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-blue-500/25" />
               </div>
 
-              <div className="flex-1 space-y-4">
-                <div className="min-h-[32px]">
-                  <p className="text-[10px] uppercase tracking-wider text-primary font-bold mb-0.5">
-                    موقع الانطلاق
-                  </p>
-                  <p className="text-sm font-semibold text-foreground line-clamp-1">
-                    {buildDescriptiveAddress(pickupLocation.address || "")}
+              {/* النصوص */}
+              <div className="flex-1 flex flex-col gap-2 min-w-0">
+                <div className="min-h-0">
+                  <p className="text-[9px] uppercase tracking-wider text-primary font-bold mb-0.5">الانطلاق</p>
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    {buildDescriptiveAddress(pickupLocation.address || '')}
                   </p>
                 </div>
-                <div>
-                  <p
-                    className="text-[10px] uppercase tracking-wider font-bold mb-0.5"
-                    style={{ color: "#2A6CD5" }}
-                  >
-                    الوجهة
-                  </p>
-                  <p className="text-sm font-semibold text-foreground line-clamp-1">
-                    {buildDescriptiveAddress(dropoffLocation.address || "")}
+                <div className="min-h-0">
+                  <p className="text-[9px] uppercase tracking-wider text-blue-500 font-bold mb-0.5">الوصول</p>
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    {buildDescriptiveAddress(dropoffLocation.address || '')}
                   </p>
                 </div>
               </div>
 
+              {/* زر العكس */}
               <button
                 onClick={onSwapLocations}
-                className="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-all duration-200 active:scale-95 shrink-0"
+                className="w-9 h-9 self-center rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center shrink-0 transition-colors"
                 aria-label="عكس الاتجاه"
               >
-                <ArrowUpDown className="w-5 h-5 text-primary" />
+                <ArrowUpDown className="w-4 h-4 text-primary" />
               </button>
             </div>
-          </motion.div>
+          </div>
 
-          {/* معلومات الرحلة */}
-          {fareBreakdown && (
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.1 }}
-              className="grid grid-cols-2 gap-2"
-            >
-              <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 rounded-xl p-3 border border-blue-500/20">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                    <svg
-                      className="w-4 h-4 text-blue-600"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                      />
-                    </svg>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                    المسافة
-                  </span>
-                </div>
-                <p className="text-lg font-bold text-blue-600">
-                  {fareBreakdown.distance_km.toFixed(1)}{" "}
-                  <span className="text-xs font-medium">كم</span>
-                </p>
-              </div>
+          {/* ─── المسافة + الوقت + الأجرة في صف واحد ─── */}
+          <div className="shrink-0 grid grid-cols-3 gap-2">
+            <div className="bg-blue-500/8 rounded-xl p-2.5 border border-blue-500/15 flex flex-col items-center">
+              <span className="text-[9px] text-muted-foreground font-medium uppercase mb-0.5">المسافة</span>
+              <p className="text-base font-bold text-blue-600">
+                {fareBreakdown ? fareBreakdown.distance_km.toFixed(1) : routeDistance?.toFixed(1) ?? '---'}
+                <span className="text-xs font-medium"> كم</span>
+              </p>
+            </div>
+            <div className="bg-purple-500/8 rounded-xl p-2.5 border border-purple-500/15 flex flex-col items-center">
+              <span className="text-[9px] text-muted-foreground font-medium uppercase mb-0.5">الوقت</span>
+              <p className="text-base font-bold text-purple-600">
+                {routeDuration ? Math.round(routeDuration) : fareBreakdown ? Math.ceil(fareBreakdown.distance_km * 2.5) : '---'}
+                <span className="text-xs font-medium"> د</span>
+              </p>
+            </div>
+            <div className="bg-primary/8 rounded-xl p-2.5 border border-primary/15 flex flex-col items-center">
+              <span className="text-[9px] text-muted-foreground font-medium uppercase mb-0.5">الأجرة</span>
+              <p className="text-base font-bold text-primary">
+                {fareBreakdown ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'}
+              </p>
+            </div>
+          </div>
 
-              <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 rounded-xl p-3 border border-purple-500/20">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                    <svg
-                      className="w-4 h-4 text-purple-600"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                    الوقت
-                  </span>
-                </div>
-                <p className="text-lg font-bold text-purple-600">
-                  {Math.ceil(fareBreakdown.distance_km * 2.5)}{" "}
-                  <span className="text-xs font-medium">دقيقة</span>
-                </p>
-              </div>
-            </motion.div>
-          )}
-
-          {/* اختيار المركبة */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.15 }}
-          >
+          {/* ─── اختيار المركبة ─── */}
+          <div className="shrink-0">
             <CompactVehicleSelector
               selectedVehicle={selectedVehicle}
               onSelect={onSelectVehicle}
               availableDrivers={availableDriversByType}
               baseFare={fareBreakdown?.total_fare}
             />
-          </motion.div>
+          </div>
 
-          {/* الأجرة وطريقة الدفع */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="bg-gradient-to-br from-primary/5 via-primary/8 to-primary/10 rounded-2xl p-4 border border-primary/20 shadow-lg"
-          >
-            {fareBreakdown && (
-              <div className="mb-3 pb-3 border-b border-primary/10">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center">
-                      <Zap className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                        الأجرة المتوقعة
-                      </p>
-                      <p className="text-xs text-muted-foreground/70">
-                        {fareBreakdown.region_name}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-2xl font-bold text-primary">
-                      {roundFare(fareBreakdown.total_fare).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground">دينار عراقي</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
+          {/* ─── طريقة الدفع + جدولة في صف واحد ─── */}
+          <div className="shrink-0 flex gap-2">
             <button
               onClick={() => onPaymentSheetChange(true)}
-              className="w-full bg-card/50 rounded-xl px-4 py-3 border border-border/40 hover:border-primary/40 hover:bg-card/80 transition-all duration-200 active:scale-[0.98] flex items-center justify-between group"
+              className="flex-1 bg-card rounded-xl px-3 py-2 border border-border/40 hover:border-primary/40 transition-colors flex items-center gap-2"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-lg">
-                  {PAYMENT_ICONS[paymentMethod] || "💵"}
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                    طريقة الدفع
-                  </p>
-                  <p className="font-bold text-sm">
-                    {PAYMENT_NAMES[paymentMethod] || "نقداً"}
-                  </p>
-                </div>
+              <span className="text-lg">{PAYMENT_ICONS[paymentMethod] || '💵'}</span>
+              <div className="text-right">
+                <p className="text-[9px] text-muted-foreground uppercase">الدفع</p>
+                <p className="font-bold text-xs">{PAYMENT_NAMES[paymentMethod] || 'نقداً'}</p>
               </div>
-              <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground mr-auto" />
             </button>
-          </motion.div>
 
-          {/* خيار الجدولة */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="px-1"
-          >
-            <ScheduleRideDialog
-              ref={scheduleDialogRef}
-              pickup={pickupLocation}
-              dropoff={dropoffLocation}
-              vehicleType={selectedVehicle}
-              paymentMethod={paymentMethod}
-              estimatedFare={fareBreakdown?.total_fare || null}
-              onScheduled={onScheduled}
-            />
-          </motion.div>
+            <div className="flex-1">
+              <ScheduleRideDialog
+                ref={scheduleDialogRef}
+                pickup={pickupLocation}
+                dropoff={dropoffLocation}
+                vehicleType={selectedVehicle}
+                paymentMethod={paymentMethod}
+                estimatedFare={fareBreakdown?.total_fare || null}
+                onScheduled={onScheduled}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* زر الحجز */}
-        {!bottomNavEnabled && (
-          <div className="px-4 pb-6">
-            <div className="max-w-lg mx-auto">
-              <Button
-                onClick={onBookRide}
-                disabled={fareLoading}
-                className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground"
-              >
-                <span className="flex items-center gap-3 justify-center">
-                  <Navigation className="w-5 h-5" />
-                  <span>احجز الآن</span>
-                  <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
-                    {fareBreakdown?.total_fare
-                      ? roundFare(fareBreakdown.total_fare).toLocaleString()
-                      : "---"}{" "}
-                    د.ع
-                  </span>
-                </span>
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {bottomNavEnabled && (
-          <div className="fixed bottom-20 left-0 right-0 p-4 bg-background/98 backdrop-blur-md border-t border-border/20 z-40">
-            <div className="max-w-lg mx-auto">
-              <Button
-                onClick={onBookRide}
-                disabled={fareLoading}
-                className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground"
-              >
-                <span className="flex items-center gap-3 justify-center">
-                  <Navigation className="w-5 h-5" />
-                  <span>احجز الآن</span>
-                  <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
-                    {fareBreakdown?.total_fare
-                      ? roundFare(fareBreakdown.total_fare).toLocaleString()
-                      : "---"}{" "}
-                    د.ع
-                  </span>
-                </span>
-              </Button>
-            </div>
-          </div>
-        )}
+        {/* ═══ زر الحجز — يلتصق بالأسفل حواف حادة ═══ */}
+        {!bottomNavEnabled && BookButton}
       </div>
+
+      {/* زر الحجز للـ bottomNav */}
+      {bottomNavEnabled && (
+        <div className="fixed bottom-16 left-0 right-0 z-50">
+          {BookButton}
+        </div>
+      )}
 
       {/* ورقة طرق الدفع */}
       <PaymentMethodSheet
@@ -510,7 +353,7 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
         onClose={() => onMenuChange(false)}
         onLogout={async () => {
           await supabase.auth.signOut();
-          onNavigate("/auth");
+          onNavigate('/auth');
         }}
       />
     </motion.div>
@@ -518,3 +361,4 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
 };
 
 export default BookingConfirmationScreen;
+

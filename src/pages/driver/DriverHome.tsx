@@ -106,6 +106,22 @@ const DriverHome = () => {
     return () => document.body.classList.remove('driver-mode');
   }, []);
 
+  // 🔊 تهيئة AudioContext عند أول تفاعل مستخدم (click/tap)
+  // هذا يضمن جاهزية الصوت حتى قبل ضغط "Go Online"
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      initAudioContext();
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+    };
+    document.addEventListener('click', handleFirstInteraction, { once: true });
+    document.addEventListener('touchstart', handleFirstInteraction, { once: true });
+    return () => {
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+    };
+  }, []);
+
   // تحديث حالة البحث بناءً على حالة السائق
   useEffect(() => {
     // السائق يبحث عن طلبات عندما يكون متصلاً وغير مشغول وليس لديه رحلة نشطة

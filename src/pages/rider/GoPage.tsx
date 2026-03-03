@@ -11,6 +11,7 @@ import { useFareCalculation } from "@/hooks/useFareCalculation";
 import { useOptimizedNearbyDrivers } from "@/hooks/useOptimizedNearbyDrivers";
 import CompactVehicleSelector from "@/components/rider/CompactVehicleSelector";
 import PaymentMethodSheet from "@/components/rider/PaymentMethodSheet";
+import VehicleTypeSheet, { VEHICLE_NAMES } from "@/components/rider/VehicleTypeSheet";
 import { ScheduleRideDialog } from "@/components/rider/ScheduleRideDialog";
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
 import StatusIcons from "@/components/common/StatusIcons";
@@ -46,6 +47,8 @@ import { LocationPermissionPrompt } from "@/components/rider/LocationPermissionP
 import LocationInputField from "@/components/rider/LocationInputField";
 import QuickAccessChips from "@/components/rider/QuickAccessChips";
 import FavoriteMarkersLayer from "@/components/rider/FavoriteMarkersLayer";
+import { useFavoritesStore } from "@/stores/useFavoritesStore";
+import SaveLocationModal from "@/components/rider/SaveLocationModal";
 
 // Performance & Enhancement hooks
 import { usePerformanceMonitoring, useOperationTiming } from "@/hooks/usePerformanceMonitoring";
@@ -192,6 +195,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     fetchRoute,
     cleanup: cleanupBooking
   } = useBookingFlow();
+
+  // Sheet لاختيار نوع السيارة
+  const [vehicleSheetOpen, setVehicleSheetOpen] = useState(false);
 
   // Search and places
   const {
@@ -388,7 +394,18 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       .finally(() => { if (updateStore) setIsLoading(false); });
   }, [getBestPosition, reverseGeocode, setIsLoading, setStoreUserLocation, shouldAcceptLocation, toast, userLocation]);
 
-  const manualGeolocateMain = useCallback(() => handleGeolocate(map, true), [handleGeolocate, map]);
+  // panToUserLocation: يسحب الخريطة للموقع الفعلي فقط — بدون setIsLoading أو قراءة store
+  const manualGeolocateMain = useCallback(() => {
+    // إذا كان userLocation معروفاً بالفعل، انتقل إليه فوراً
+    if (userLocation && map.current) {
+      map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+      map.current.setZoom(17);
+      reverseGeocode(userLocation.lat, userLocation.lng);
+      return;
+    }
+    // وإلا اطلب الموقع لمرة واحدة بدون updateStore
+    handleGeolocate(map, false);
+  }, [handleGeolocate, map, reverseGeocode, userLocation]);
   const manualGeolocateBooking = useCallback(() => handleGeolocate(bookingMap, false), [handleGeolocate, bookingMap]);
   
   // Layout management - Bottom panel height tracking
@@ -405,6 +422,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   const [geofenceResult, setGeofenceResult] = useState<GeofenceResult | null>(null);
   const [showGeofenceAlert, setShowGeofenceAlert] = useState(false);
   const [showRatingScreen, setShowRatingScreen] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  // حقل البحث الأول (موقع الانطلاق / الوجهة من الخريطة)
+  const [locationSearchQuery, setLocationSearchQuery] = useState('');
+  const [isLocationFocused, setIsLocationFocused] = useState(false);
+  // حفظ الموقع
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const { isFavorite, addFavorite, removeFavorite } = useFavoritesStore();
+  const isFav = centerLat && centerLng ? isFavorite(centerLat, centerLng) : false;
 
   // Fare calculation
   const {
@@ -825,7 +850,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         if (dropoffLocation) {
           setCurrentMode("booking");
         } else {
+          // ✅ إعادة تهيئة الخريطة عند الانتقال من pickup إلى dropoff
           setCurrentMode("dropoff");
+          setMapReloadKey((prev) => prev + 1);
         }
         setCenterAddress("");
         setSearchQuery("");
@@ -862,7 +889,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     } finally {
       setIsConfirming(false);
     }
-  }, [currentMode, centerAddress, isConfirming, map, checkServiceArea, toast, pickupLocation, dropoffLocation, setCurrentMode, setSearchQuery]);
+  }, [currentMode, centerAddress, isConfirming, map, checkServiceArea, toast, pickupLocation, dropoffLocation, setCurrentMode, setSearchQuery, setMapReloadKey]);
 
   // Track first drag to hide tooltip permanently
   useEffect(() => {
@@ -983,6 +1010,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     console.log('✅ handleBookRide clicked!');
     setIsBooking(true);
 
+    // ✅ ضمان تحرير الزر إذا تجاوزت العملية 20 ثانية
+    const bookingTimeout = setTimeout(() => {
+      console.warn('⏰ handleBookRide: global timeout reached, resetting isBooking');
+      setIsBooking(false);
+    }, 20000);
+
     try {
       const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
         return await Promise.race([
@@ -1001,6 +1034,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           description: "تحقق من اتصالك بالإنترنت وحاول مرة أخرى",
           variant: "destructive"
         });
+        setIsBooking(false);
         return;
       }
 
@@ -1015,6 +1049,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               description: "الرجاء تسجيل الدخول للحجز",
               variant: "destructive"
             });
+            setIsBooking(false);
             if (navigate) navigate("/auth?redirect=/rider/go");
             return;
           }
@@ -1024,6 +1059,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             description: "الرجاء تسجيل الدخول للحجز",
             variant: "destructive"
           });
+          setIsBooking(false);
           if (navigate) navigate("/auth?redirect=/rider/go");
           return;
         }
@@ -1036,6 +1072,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           variant: "destructive"
         });
         setShowWaitingScreen(true);
+        setIsBooking(false);
         return;
       }
 
@@ -1046,6 +1083,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           description: "الرجاء تحديد نقطة الانطلاق والوجهة",
           variant: "destructive"
         });
+        setIsBooking(false);
         return;
       }
 
@@ -1099,6 +1137,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           description: "الرجاء إعادة المحاولة",
           variant: "destructive"
         });
+        setIsBooking(false);
         return;
       }
       console.log('✅ handleBookRide: fare OK, proceeding to create ride...');
@@ -1120,6 +1159,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               variant: "destructive"
             });
             setPaymentSheetOpen(true);
+            setIsBooking(false);
             return;
           }
         } catch (error) {
@@ -1173,6 +1213,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             description: `الحد الأقصى ${maxActive} رحلات نشطة في وقت واحد`,
             variant: "destructive",
           });
+          setIsBooking(false);
           return;
         }
 
@@ -1193,6 +1234,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               description: `انتظر ${Math.ceil(cooldown - elapsed)} ثانية قبل إنشاء رحلة جديدة`,
               variant: "destructive",
             });
+            setIsBooking(false);
             return;
           }
         }
@@ -1303,6 +1345,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       }
     } finally {
       // ✅ دائماً نُعيد تفعيل الزر بغض النظر عن أي return مبكر
+      clearTimeout(bookingTimeout);
       setIsBooking(false);
     }
   };
@@ -1435,11 +1478,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           </div>
         </div>
 
-        {/* Map - Top Half */}
-        <div className="h-[45%] relative bg-gray-200">
+        {/* Map - Top 40% */}
+        <div className="h-[40%] relative bg-gray-200">
           <div ref={bookingMapContainer} className="absolute inset-0 bg-gray-100" />
 
-          {/* Floating manual geolocate button for booking map — يسار الشاشة (right في CSS = يسار في RTL) */}
+          {/* Floating manual geolocate button */}
           <div className="absolute top-2 right-4 z-40 safe-area-top pointer-events-auto">
             <button
               onClick={manualGeolocateBooking}
@@ -1452,15 +1495,15 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           </div>
         </div>
 
-        {/* Details - Bottom Half with rounded top */}
-        <div className="h-[55%] bg-background rounded-t-3xl -mt-4 relative z-10 flex flex-col shadow-[0_-10px_40px_rgba(0,0,0,0.15)]">
+        {/* Details - Bottom 60% — NO SCROLL */}
+        <div className="flex-1 bg-background rounded-t-2xl -mt-3 relative z-10 flex flex-col shadow-[0_-8px_30px_rgba(0,0,0,0.12)] overflow-hidden min-h-0">
           {/* Drag handle */}
-          <div className="flex justify-center pt-3 pb-1">
-            <div className="w-12 h-1.5 rounded-full bg-muted-foreground/25" />
+          <div className="flex justify-center pt-2 pb-1 shrink-0">
+            <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
           </div>
 
-          {/* Scrollable content */}
-          <div className={`flex-1 overflow-y-auto px-4 space-y-3 ${bottomNavEnabled ? 'pb-[calc(80px+1rem)]' : 'pb-6'}`}>
+          {/* Content — no scroll, fills available space */}
+          <div className="flex-1 flex flex-col px-3 gap-2 min-h-0 pb-1 shrink-0" style={{overflow:'hidden'}}>
             {/* Route summary - Modern vertical timeline */}
             <motion.div initial={{
             y: 20,
@@ -1539,209 +1582,143 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               </div>
             </motion.div>
 
-            {/* Trip Info - Distance & Time */}
-            {fareBreakdown && (
-              <motion.div 
-                initial={{ y: 20, opacity: 0 }} 
-                animate={{ y: 0, opacity: 1 }} 
-                transition={{ delay: 0.1 }}
-                className="grid grid-cols-2 gap-2"
-              >
-                {/* Distance */}
-                <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 rounded-xl p-3 border border-blue-500/20">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                      </svg>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">المسافة</span>
-                  </div>
-                  <p className="text-lg font-bold text-blue-600">
-                    {fareBreakdown.distance_km.toFixed(1)} <span className="text-xs font-medium">كم</span>
-                  </p>
-                </div>
-
-                {/* Estimated Time */}
-                <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 rounded-xl p-3 border border-purple-500/20">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">الوقت</span>
-                  </div>
-                  <p className="text-lg font-bold text-purple-600">
-                    {routeDuration ? Math.ceil(routeDuration) : Math.ceil(fareBreakdown.distance_km * 2.5)} <span className="text-xs font-medium">دقيقة</span>
-                  </p>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Vehicle selector */}
-            <motion.div initial={{
-            y: 20,
-            opacity: 0
-          }} animate={{
-            y: 0,
-            opacity: 1
-          }} transition={{
-            delay: 0.15
-          }}>
-              <CompactVehicleSelector selectedVehicle={selectedVehicle} onSelect={setSelectedVehicle} availableDrivers={availableDriversByType} baseFare={fareBreakdown?.total_fare} />
-            </motion.div>
-
-            {/* Fare & Payment - Combined Card in Single Row */}
-            <motion.div 
-              initial={{ y: 20, opacity: 0 }} 
-              animate={{ y: 0, opacity: 1 }} 
-              transition={{ delay: 0.2 }}
-              className="bg-gradient-to-br from-primary/5 via-primary/8 to-primary/10 rounded-2xl p-4 border border-primary/20 shadow-lg"
-            >
-              <div className="flex items-center justify-between gap-3">
-                {/* Fare Display */}
-                {fareBreakdown && (
-                  <div className="flex-1 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center">
-                        <Zap className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">الأجرة المتوقعة</p>
-                        <p className="text-xs text-muted-foreground/70">{fareBreakdown.region_name}</p>
-                      </div>
-                    </div>
-                    <div className="text-left">
-                      <p className="text-2xl font-bold text-primary">
-                        {roundFare(fareBreakdown.total_fare).toLocaleString()}
-                      </p>
-                      <p className="text-xs text-muted-foreground">دينار عراقي</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Divider */}
-                <div className="w-px h-16 bg-primary/20" />
-
-                {/* Payment Method Selector */}
-                <button 
-                  onClick={() => setPaymentSheetOpen(true)} 
-                  className="flex-1 bg-card/50 rounded-xl px-4 py-3 border border-border/40 hover:border-primary/40 hover:bg-card/80 transition-all duration-200 active:scale-[0.98] flex items-center justify-between group h-full"
-                >
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-lg">
-                      {paymentMethod === 'cash' ? '💵' : 
-                       paymentMethod === 'wallet' ? '👛' : 
-                       paymentMethod === 'card' ? '💳' : '💵'}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">طريقة الدفع</p>
-                      <p className="font-bold text-sm">
-                        {paymentMethod === 'cash' ? 'نقداً' : 
-                         paymentMethod === 'wallet' ? 'المحفظة' : 
-                         paymentMethod === 'card' ? 'البطاقة' : 'نقداً'}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                </button>
+            {/* Trip Info - Distance, Time & Fare — 3 columns */}
+            <div className="shrink-0 grid grid-cols-3 gap-2">
+              {/* المسافة */}
+              <div className="bg-blue-500/10 rounded-xl p-3 border border-blue-500/20 flex flex-col items-center justify-center">
+                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide mb-1">المسافة</span>
+                <p className="text-base sm:text-lg font-bold text-blue-600 leading-none">
+                  {fareBreakdown ? fareBreakdown.distance_km.toFixed(1) : routeDistance?.toFixed(1) ?? '---'}
+                  <span className="text-xs font-medium"> كم</span>
+                </p>
               </div>
-            </motion.div>
-
-            {/* Schedule option - Enhanced */}
-            <motion.div 
-              initial={{
-                y: 20,
-                opacity: 0
-              }} 
-              animate={{
-                y: 0,
-                opacity: 1
-              }} 
-              transition={{
-                delay: 0.3
-              }}
-              className="px-1"
-            >
-              <ScheduleRideDialog 
-                ref={scheduleDialogRef}
-                pickup={pickupLocation} 
-                dropoff={dropoffLocation} 
-                vehicleType={selectedVehicle} 
-                paymentMethod={paymentMethod} 
-                estimatedFare={fareBreakdown?.total_fare || null} 
-                onScheduled={() => {
-                  toast({
-                    title: "تم جدولة الرحلة ✅",
-                    description: "سيتم تذكيرك قبل الموعد"
-                  });
-                  resetBooking();
-                }} 
-              />
-            </motion.div>
-
-            {/* Book button - Inside scroll container */}
-            {!bottomNavEnabled && (
-              <div className="px-1 mt-2">
-                <Button 
-                  onClick={handleBookRide}
-                  disabled={!fareBreakdown || isBooking}
-                  className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground"
-                >
-                  <span className="flex items-center gap-3 justify-center">
-                    {isBooking ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>جاري إنشاء الحجز...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Navigation className="w-5 h-5" />
-                        <span>احجز الآن</span>
-                        <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
-                          {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
-                          {fareLoading && <Loader2 className="w-3 h-3 animate-spin inline mr-1" />}
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </Button>
+              {/* الوقت */}
+              <div className="bg-purple-500/10 rounded-xl p-3 border border-purple-500/20 flex flex-col items-center justify-center">
+                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide mb-1">الوقت</span>
+                <p className="text-base sm:text-lg font-bold text-purple-600 leading-none">
+                  {routeDuration ? Math.ceil(routeDuration) : fareBreakdown ? Math.ceil(fareBreakdown.distance_km * 2.5) : '---'}
+                  <span className="text-xs font-medium"> د</span>
+                </p>
               </div>
-            )}
-          </div>
-
-          {/* Book button - Fixed at bottom when nav is visible */}
-          {bottomNavEnabled && (
-            <div className="fixed bottom-[80px] left-0 right-0 p-4 bg-background/98 backdrop-blur-md border-t border-border/20 z-40 safe-area-bottom">
-              <div className="max-w-lg mx-auto">
-                <Button 
-                  onClick={handleBookRide}
-                  disabled={!fareBreakdown || isBooking}
-                  className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-gradient-to-r from-primary via-primary to-primary/90 rounded-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] text-primary-foreground"
-                >
-                  <span className="flex items-center gap-3 justify-center">
-                    {isBooking ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>جاري إنشاء الحجز...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Navigation className="w-5 h-5" />
-                        <span>احجز الآن</span>
-                        <span className="bg-black/20 px-2.5 py-0.5 rounded-lg text-sm">
-                          {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : "---"} د.ع
-                          {fareLoading && <Loader2 className="w-3 h-3 animate-spin inline mr-1" />}
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </Button>
+              {/* الأجرة */}
+              <div className="bg-primary/10 rounded-xl p-3 border border-primary/20 flex flex-col items-center justify-center">
+                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide mb-1">الأجرة</span>
+                <p className="text-base sm:text-lg font-bold text-primary leading-none">
+                  {fareBreakdown ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'}
+                </p>
               </div>
             </div>
+
+
+            {/* Vehicle + Payment — زرّان منسدلان جنب بعض */}
+            <div className="shrink-0 flex gap-2">
+              {/* زر نوع السيارة */}
+              <button
+                onClick={() => setVehicleSheetOpen(true)}
+                className="flex-1 bg-card rounded-xl px-3 py-2 border border-border/40 hover:border-primary/40 transition-colors flex items-center gap-2"
+              >
+                <div className="text-right flex-1">
+                  <p className="text-[9px] text-muted-foreground uppercase">السيارة</p>
+                  <p className="font-bold text-xs">{VEHICLE_NAMES[selectedVehicle] || 'اقتصادي'}</p>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+              </button>
+
+              {/* زر طريقة الدفع */}
+              <button
+                onClick={() => setPaymentSheetOpen(true)}
+                className="flex-1 bg-card rounded-xl px-3 py-2 border border-border/40 hover:border-primary/40 transition-colors flex items-center gap-2"
+              >
+                <div className="text-right flex-1">
+                  <p className="text-[9px] text-muted-foreground uppercase">الدفع</p>
+                  <p className="font-bold text-xs">{{cash:'نقداً',wallet:'المحفظة',card:'البطاقة',zain_cash:'زين كاش',super_key:'سوبر كي',nas_wallet:'ناس ولت'} [paymentMethod] || 'نقداً'}</p>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+              </button>
+
+              {/* جدولة الرحلة */}
+              <div className="flex-1">
+                <ScheduleRideDialog
+                  ref={scheduleDialogRef}
+                  pickup={pickupLocation}
+                  dropoff={dropoffLocation}
+                  vehicleType={selectedVehicle}
+                  paymentMethod={paymentMethod}
+                  estimatedFare={fareBreakdown?.total_fare || null}
+                  onScheduled={() => {
+                    toast({ title: "تم جدولة الرحلة ✅", description: "سيتم تذكيرك قبل الموعد" });
+                    resetBooking();
+                  }}
+                />
+              </div>
+            </div>
+
+          </div>
+
+          {/* زر الحجز — HTML مباشر لحواف حادة حقيقية، يلتصق بالأسفل */}
+          {!bottomNavEnabled && (
+            <button
+              onClick={handleBookRide}
+              disabled={!fareBreakdown || isBooking}
+              className="w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-60 active:brightness-90 transition-all shrink-0"
+              style={{ borderRadius: 0 }}
+            >
+              {isBooking ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>جاري إنشاء الحجز...</span>
+                </>
+              ) : (
+                <>
+                  <Navigation className="w-5 h-5" />
+                  <span>احجز الآن</span>
+                  <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold">
+                    {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع
+                    {fareLoading && <Loader2 className="w-3 h-3 animate-spin inline mr-1" />}
+                  </span>
+                </>
+              )}
+            </button>
           )}
         </div>
+
+          {/* زر الحجز الثابت لـ bottomNav */}
+          {bottomNavEnabled && (
+            <div className="fixed bottom-16 left-0 right-0 z-50">
+              <button
+                onClick={handleBookRide}
+                disabled={!fareBreakdown || isBooking}
+                className="w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-60 active:brightness-90 transition-all"
+                style={{ borderRadius: 0 }}
+              >
+                {isBooking ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>جاري إنشاء الحجز...</span>
+                  </>
+                ) : (
+                  <>
+                    <Navigation className="w-5 h-5" />
+                    <span>احجز الآن</span>
+                    <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold">
+                      {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع
+                      {fareLoading && <Loader2 className="w-3 h-3 animate-spin inline mr-1" />}
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+        {/* VehicleType Sheet */}
+        <VehicleTypeSheet
+          open={vehicleSheetOpen}
+          onOpenChange={setVehicleSheetOpen}
+          selectedVehicle={selectedVehicle}
+          onSelect={setSelectedVehicle}
+          baseFare={fareBreakdown?.total_fare}
+          availableDrivers={availableDriversByType}
+        />
 
         {/* Payment Method Sheet */}
         <PaymentMethodSheet open={paymentSheetOpen} onOpenChange={setPaymentSheetOpen} selectedMethod={paymentMethod} onSelect={setPaymentMethod} />
@@ -1926,18 +1903,27 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             animate={{ scale: 1, opacity: 1 }}
             className="flex flex-col items-center gap-1"
           >
-            {/* Location Name Label - يظهر أعلى الدبوس للتطابق البصري */}
-            {centerAddress && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-card/95 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-lg border border-border/50 whitespace-nowrap max-w-xs"
-              >
-                <p className="text-xs sm:text-sm font-semibold text-foreground truncate">
-                  {buildDescriptiveAddress(centerAddress)}
-                </p>
-              </motion.div>
-            )}
+            {/* Location Name Label - يظهر أعلى الدبوس */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-card/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-lg border border-border/50 whitespace-nowrap max-w-xs"
+            >
+              <div className="flex items-center gap-2">
+                {/* نوع الموقع */}
+                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0 ${
+                  isPickup ? 'bg-green-500' : 'bg-sky-500'
+                }`}>
+                  {isPickup ? '🚀 انطلاق' : '📍 وصول'}
+                </span>
+                {/* العنوان الديناميكي */}
+                {centerAddress && (
+                  <p className="text-xs sm:text-sm font-semibold text-foreground truncate">
+                    {buildDescriptiveAddress(centerAddress)}
+                  </p>
+                )}
+              </div>
+            </motion.div>
             
             <motion.div 
               animate={{ y: isDragging ? -12 : 0 }} 
@@ -1998,20 +1984,19 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         y: 100
       }} animate={{
         y: 0
-      }} className={`bg-card/98 backdrop-blur-xl border-t border-border/30 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] z-20 rounded-t-3xl transition-all duration-300 pointer-events-auto ${bottomNavEnabled ? 'fixed left-0 right-0' : 'fixed bottom-0 left-0 right-0'}`}
+      }} className={`bg-card/98 backdrop-blur-xl border-t border-border/30 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] z-20 rounded-t-3xl transition-all duration-300 pointer-events-auto ${bottomNavEnabled ? 'fixed left-0 right-0' : 'fixed left-0 right-0'}`}
         style={{
-          bottom: bottomNavEnabled ? 'calc(env(safe-area-inset-bottom) + 65px)' : 'env(safe-area-inset-bottom, 0px)',
-          maxHeight: bottomNavEnabled ? 'calc(100vh - 200px - env(safe-area-inset-bottom))' : 'calc(100vh - 60px - env(safe-area-inset-bottom))',
-          overflowY: 'auto',
+          bottom: bottomNavEnabled ? 'calc(env(safe-area-inset-bottom) + 65px)' : 'calc(env(safe-area-inset-bottom, 0px) + 64px)',
           WebkitBackdropFilter: 'blur(12px)',
-          contain: 'layout style paint'
+          overflow: 'visible',
         }}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1 pointer-events-auto">
-          <div className="w-12 h-1.5 rounded-full bg-muted-foreground/25" />
+        {/* شعار RAAN — أعلى البانل بالوسط */}
+        <div className="flex flex-col items-center justify-center pt-4 pb-2 gap-1">
+          <img src={logo} alt="RAAN" className="w-10 h-10 drop-shadow-md" />
+          <p className="text-[10px] font-bold tracking-[0.2em] text-muted-foreground uppercase">RAN</p>
         </div>
-        <div className={`px-4 pt-1 max-w-lg mx-auto transition-all duration-300 ${bottomNavEnabled ? 'pb-12' : 'pb-6'}`}>
+        <div className="px-4 pb-4 flex flex-col gap-3">
           {/* Service area warning */}
           {localServiceAreaStatus && !localServiceAreaStatus.in_service && <div className="flex items-center gap-3 p-3 mb-3 rounded-md bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/30">
               <div className="w-8 h-8 rounded-md bg-destructive/20 flex items-center justify-center shrink-0">
@@ -2028,50 +2013,50 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               </div>
             </div>}
 
-          {/* Location Input Field with Heart */}
-          <LocationInputField
-            label={isPickup ? "موقع الانطلاق" : "الوجهة"}
-            value={buildDescriptiveAddress(centerAddress || "") || ""}
-            address={buildDescriptiveAddress(centerAddress || "") || ""}
-            lat={centerLat}
-            lng={centerLng}
-            placeholder={isPickup ? "اختر موقع الانطلاق" : "اختر الوجهة"}
-            onClick={() => {}} // الخريطة تتحكم بهذا
-            isPickup={isPickup}
-            onCurrentLocationClick={() => {
-              // استخدام manualGeolocateMain لتحديد الموقع الحالي
-              manualGeolocateMain();
-            }}
-            onClear={() => {
-               setCenterAddress(null);
-               (window as any).__setCenterLat?.(null);
-               (window as any).__setCenterLng?.(null);
-              setManualAddress(null);
-            }}
-            className="mb-3 pointer-events-auto"
-          />
-
-          {/* Dynamic search - Google Places */}
-          <div className="mb-3 relative pointer-events-auto">
+          {/* حقل البحث الأول - موقع الانطلاق/الوجهة (قابل للكتابة مثل الحقل الثاني تماماً) */}
+          <div className="relative pointer-events-auto">
             <DynamicSearchHeader
-              query={searchQuery}
-              onQueryChange={setSearchQuery}
-              onClear={clearSearch}
+              query={locationSearchQuery}
+              onQueryChange={(v) => {
+                setLocationSearchQuery(v);
+                setSearchQuery(v);
+                if (v) setIsLocationFocused(true);
+              }}
+              onClear={() => {
+                setLocationSearchQuery('');
+                clearSearch();
+                setIsLocationFocused(false);
+                setCenterAddress(null);
+                setManualAddress(null);
+              }}
               isSearching={isSearching}
-              placeholder={isPickup ? "ابحث عن موقع الانطلاق..." : "ابحث عن الوجهة..."}
+              placeholder={isPickup ? 'ابحث عن موقع الانطلاق...' : 'ابحث عن الوجهة...'}
+              onFocus={() => setIsLocationFocused(true)}
+              showAddress={!locationSearchQuery && centerAddress ? buildDescriptiveAddress(centerAddress) : undefined}
+              onCurrentLocation={() => manualGeolocateMain()}
+              onSaveLocation={() => {
+                if (centerAddress && centerLat && centerLng) setShowSaveModal(true);
+              }}
+              isFavorite={!!isFav}
+              onClearAddress={() => {
+                setCenterAddress(null);
+                setManualAddress(null);
+                setLocationSearchQuery('');
+                setSearchQuery('');
+                setLocalServiceAreaStatus(null);
+              }}
             />
 
             <DynamicSearchResults
-              query={searchQuery}
+              query={locationSearchQuery}
               results={predictions}
               recentSearches={recentSearches}
               isSearching={isSearching}
               isLoadingDetails={isLoadingDetails}
+              isOpen={isLocationFocused}
               onSelect={async (placeId) => {
                 const placeDetails = await getPlaceDetails(placeId);
                 if (!placeDetails) return;
-
-                // حفظ البحث الناجح
                 addRecentSearch({
                   mainText: placeDetails.name,
                   secondaryText: placeDetails.address,
@@ -2079,92 +2064,46 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                   lat: placeDetails.lat,
                   lng: placeDetails.lng,
                 });
-
-                const geofenceCheck = await checkDestinationGeofence(
-                  placeDetails.lat,
-                  placeDetails.lng,
-                  mapToken
-                );
+                const geofenceCheck = await checkDestinationGeofence(placeDetails.lat, placeDetails.lng, mapToken);
                 if (!geofenceCheck.allowed) {
                   setGeofenceResult(geofenceCheck);
                   setShowGeofenceAlert(true);
                   return;
                 }
-
                 if (map.current) {
-                  map.current.panTo({
-                    lat: placeDetails.lat,
-                    lng: placeDetails.lng,
-                  });
+                  map.current.panTo({ lat: placeDetails.lat, lng: placeDetails.lng });
                   map.current.setZoom(16);
                 }
-                
-                // ✨ بناء عنوان ذكي = اسم المكان + المدينة (بدون Plus Code)
-                let descriptiveAddress = placeDetails.name || placeDetails.address;
-                
-                // محاولة استخراج المدينة من formatted_address
-                const addressParts = placeDetails.address
-                  .split(/[،,]/)
-                  .map(p => p.trim())
-                  .filter(p => p.length > 0);
-                
-                // حذف Plus Code إذا وجد
-                const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
-                const cleanParts = addressParts.filter(p => !plusCodeRegex.test(p));
-                
-                // استخراج المدينة (آخر جزء عادةً، بدون "محافظة" أو "العراق")
-                const city = cleanParts
-                  .reverse()
-                  .find(p => !p.includes("محافظة") && p !== "العراق");
-                
-                // بناء العنوان النهائي
-                if (placeDetails.name && city && placeDetails.name !== city) {
-                  descriptiveAddress = `${placeDetails.name}، ${city}`;
-                } else if (placeDetails.name) {
-                  descriptiveAddress = placeDetails.name;
-                } else {
-                  descriptiveAddress = cleanParts.slice(0, 2).join('، ') || placeDetails.address;
-                }
-                
-                console.log("✅ Built descriptive address from search:", descriptiveAddress);
-                
-                // ✨ استخدم setManualAddress بدلاً من setCenterAddress
-                setManualAddress(descriptiveAddress);
-                
+                setManualAddress(placeDetails.name || placeDetails.address);
                 checkServiceArea(placeDetails.lat, placeDetails.lng);
-                setSearchQuery("");
-                }}
-                onSelectRecent={async (search) => {
-                  // عند اختيار بحث سابق
-                  const geofenceCheck = await checkDestinationGeofence(
-                    search.lat,
-                    search.lng,
-                    mapToken
-                  );
-                  if (!geofenceCheck.allowed) {
-                    setGeofenceResult(geofenceCheck);
-                    setShowGeofenceAlert(true);
-                    return;
-                  }
-
-                  if (map.current) {
-                    map.current.panTo({
-                      lat: search.lat,
-                      lng: search.lng,
-                    });
-                    map.current.setZoom(16);
-                  }
-                  
-                  setManualAddress(search.address);
-                  checkServiceArea(search.lat, search.lng);
-                  setSearchQuery("");
-                }}
-                onRemoveRecent={removeRecentSearch}
-                maxResults={6}
-              />
+                setLocationSearchQuery('');
+                setSearchQuery('');
+                setIsLocationFocused(false);
+              }}
+              onSelectRecent={async (search) => {
+                const geofenceCheck = await checkDestinationGeofence(search.lat, search.lng, mapToken);
+                if (!geofenceCheck.allowed) {
+                  setGeofenceResult(geofenceCheck);
+                  setShowGeofenceAlert(true);
+                  return;
+                }
+                if (map.current) {
+                  map.current.panTo({ lat: search.lat, lng: search.lng });
+                  map.current.setZoom(16);
+                }
+                setManualAddress(search.address);
+                checkServiceArea(search.lat, search.lng);
+                setLocationSearchQuery('');
+                setSearchQuery('');
+                setIsLocationFocused(false);
+              }}
+              onRemoveRecent={removeRecentSearch}
+              maxResults={6}
+              maxRecentResults={3}
+              onClose={() => setIsLocationFocused(false)}
+            />
           </div>
 
-          {/* 🟢 المفضلة في جميع المراحل - الانطلاق والوجهة */}
           <QuickAccessChips
             onSelectLocation={(lat, lng, address) => {
               if (map.current) {
@@ -2174,43 +2113,88 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               setManualAddress(address);
               checkServiceArea(lat, lng);
             }}
-            className="mb-4 pointer-events-auto"
+            className="pointer-events-auto"
           />
 
-          {/* Confirm button - Enhanced with semantic colors */}
-          <Button 
-            onClick={() => {
-              // Haptic feedback عند النقر
-              if (navigator.vibrate) navigator.vibrate(50);
-              handleConfirm();
-            }} 
-            disabled={!centerAddress || isCheckingService || isConfirming} 
-            className={`w-full h-12 sm:h-14 text-sm sm:text-base font-bold rounded-xl shadow-lg transition-all duration-200 active:scale-[0.98] sticky bottom-4 ${
-              centerAddress 
-                ? "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary shadow-primary/25 text-primary-foreground" 
-                : "bg-muted/50 text-muted-foreground cursor-not-allowed"
-            }`}
-          >
-            {isCheckingService || isConfirming ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>{isConfirming ? "جاري التأكيد..." : "جاري التحقق..."}</span>
-              </div>
-            ) : !centerAddress ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>جاري تحديد العنوان...</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Check className="w-5 h-5" />
-                <span>تأكيد {isPickup ? "موقع الانطلاق" : "الوجهة"}</span>
-                {isPickup ? <Target className="w-4 h-4" /> : <MapPin className="w-4 h-4" />}
-              </div>
-            )}
-          </Button>
         </div>
       </motion.div>
+
+      {/* ════════════════════════════════════════════
+           زر التأكيد — ثابت في أسفل الشاشة
+           بنفس نمط أزرار شاشة السائق تماماً
+           ════════════════════════════════════════════ */}
+      <div
+        className="fixed bottom-0 inset-x-0 z-30 bg-slate-900/98 backdrop-blur-lg border-t border-slate-700/50"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <motion.button
+          onClick={() => {
+            if (navigator.vibrate) navigator.vibrate(50);
+            handleConfirm();
+          }}
+          disabled={!centerAddress || isCheckingService || isConfirming}
+          animate={centerAddress ? {
+            boxShadow: [
+              "0 0 0 0 rgba(var(--primary-rgb, 79,70,229),0)",
+              "0 0 0 10px rgba(var(--primary-rgb, 79,70,229),0.15)",
+              "0 0 0 0 rgba(var(--primary-rgb, 79,70,229),0)"
+            ]
+          } : {}}
+          transition={{ duration: 2, repeat: Infinity }}
+          whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.98 }}
+          className={`w-full h-16 flex items-center justify-center gap-3 text-lg font-black rounded-none touch-manipulation transition-all duration-200 ${
+            centerAddress && !isCheckingService && !isConfirming
+              ? 'bg-primary hover:bg-primary/90 active:bg-primary/80 text-primary-foreground'
+              : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+          }`}
+        >
+          {isCheckingService || isConfirming ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
+            </>
+          ) : !centerAddress ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>جاري تحديد العنوان...</span>
+            </>
+          ) : (
+            <>
+              <Check className="w-6 h-6" />
+              <span>تأكيد {isPickup ? 'موقع الانطلاق' : 'الوجهة'}</span>
+              {isPickup ? <Target className="w-5 h-5" /> : <MapPin className="w-5 h-5" />}
+            </>
+          )}
+        </motion.button>
+      </div>
+
+      {/* نافذة حفظ الموقع */}
+      <SaveLocationModal
+        open={showSaveModal}
+        onOpenChange={setShowSaveModal}
+        address={centerAddress ? buildDescriptiveAddress(centerAddress) : ''}
+        onSave={async (name, icon) => {
+          if (!centerLat || !centerLng || !centerAddress) return;
+          try {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            if (!authUser) return;
+            const addr = buildDescriptiveAddress(centerAddress);
+            if (isFav) {
+              // حذف من المفضلة
+              const { favorites } = useFavoritesStore.getState();
+              const fav = favorites.find(f => Math.abs(f.lat - centerLat) < 0.001 && Math.abs(f.lng - centerLng) < 0.001);
+              if (fav) { removeFavorite(fav.id); await supabase.from('saved_places').delete().eq('id', fav.id); }
+            } else {
+              const { error } = await supabase.from('saved_places').insert({
+                user_id: authUser.id, name: name || 'موقع محفوظ', address: addr,
+                lat: centerLat, lng: centerLng, icon, label: icon
+              });
+              if (!error) addFavorite({ id: `${centerLat}-${centerLng}-${Date.now()}`, name: name || 'موقع محفوظ', address: addr, lat: centerLat, lng: centerLng, icon: icon as 'home' | 'work' | 'cafe' | 'gym' | 'diwaniya' | 'carwash' | 'other', createdAt: Date.now(), color: '#22c55e' });
+            }
+            toast({ title: isFav ? 'محذوف من المفضلة ✅' : 'تم حفظ الموقع ✅', duration: 1500 });
+          } catch (e) { console.error(e); }
+        }}
+      />
 
       {/* Side Menu */}
       <RiderSideMenu user={user} isOpen={menuOpen} onClose={() => setMenuOpen(false)} onLogout={async () => {
