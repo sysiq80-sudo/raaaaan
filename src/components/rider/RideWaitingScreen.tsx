@@ -639,191 +639,131 @@ export const RideWaitingScreen = ({
     return messages[searchPhase];
   };
 
-  // Show driver card if driver accepted
+  // ═══ شاشة السائق المقبول ═══
   if (showDriverCard && acceptedDriver) {
     return (
-      <div className="fixed inset-0 z-50 bg-background flex flex-col">
-        {/* Progress stepper at top */}
-        <div className="bg-card/80 backdrop-blur-xl border-b border-border/30 px-4 py-3 safe-area-top">
-          <RideProgressStepper status="accepted" />
-        </div>
+      <div className="fixed inset-0 z-50 bg-background flex flex-col overflow-hidden">
 
-        {/* Main content */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          {/* Success Banner - Premium with semantic colors */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl p-4 text-primary-foreground shadow-xl shadow-primary/30">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary-foreground/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
-            <div className="relative flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-primary-foreground/20 flex items-center justify-center shrink-0 backdrop-blur-sm border border-primary-foreground/20">
-                <Car className="w-7 h-7 text-primary-foreground" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-bold flex items-center gap-2">
-                  <Sparkles className="w-5 h-5" />
-                  تم قبول طلبك!
-                </h2>
-                <p className="text-primary-foreground/90 text-sm mt-0.5">
-                  السائق في الطريق إليك الآن
-                </p>
-              </div>
+        {/* المحتوى */}
+        <div className="flex-1 flex flex-col px-4 py-3 gap-3 overflow-hidden">
+
+          {/* بانر النجاح — حواف حادة */}
+          <div className="shrink-0 bg-primary p-3 flex items-center gap-3 text-primary-foreground">
+            <div className="w-9 h-9 bg-primary-foreground/20 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-bold text-sm">تم قبول طلبك!</p>
+              <p className="text-xs text-primary-foreground/80">السائق في الطريق إليك الآن</p>
             </div>
           </div>
 
-          {/* Driver Card - Premium Design */}
-          <div className="bg-card rounded-2xl border border-border/40 shadow-lg overflow-hidden">
-            {/* Driver Info Section */}
-            <div className="p-4 bg-gradient-to-br from-muted/30 to-muted/10">
-              <div className="flex items-center gap-4">
-                <div className="relative shrink-0">
-                  <Avatar className="w-16 h-16 border-3 border-primary/40 shadow-lg shadow-primary/20">
-                    <AvatarImage
-                      src={acceptedDriver.profile_image_url || ""}
-                      alt={acceptedDriver.full_name}
-                    />
-                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary text-xl font-bold">
-                      {acceptedDriver.full_name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-primary rounded-full border-2 border-card flex items-center justify-center">
-                    <div className="w-2 h-2 bg-primary-foreground rounded-full animate-pulse" />
-                  </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-bold text-foreground truncate">
-                    {acceptedDriver.full_name}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    <div className="flex items-center gap-1 text-warning bg-warning/10 px-2 py-1 rounded-lg text-xs font-bold">
-                      <Star className="w-3.5 h-3.5 fill-current" />
-                      <span>{acceptedDriver.rating?.toFixed(1) || "5.0"}</span>
-                    </div>
-                    <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] px-2 py-0.5">
-                      <Sparkles className="w-3 h-3 ml-1" />
-                      سائق موثوق
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-
-              {/* Contact Buttons */}
-              <div className="flex gap-2 mt-4">
-                <Button
-                  variant="outline"
-                  className="flex-1 h-11 rounded-xl bg-card hover:bg-primary/5 border-border/50 transition-all"
-                  onClick={() =>
-                    window.open(`tel:${acceptedDriver.phone}`, "_self")
-                  }
-                >
-                  <Phone className="w-4 h-4 ml-2 text-primary" />
-                  <span className="text-sm font-semibold">اتصال</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 h-11 rounded-xl bg-card hover:bg-success/5 border-border/50 transition-all"
-                  onClick={() =>
-                    window.open(
-                      `https://wa.me/${acceptedDriver.phone}`,
-                      "_blank",
-                    )
-                  }
-                >
-                  <MessageCircle className="w-4 h-4 ml-2 text-success" />
-                  <span className="text-sm font-semibold">واتساب</span>
-                </Button>
-              </div>
-            </div>
-
-            {/* Vehicle Info */}
-            <div className="p-4 border-t border-border/30 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                  <Car className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                    المركبة
-                  </p>
-                  <p className="text-sm font-bold text-foreground truncate">
-                    {getVehicleTypeName(acceptedDriver.vehicle_type)}
-                    {acceptedDriver.vehicle_model &&
-                      ` • ${acceptedDriver.vehicle_model}`}
-                  </p>
-                  {acceptedDriver.vehicle_color && (
-                    <p className="text-xs text-muted-foreground">
-                      {acceptedDriver.vehicle_color}
-                    </p>
+          {/* بطاقة السائق — حواف حادة */}
+          <div className="shrink-0 bg-card border border-border/40 overflow-hidden">
+            <div className="p-3 flex items-center gap-3">
+              <Avatar className="w-14 h-14 border-2 border-primary/30 shrink-0">
+                <AvatarImage src={acceptedDriver.profile_image_url || ""} alt={acceptedDriver.full_name} />
+                <AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">
+                  {acceptedDriver.full_name.charAt(0)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-foreground truncate">{acceptedDriver.full_name}</h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="flex items-center gap-1 text-warning text-xs font-bold bg-warning/10 px-2 py-0.5">
+                    <Star className="w-3 h-3 fill-current" />
+                    {acceptedDriver.rating?.toFixed(1) || '5.0'}
+                  </span>
+                  {acceptedDriver.vehicle_plate && (
+                    <span className="text-xs font-mono font-black text-foreground bg-muted px-2 py-0.5">
+                      {acceptedDriver.vehicle_plate}
+                    </span>
                   )}
                 </div>
               </div>
+            </div>
 
-              {acceptedDriver.vehicle_plate && (
-                <div className="bg-gradient-to-br from-muted/60 to-muted/30 rounded-xl px-4 py-2 text-center border border-border/50">
-                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">
-                    رقم اللوحة
-                  </p>
-                  <p className="text-base font-black text-foreground tracking-[0.2em] font-mono">
-                    {acceptedDriver.vehicle_plate}
-                  </p>
-                </div>
-              )}
+            {/* معلومات المركبة */}
+            <div className="px-3 pb-3 border-t border-border/30 pt-2 flex items-center gap-2">
+              <Car className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="text-sm text-muted-foreground">
+                {getVehicleTypeName(acceptedDriver.vehicle_type)}
+                {acceptedDriver.vehicle_model && ` • ${acceptedDriver.vehicle_model}`}
+                {acceptedDriver.vehicle_color && ` • ${acceptedDriver.vehicle_color}`}
+              </span>
+            </div>
+
+            {/* أزرار التواصل — دون حواف */}
+            <div className="grid grid-cols-2 border-t border-border/30">
+              <button
+                onClick={() => window.open(`tel:${acceptedDriver.phone}`, '_self')}
+                className="flex items-center justify-center gap-2 py-3 text-sm font-semibold text-primary hover:bg-primary/5 transition-colors border-l border-border/30"
+              >
+                <Phone className="w-4 h-4" /> اتصال
+              </button>
+              <button
+                onClick={() => window.open(`https://wa.me/${acceptedDriver.phone}`, '_blank')}
+                className="flex items-center justify-center gap-2 py-3 text-sm font-semibold text-green-600 hover:bg-green-500/5 transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" /> واتساب
+              </button>
             </div>
           </div>
 
-          {/* Trip Summary - Compact */}
-          <div className="bg-card rounded-2xl border border-border/40 p-4 shadow-sm">
-            <div className="flex gap-3">
-              {/* Vertical line */}
-              <div className="flex flex-col items-center py-0.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-primary/20" />
-                <div className="w-0.5 flex-1 bg-gradient-to-b from-primary to-accent my-1.5" />
-                <div className="w-2.5 h-2.5 rounded-full bg-accent ring-4 ring-accent/20" />
+          {/* خط السير — حواف حادة */}
+          <div className="shrink-0 bg-card border border-border/40 overflow-hidden">
+            {/* نقطة الانطلاق */}
+            <div className="flex items-center gap-3 px-3 py-3">
+              <div className="w-8 h-8 bg-primary flex items-center justify-center shrink-0">
+                <MapPin className="w-4 h-4 text-primary-foreground" />
               </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-primary font-bold uppercase tracking-wider">الانطلاق</p>
+                <p className="text-sm font-semibold text-foreground truncate">{pickupAddress}</p>
+              </div>
+            </div>
 
-              {/* Locations */}
-              <div className="flex-1 min-w-0 space-y-4">
-                <div>
-                  <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-0.5">
-                    الانطلاق
-                  </p>
-                  <p className="text-sm font-semibold text-foreground line-clamp-1">
-                    {pickupAddress}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-accent-foreground font-bold uppercase tracking-wider mb-0.5">
-                    الوجهة
-                  </p>
-                  <p className="text-sm font-semibold text-foreground line-clamp-1">
-                    {dropoffAddress}
-                  </p>
+            {/* خط فاصل مع نقطتين */}
+            <div className="flex items-center gap-3 px-3">
+              <div className="w-8 flex justify-center">
+                <div className="flex flex-col items-center">
+                  <div className="w-0.5 h-2 bg-border/60" />
+                  <div className="w-1 h-1 bg-muted-foreground/40 rounded-full" />
+                  <div className="w-0.5 h-2 bg-border/60" />
                 </div>
               </div>
+              <div className="flex-1 border-t border-dashed border-border/40" />
+            </div>
 
-              {/* Fare */}
-              <div className="flex flex-col justify-center items-end border-r border-border/40 pr-4 mr-1">
+            {/* الوجهة */}
+            <div className="flex items-center gap-3 px-3 py-3">
+              <div className="w-8 h-8 bg-orange-500 flex items-center justify-center shrink-0">
+                <Navigation className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-orange-500 font-bold uppercase tracking-wider">الوجهة</p>
+                <p className="text-sm font-semibold text-foreground truncate">{dropoffAddress}</p>
+              </div>
+              <div className="text-left shrink-0 border-r border-border/30 pr-3 mr-1">
                 <p className="text-[10px] text-muted-foreground">الأجرة</p>
-                <p className="text-xl font-bold text-primary">
-                  {estimatedFare.toLocaleString()}
-                </p>
+                <p className="text-lg font-black text-primary">{estimatedFare.toLocaleString()}</p>
                 <p className="text-[10px] text-muted-foreground">د.ع</p>
               </div>
             </div>
           </div>
+
+          <div className="flex-1" />
         </div>
 
-        {/* Fixed Bottom Button */}
-        <div
-          className={`p-4 bg-background/98 backdrop-blur-md border-t border-border/30 safe-area-bottom ${bottomNavEnabled ? "pb-24" : ""}`}
+        {/* زر تتبع الرحلة — حواف حادة */}
+        <button
+          onClick={handleContinueToTracking}
+          className="w-full h-14 flex items-center justify-center gap-2 bg-primary text-primary-foreground text-base font-bold shrink-0 active:brightness-90 transition-all"
+          style={{ borderRadius: 0 }}
         >
-          <Button
-            size="lg"
-            className="w-full h-14 bg-gradient-to-r from-primary via-primary/90 to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground rounded-xl shadow-xl shadow-primary/30 text-base font-bold transition-all duration-300 hover:shadow-2xl active:scale-[0.98]"
-            onClick={handleContinueToTracking}
-          >
-            <Navigation className="w-5 h-5 ml-2" />
-            تتبع الرحلة على الخريطة
-          </Button>
-        </div>
+          <Navigation className="w-5 h-5" />
+          تتبع الرحلة على الخريطة
+        </button>
       </div>
     );
   }
@@ -831,10 +771,6 @@ export const RideWaitingScreen = ({
   // Waiting State - Premium Design
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
-      {/* Progress stepper at top */}
-      <div className="bg-card/80 backdrop-blur-xl border-b border-border/30 px-4 py-3 safe-area-top">
-        <RideProgressStepper status="pending" />
-      </div>
 
       <AnimatePresence>
         {showDriverFoundTransition && acceptedDriver && (
@@ -865,203 +801,130 @@ export const RideWaitingScreen = ({
         )}
       </AnimatePresence>
 
-      {/* Main content */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {/* Search Animation - Premium */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-primary/5 to-transparent rounded-2xl p-5 border border-primary/20">
-          <div className="absolute top-0 left-0 w-40 h-40 bg-primary/10 rounded-full -translate-y-1/2 -translate-x-1/2 blur-3xl" />
-          <div className="relative flex items-center gap-4">
-            {/* Animated search icon */}
-            <div className="relative w-16 h-16 shrink-0">
-              <div className="absolute inset-0 rounded-full border-2 border-primary/40 animate-ping" />
-              <div className="absolute inset-2 rounded-full border-2 border-primary/30 animate-ping animation-delay-200" />
-              <div className="relative w-full h-full rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center border-2 border-primary/40 shadow-lg shadow-primary/20">
-                <Search className="w-7 h-7 text-primary" />
-              </div>
+      {/* المحتوى — بدون سكرول */}
+      <div className="flex-1 flex flex-col px-4 py-3 gap-3 overflow-hidden">
+
+        {/* بانر البحث — حواف حادة */}
+        <div className="shrink-0 bg-primary/8 border border-primary/20 p-3 flex items-center gap-3">
+          <div className="relative w-12 h-12 shrink-0">
+            <div className="absolute inset-0 rounded-full border-2 border-primary/40 animate-ping" />
+            <div className="relative w-full h-full rounded-full bg-primary/15 flex items-center justify-center border border-primary/30">
+              <Search className="w-5 h-5 text-primary" />
             </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-bold text-foreground mb-1">
-                بانتظار سائق
-              </h1>
-              <p
-                className="text-sm text-muted-foreground leading-relaxed"
-                key={encouragingMessageIndex}
-              >
-                {encouragingMessages[encouragingMessageIndex]?.icon}{" "}
-                {encouragingMessages[encouragingMessageIndex]?.text ||
-                  "نبحث في منطقتك عن سائق متاح..."}
-              </p>
-              {/* ✅ رسالة إعادة التوجيه */}
-              {reassignmentCount > 0 && (
-                <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
-                    {reassignmentCount === 1 &&
-                      "السائق ألغى الطلب، جاري البحث عن سائق بديل..."}
-                    {reassignmentCount === 2 &&
-                      "لا تزال نبحث عن سائق آخر، يرجى الانتظار قليلاً..."}
-                    {reassignmentCount >= 3 &&
-                      "آخر محاولة للعثور على سائق متاح..."}
-                  </p>
-                </div>
-              )}
-              {/* ✅ مؤشر إعادة المطابقة النشطة */}
-              {isReMatching && (
-                <div className="mt-2 p-2 bg-primary/10 border border-primary/30 rounded-lg flex items-center gap-2">
-                  <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
-                  <p className="text-xs text-primary font-medium">
-                    توسيع نطاق البحث عن سائقين...
-                  </p>
-                </div>
-              )}
-              {/* ✅ عداد محاولات إعادة المطابقة */}
-              {reMatchCount > 0 && !isReMatching && rideStatus === "pending" && (
-                <div className="mt-1">
-                  <p className="text-[10px] text-muted-foreground text-center">
-                    🔄 تم إعادة البحث {reMatchCount} {reMatchCount === 1 ? 'مرة' : 'مرات'} — الطلب لا يزال فعالاً
-                  </p>
-                </div>
-              )}
-            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-bold text-foreground">بانتظار سائق</h1>
+            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+              {encouragingMessages[encouragingMessageIndex]?.icon}{" "}
+              {encouragingMessages[encouragingMessageIndex]?.text || "نبحث في منطقتك عن سائق متاح..."}
+            </p>
           </div>
         </div>
 
-        {/* Timer & Progress - Premium */}
-        <div className="bg-card rounded-2xl border border-border/40 p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Clock className="w-4 h-4 text-primary" />
-              </div>
-              <span className="text-sm font-medium text-muted-foreground">
-                وقت الانتظار
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold font-mono text-foreground tabular-nums">
-                {formatTime(elapsedTime)}
-              </span>
-              <span className="text-sm text-muted-foreground">
-                / {maxWaitTimeout}:00
-              </span>
-            </div>
+        {/* مؤقت التقدم — حواف حادة */}
+        <div className="shrink-0 bg-card border border-border/40 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-primary" /> وقت الانتظار
+            </span>
+            <span className="text-xl font-bold font-mono text-foreground tabular-nums">
+              {formatTime(elapsedTime)}
+              <span className="text-xs text-muted-foreground font-normal mr-1">/ {maxWaitTimeout}:00</span>
+            </span>
           </div>
-
-          {/* Progress bar */}
-          <div className="w-full h-2.5 bg-muted/50 rounded-full overflow-hidden">
+          <div className="w-full h-2 bg-muted/50 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-1000 ${
                 elapsedTime / 60 >= maxWaitTimeout * warningThreshold
-                  ? "bg-gradient-to-r from-destructive/80 to-destructive"
-                  : "bg-gradient-to-r from-primary/80 to-primary"
+                  ? "bg-destructive"
+                  : "bg-primary"
               }`}
-              style={{
-                width: `${Math.min((elapsedTime / 60 / maxWaitTimeout) * 100, 100)}%`,
-              }}
+              style={{ width: `${Math.min((elapsedTime / 60 / maxWaitTimeout) * 100, 100)}%` }}
             />
           </div>
-
-          {elapsedTime / 60 >= maxWaitTimeout * warningThreshold &&
-            autoCancelEnabled && (
-              <p className="text-xs text-destructive text-center mt-3 font-medium animate-pulse flex items-center justify-center gap-1.5 bg-destructive/10 rounded-lg py-2">
-                <Sparkles className="w-3.5 h-3.5" />
-                {warningMessage}
-              </p>
-            )}
-        </div>
-
-        {/* Trip Details - Premium */}
-        <div className="bg-card rounded-2xl border border-border/40 overflow-hidden shadow-sm">
-          <div className="px-4 py-2.5 bg-gradient-to-r from-muted/50 to-muted/20 border-b border-border/30">
-            <h3 className="text-xs font-bold text-foreground flex items-center gap-2 uppercase tracking-wider">
-              <MapPin className="w-3.5 h-3.5 text-primary" />
-              تفاصيل الرحلة
-            </h3>
-          </div>
-
-          <div className="p-4">
-            <div className="flex gap-3">
-              {/* Vertical timeline */}
-              <div className="flex flex-col items-center py-0.5">
-                <div className="w-3 h-3 rounded-full bg-primary ring-4 ring-primary/20" />
-                <div className="w-0.5 flex-1 bg-gradient-to-b from-primary to-accent my-2" />
-                <div className="w-3 h-3 rounded-full bg-accent ring-4 ring-accent/20" />
-              </div>
-
-              {/* Locations */}
-              <div className="flex-1 space-y-5 min-w-0">
-                <div>
-                  <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-1">
-                    نقطة الانطلاق
-                  </p>
-                  <p className="text-sm font-semibold text-foreground line-clamp-2">
-                    {pickupAddress}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-accent-foreground font-bold uppercase tracking-wider mb-1">
-                    الوجهة
-                  </p>
-                  <p className="text-sm font-semibold text-foreground line-clamp-2">
-                    {dropoffAddress}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Fare section */}
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-dashed border-border/50">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <span className="text-sm">💵</span>
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  الأجرة التقديرية
-                </span>
-              </div>
-              <div className="text-left">
-                <span className="text-xl font-bold text-primary">
-                  {estimatedFare.toLocaleString()}
-                </span>
-                <span className="text-sm text-muted-foreground mr-1">د.ع</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Info badge */}
-        <div className="flex items-center justify-center gap-2 py-2">
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Heart className="w-4 h-4 text-destructive" />
-            <span className="text-xs">نحن نعمل على إيجاد أفضل سائق لك</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Fixed Bottom - Cancel Button - ALWAYS VISIBLE */}
-      <div
-        className={`p-4 bg-background/98 backdrop-blur-md border-t border-border/30 safe-area-bottom ${bottomNavEnabled ? "pb-24" : ""}`}
-      >
-        <Button
-          variant="outline"
-          size="lg"
-          className="w-full h-14 rounded-xl border-2 border-destructive/60 text-destructive hover:bg-destructive hover:text-white hover:border-destructive transition-all duration-200 font-bold text-base shadow-lg"
-          onClick={handleCancelClick}
-          disabled={cancelling}
-        >
-          {cancelling ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin ml-2" />
-              جاري الإلغاء...
-            </>
-          ) : (
-            <>
-              <X className="w-5 h-5 ml-2" />
-              إلغاء الطلب
-            </>
+          {elapsedTime / 60 >= maxWaitTimeout * warningThreshold && autoCancelEnabled && (
+            <p className="text-xs text-destructive text-center mt-2 font-medium animate-pulse">
+              {warningMessage}
+            </p>
           )}
-        </Button>
+        </div>
+
+        {/* خط سير الرحلة — حواف حادة + أيقونات */}
+        <div className="shrink-0 bg-card border border-border/40 overflow-hidden">
+          {/* نقطة الانطلاق */}
+          <div className="flex items-center gap-3 px-3 py-3">
+            <div className="w-8 h-8 bg-primary flex items-center justify-center shrink-0">
+              <MapPin className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-primary font-bold uppercase tracking-wider">الانطلاق</p>
+              <p className="text-sm font-semibold text-foreground truncate">{pickupAddress}</p>
+            </div>
+          </div>
+
+          {/* خط فاصل متحرك */}
+          <div className="flex items-center gap-3 px-3">
+            <div className="w-8 flex justify-center">
+              <div className="flex flex-col items-center gap-0.5">
+                <div className="w-0.5 h-1.5 bg-muted-foreground/30" />
+                <div className="w-1 h-1 bg-muted-foreground/40 rounded-full" />
+                <div className="w-0.5 h-1.5 bg-muted-foreground/30" />
+              </div>
+            </div>
+            <div className="flex-1 border-t border-dashed border-border/40" />
+          </div>
+
+          {/* الوجهة */}
+          <div className="flex items-center gap-3 px-3 py-3">
+            <div className="w-8 h-8 bg-orange-500 flex items-center justify-center shrink-0">
+              <Navigation className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-orange-500 font-bold uppercase tracking-wider">الوجهة</p>
+              <p className="text-sm font-semibold text-foreground truncate">{dropoffAddress}</p>
+            </div>
+            {/* الأجرة */}
+            <div className="text-left shrink-0 border-r border-border/30 pr-3 mr-1">
+              <p className="text-[10px] text-muted-foreground">الأجرة</p>
+              <p className="text-lg font-black text-primary">{estimatedFare.toLocaleString()}</p>
+              <p className="text-[10px] text-muted-foreground">د.ع</p>
+            </div>
+          </div>
+        </div>
+
+        {/* رسائل إضافية حادة */}
+        {(reassignmentCount > 0 || isReMatching) && (
+          <div className="shrink-0 bg-amber-500/8 border border-amber-500/20 p-2.5 flex items-center gap-2">
+            {isReMatching
+              ? <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
+              : <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            }
+            <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+              {isReMatching
+                ? "توسيع نطاق البحث..."
+                : reassignmentCount === 1 ? "جاري البحث عن سائق بديل..."
+                : reassignmentCount >= 3 ? "آخر محاولة للعثور على سائق متاح..."
+                : "لا تزال النبحث عن سائق..."}
+            </p>
+          </div>
+        )}
+
+        <div className="flex-1" />
       </div>
+
+      {/* زر الإلغاء — حواف حادة */}
+      <button
+        onClick={handleCancelClick}
+        disabled={cancelling}
+        className="w-full h-14 flex items-center justify-center gap-2 bg-destructive/10 text-destructive text-base font-bold disabled:opacity-50 border-t-2 border-destructive/40 shrink-0 active:bg-destructive/20 transition-all"
+        style={{ borderRadius: 0 }}
+      >
+        {cancelling ? (
+          <><Loader2 className="w-5 h-5 animate-spin" />جاري الإلغاء...</>
+        ) : (
+          <><X className="w-5 h-5" />إلغاء الطلب</>
+        )}
+      </button>
 
       {/* Cancellation Reason Dialog */}
       <CancellationReasonDialog

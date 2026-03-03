@@ -697,6 +697,7 @@ export const RideRequestCard = ({
       console.error("[RideRequestCard] ❌ Accept failed:", msg);
 
       // ═══ تحقق نهائي من DB — ربما نجح الطلب فعلاً لكن الاستجابة تأخرت ═══
+      let silentSuccess = false;
       try {
         const { data: rideState } = await supabase
           .from('rides')
@@ -706,31 +707,34 @@ export const RideRequestCard = ({
 
         if (rideState?.status === 'accepted' && rideState?.driver_id === driverId) {
           console.log("[RideRequestCard] ✅ Ride accepted silently — showing success");
+          silentSuccess = true;
           toast({ title: "✅ تم القبول", description: "تم قبول الطلب بنجاح" });
           onRideAccepted?.();
           setPendingRides([]);
           setCurrentIndex(0);
           previousRideIdRef.current = null;
           onRideRequestVisible?.(false);
-          return;
+          // ❗ لا نستخدم return هنا لضمان تنفيذ finally
         }
       } catch (verifyErr) {
         console.warn("[RideRequestCard] DB verification also failed:", verifyErr);
       }
 
-      // ═══ فشل حقيقي ═══
-      const isTaken = /already|taken|assigned|No rows|آخر|متاحة/i.test(msg);
-      toast({
-        title: isTaken ? "سبق قبول الطلب" : "خطأ في القبول",
-        description: isTaken ? "تم قبول الطلب من سائق آخر" : "تعذّر قبول الطلب، حاول مرة أخرى",
-        variant: "destructive",
-      });
-      setPendingRides([]);
-      setCurrentIndex(0);
-      previousRideIdRef.current = null;
-      onRideRequestVisible?.(false);
+      if (!silentSuccess) {
+        // ═══ فشل حقيقي ═══
+        const isTaken = /already|taken|assigned|No rows|آخر|متاحة/i.test(msg);
+        toast({
+          title: isTaken ? "سبق قبول الطلب" : "خطأ في القبول",
+          description: isTaken ? "تم قبول الطلب من سائق آخر" : "تعذّر قبول الطلب، حاول مرة أخرى",
+          variant: "destructive",
+        });
+        setPendingRides([]);
+        setCurrentIndex(0);
+        previousRideIdRef.current = null;
+        onRideRequestVisible?.(false);
+      }
     } finally {
-      // 🛡️ ضمان إعادة تعيين الحالة دائمًا
+      // ⚡ ضمان إعادة تعيين الحالة دائماً — ينفذ حتى بعد silentSuccess
       console.log("[RideRequestCard] 🏁 handleAccept finally — resetting state");
       actionInProgressRef.current = false;
       setLoading(false);

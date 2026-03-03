@@ -105,7 +105,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
   const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
   const [driver, setDriver] = useState<Driver | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [estimatedArrival, setEstimatedArrival] = useState<number | null>(null);
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
   const [showCompletedScreen, setShowCompletedScreen] = useState(false);
@@ -1133,7 +1133,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
       )}
 
       {/* Bottom Sheet */}
-      <div className="bg-card rounded-t-3xl shadow-xl border-t border-border p-4 space-y-4 max-h-[50vh] overflow-y-auto">
+      <div className="bg-card rounded-t-3xl shadow-xl border-t border-border p-4 space-y-3 overflow-hidden">
         {/* Safety & Share Bar */}
         <div className="flex items-center justify-between pb-3 border-b border-border">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -1247,49 +1247,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
               </div>
             </div>
 
-            {/* Cancel Ride Button */}
-            {["pending", "accepted"].includes(ride.status) && (
-              <>
-                {!showCancelConfirm ? (
-                  <Button
-                    variant="outline"
-                    className="w-full text-destructive border-destructive/50 hover:bg-destructive/10"
-                    onClick={() => setShowCancelConfirm(true)}
-                  >
-                    <X className="w-4 h-4 ml-2" />
-                    إلغاء الرحلة
-                  </Button>
-                ) : (
-                  <div className="bg-destructive/10 rounded-xl p-4 space-y-3 border border-destructive/30">
-                    <p className="text-sm text-center text-destructive font-medium">
-                      هل أنت متأكد من إلغاء الرحلة؟
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => setShowCancelConfirm(false)}
-                        disabled={isCancelling}
-                      >
-                        لا، تراجع
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        className="flex-1"
-                        onClick={handleCancelRide}
-                        disabled={isCancelling}
-                      >
-                        {isCancelling ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <>نعم، إلغاء</>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+
           </div>
         )}
       </div>

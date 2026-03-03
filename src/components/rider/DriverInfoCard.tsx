@@ -43,13 +43,14 @@ const DriverInfoCard = ({
   const [showVerify, setShowVerify] = useState(false);
   if (!driver || rideStatus === "pending") {
     return (
-      <div className="bg-card rounded-2xl border shadow-lg p-4 animate-pulse">
-        <div className="flex items-start gap-3">
-          <div className="w-16 h-16 rounded-full bg-muted" />
-          <div className="flex-1 space-y-2">
-            <div className="h-5 bg-muted rounded w-24" />
-            <div className="h-4 bg-muted rounded w-40" />
-            <div className="h-3 bg-muted rounded w-32" />
+      <div className="bg-card rounded-2xl border shadow-lg p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+            <Car className="w-6 h-6 text-primary" />
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-sm text-foreground">جاري تحميل بيانات السائق...</p>
+            <p className="text-xs text-muted-foreground mt-0.5">سيظهر اسم السائق ومعلومات السيارة خلال لحظات</p>
           </div>
         </div>
       </div>

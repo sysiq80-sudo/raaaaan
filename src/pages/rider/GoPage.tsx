@@ -1655,12 +1655,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
           </div>
 
-          {/* زر الحجز — HTML مباشر لحواف حادة حقيقية، يلتصق بالأسفل */}
+          {/* زر الحجز — معطّل حتى يكتمل حساب السعر */}
           {!bottomNavEnabled && (
             <button
               onClick={handleBookRide}
-              disabled={!fareBreakdown || isBooking}
-              className="w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-60 active:brightness-90 transition-all shrink-0"
+              disabled={!fareBreakdown || isBooking || fareLoading}
+              className="w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-50 active:brightness-90 transition-all shrink-0"
               style={{ borderRadius: 0 }}
             >
               {isBooking ? (
@@ -1668,13 +1668,17 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span>جاري إنشاء الحجز...</span>
                 </>
+              ) : fareLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>جاري حساب السعر...</span>
+                </>
               ) : (
                 <>
                   <Navigation className="w-5 h-5" />
                   <span>احجز الآن</span>
                   <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold">
                     {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع
-                    {fareLoading && <Loader2 className="w-3 h-3 animate-spin inline mr-1" />}
                   </span>
                 </>
               )}
@@ -1682,13 +1686,13 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           )}
         </div>
 
-          {/* زر الحجز الثابت لـ bottomNav */}
+          {/* زر الحجز الثابت لـ bottomNav — معطّل حتى يكتمل حساب السعر */}
           {bottomNavEnabled && (
             <div className="fixed bottom-16 left-0 right-0 z-50">
               <button
                 onClick={handleBookRide}
-                disabled={!fareBreakdown || isBooking}
-                className="w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-60 active:brightness-90 transition-all"
+                disabled={!fareBreakdown || isBooking || fareLoading}
+                className="w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-50 active:brightness-90 transition-all"
                 style={{ borderRadius: 0 }}
               >
                 {isBooking ? (
@@ -1696,13 +1700,17 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                     <Loader2 className="w-5 h-5 animate-spin" />
                     <span>جاري إنشاء الحجز...</span>
                   </>
+                ) : fareLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>جاري حساب السعر...</span>
+                  </>
                 ) : (
                   <>
                     <Navigation className="w-5 h-5" />
                     <span>احجز الآن</span>
                     <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold">
                       {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع
-                      {fareLoading && <Loader2 className="w-3 h-3 animate-spin inline mr-1" />}
                     </span>
                   </>
                 )}
