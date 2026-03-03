@@ -1096,6 +1096,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           driver={driver}
           rideId={ride.id}
           rideStatus={ride.status}
+          estimatedFare={ride.estimated_fare}
         />
 
         {/* Trip Info with Change Destination */}
@@ -1214,20 +1215,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
             vehicleMultiplier={1}
             finalFare={ride.final_fare}
           />
-        ) : (
-          <div className="space-y-3 pt-3 border-t border-border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">الأجرة المتوقعة</p>
-                <p className="text-xl font-bold text-primary">
-                  {(ride.estimated_fare || 0).toLocaleString()} د.ع
-                </p>
-              </div>
-            </div>
-
-
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

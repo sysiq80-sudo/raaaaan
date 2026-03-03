@@ -32,6 +32,7 @@ interface DriverInfoCardProps {
   rideId: string;
   rideStatus: string;
   pickupAddress?: string;
+  estimatedFare?: number;
 }
 
 const DriverInfoCard = ({
@@ -39,6 +40,7 @@ const DriverInfoCard = ({
   rideId,
   rideStatus,
   pickupAddress,
+  estimatedFare,
 }: DriverInfoCardProps) => {
   const [showVerify, setShowVerify] = useState(false);
   if (!driver || rideStatus === "pending") {
@@ -140,24 +142,34 @@ const DriverInfoCard = ({
 
         {/* معلومات السائق */}
         <div className="flex-1 min-w-0">
-          {/* الاسم + الشارة */}
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-bold text-lg text-foreground truncate">
-              {driver.full_name}
-            </h3>
-            {badge && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                <Badge
-                  className={`${badge.color} text-white text-[10px] px-1.5 py-0.5 font-medium`}
+          {/* الاسم + الشارة + الأجرة */}
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <h3 className="font-bold text-lg text-foreground truncate">
+                {driver.full_name}
+              </h3>
+              {badge && (
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
                 >
-                  <badge.icon className="w-2.5 h-2.5 mr-0.5" />
-                  {badge.label}
-                </Badge>
-              </motion.div>
+                  <Badge
+                    className={`${badge.color} text-white text-[10px] px-1.5 py-0.5 font-medium`}
+                  >
+                    <badge.icon className="w-2.5 h-2.5 mr-0.5" />
+                    {badge.label}
+                  </Badge>
+                </motion.div>
+              )}
+            </div>
+            {estimatedFare && (
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">الأجرة المتوقعة</p>
+                <p className="text-lg font-bold text-primary">
+                  {estimatedFare.toLocaleString()} د.ع
+                </p>
+              </div>
             )}
           </div>
 
