@@ -41,6 +41,7 @@ import {
   Navigation,
   Check,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
 import StatusIcons from "@/components/common/StatusIcons";
 import logo from "@/assets/logo.png";
