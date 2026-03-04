@@ -1,16 +1,17 @@
 import React from 'react';
 import { Car, Users, Crown, UserCircle } from 'lucide-react';
+import { useVehicleTypes, type VehicleTypeKey } from '@/hooks/useVehicleTypes';
 
-type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
+type VehicleType = VehicleTypeKey;
 
-interface VehicleOption {
-  type: VehicleType;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  emoji: string;
-  multiplier: number;
-}
+// أيقونات ثابتة لكل نوع — البيانات الباقية تأتي من DB
+const VEHICLE_ICONS: Record<string, React.ReactNode> = {
+  economy:    <Car className="w-5 h-5" />,
+  comfort:    <Users className="w-5 h-5" />,
+  premium:    <Crown className="w-5 h-5" />,
+  women_only: <UserCircle className="w-5 h-5" />,
+};
+const DEFAULT_ICON = <Car className="w-5 h-5" />;
 
 interface VehicleSelectorProps {
   selectedVehicle: VehicleType;
@@ -21,41 +22,6 @@ interface VehicleSelectorProps {
   showUnavailable?: boolean;
 }
 
-const vehicleOptions: VehicleOption[] = [
-  { 
-    type: 'economy', 
-    name: 'اقتصادي', 
-    description: 'الأسرع والأوفر',
-    icon: <Car className="w-5 h-5" />,
-    emoji: '🚗',
-    multiplier: 1.0
-  },
-  { 
-    type: 'comfort', 
-    name: 'مريح', 
-    description: 'سيارة أفضل',
-    icon: <Users className="w-5 h-5" />,
-    emoji: '🚙',
-    multiplier: 1.3
-  },
-  { 
-    type: 'premium', 
-    name: 'فاخر', 
-    description: 'تجربة مميزة',
-    icon: <Crown className="w-5 h-5" />,
-    emoji: '🚘',
-    multiplier: 1.6
-  },
-  { 
-    type: 'women_only', 
-    name: 'نسائي', 
-    description: 'سائقة أنثى',
-    icon: <UserCircle className="w-5 h-5" />,
-    emoji: '👩',
-    multiplier: 1.2
-  },
-];
-
 const VehicleSelector: React.FC<VehicleSelectorProps> = ({
   selectedVehicle,
   onSelect,
@@ -64,12 +30,25 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
   availableDrivers,
   showUnavailable = false
 }) => {
-  // Filter options based on availability if availableDrivers is provided
-  const filteredOptions = availableDrivers 
-    ? vehicleOptions.filter(v => showUnavailable || (availableDrivers[v.type] ?? 0) > 0)
-    : vehicleOptions;
+  const { vehicleTypes, isLoading } = useVehicleTypes();
 
-  // If no drivers are available at all, show economy as default
+  // تصفية حسب التوفر
+  const filteredOptions = availableDrivers
+    ? vehicleTypes.filter(v => showUnavailable || (availableDrivers[v.id as VehicleType] ?? 0) > 0)
+    : vehicleTypes;
+
+  // حالة التحميل
+  if (isLoading) {
+    return (
+      <div className={`space-y-2 ${className}`}>
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="w-full h-20 rounded-2xl bg-secondary/50 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  // لا يوجد سائقون متاحون
   if (filteredOptions.length === 0) {
     return (
       <div className={`space-y-2 ${className}`}>
@@ -85,15 +64,17 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
   return (
     <div className={`space-y-2 ${className}`}>
       {filteredOptions.map((vehicle) => {
-        const isSelected = selectedVehicle === vehicle.type;
+        const vehicleId = vehicle.id as VehicleType;
+        const isSelected = selectedVehicle === vehicleId;
         const estimatedFare = baseFare ? Math.round(baseFare * vehicle.multiplier) : null;
-        const driverCount = availableDrivers?.[vehicle.type];
+        const driverCount = availableDrivers?.[vehicleId];
         const isUnavailable = availableDrivers && (driverCount ?? 0) === 0;
+        const icon = VEHICLE_ICONS[vehicle.id] || DEFAULT_ICON;
         
         return (
           <button
-            key={vehicle.type}
-            onClick={() => !isUnavailable && onSelect(vehicle.type)}
+            key={vehicleId}
+            onClick={() => !isUnavailable && onSelect(vehicleId)}
             disabled={isUnavailable}
             className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${
               isUnavailable 
@@ -107,14 +88,14 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
             <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
               isSelected ? 'bg-primary/20' : 'bg-background'
             }`}>
-              {vehicle.emoji}
+              {vehicle.icon}
             </div>
             
             {/* Vehicle info */}
             <div className="flex-1 text-right">
               <div className="flex items-center gap-2">
                 <span className={`font-bold ${isSelected ? 'text-primary' : 'text-foreground'}`}>
-                  {vehicle.name}
+                  {vehicle.name_ar}
                 </span>
                 {vehicle.multiplier > 1 && (
                   <span className="text-xs px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
@@ -123,7 +104,7 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
-                {isUnavailable ? 'غير متوفر حالياً' : vehicle.description}
+                {isUnavailable ? 'غير متوفر حالياً' : (vehicle.description_ar || '')}
               </p>
               {/* Show driver count if available */}
               {driverCount !== undefined && driverCount > 0 && (

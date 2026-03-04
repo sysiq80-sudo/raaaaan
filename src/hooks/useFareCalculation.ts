@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useVehicleTypes } from '@/hooks/useVehicleTypes';
+import { useRegionFares } from '@/hooks/useRegionFares';
 
 type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
 
@@ -36,13 +37,16 @@ export const useFareCalculation = (
 
   // جلب معاملات أنواع المركبات من DB بدل القيم الثابتة
   const { getMultiplier } = useVehicleTypes();
+  // جلب أسعار الأساس من DB (base_fare, per_km_fare) بدل القيم الثابتة
+  const { defaultFare } = useRegionFares();
 
   const estimateFareLocally = (
     distanceKm: number,
     vehicle: VehicleType,
   ): FareBreakdown => {
-    const baseFare = 2000;
-    const perKmRate = 500;
+    // القيم من DB — إذا لم تتوفر تستخدم الـ fallback الموجود في useRegionFares
+    const baseFare = defaultFare.base_fare;
+    const perKmRate = defaultFare.per_km_fare;
     // استخدام المعامل من DB (مع fallback تلقائي في الهوك)
     const vehicleMultiplier = getMultiplier(vehicle);
     const distanceFare = distanceKm * perKmRate;

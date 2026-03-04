@@ -26,67 +26,8 @@ export const LOCATIONS = {
     },
 } as const;
 
-// أنواع المركبات
-export const VEHICLE_TYPES = {
-    economy: {
-        id: 'economy',
-        nameAr: 'اقتصادي',
-        nameEn: 'Economy',
-        icon: '🚗',
-        multiplier: 1.0,
-        description: 'سيارات عادية وأسعار مناسبة',
-    },
-    comfort: {
-        id: 'comfort',
-        nameAr: 'مريح',
-        nameEn: 'Comfort',
-        icon: '🚙',
-        multiplier: 1.3,
-        description: 'سيارات مريحة ومكيفة',
-    },
-    premium: {
-        id: 'premium',
-        nameAr: 'فاخر',
-        nameEn: 'Premium',
-        icon: '🚘',
-        multiplier: 1.8,
-        description: 'سيارات فاخرة وخدمة مميزة',
-    },
-    women_only: {
-        id: 'women_only',
-        nameAr: 'للنساء فقط',
-        nameEn: 'Women Only',
-        icon: '👩',
-        multiplier: 1.2,
-        description: 'سائقات محترفات للنساء فقط',
-    },
-} as const;
-
-// طرق الدفع - 3 خيارات أساسية
-export const PAYMENT_METHODS = {
-    cash: {
-        id: 'cash',
-        nameAr: 'نقداً',
-        nameEn: 'Cash',
-        icon: 'Banknote',
-        enabled: true,
-    },
-    wallet: {
-        id: 'wallet',
-        nameAr: 'المحفظة',
-        nameEn: 'Wallet',
-        icon: 'Wallet',
-        enabled: true,
-    },
-    card: {
-        id: 'card',
-        nameAr: 'البطاقة',
-        nameEn: 'Card',
-        icon: 'CreditCard',
-        enabled: true,
-    },
-} as const;
-
+// ملاحظة: أنواع المركبات وطرق الدفع تُجلب ديناميكياً من DB
+// استخدم useVehicleTypes() و usePaymentMethods() بدلاً من الثوابت الثابتة
 // حالات الرحلة
 export const RIDE_STATUS = {
     pending: {
@@ -216,7 +157,8 @@ export const roundFare = (fare: number): number => {
 };
 
 // Types
-export type VehicleType = keyof typeof VEHICLE_TYPES;
-export type PaymentMethod = keyof typeof PAYMENT_METHODS;
+// VehicleType و PaymentMethod مُعرَّفان في الهوكس الديناميكية:
+// - VehicleTypeKey في src/hooks/useVehicleTypes.ts
+// - PaymentMethodDB في src/hooks/usePaymentMethods.ts
 export type RideStatus = keyof typeof RIDE_STATUS;
 export type DriverStatus = keyof typeof DRIVER_STATUS;
