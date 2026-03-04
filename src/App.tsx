@@ -491,30 +491,9 @@ const AppRoutes = () => {
                 </ErrorBoundary>
               }
             />
-            <Route
-              path="/driver/wallet"
-              element={
-                <ErrorBoundary>
-                  <ProtectedRoute requiredRole="driver">
-                    <DriverLayout>
-                      <DriverFinance />
-                    </DriverLayout>
-                  </ProtectedRoute>
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/driver/payments"
-              element={
-                <ErrorBoundary>
-                  <ProtectedRoute requiredRole="driver">
-                    <DriverLayout>
-                      <DriverFinance />
-                    </DriverLayout>
-                  </ProtectedRoute>
-                </ErrorBoundary>
-              }
-            />
+            {/* /driver/wallet و /driver/payments → redirect لـ /driver/finance */}
+            <Route path="/driver/wallet" element={<Navigate to="/driver/finance" replace />} />
+            <Route path="/driver/payments" element={<Navigate to="/driver/finance" replace />} />
             <Route
               path="/driver/statistics"
               element={
@@ -580,7 +559,9 @@ const AppRoutes = () => {
               element={
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="driver">
-                    <DriverGuide />
+                    <DriverLayout>
+                      <DriverGuide />
+                    </DriverLayout>
                   </ProtectedRoute>
                 </ErrorBoundary>
               }

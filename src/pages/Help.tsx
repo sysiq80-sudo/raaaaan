@@ -1,5 +1,6 @@
 /**
  * ران - صفحة المساعدة والدعم
+ * تجلب بيانات الاتصال من إعدادات الأدمن (app_settings[support])
  */
 
 import { useState } from "react";
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useSupportSettings } from "@/hooks/useSupportSettings";
 
 // الأسئلة الشائعة
 const faqs = [
@@ -64,6 +66,11 @@ const faqs = [
 
 const Help = () => {
     const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+    const { support } = useSupportSettings();
+
+    // تنسيق رقم الهاتف للروابط
+    const phoneLink = support.phone.replace(/\s/g, '');
+    const whatsappNumber = (support.whatsapp || support.phone).replace(/[\s+]/g, '');
 
     return (
         <div className="min-h-screen bg-background">
@@ -81,7 +88,7 @@ const Help = () => {
                 {/* Contact Cards */}
                 <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <motion.a
-                        href="tel:+9647884669922"
+                        href={`tel:${phoneLink}`}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
@@ -97,7 +104,7 @@ const Help = () => {
                     </motion.a>
 
                     <motion.a
-                        href="https://wa.me/9647884669922"
+                        href={`https://wa.me/${whatsappNumber}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         initial={{ opacity: 0, y: 20 }}
@@ -115,7 +122,7 @@ const Help = () => {
                     </motion.a>
 
                     <motion.a
-                        href="mailto:support@raan.app"
+                        href={`mailto:${support.email}`}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
@@ -126,7 +133,7 @@ const Help = () => {
                         </div>
                         <div>
                             <p className="font-bold text-lg">البريد الإلكتروني</p>
-                            <p className="text-sm text-muted-foreground">support@raan.app</p>
+                            <p className="text-sm text-muted-foreground">{support.email}</p>
                         </div>
                     </motion.a>
                 </section>

@@ -28,7 +28,7 @@ interface UseBroadcastChannelProps {
   onDriverLocationUpdate: (location: { lat: number; lng: number }) => void;
   onClose: () => void;
   setShowArrivedAlert: (show: boolean) => void;
-  setShowCompletedScreen: (show: boolean) => void;
+  // ✅ تم حذف setShowCompletedScreen — يتولى useActiveRide عرض شاشة التقييم
 }
 
 export const useBroadcastChannel = ({
@@ -38,7 +38,6 @@ export const useBroadcastChannel = ({
   onDriverLocationUpdate,
   onClose,
   setShowArrivedAlert,
-  setShowCompletedScreen,
 }: UseBroadcastChannelProps) => {
   const { toast } = useToast();
   const broadcastChannel = useRef<any>(null);
@@ -130,7 +129,7 @@ export const useBroadcastChannel = ({
           duration: 8000,
         });
 
-        setShowCompletedScreen(true);
+        // ✅ useActiveRide يتولى عرض شاشة التقييم عبر الـ Realtime الخاص به
       })
       .on(
         "broadcast",
@@ -280,7 +279,7 @@ export const useBroadcastChannel = ({
                 description: "الحمد لله على السلامة 🤲",
                 duration: 8000,
               });
-              setShowCompletedScreen(true);
+              // ✅ useActiveRide يتولى عرض شاشة التقييم عبر الـ Realtime الخاص به
             }
 
             if (newStatus === "cancelled") {
@@ -394,9 +393,8 @@ export const useBroadcastChannel = ({
     playSound("completed");
     vibrate(VibrationPatterns.completed);
 
-    // 4. إظهار شاشة التقييم مباشرة (بدون أي toast)
-    setShowCompletedScreen(true);
-  }, [ride.id, toast, setShowCompletedScreen]);
+    // ✅ لا نستدعي setShowCompletedScreen — useActiveRide يكشف تغيير الحالة عبر Realtime ويعرضها
+  }, [ride.id, toast]);
 
   return {
     sendQuickMessage,

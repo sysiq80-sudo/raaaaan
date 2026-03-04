@@ -214,92 +214,110 @@ const DriverSideMenu = ({
   const statusBadge = getStatusBadge();
 
   return (
-    <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm" onClick={onClose}>
-      <div 
-        className="absolute top-0 right-0 h-full w-72 bg-card shadow-xl p-6 animate-slide-in-right overflow-y-auto pb-24"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Profile Header */}
-        <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border">
-          <img 
-            src={driverProfileImage || logo} 
-            alt={driverProfileImage ? "صورة السائق" : "شعار ران"} 
-            className="w-14 h-14 rounded-xl flex-shrink-0 object-cover" 
-            loading="lazy"
-            onError={(e) => { e.currentTarget.src = logo; }}
-          />
-          <div className="flex-1 min-w-0">
-            <p className="font-bold text-card-foreground text-lg truncate min-h-[24px]">
-              {driverName?.trim() ||
-                user?.user_metadata?.full_name?.trim() ||
-                driverPhone ||
-                user?.email?.split("@")[0] ||
-                "كابتن"}
-            </p>
-            <div className="flex items-center gap-2 mt-1">
-              <Star className="w-5 h-5 text-warning fill-warning flex-shrink-0" />
-              <span className="text-base font-medium text-card-foreground">{rating.toFixed(1)}</span>
-            </div>
-          </div>
-        </div>
+    <div className="fixed inset-0 z-[60] bg-card flex flex-col" dir="rtl">
 
-        {/* Driver Status Badge */}
-        <div className="mb-6 p-3 bg-secondary/50 rounded-xl">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${statusBadge.color}`} />
-            <span className="text-sm font-medium">{statusBadge.label}</span>
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {getVehicleTypeName(vehicleType)}
-          </p>
-        </div>
-
-        {/* Switch to Rider Mode Button */}
+      {/* ── هيدر: معلومات السائق في الوسط ── */}
+      <div className="flex-shrink-0 relative flex flex-col items-center pt-12 pb-4 border-b border-border">
+        {/* زر الإغلاق — أعلى اليسار */}
         <button
-          onClick={handleSwitchToRider}
-          className="w-full flex items-center gap-3 p-3 mb-4 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors border border-primary/20"
+          onClick={onClose}
+          className="absolute top-3 left-3 w-9 h-9 rounded-full bg-secondary flex items-center justify-center active:scale-90 transition-all"
+          aria-label="إغلاق القائمة"
         >
-          <Users className="w-5 h-5" />
-          <span className="font-medium">التبديل لوضع الراكب</span>
+          <X className="w-4 h-4 text-foreground" />
         </button>
 
-        {/* Today's Earnings Section - Gamified */}
-        {driverId && (
-          <div className="mb-6 p-4 bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-xl">
-            <GamifiedEarnings
-              todayEarnings={stats.todayEarnings}
-              todayRides={stats.todayRides}
-              dailyGoal={stats.dynamicGoal}
-            />
-          </div>
-        )}
+        {/* الصورة */}
+        <img
+          src={driverProfileImage || logo}
+          alt="السائق"
+          className="w-16 h-16 rounded-full object-cover border-2 border-border mb-2"
+          onError={(e) => { e.currentTarget.src = logo; }}
+        />
 
-        <nav className="space-y-2">
-          <MenuLink icon={<BookOpen className="w-5 h-5 text-amber-500" />} label="خاص لعائلة ران" href="/driver/guide" onClick={onClose} />
-          <MenuLink icon={<UserCircle className="w-5 h-5" />} label="الملف الشخصي" href="/driver/profile" onClick={onClose} />
-          {driverStatus !== 'approved' && (
-            <MenuLink icon={<FileSearch className="w-5 h-5" />} label="حالة الطلب" href="/driver/application-status" onClick={onClose} />
-          )}
-          <MenuLink icon={<History className="w-5 h-5" />} label="سجل الرحلات" href="/driver/rides" onClick={onClose} />
-          <MenuLink icon={<Wallet className="w-5 h-5" />} label="الأرباح" href="/driver/payments" onClick={onClose} />
-          <MenuLink icon={<Gift className="w-5 h-5" />} label="المكافآت والحوافز" href="/driver/incentives" onClick={onClose} />
-          <MenuLink icon={<BarChart3 className="w-5 h-5" />} label="الإحصائيات" href="/driver/statistics" onClick={onClose} />
-          <MenuLink icon={<Settings className="w-5 h-5" />} label="الإعدادات" href="/driver/settings" onClick={onClose} />
-          <MenuLink icon={<Phone className="w-5 h-5" />} label="الدعم الفني" href="/help" onClick={onClose} />
-          
-          <div className="pt-4 border-t border-border">
-            <button 
-              onClick={onLogout}
-              className="flex items-center gap-3 w-full p-3 rounded-xl text-destructive hover:bg-destructive/10 transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              <span>تسجيل الخروج</span>
-            </button>
+        {/* الاسم */}
+        <p className="font-bold text-foreground text-base text-center">
+          {driverName?.trim() || user?.user_metadata?.full_name?.trim() || driverPhone || "كابتن"}
+        </p>
+
+        {/* ── 5 نجوم + الرقم الحقيقي ── */}
+        <div className="flex flex-col items-center gap-1 mt-1.5">
+          <div className="flex items-center gap-0.5">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Star
+                key={star}
+                className={`w-4 h-4 ${
+                  star <= Math.round(rating)
+                    ? "text-warning fill-warning"
+                    : "text-muted-foreground/30 fill-muted-foreground/10"
+                }`}
+              />
+            ))}
           </div>
-        </nav>
+          <span className="text-base font-bold text-foreground">{rating.toFixed(1)} <span className="text-xs font-normal text-muted-foreground">/ 5</span></span>
+        </div>
+
+        {/* الحالة + نوع السيارة */}
+        <div className="flex items-center justify-center gap-2 mt-1.5">
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium text-white ${statusBadge.color}`}>{statusBadge.label}</span>
+          <span className="text-border">·</span>
+          <span className="text-[11px] text-muted-foreground">{getVehicleTypeName(vehicleType)}</span>
+        </div>
+
+      </div>
+
+      {/* ── التبديل لوضع الراكب ── */}
+      <div className="flex-shrink-0 px-4 pt-3 pb-2">
+        <button
+          onClick={handleSwitchToRider}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-none bg-primary/10 text-primary hover:bg-primary/20 active:bg-primary/30 transition-colors border border-primary/20"
+        >
+          <Users className="w-4 h-4" />
+          <span className="font-semibold text-sm">التبديل لوضع الراكب</span>
+        </button>
+      </div>
+
+      {/* ── شبكة الكاردات — تملأ المساحة المتبقية ── */}
+      <div className="flex-1 px-3 py-2 min-h-0 overflow-hidden">
+        <div className="grid grid-cols-3 grid-rows-3 gap-2 w-full h-full">
+          {[
+            { icon: <Phone className="w-5 h-5" />, label: "الدعم الفني", href: "/help", bg: "bg-blue-500/12", color: "text-blue-400" },
+            { icon: <Settings className="w-5 h-5" />, label: "الإعدادات", href: "/driver/settings", bg: "bg-slate-500/12", color: "text-slate-400" },
+            { icon: <BarChart3 className="w-5 h-5" />, label: "الإحصائيات", href: "/driver/statistics", bg: "bg-purple-500/12", color: "text-purple-400" },
+            { icon: <Gift className="w-5 h-5" />, label: "المكافآت", href: "/driver/incentives", bg: "bg-pink-500/12", color: "text-pink-400" },
+            { icon: <Wallet className="w-5 h-5" />, label: "الأرباح", href: "/driver/payments", bg: "bg-emerald-500/12", color: "text-emerald-400" },
+            { icon: <History className="w-5 h-5" />, label: "سجل الرحلات", href: "/driver/rides", bg: "bg-orange-500/12", color: "text-orange-400" },
+            ...(driverStatus !== 'approved' ? [{ icon: <FileSearch className="w-5 h-5" />, label: "حالة الطلب", href: "/driver/application-status", bg: "bg-amber-500/12", color: "text-amber-400" }] : []),
+            { icon: <UserCircle className="w-5 h-5" />, label: "ملفي", href: "/driver/profile", bg: "bg-cyan-500/12", color: "text-cyan-400" },
+            { icon: <BookOpen className="w-5 h-5" />, label: "لعائلة ران", href: "/driver/guide", bg: "bg-amber-500/12", color: "text-amber-500" },
+          ].map(({ icon, label, href, bg, color }) => (
+            <Link
+              key={href}
+              to={href}
+              onClick={onClose}
+              className={`flex flex-col items-center justify-center gap-2 rounded-2xl border border-border/60 ${bg} hover:opacity-80 active:scale-95 transition-all duration-150 min-h-0`}
+            >
+              <span className={`${color} [&>svg]:w-7 [&>svg]:h-7`}>{icon}</span>
+              <span className="font-semibold text-sm text-foreground text-center leading-tight px-1">{label}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* ── زر تسجيل الخروج ── */}
+      <div className="flex-shrink-0 px-4 pt-2 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-border">
+        <button
+          onClick={() => { onClose(); setTimeout(() => onLogout(), 50); }}
+          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-none text-white bg-destructive hover:bg-destructive/90 active:bg-destructive/80 transition-colors font-semibold text-base"
+        >
+          <LogOut className="w-5 h-5" />
+          <span>تسجيل الخروج</span>
+        </button>
       </div>
     </div>
   );
+
+
 };
 
 export default DriverSideMenu;

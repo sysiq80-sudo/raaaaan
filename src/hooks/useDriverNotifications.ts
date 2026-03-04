@@ -286,16 +286,22 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
       // صامت
     }
     
+    // ═══ نظام إعادة المحاولة الذكي — Exponential Backoff ═══
+    let retryCount = 0;
+    const MAX_RETRIES = 5;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let isRetrying = false; // guard لمنع تشغيل retry متعدد
+
     const createChannel = () => {
       // إزالة أي قناة قديمة بنفس الاسم قبل إعادة الإنشاء
-      const existingChannel = supabase.getChannels().find(ch => ch.topic === `realtime:${channelName}`);
-      if (existingChannel) {
-        supabase.removeChannel(existingChannel);
-      }
+      try {
+        const existingChannels = supabase.getChannels().filter(ch => ch.topic === `realtime:${channelName}`);
+        existingChannels.forEach(ch => supabase.removeChannel(ch));
+      } catch { /* صامت */ }
       
       const ch = supabase
         .channel(channelName)
-        // ═══ INSERT: رحلات تُنشأ مباشرة بحالة pending (من التطبيق/الويب) ═══
+        // ═══ INSERT: رحلات تُنشأ مباشرة بحالة pending ═══
         .on(
           'postgres_changes',
           {
@@ -306,10 +312,11 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
           },
           (payload) => {
             console.log('⚡ INSTANT INSERT: New ride detected:', payload.new?.id);
+            retryCount = 0; // إعادة تعيين عداد المحاولات عند نجاح الاتصال
             handleNewRide(payload as { new: Record<string, unknown> });
           }
         )
-        // ═══ UPDATE: أي تحديث — نفحص الحالة يدوياً لأن الفلتر غير موثوق على UPDATE ═══
+        // ═══ UPDATE: فحص يدوي للحالة ═══
         .on(
           'postgres_changes',
           {
@@ -320,7 +327,6 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
           (payload) => {
             const newStatus = (payload.new as Record<string, unknown>)?.status;
             const oldStatus = (payload.old as Record<string, unknown>)?.status;
-            // فقط عندما تتحول الحالة إلى pending (مثل تأكيد حجز واتساب)
             if (newStatus === 'pending' && oldStatus !== 'pending') {
               console.log('⚡ INSTANT UPDATE: Ride became pending:', payload.new?.id, `(${oldStatus} → ${newStatus})`);
               handleNewRide(payload as { new: Record<string, unknown> });
@@ -331,13 +337,24 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
           console.log('🔴 Notification subscription status:', status);
           if (status === 'SUBSCRIBED') {
             console.log('✅ INSTANT notifications ready — listening for INSERT + UPDATE to pending');
+            retryCount = 0;
+            isRetrying = false;
           }
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            console.warn('⚠️ Realtime channel error — will retry in 3s');
-            setTimeout(() => {
-              supabase.removeChannel(ch);
+          if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !isRetrying) {
+            if (retryCount >= MAX_RETRIES) {
+              console.warn(`🚫 تجاوز الحد الأقصى للمحاولات (${MAX_RETRIES}) — سيتم إعادة المحاولة عند عودة التطبيق`);
+              return;
+            }
+            const delay = Math.min(3000 * Math.pow(2, retryCount), 60000); // 3s, 6s, 12s, 24s, 48s, max 60s
+            retryCount++;
+            isRetrying = true;
+            console.warn(`⚠️ Realtime error — retry ${retryCount}/${MAX_RETRIES} in ${delay/1000}s`);
+            if (retryTimer) clearTimeout(retryTimer);
+            retryTimer = setTimeout(() => {
+              isRetrying = false;
+              try { supabase.removeChannel(ch); } catch { /* صامت */ }
               channel = createChannel();
-            }, 3000);
+            }, delay);
           }
         });
       
@@ -353,12 +370,15 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
           console.log('📱 التطبيق عاد للمقدمة');
           
           // إعادة إنشاء القناة فقط إذا كانت مقطوعة فعلاً
-          const channelState = (channel as any)?.state;
+          const channelState = (channel as unknown as { state?: string })?.state;
           if (!channelState || channelState === 'closed' || channelState === 'errored') {
             console.log('🔄 إعادة إنشاء قناة Realtime (كانت مقطوعة)');
+            retryCount = 0; // إعادة تعيين عداد المحاولات عند عودة التطبيق
+            isRetrying = false;
+            if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
             try {
               supabase.removeChannel(channel);
-            } catch (e) {
+            } catch {
               // تجاهل خطأ إزالة القناة القديمة
             }
             channel = createChannel();
@@ -376,6 +396,7 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
 
     return () => {
       console.log('Cleaning up ride notification subscription');
+      if (retryTimer) clearTimeout(retryTimer);
       supabase.removeChannel(channel);
       if (cleanupAppState) cleanupAppState();
       if (swMessageHandler && 'serviceWorker' in navigator) {

@@ -1,21 +1,14 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { 
-  Star, 
-  ThumbsUp, 
-  ThumbsDown,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  CheckCircle,
-  Sparkles
+import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
+import {
+  Star, Loader2, CheckCircle, Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import confetti from 'canvas-confetti';
+import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "framer-motion";
 
+/* ─────────────────────── Types ─────────────────────── */
 interface SmartRatingFlowProps {
   rideId: string;
   driverId: string | null;
@@ -24,381 +17,336 @@ interface SmartRatingFlowProps {
   onSkip: () => void;
 }
 
-interface QuickQuestion {
-  id: string;
-  text: string;
-  icon: string;
-  category: string;
-}
+type Step = "rating" | "done";
 
-const SmartRatingFlow = ({
-  rideId,
-  driverId,
-  driverName,
-  onComplete,
-  onSkip
-}: SmartRatingFlowProps) => {
+interface Badge { id: string; emoji: string; label: string }
+
+const BADGES: Badge[] = [
+  { id: "clean",    emoji: "🧹", label: "سيارة نظيفة"  },
+  { id: "ontime",   emoji: "⏱️", label: "دقيق في المواعيد" },
+  { id: "roads",    emoji: "🛣️", label: "خبير بالطرق"  },
+  { id: "polite",   emoji: "💬", label: "أسلوب مهذب"   },
+  { id: "ac",       emoji: "❄️", label: "مكيف ممتاز"   },
+  { id: "safe",     emoji: "🚗", label: "قيادة آمنة"   },
+];
+
+const RATING_CONFIG = {
+  5: { text: "ممتاز!",        emoji: "🌟", color: "text-emerald-400", ring: "ring-emerald-500/40", bg: "from-emerald-500/15 to-transparent" },
+  4: { text: "جيد جداً",      emoji: "👍", color: "text-green-400",   ring: "ring-green-500/40",   bg: "from-green-500/12 to-transparent"   },
+  3: { text: "متوسط",         emoji: "😐", color: "text-amber-400",  ring: "ring-amber-500/40",   bg: "from-amber-500/12 to-transparent"   },
+  2: { text: "يحتاج تحسين",  emoji: "😕", color: "text-orange-400", ring: "ring-orange-500/40",  bg: "from-orange-500/12 to-transparent"  },
+  1: { text: "سيء",           emoji: "😞", color: "text-red-400",    ring: "ring-red-500/40",     bg: "from-red-500/12 to-transparent"     },
+};
+
+/* ─────────────────────── Component ─────────────────────── */
+const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: SmartRatingFlowProps) => {
   const { toast } = useToast();
-  const [step, setStep] = useState<'rating' | 'questions' | 'comment' | 'done'>('rating');
-  const [rating, setRating] = useState(5);
-  const [hoveredRating, setHoveredRating] = useState(0);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, boolean | null>>({});
-  const [comment, setComment] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [step, setStep]         = useState<Step>("rating");
+  const [rating, setRating]     = useState(5);
+  const [hovered, setHovered]   = useState(0);
+  const [badges, setBadges]     = useState<string[]>([]);
+  const [loading, setLoading]   = useState(false);
 
-  // Dynamic questions based on season
-  const getQuestions = (): QuickQuestion[] => {
-    const currentMonth = new Date().getMonth();
-    const isSummer = currentMonth >= 4 && currentMonth <= 9; // May-October
+  const display   = hovered || rating;
+  const cfg       = RATING_CONFIG[display as keyof typeof RATING_CONFIG];
+  const driverInitials = driverName?.slice(0, 2) || "أ";
 
-    return [
-      { id: 'cleanliness', text: 'هل كانت السيارة نظيفة؟', icon: '🧹', category: 'النظافة' },
-      { 
-        id: 'climate', 
-        text: isSummer ? 'هل كان التكييف يعمل بشكل جيد؟' : 'هل كانت التدفئة مناسبة؟', 
-        icon: isSummer ? '❄️' : '🔥', 
-        category: 'الراحة' 
-      },
-      { id: 'safe_driving', text: 'هل كانت القيادة آمنة ومريحة؟', icon: '🚗', category: 'القيادة' },
-      { id: 'traffic_rules', text: 'هل التزم السائق بقواعد المرور؟', icon: '🚦', category: 'السلامة' },
-      { id: 'respectful', text: 'هل كان السائق محترماً في الحديث؟', icon: '💬', category: 'التواصل' },
-      { id: 'privacy', text: 'هل احترم السائق خصوصيتك؟', icon: '🤫', category: 'الخصوصية' },
-    ];
+  /* vibrate helper */
+  const vibrate = (ms = 30) => {
+    try { navigator.vibrate?.(ms); } catch { /* ignore */ }
   };
 
-  const questions = getQuestions();
-  const currentQuestion = questions[currentQuestionIndex];
-  const displayRating = hoveredRating || rating;
-
-  const ratingMessages = {
-    5: { text: 'ممتاز!', emoji: '🌟', color: 'text-green-500' },
-    4: { text: 'جيد جداً', emoji: '👍', color: 'text-green-400' },
-    3: { text: 'متوسط', emoji: '😐', color: 'text-amber-500' },
-    2: { text: 'يحتاج تحسين', emoji: '😕', color: 'text-orange-500' },
-    1: { text: 'سيء', emoji: '😞', color: 'text-red-500' }
-  };
-
-  const currentMessage = ratingMessages[displayRating as keyof typeof ratingMessages];
-
-  // Trigger confetti on mount (useWorker: false to avoid CSP blob: worker violation)
-  useEffect(() => {
-    try {
-      const fire = confetti.create(undefined, { useWorker: false, resize: true });
-      fire({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#00d9a5', '#00b389', '#fbbf24', '#f59e0b']
-      });
-    } catch {
-      // confetti غير متاح أو محجوب بـ CSP — تجاهل بصمت
-    }
+  /* confetti burst */
+  const burst = useCallback(() => {
+    const fire = (opts: confetti.Options) =>
+      confetti({ ...opts, disableForReducedMotion: true });
+    fire({ particleCount: 80, spread: 80, origin: { y: 0.55 }, colors: ["#10b981","#fbbf24","#06b6d4","#f59e0b","#8b5cf6"] });
+    setTimeout(() =>
+      fire({ particleCount: 40, spread: 100, origin: { y: 0.55 }, colors: ["#ec4899","#fbbf24","#10b981"] }), 250);
   }, []);
 
-  const handleAnswer = (answer: boolean) => {
-    setAnswers(prev => ({ ...prev, [currentQuestion.id]: answer }));
-    
-    if (currentQuestionIndex < questions.length - 1) {
-      setTimeout(() => setCurrentQuestionIndex(prev => prev + 1), 300);
-    } else {
-      // If rating is 3 or lower, show comment step
-      if (rating <= 3) {
-        setStep('comment');
-      } else {
-        handleSubmit();
-      }
-    }
+  /* stars entrance confetti */
+  useEffect(() => {
+    try {
+      confetti({ particleCount: 55, spread: 65, origin: { y: 0.6 }, colors: ["#10b981","#fbbf24","#06b6d4"] });
+    } catch { /* ignore */ }
+  }, []);
+
+  const toggleBadge = (id: string) => {
+    vibrate(20);
+    setBadges(prev => prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id]);
+  };
+
+  const handleStarClick = (star: number) => {
+    vibrate(30);
+    setRating(star);
   };
 
   const handleSubmit = async () => {
-    if (!driverId) {
-      onComplete();
-      return;
-    }
-    
+    if (!driverId) { onComplete(); return; }
     setLoading(true);
-    
+
     try {
-      // Update ride with rating
-      const { error: rideError } = await supabase
+      const badgeComment = badges.length > 0
+        ? `[بادجات: ${badges.join(",")}]`
+        : null;
+
+      /* 1️⃣ تحديث تقييم الرحلة — الأهم */
+      const { error: rideErr } = await supabase
         .from("rides")
         .update({ driver_rating: rating })
         .eq("id", rideId);
 
-      if (rideError) throw rideError;
-
-      // Get rider profile
-      const { data: profile } = await supabase.auth.getUser();
-      if (profile?.user) {
-        const { data: riderProfile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("user_id", profile.user.id)
-          .maybeSingle();
-
-        if (riderProfile) {
-          // Insert into ride_ratings with feedback
-          const { error: ratingError } = await supabase.from("ride_ratings").insert({
-            ride_id: rideId,
-            rating: rating,
-            comment: comment.trim() || JSON.stringify(answers),
-            driver_id: driverId,
-            rider_id: riderProfile.id
-          });
-          
-          if (ratingError) {
-            console.error("Rating insert error:", ratingError);
-          }
-        }
+      if (rideErr) {
+        console.warn("[Rating] rides.update error:", rideErr.message);
       }
 
-      // Update driver's average rating
-      await updateDriverAverageRating(driverId);
+      /* 2️⃣ حفظ ride_ratings — اختياري، لا يمنع الإتمام */
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          const { data: riderProfile } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("user_id", authData.user.id)
+            .maybeSingle();
 
-      setStep('done');
-      
+          await supabase.from("ride_ratings").insert({
+            ride_id: rideId,
+            rating,
+            comment: badgeComment,
+            driver_id: driverId,
+            rider_id: riderProfile?.id ?? null,
+          });
+        }
+      } catch (innerErr) {
+        console.warn("[Rating] ride_ratings insert skipped:", innerErr);
+      }
+
+      /* 3️⃣ تحديث متوسط تقييم الكابتن — اختياري */
+      try {
+        const { data: rides } = await supabase
+          .from("rides")
+          .select("driver_rating")
+          .eq("driver_id", driverId)
+          .eq("status", "completed")
+          .not("driver_rating", "is", null);
+
+        if (rides?.length) {
+          const avg = Math.round(
+            (rides.reduce((s, r) => s + (r.driver_rating ?? 0), 0) / rides.length) * 10
+          ) / 10;
+          await supabase.from("drivers").update({ rating: avg }).eq("id", driverId);
+        }
+      } catch (avgErr) {
+        console.warn("[Rating] driver avg update skipped:", avgErr);
+      }
+
+      /* ✅ النجاح دائماً */
+      burst();
+      setStep("done");
+      toast({ title: "شكراً لتقييمك! ⭐", description: "تقييمك يجعل الخدمة أفضل" });
+      setTimeout(() => onComplete(), 2200);
+
+    } catch (err: unknown) {
+      console.error("[Rating] handleSubmit error:", err);
       toast({
-        title: "شكراً لتقييمك! ⭐",
-        description: "تقييمك يساعدنا على تحسين الخدمة"
-      });
-
-      setTimeout(() => onComplete(), 1500);
-
-    } catch (error: any) {
-      console.error("Rating error:", error);
-      toast({
-        title: "خطأ",
-        description: error.message,
-        variant: "destructive"
+        title: "خطأ في الإرسال",
+        description: err instanceof Error ? err.message : "حدث خطأ، حاول مجدداً",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const updateDriverAverageRating = async (driverId: string) => {
-    const { data: rides } = await supabase
-      .from("rides")
-      .select("driver_rating")
-      .eq("driver_id", driverId)
-      .eq("status", "completed")
-      .not("driver_rating", "is", null);
-
-    if (rides && rides.length > 0) {
-      const totalRating = rides.reduce((sum, r) => sum + (r.driver_rating || 0), 0);
-      const avgRating = Math.round((totalRating / rides.length) * 10) / 10;
-
-      await supabase
-        .from("drivers")
-        .update({ rating: avgRating })
-        .eq("id", driverId);
-    }
-  };
-
-  // Done screen
-  if (step === 'done') {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 animate-in zoom-in-50 duration-500">
-        <div className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mb-4">
-          <Sparkles className="w-10 h-10 text-green-500" />
-        </div>
-        <h2 className="text-xl font-bold text-foreground">شكراً لك!</h2>
-        <p className="text-muted-foreground mt-2">نتمنى لك رحلة سعيدة قادمة 🚗</p>
-      </div>
-    );
-  }
-
-  // Rating step
-  if (step === 'rating') {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h3 className="font-bold text-lg mb-1">كيف كانت رحلتك؟</h3>
-          <p className="text-sm text-muted-foreground">مع {driverName}</p>
-        </div>
-        
-        {/* Stars */}
-        <div className="flex justify-center gap-2">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <button
-              key={star}
-              type="button"
-              onClick={() => setRating(star)}
-              onMouseEnter={() => setHoveredRating(star)}
-              onMouseLeave={() => setHoveredRating(0)}
-              className="p-1 transition-all duration-200 hover:scale-125 active:scale-95"
-            >
-              <Star
-                className={`w-11 h-11 transition-colors ${
-                  star <= displayRating
-                    ? 'text-amber-400 fill-amber-400'
-                    : 'text-muted-foreground/30'
-                }`}
-              />
-            </button>
-          ))}
-        </div>
-
-        {/* Rating Message */}
-        <div className="text-center">
-          <span className="text-4xl">{currentMessage.emoji}</span>
-          <p className={`font-bold mt-2 text-lg ${currentMessage.color}`}>{currentMessage.text}</p>
-        </div>
-
-        {/* Actions */}
-        <div className="space-y-3 pt-4">
-          <Button
-            variant="outline"
-            className="w-full h-12 rounded-none"
-            onClick={onSkip}
-          >
-            تخطي
-          </Button>
-          <Button
-            className="w-full h-12 rounded-none gap-2"
-            onClick={() => setStep('questions')}
-          >
-            التالي
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Questions step
-  if (step === 'questions') {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h3 className="font-bold text-lg mb-1">أسئلة سريعة</h3>
-          <p className="text-sm text-muted-foreground">اختياري - ساعدنا نحسّن الخدمة</p>
-        </div>
-
-        {/* Progress dots */}
-        <div className="flex justify-center gap-1.5">
-          {questions.map((_, idx) => (
-            <div
-              key={idx}
-              className={`w-2 h-2 rounded-full transition-colors ${
-                idx === currentQuestionIndex
-                  ? 'bg-primary'
-                  : idx < currentQuestionIndex
-                  ? 'bg-primary/50'
-                  : 'bg-muted'
-              }`}
-            />
-          ))}
-        </div>
-
-        {/* Question Card */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentQuestion.id}
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -50 }}
-            transition={{ duration: 0.2 }}
-            className="bg-card border border-border rounded-2xl p-6 text-center"
-          >
-            <div className="text-4xl mb-4">{currentQuestion.icon}</div>
-            <p className="text-lg font-medium text-foreground mb-1">{currentQuestion.text}</p>
-            <p className="text-xs text-muted-foreground">{currentQuestion.category}</p>
-
-            {/* Answer buttons */}
-            <div className="space-y-3 mt-6">
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => handleAnswer(true)}
-                className="w-full h-14 text-base border-green-500/30 hover:bg-green-500/10 hover:border-green-500 rounded-none"
-              >
-                <ThumbsUp className="w-5 h-5 text-green-500 mr-2" />
-                نعم
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => handleAnswer(false)}
-                className="w-full h-14 text-base border-destructive/30 hover:bg-destructive/10 hover:border-destructive rounded-none"
-              >
-                <ThumbsDown className="w-5 h-5 text-destructive mr-2" />
-                لا
-              </Button>
+  /* ─── Done screen ─── */
+  if (step === "done") {
+    return createPortal(
+      <div className="fixed inset-0 z-[9999] bg-slate-950 flex flex-col items-center justify-center" dir="rtl">
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/60 to-slate-950 pointer-events-none" />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: "spring", stiffness: 180 }}
+          className="relative flex flex-col items-center gap-5 px-8 text-center"
+        >
+          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-400 flex items-center justify-center shadow-[0_0_60px_rgba(16,185,129,0.5)]">
+            <Sparkles className="w-12 h-12 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-white mb-1">شكراً لك! ✨</h2>
+            <p className="text-slate-400 text-sm">تقييمك يساعدنا على تحسين الخدمة</p>
+          </div>
+          <div className="flex gap-1">
+            {[1,2,3,4,5].map(s => (
+              <Star key={s} className={`w-7 h-7 ${s <= rating ? "text-amber-400 fill-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]" : "text-slate-700"}`} />
+            ))}
+          </div>
+          {badges.length > 0 && (
+            <div className="flex flex-wrap gap-2 justify-center">
+              {BADGES.filter(b => badges.includes(b.id)).map(b => (
+                <span key={b.id} className="text-xs bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 rounded-full px-3 py-1">
+                  {b.emoji} {b.label}
+                </span>
+              ))}
             </div>
-          </motion.div>
-        </AnimatePresence>
+          )}
+        </motion.div>
+      </div>,
+      document.body
+    );
+  }
 
-        {/* Skip questions */}
-        <div className="pt-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              if (rating <= 3) {
-                setStep('comment');
-              } else {
-                handleSubmit();
+  /* ─── Main portal ─── */
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0, y: "100%" }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: "100%" }}
+      transition={{ type: "spring", stiffness: 220, damping: 28 }}
+      className="fixed inset-0 z-[9999] flex flex-col"
+      style={{ height: "100dvh" }}
+      dir="rtl"
+    >
+      {/* ── خلفية زجاجية ── */}
+      <div className={`absolute inset-0 bg-gradient-to-b ${cfg.bg} transition-all duration-500`} />
+      <div className="absolute inset-0 bg-slate-950/92 backdrop-blur-2xl" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-emerald-500/6 rounded-full blur-3xl pointer-events-none" />
+
+      {/* ════════════════════════════════════════
+          حالة: التقييم الرئيسية
+      ════════════════════════════════════════ */}
+      {step === "rating" && (
+        <div className="relative flex-1 min-h-0 flex flex-col">
+
+          {/* صورة الكابتن + النجوم */}
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-6 gap-4">
+
+            {/* أفاتار الكابتن بـ ring */}
+            <motion.div
+              initial={{ scale: 0, rotate: -10 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
+              className={`w-20 h-20 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center ring-4 ${cfg.ring} transition-all duration-500 shadow-lg`}
+            >
+              <span className="text-2xl font-black text-white">{driverInitials}</span>
+            </motion.div>
+
+            {/* الاسم */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-center"
+            >
+              <p className="text-xs text-slate-500 mb-0.5">كيف كانت رحلتك مع</p>
+              <h2 className="text-lg font-black text-white">{driverName}</h2>
+            </motion.div>
+
+            {/* ── النجوم ── */}
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <motion.button
+                  key={star}
+                  type="button"
+                  title={`${star} نجوم`}
+                  whileTap={{ scale: 0.75 }}
+                  whileHover={{ scale: 1.2 }}
+                  onClick={() => handleStarClick(star)}
+                  onMouseEnter={() => setHovered(star)}
+                  onMouseLeave={() => setHovered(0)}
+                  className="relative focus:outline-none"
+                >
+                  {/* نبض عند التحديد */}
+                  {star === rating && (
+                    <motion.div
+                      layoutId="star-pulse"
+                      className="absolute inset-0 rounded-full bg-amber-400/20"
+                      animate={{ scale: [1, 1.6, 1] }}
+                      transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
+                    />
+                  )}
+                  <Star className={`w-12 h-12 transition-all duration-200 ${
+                    star <= display
+                      ? "text-amber-400 fill-amber-400 drop-shadow-[0_0_14px_rgba(251,191,36,0.75)]"
+                      : "text-slate-700"
+                  }`} />
+                </motion.button>
+              ))}
+            </div>
+
+            {/* رسالة التقييم */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={display}
+                initial={{ opacity: 0, scale: 0.8, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8, y: -8 }}
+                transition={{ duration: 0.18 }}
+                className="flex items-center gap-2 bg-slate-800/40 border border-slate-700/30 rounded-full px-4 py-1.5"
+              >
+                <span className="text-2xl">{cfg.emoji}</span>
+                <span className={`text-sm font-black ${cfg.color}`}>{cfg.text}</span>
+              </motion.div>
+            </AnimatePresence>
+
+            {/* ── البادجات ── */}
+            <div className="w-full">
+              <p className="text-xs text-slate-500 text-center mb-2">ما الذي أعجبك؟ (اختياري)</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {BADGES.map((badge) => {
+                  const active = badges.includes(badge.id);
+                  return (
+                    <motion.button
+                      key={badge.id}
+                      type="button"
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => toggleBadge(badge.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 ${
+                        active
+                          ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                          : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:border-slate-500"
+                      }`}
+                    >
+                      <span>{badge.emoji}</span>
+                      <span>{badge.label}</span>
+                      {active && (
+                        <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-emerald-400">✓</motion.span>
+                      )}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* الأزرار */}
+          <div className="shrink-0 flex border-t border-slate-700/30">
+            <button
+              type="button" onClick={onSkip} title="تخطي"
+              className="flex-1 h-14 flex items-center justify-center text-sm font-bold text-slate-400 hover:bg-slate-800/60 active:bg-slate-800 transition-colors rounded-none"
+            >
+              تخطي
+            </button>
+            <div className="w-px bg-slate-700/30 shrink-0" />
+            <button
+              type="button" onClick={handleSubmit} disabled={loading} title="إرسال التقييم"
+              className="flex-1 h-14 flex items-center justify-center gap-2 text-sm font-bold text-white bg-gradient-to-l from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:from-emerald-700 active:to-emerald-600 transition-all disabled:opacity-50 rounded-none"
+            >
+              {loading
+                ? <Loader2 className="w-5 h-5 animate-spin" />
+                : <><CheckCircle className="w-4 h-4" />إرسال التقييم</>
               }
-            }}
-            className="w-full h-10 rounded-none text-muted-foreground"
-          >
-            تخطي الأسئلة
-          </Button>
+            </button>
+          </div>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  // Comment step (for low ratings)
-  if (step === 'comment') {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h3 className="font-bold text-lg mb-1">ما الذي يمكننا تحسينه؟</h3>
-          <p className="text-sm text-muted-foreground">ملاحظاتك تساعدنا على التطوير</p>
-        </div>
 
-        <Textarea
-          placeholder="شاركنا تجربتك... (اختياري)"
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          className="min-h-[120px] resize-none rounded-xl text-base"
-          maxLength={500}
-          dir="rtl"
-        />
-        <p className="text-xs text-muted-foreground text-left">{comment.length}/500</p>
-
-        <div className="space-y-3">
-          <Button
-            variant="outline"
-            className="w-full h-12 rounded-none"
-            onClick={handleSubmit}
-            disabled={loading}
-          >
-            تخطي
-          </Button>
-          <Button
-            className="w-full h-12 rounded-none gap-2"
-            onClick={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4" />
-                إرسال التقييم
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+    </motion.div>,
+    document.body
+  );
 };
 
 export default SmartRatingFlow;

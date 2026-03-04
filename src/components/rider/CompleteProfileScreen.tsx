@@ -252,7 +252,7 @@ const CompleteProfileScreen = ({ userId, currentName, onComplete }: CompleteProf
                     {/* Submit Button */}
                     <Button
                         type="submit"
-                        className="w-full h-14 text-lg font-bold rounded-2xl"
+                        className="w-full h-14 text-lg font-bold"
                         disabled={!isValid || loading}
                     >
                         {loading ? (

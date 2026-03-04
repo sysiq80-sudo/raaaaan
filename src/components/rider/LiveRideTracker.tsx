@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useRiderLocation } from "@/hooks/useRiderLocation";
 import FareBreakdownCard from "@/components/driver/FareBreakdownCard";
-import RideCompletedScreen from "@/components/rider/RideCompletedScreen";
 import { EmergencyTriangleButton } from "@/components/rider/EmergencyTriangleButton";
 import { RideShareButton } from "@/components/rider/RideShareButton";
 import DriverInfoCard from "@/components/rider/DriverInfoCard";
@@ -110,7 +109,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [estimatedArrival, setEstimatedArrival] = useState<number | null>(null);
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
-  const [showCompletedScreen, setShowCompletedScreen] = useState(false);
   const [previousStatus, setPreviousStatus] = useState<string>(ride.status);
   const [showArrivedAlert, setShowArrivedAlert] = useState(false);
   const [approachingNotified, setApproachingNotified] = useState(false);
@@ -152,7 +150,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     onDriverLocationUpdate: handleDriverLocationUpdate,
     onClose,
     setShowArrivedAlert,
-    setShowCompletedScreen,
   });
 
   // Handle "I'm on my way" button for arrived status
@@ -855,26 +852,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     setIsCancelling(false);
     setShowCancelConfirm(false);
   };
-
-  // Show completed screen if ride is completed
-  if (showCompletedScreen) {
-    return (
-      <RideCompletedScreen
-        ride={{
-          id: ride.id,
-          pickup_address: ride.pickup_address,
-          dropoff_address: ride.dropoff_address,
-          final_fare: ride.final_fare,
-          estimated_fare: ride.estimated_fare,
-          distance_km: ride.distance_km,
-          duration_minutes: ride.duration_minutes,
-          driver_id: ride.driver_id,
-        }}
-        driverName={driver?.full_name || "السائق"}
-        onClose={onClose}
-      />
-    );
-  }
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">

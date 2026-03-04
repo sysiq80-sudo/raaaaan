@@ -279,10 +279,13 @@ const AdminSettings = () => {
   }, [isAdmin]);
 
   const updateSetting = async (key: string, value: object) => {
+    // استخدام upsert بدلاً من update لإنشاء الصف تلقائياً إن لم يكن موجوداً
     const { error } = await supabase
       .from('app_settings')
-      .update({ value: JSON.parse(JSON.stringify(value)) })
-      .eq('key', key);
+      .upsert(
+        { key, value: JSON.parse(JSON.stringify(value)) },
+        { onConflict: 'key' }
+      );
 
     if (error) throw error;
   };

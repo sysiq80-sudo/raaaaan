@@ -28,6 +28,8 @@ import {
   Car,
   Download,
   Trash2,
+  ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
@@ -47,18 +49,35 @@ const AdminRides = () => {
   const [rideToDelete, setRideToDelete] = useState<Ride | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // حالة الصفحات
+  const PAGE_SIZE = 50;
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
   useEffect(() => {
     if (isAdmin) {
       fetchRides();
     }
-  }, [isAdmin]);
+  }, [isAdmin, currentPage]);
 
   const fetchRides = async () => {
+    setLoading(true);
+    const from = currentPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    // جلب العدد الكلي
+    const { count } = await supabase
+      .from("rides")
+      .select("*", { count: "exact", head: true });
+    
+    if (count !== null) setTotalCount(count);
+
     const { data, error } = await supabase
       .from("rides")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(100);
+      .range(from, to);
 
     if (error) {
       toast({
@@ -195,7 +214,7 @@ const AdminRides = () => {
   return (
     <AdminLayout
       title="إدارة الرحلات"
-      subtitle={`${rides.length} رحلة • ${activeRides.length} نشطة • ${completedRides.length} مكتملة`}
+      subtitle={`${totalCount} رحلة إجمالاً • صفحة ${currentPage + 1} من ${totalPages || 1} • ${activeRides.length} نشطة`}
       actions={
         <Button
           variant="outline"
@@ -348,6 +367,33 @@ const AdminRides = () => {
             </TableBody>
           </Table>
         </Card>
+      )}
+
+      {/* أزرار التنقل بين الصفحات */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-4 mt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage === 0}
+            onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+          >
+            <ChevronRight className="w-4 h-4 ml-1" />
+            السابقة
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            صفحة {currentPage + 1} من {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage >= totalPages - 1}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+          >
+            التالية
+            <ChevronLeft className="w-4 h-4 mr-1" />
+          </Button>
+        </div>
       )}
 
       {/* Ride Details Dialog */}

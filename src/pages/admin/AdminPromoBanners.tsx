@@ -30,6 +30,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 interface PromoBanner {
     id: string;
@@ -276,6 +277,7 @@ const AdminPromoBanners = () => {
     }
 
     return (
+        <AdminLayout title="العروض الترويجية">
         <div className="p-6 space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -622,6 +624,7 @@ const AdminPromoBanners = () => {
                 </DialogContent>
             </Dialog>
         </div>
+        </AdminLayout>
     );
 };
 

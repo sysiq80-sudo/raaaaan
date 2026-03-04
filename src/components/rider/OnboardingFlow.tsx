@@ -247,7 +247,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                   size="lg"
                   onClick={requestLocationPermission}
                   disabled={isRequestingLocation}
-                  className="w-full h-12 sm:h-14 rounded-2xl text-base sm:text-lg font-bold bg-[#00E676] hover:bg-[#00E676]/90 text-black shadow-lg shadow-[#00E676]/25 transition-all active:scale-[0.98]"
+                  className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-[#00E676] hover:bg-[#00E676]/90 text-black shadow-lg shadow-[#00E676]/25 transition-all active:scale-[0.98]"
                 >
                   {isRequestingLocation ? (
                     <span className="flex items-center gap-2">
@@ -277,7 +277,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                 <Button
                   size="lg"
                   onClick={requestLocationPermission}
-                  className="w-full h-12 sm:h-14 rounded-2xl text-base sm:text-lg font-bold bg-[#00E676] hover:bg-[#00E676]/90 text-black"
+                  className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold bg-[#00E676] hover:bg-[#00E676]/90 text-black"
                 >
                   <Settings className="w-5 h-5 ml-2" />
                   إعادة المحاولة
@@ -286,7 +286,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                   size="lg"
                   variant="ghost"
                   onClick={handleContinueWithoutLocation}
-                  className="w-full h-11 sm:h-12 rounded-2xl text-sm sm:text-base text-white/70 hover:text-white hover:bg-white/10"
+                  className="w-full h-11 sm:h-12 text-sm sm:text-base text-white/70 hover:text-white hover:bg-white/10"
                 >
                   المتابعة بدون موقع
                 </Button>

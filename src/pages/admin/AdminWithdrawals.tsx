@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 interface WithdrawalRequest {
   id: string;
@@ -247,6 +248,7 @@ export default function AdminWithdrawals() {
   }
 
   return (
+    <AdminLayout title="طلبات السحب">
     <div className="min-h-screen bg-background" dir="rtl">
       {/* Header */}
       <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-6 text-primary-foreground">
@@ -494,5 +496,6 @@ export default function AdminWithdrawals() {
         </DialogContent>
       </Dialog>
     </div>
+    </AdminLayout>
   );
 }

@@ -43,6 +43,8 @@ import {
   BookOpen,
   Bot,
   GitBranch,
+  TrendingUp,
+  Menu,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdminNotificationsBell } from "./AdminNotificationsBell";
@@ -58,6 +60,19 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+
+interface NavItem {
+  icon: React.ElementType;
+  label: string;
+  href: string;
+}
+
+interface NavGroup {
+  id: string;
+  icon: React.ElementType;
+  label: string;
+  items: NavItem[];
+}
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -116,11 +131,9 @@ const AdminLayout = ({
   const handleLogout = async () => {
     try {
       await logout();
-      // navigate happens automatically via ProtectedRoute after user is cleared
       navigate("/auth", { replace: true });
     } catch (err) {
       console.error("Logout error:", err);
-      // Force redirect even if logout fails
       navigate("/auth", { replace: true });
     }
   };
@@ -143,83 +156,120 @@ const AdminLayout = ({
     });
   };
 
-  const navItems = [
-    { icon: LayoutDashboard, label: "الرئيسية", href: "/admin" },
-    { icon: MapPin, label: "المناطق والأسعار", href: "/admin/regions" },
-    { icon: MapPinned, label: "المعالم والأماكن", href: "/admin/landmarks" },
-    { icon: Car, label: "أنواع السيارات", href: "/admin/vehicle-types" },
-    { icon: DollarSign, label: "إعدادات الأجرة", href: "/admin/fare-settings" },
-    { icon: Car, label: "السائقين", href: "/admin/drivers" },
+  // ===== تعريف المجموعات مع العناصر الفرعية =====
+  const navGroups: NavGroup[] = [
     {
-      icon: FileText,
-      label: "إعدادات تسجيل السائقين",
-      href: "/admin/driver-registration-settings",
+      id: "users",
+      icon: Users,
+      label: "المستخدمون",
+      items: [
+        { icon: Car, label: "السائقين", href: "/admin/drivers" },
+        { icon: FileText, label: "إعدادات تسجيل السائقين", href: "/admin/driver-registration-settings" },
+        { icon: UserCheck, label: "الركاب", href: "/admin/riders" },
+        { icon: Clock, label: "إعدادات انتظار الراكب", href: "/admin/rider-wait-settings" },
+        { icon: Users, label: "المستخدمين", href: "/admin/users" },
+        { icon: MessageCircle, label: "عملاء البوت", href: "/admin/bot-customers" },
+      ],
     },
-    { icon: UserCheck, label: "الركاب", href: "/admin/riders" },
     {
-      icon: Clock,
-      label: "إعدادات انتظار الراكب",
-      href: "/admin/rider-wait-settings",
+      id: "rides",
+      icon: Route,
+      label: "الرحلات",
+      items: [
+        { icon: Route, label: "الرحلات", href: "/admin/rides" },
+        { icon: Timer, label: "الرحلات المعلقة", href: "/admin/pending-rides" },
+        { icon: CircleStop, label: "الرحلات المتوقفة", href: "/admin/stopped-rides" },
+        { icon: Map, label: "الخريطة الحية", href: "/admin/map" },
+        { icon: Map, label: "ظهور السائقين", href: "/admin/driver-visibility" },
+      ],
     },
-    { icon: Route, label: "الرحلات", href: "/admin/rides" },
-    { icon: Timer, label: "الرحلات المعلقة", href: "/admin/pending-rides" },
-    { icon: Users, label: "المستخدمين", href: "/admin/users" },
-    { icon: Map, label: "الخريطة الحية", href: "/admin/map" },
-    { icon: Map, label: "ظهور السائقين", href: "/admin/driver-visibility" },
-    { icon: DollarSign, label: "التقارير المالية", href: "/admin/reports" },
     {
+      id: "pricing",
       icon: DollarSign,
-      label: "تقارير العمولات",
-      href: "/admin/commission-reports",
+      label: "التسعير والمناطق",
+      items: [
+        { icon: MapPin, label: "المناطق والأسعار", href: "/admin/regions" },
+        { icon: MapPinned, label: "المعالم والأماكن", href: "/admin/landmarks" },
+        { icon: Car, label: "أنواع السيارات", href: "/admin/vehicle-types" },
+        { icon: DollarSign, label: "إعدادات الأجرة", href: "/admin/fare-settings" },
+        { icon: Zap, label: "تسعير الذروة", href: "/admin/surge-pricing" },
+        { icon: Layers, label: "شرائح العمولة", href: "/admin/commission-tiers" },
+        { icon: CreditCard, label: "خطط الاشتراك", href: "/admin/subscription-plans" },
+      ],
     },
     {
-      icon: AlertTriangle,
-      label: "غرامة الإلغاء",
-      href: "/admin/cancellation",
+      id: "finance",
+      icon: TrendingUp,
+      label: "التقارير والمالية",
+      items: [
+        { icon: DollarSign, label: "التقارير المالية", href: "/admin/reports" },
+        { icon: DollarSign, label: "تقارير العمولات", href: "/admin/commission-reports" },
+        { icon: Wallet, label: "طلبات المحفظة", href: "/admin/wallet-requests" },
+        { icon: DollarSign, label: "طلبات السحب", href: "/admin/withdrawals" },
+        { icon: AlertTriangle, label: "غرامة الإلغاء", href: "/admin/cancellation" },
+        { icon: AlertTriangle, label: "تقرير الإلغاءات", href: "/admin/cancellation-report" },
+        { icon: BarChart3, label: "إحصائيات API", href: "/admin/api-stats" },
+        { icon: Phone, label: "سجلات SMS", href: "/admin/sms-logs" },
+      ],
     },
     {
-      icon: AlertTriangle,
-      label: "تقرير الإلغاءات",
-      href: "/admin/cancellation-report",
-    },
-    { icon: Gift, label: "المكافآت والحوافز", href: "/admin/incentives" },
-    { icon: Ban, label: "الأسماء المحظورة", href: "/admin/banned-names" },
-    {
+      id: "marketing",
       icon: Megaphone,
-      label: "العروض الترويجية",
-      href: "/admin/promo-banners",
+      label: "التسويق والمحتوى",
+      items: [
+        { icon: Gift, label: "المكافآت والحوافز", href: "/admin/incentives" },
+        { icon: Ban, label: "الأسماء المحظورة", href: "/admin/banned-names" },
+        { icon: Megaphone, label: "العروض الترويجية", href: "/admin/promo-banners" },
+        { icon: Layers, label: "صفحات الراكب", href: "/admin/rider-pages" },
+      ],
     },
-    { icon: Layers, label: "صفحات الراكب", href: "/admin/rider-pages" },
-    { icon: BarChart3, label: "إحصائيات API", href: "/admin/api-stats" },
-    { icon: Phone, label: "سجلات SMS", href: "/admin/sms-logs" },
-    { icon: Wallet, label: "طلبات المحفظة", href: "/admin/wallet-requests" },
-    { icon: DollarSign, label: "طلبات السحب", href: "/admin/withdrawals" },
-    { icon: MessageSquareWarning, label: "الشكاوى", href: "/admin/complaints" },
-    { icon: CircleStop, label: "الرحلات المتوقفة", href: "/admin/stopped-rides" },
-    { icon: ShieldAlert, label: "إعدادات الطوارئ", href: "/admin/emergency-settings" },
-    { icon: Shield, label: "الأمان والحدود", href: "/admin/security-settings" },
-    { icon: MessageCircle, label: "عملاء البوت", href: "/admin/bot-customers" },
-    { icon: Bot, label: "البوت المتحكم", href: "/admin/bot-controller" },
-    { icon: GitBranch, label: "التدفقات المرئية", href: "/admin/workflows" },
-    { icon: MessageCircle, label: "حسابات Messenger", href: "/admin/messenger-accounts" },
-    { icon: BookOpen, label: "التوثيق", href: "/admin/documentation" },
-    { icon: Code, label: "ران المطور", href: "/admin/developer-settings" },
-    { icon: Settings, label: "الإعدادات", href: "/admin/settings" },
-  ];
-
-  const advancedPricingItems = [
-    { icon: Zap, label: "تسعير الذروة", href: "/admin/surge-pricing" },
     {
-      icon: CreditCard,
-      label: "خطط الاشتراك",
-      href: "/admin/subscription-plans",
+      id: "support",
+      icon: MessageSquareWarning,
+      label: "الدعم والشكاوى",
+      items: [
+        { icon: MessageSquareWarning, label: "الشكاوى", href: "/admin/complaints" },
+        { icon: ShieldAlert, label: "إعدادات الطوارئ", href: "/admin/emergency-settings" },
+      ],
     },
-    { icon: Layers, label: "شرائح العمولة", href: "/admin/commission-tiers" },
+    {
+      id: "bot",
+      icon: Bot,
+      label: "البوت والتواصل",
+      items: [
+        { icon: Bot, label: "البوت المتحكم", href: "/admin/bot-controller" },
+        { icon: GitBranch, label: "التدفقات المرئية", href: "/admin/workflows" },
+        { icon: MessageCircle, label: "حسابات Messenger", href: "/admin/messenger-accounts" },
+      ],
+    },
+    {
+      id: "system",
+      icon: Shield,
+      label: "الأمان والنظام",
+      items: [
+        { icon: Shield, label: "الأمان والحدود", href: "/admin/security-settings" },
+        { icon: BookOpen, label: "التوثيق", href: "/admin/documentation" },
+        { icon: Code, label: "ران المطور", href: "/admin/developer-settings" },
+        { icon: Settings, label: "الإعدادات", href: "/admin/settings" },
+      ],
+    },
   ];
 
-  const [pricingOpen, setPricingOpen] = useState(() => {
-    return advancedPricingItems.some((item) => location.pathname === item.href);
-  });
+  // تحديد المجموعات المفتوحة بناءً على الصفحة الحالية
+  const getDefaultOpenGroups = () => {
+    const openSet: Record<string, boolean> = {};
+    navGroups.forEach((group) => {
+      const hasActive = group.items.some((item) => location.pathname === item.href);
+      if (hasActive) openSet[group.id] = true;
+    });
+    return openSet;
+  };
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(getDefaultOpenGroups);
+
+  const toggleGroup = (groupId: string) => {
+    setOpenGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
 
   const sidebarWidth = collapsed ? "w-[72px]" : "w-64";
   const mainMargin = collapsed ? "mr-[72px]" : "mr-64";
@@ -255,14 +305,14 @@ const AdminLayout = ({
 
         {/* Navigation */}
         <ScrollArea className="flex-1 py-2">
-          <nav className={cn("space-y-1", collapsed ? "px-2" : "px-4")}>
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.href;
+          <nav className={cn("space-y-1", collapsed ? "px-2" : "px-3")}>
 
+            {/* الرئيسية — منفردة */}
+            {(() => {
+              const isActive = location.pathname === "/admin";
               const linkContent = (
                 <Link
-                  to={item.href}
+                  to="/admin"
                   className={cn(
                     "flex items-center rounded-lg transition-all duration-200",
                     collapsed
@@ -273,107 +323,125 @@ const AdminLayout = ({
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                   )}
                 >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <LayoutDashboard className="w-5 h-5 flex-shrink-0" />
                   {!collapsed && (
                     <span className="animate-fade-in whitespace-nowrap flex-1 text-right">
-                      {item.label}
+                      الرئيسية
                     </span>
                   )}
                 </Link>
               );
-
               if (collapsed) {
                 return (
-                  <Tooltip key={item.href} delayDuration={0}>
+                  <Tooltip key="/admin" delayDuration={0}>
                     <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                    <TooltipContent side="left" className="font-medium">
-                      {item.label}
-                    </TooltipContent>
+                    <TooltipContent side="left" className="font-medium">الرئيسية</TooltipContent>
                   </Tooltip>
                 );
               }
+              return <div key="/admin">{linkContent}</div>;
+            })()}
 
-              return <div key={item.href}>{linkContent}</div>;
-            })}
-
-            {/* التسعير المتقدم - قسم قابل للطي */}
-            {collapsed ? (
-              advancedPricingItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = location.pathname === item.href;
-                return (
-                  <Tooltip key={item.href} delayDuration={0}>
-                    <TooltipTrigger asChild>
-                      <Link
-                        to={item.href}
-                        className={cn(
-                          "flex items-center rounded-lg transition-all duration-200 justify-center p-3",
-                          isActive
-                            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                        )}
-                      >
-                        <Icon className="w-5 h-5 flex-shrink-0" />
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent side="left" className="font-medium">
-                      {item.label}
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              })
-            ) : (
-              <Collapsible
-                open={pricingOpen}
-                onOpenChange={setPricingOpen}
-                className="mt-2"
-              >
-                <CollapsibleTrigger
-                  className={cn(
-                    "flex items-center w-full rounded-lg transition-all duration-200 gap-3 px-4 py-3 flex-row-reverse",
-                    advancedPricingItems.some(
-                      (item) => location.pathname === item.href
-                    )
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  )}
-                >
-                  <DollarSign className="w-5 h-5 flex-shrink-0" />
-                  <span className="flex-1 text-right whitespace-nowrap">
-                    التسعير المتقدم
-                  </span>
-                  <ChevronDown
-                    className={cn(
-                      "w-4 h-4 transition-transform duration-200",
-                      pricingOpen && "rotate-180"
-                    )}
-                  />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pr-4 space-y-1 mt-1">
-                  {advancedPricingItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.href;
-                    return (
-                      <Link
-                        key={item.href}
-                        to={item.href}
-                        className={cn(
-                          "flex items-center rounded-lg transition-all duration-200 gap-3 px-4 py-2.5 flex-row-reverse",
-                          isActive
-                            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                        )}
-                      >
-                        <Icon className="w-4 h-4 flex-shrink-0" />
-                        <span className="whitespace-nowrap text-sm flex-1 text-right">
-                          {item.label}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </CollapsibleContent>
-              </Collapsible>
+            {/* فاصل */}
+            {!collapsed && (
+              <div className="pt-2 pb-1">
+                <p className="text-xs text-sidebar-foreground/40 px-4 uppercase tracking-wider">القوائم</p>
+              </div>
             )}
+            {collapsed && <div className="my-1 border-t border-sidebar-border/30" />}
+
+            {/* المجموعات */}
+            {navGroups.map((group) => {
+              const GroupIcon = group.icon;
+              const isGroupActive = group.items.some((item) => location.pathname === item.href);
+              const isOpen = openGroups[group.id] ?? false;
+
+              if (collapsed) {
+                // في الوضع المطوي: عرض كل عنصر كأيقونة منفصلة
+                return group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.href;
+                  return (
+                    <Tooltip key={item.href} delayDuration={0}>
+                      <TooltipTrigger asChild>
+                        <Link
+                          to={item.href}
+                          className={cn(
+                            "flex items-center rounded-lg transition-all duration-200 justify-center p-3",
+                            isActive
+                              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                              : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <Icon className="w-5 h-5 flex-shrink-0" />
+                        </Link>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="font-medium">
+                        <span className="text-xs text-muted-foreground">{group.label} ← </span>
+                        {item.label}
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                });
+              }
+
+              // في الوضع الموسع: مجموعة قابلة للطي
+              return (
+                <Collapsible
+                  key={group.id}
+                  open={isOpen}
+                  onOpenChange={() => toggleGroup(group.id)}
+                >
+                  {/* رأس المجموعة */}
+                  <CollapsibleTrigger
+                    className={cn(
+                      "flex items-center w-full rounded-lg transition-all duration-200 gap-3 px-4 py-2.5 flex-row-reverse",
+                      isGroupActive
+                        ? "bg-sidebar-accent text-sidebar-foreground font-semibold"
+                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    )}
+                  >
+                    <GroupIcon className="w-5 h-5 flex-shrink-0" />
+                    <span className="flex-1 text-right whitespace-nowrap text-sm font-medium">
+                      {group.label}
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        "w-4 h-4 transition-transform duration-200 text-sidebar-foreground/50",
+                        isOpen && "rotate-180"
+                      )}
+                    />
+                  </CollapsibleTrigger>
+
+                  {/* العناصر الفرعية */}
+                  <CollapsibleContent className="overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up">
+                    <div className="pr-4 space-y-0.5 mt-0.5 border-r-2 border-sidebar-border/40 mr-4">
+                      {group.items.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = location.pathname === item.href;
+                        return (
+                          <Link
+                            key={item.href}
+                            to={item.href}
+                            className={cn(
+                              "flex items-center rounded-lg transition-all duration-200 gap-3 px-3 py-2 flex-row-reverse",
+                              isActive
+                                ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                                : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                            )}
+                          >
+                            <Icon className="w-4 h-4 flex-shrink-0" />
+                            <span className="whitespace-nowrap text-xs flex-1 text-right leading-tight">
+                              {item.label}
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
           </nav>
         </ScrollArea>
 
@@ -410,12 +478,13 @@ const AdminLayout = ({
           )}
         </div>
 
-        {/* Toggle Button */}
+        {/* Toggle Button — على حافة السايدبار */}
         <button
           onClick={() => setCollapsed(!collapsed)}
           className={cn(
             "absolute top-1/2 -translate-y-1/2 -left-4 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform duration-200 border-2 border-background"
           )}
+          title={collapsed ? "توسيع القائمة" : "طي القائمة"}
         >
           {collapsed ? (
             <ChevronRight className="w-4 h-4" />
@@ -433,9 +502,17 @@ const AdminLayout = ({
         )}
       >
         {/* Top Header Bar */}
-        <header className="bg-card border-b border-border sticky top-0 z-10 px-8 py-4">
+        <header className="bg-card border-b border-border sticky top-0 z-10 px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4">
+              {/* زر فتح/إغلاق القائمة الجانبية — دائماً ظاهر */}
+              <button
+                onClick={() => setCollapsed(!collapsed)}
+                className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+                title={collapsed ? "فتح القائمة الجانبية" : "إغلاق القائمة الجانبية"}
+              >
+                <Menu className="w-5 h-5" />
+              </button>
               <div className="flex items-center gap-2 text-muted-foreground">
                 <User className="w-5 h-5" />
                 <span className="font-medium text-foreground">{adminName}</span>

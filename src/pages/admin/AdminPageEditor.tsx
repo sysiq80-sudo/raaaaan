@@ -9,6 +9,7 @@ import { ComponentLibrary } from '@/components/admin/visual-editor/ComponentLibr
 import { PropertiesPanel } from '@/components/admin/visual-editor/PropertiesPanel';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import AdminLayout from '@/components/admin/AdminLayout';
 
 const AdminPageEditor: React.FC = () => {
   const { pageId } = useParams<{ pageId: string }>();
@@ -160,7 +161,8 @@ const AdminPageEditor: React.FC = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-muted/30">
+    <AdminLayout title="محرر الصفحات">
+    <div className="flex flex-col bg-muted/30 -mx-8 -my-8 overflow-hidden" style={{height: 'calc(100vh - 65px)'}}>
       {/* Toolbar */}
       <EditorToolbar onSave={() => saveMutation.mutate()} />
 
@@ -184,6 +186,7 @@ const AdminPageEditor: React.FC = () => {
         )}
       </div>
     </div>
+    </AdminLayout>
   );
 };
 

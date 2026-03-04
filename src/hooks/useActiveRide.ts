@@ -323,6 +323,12 @@ export const useActiveRide = (userId: string | null) => {
               return;
             }
 
+            // ✅ FIX: تجاهل تحديثات "completed → completed" المتكررة لمنع إعادة تعيين شاشة التقييم
+            if (newStatus === "completed" && prevStatus === "completed") {
+              logger.debug(LOG_CONTEXT, "Ignoring duplicate completed update - rating screen already shown");
+              return;
+            }
+
             // Update previous status ref
             previousStatusRef.current = newStatus;
 

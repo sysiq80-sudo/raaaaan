@@ -277,7 +277,7 @@ const PromoCodeSheet: React.FC<PromoCodeSheetProps> = ({
             {validationResult?.valid ? (
               <Button
                 onClick={applyPromo}
-                className="flex-1 h-12 text-base font-bold rounded-xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                className="flex-1 h-12 text-base font-bold bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
               >
                 <Sparkles className="w-5 h-5 ml-2" />
                 تطبيق الخصم
@@ -286,7 +286,7 @@ const PromoCodeSheet: React.FC<PromoCodeSheetProps> = ({
               <Button
                 onClick={validatePromo}
                 disabled={!code.trim() || isValidating}
-                className="flex-1 h-12 text-base font-bold rounded-xl"
+                className="flex-1 h-12 text-base font-bold"
               >
                 {isValidating ? (
                   <>

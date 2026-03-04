@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  ArrowRight,
   Wallet,
   Plus,
   ArrowUpRight,
@@ -18,6 +17,7 @@ import {
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
+import RiderPageHeader from "@/components/rider/RiderPageHeader";
 
 interface WalletTransaction {
   id: string;
@@ -102,24 +102,11 @@ const RiderPaymentsPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b">
-        <div className="flex items-center gap-3 p-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/rider")}
-            className="shrink-0"
-          >
-            <ArrowRight className="w-5 h-5" />
-          </Button>
-          <h1 className="text-xl font-bold">المحفظة والمدفوعات</h1>
-        </div>
-      </div>
+    <div className="flex flex-col bg-background h-full">
+      <RiderPageHeader title="المحفظة والمدفوعات" />
 
       {/* Content */}
-      <div className="p-4 pb-28 space-y-6">
+      <div className="pt-16 p-4 pb-6 space-y-6">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />

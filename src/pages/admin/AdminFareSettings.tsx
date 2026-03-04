@@ -75,19 +75,23 @@ const AdminFareSettings = () => {
     setSaving(true);
     
     try {
-      // Update fare_calculation settings
+      // Upsert fare_calculation settings (يُنشئ الصف إن لم يكن موجوداً)
       const { error: fareError } = await supabase
         .from('app_settings')
-        .update({ value: JSON.parse(JSON.stringify(fareSettings)) })
-        .eq('key', 'fare_calculation');
+        .upsert(
+          { key: 'fare_calculation', value: JSON.parse(JSON.stringify(fareSettings)) },
+          { onConflict: 'key' }
+        );
 
       if (fareError) throw fareError;
 
-      // Update commission settings
+      // Upsert commission settings
       const { error: commissionError } = await supabase
         .from('app_settings')
-        .update({ value: JSON.parse(JSON.stringify(commissionSettings)) })
-        .eq('key', 'commission');
+        .upsert(
+          { key: 'commission', value: JSON.parse(JSON.stringify(commissionSettings)) },
+          { onConflict: 'key' }
+        );
 
       if (commissionError) throw commissionError;
 

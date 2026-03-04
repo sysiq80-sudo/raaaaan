@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useVehicleTypes } from '@/hooks/useVehicleTypes';
 
 type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
 
@@ -33,19 +34,17 @@ export const useFareCalculation = (
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSuccessfulFareRef = useRef<FareBreakdown | null>(null);
 
+  // جلب معاملات أنواع المركبات من DB بدل القيم الثابتة
+  const { getMultiplier } = useVehicleTypes();
+
   const estimateFareLocally = (
     distanceKm: number,
     vehicle: VehicleType,
   ): FareBreakdown => {
     const baseFare = 2000;
     const perKmRate = 500;
-    const vehicleMultipliers: Record<VehicleType, number> = {
-      economy: 1,
-      comfort: 1.3,
-      premium: 1.8,
-      women_only: 1.2,
-    };
-    const vehicleMultiplier = vehicleMultipliers[vehicle] ?? 1;
+    // استخدام المعامل من DB (مع fallback تلقائي في الهوك)
+    const vehicleMultiplier = getMultiplier(vehicle);
     const distanceFare = distanceKm * perKmRate;
     const subtotal = Math.max(baseFare, baseFare + distanceFare);
     const totalFare = Math.round(subtotal * vehicleMultiplier);
@@ -98,11 +97,11 @@ export const useFareCalculation = (
       setFareLoading(true);
 
       try {
-        // Set a timeout to prevent infinite loading (5 seconds — allows cold-start of edge function)
+        // Set a timeout to prevent infinite loading (10 seconds — allows cold-start of edge function)
         const timeoutPromise = new Promise((_, reject) => {
           timeoutRef.current = setTimeout(() => {
             reject(new Error('Fare calculation timeout'));
-          }, 5000);
+          }, 10000);
         });
 
         const invokePromise = (async () => {

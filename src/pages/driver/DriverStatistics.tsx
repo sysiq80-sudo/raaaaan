@@ -6,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { User, Session } from "@supabase/supabase-js";
 import { 
-  ArrowRight,
   TrendingUp,
   TrendingDown,
   Calendar,
@@ -25,6 +24,7 @@ import {
   PieChart as PieChartIcon,
   Activity
 } from "lucide-react";
+import DriverPageHeader from "@/components/driver/DriverPageHeader";
 import { 
   LineChart, 
   Line, 
@@ -306,17 +306,7 @@ const DriverStatistics = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20" dir="rtl">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
-        <div className="container flex items-center h-16">
-          <Link to="/driver" className="p-2">
-            <ArrowRight className="w-6 h-6" />
-          </Link>
-          <h1 className="flex-1 text-center font-bold text-lg">الإحصائيات المتقدمة</h1>
-          <div className="w-10" />
-        </div>
-      </header>
-
+      <DriverPageHeader title="الإحصائيات" />
       {/* Main Content */}
       <main className="pt-20 pb-8 px-4">
         <div className="container max-w-lg space-y-6">

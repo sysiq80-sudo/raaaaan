@@ -666,7 +666,7 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
                   variant="ghost"
                   onClick={handleSetCurrentLocation}
                   disabled={isSettingCurrentLocation}
-                  className="w-full h-12 gap-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition-all duration-300"
+                  className="w-full h-12 gap-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition-all duration-300"
                 >
                   {isSettingCurrentLocation ? (
                     <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />

@@ -6,7 +6,8 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowRight, Gift, Trophy, Target, Clock, CheckCircle2, Star } from "lucide-react";
+import { Gift, Trophy, Target, Clock, CheckCircle2, Star } from "lucide-react";
+import DriverPageHeader from "@/components/driver/DriverPageHeader";
 
 interface IncentiveProgress {
   incentive_id: string;
@@ -137,33 +138,21 @@ const DriverIncentives = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/driver")}
-            className="text-primary-foreground hover:bg-primary-foreground/10"
-          >
-            <ArrowRight className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-bold">المكافآت والحوافز</h1>
-        </div>
+      <DriverPageHeader title="المكافآت والحوافز" />
 
-        <Card className="bg-primary-foreground/10 border-0 text-primary-foreground">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm opacity-80">إجمالي المكافآت المكتسبة</p>
-                <p className="text-3xl font-bold">{totalEarned.toLocaleString()} د.ع</p>
-              </div>
-              <div className="p-3 rounded-full bg-primary-foreground/20">
-                <Trophy className="h-8 w-8" />
-              </div>
+      {/* Hero Card */}
+      <div className="pt-20 px-4 pb-2">
+        <div className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground p-6 rounded-2xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm opacity-80">إجمالي المكافآت المكتسبة</p>
+              <p className="text-3xl font-bold">{totalEarned.toLocaleString()} د.ع</p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="p-3 rounded-full bg-primary-foreground/20">
+              <Trophy className="h-8 w-8" />
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="p-4 space-y-6">

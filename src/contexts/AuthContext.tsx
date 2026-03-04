@@ -53,6 +53,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
   
+  // ✅ FIX: Ref لتتبع المستخدم الحالي دائماً — يحل مشكلة stale closure في onAuthStateChange
+  const userRef = React.useRef<User | null>(null);
+
   // Session state
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [isMultiDeviceConflict, setIsMultiDeviceConflict] = useState(false);
@@ -210,10 +213,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         console.log(`[AuthContext] Session found via ${source}:`, session.user.id);
         setUser(session.user);
+        userRef.current = session.user; // ✅ sync ref
 
         // كشف الدور قبل إنهاء التحميل لمنع حلقات إعادة التوجيه
         try {
-          const role = await detectUserRole(session.user.id);
+          // ✅ FIX: timeout لـ detectUserRole لمنع التعليق على السبلاش
+          const rolePromise = detectUserRole(session.user.id);
+          const roleTimeout = new Promise<UserRole>((resolve) =>
+            setTimeout(() => {
+              console.warn("[AuthContext] detectUserRole timed out — defaulting to rider");
+              resolve("rider");
+            }, 3000)
+          );
+          const role = await Promise.race([rolePromise, roleTimeout]);
+
           if (isMounted) {
             setUserRole(role);
             // مزامنة localStorage مع الدور المكتشف
@@ -277,13 +290,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // ✅ عند تحديث التوكن فقط: حدّث الـ user بدون إعادة كشف الدور
         if (event === "TOKEN_REFRESHED" && session?.user) {
-          const currentUserId = user?.id;
+          const currentUserId = userRef.current?.id; // ✅ قراءة من Ref لتجنب stale closure
           if (currentUserId && currentUserId === session.user.id) {
             console.log("[AuthContext] TOKEN_REFRESHED for same user — skipping role re-detection");
             setUser(session.user);
+            userRef.current = session.user;
             if (isMounted) setIsLoading(false);
             return;
           }
+        }
+
+        // ✅ FIX: تجاهل SIGNED_IN إذا كان المستخدم نفسه محمل مسبقاً
+        // يمنع استدعاء detectUserRole مرة ثانية بدون ضرورة
+        if (event === "SIGNED_IN" && authResolved && session?.user?.id === userRef.current?.id) {
+          console.log("[AuthContext] SIGNED_IN for same user already loaded — skipping");
+          if (isMounted) setIsLoading(false);
+          return;
         }
 
         if (!authResolved || event !== "INITIAL_SESSION") {

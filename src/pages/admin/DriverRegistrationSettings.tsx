@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Loader2, Save } from "lucide-react";
 import { DriverRegistrationSettings as SettingsType } from "@/hooks/useDriverRegSettings";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 export default function DriverRegistrationSettings() {
   const [settings, setSettings] = useState<SettingsType | null>(null);
@@ -81,6 +82,7 @@ export default function DriverRegistrationSettings() {
   }
 
   return (
+    <AdminLayout title="إعدادات تسجيل السائقين">
     <div className="container mx-auto p-6 max-w-5xl" dir="rtl">
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -408,5 +410,6 @@ export default function DriverRegistrationSettings() {
         </Button>
       </div>
     </div>
+    </AdminLayout>
   );
 }

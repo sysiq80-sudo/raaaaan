@@ -1,12 +1,13 @@
 /**
  * ران - محدد طريقة الدفع (النسخة المبسطة)
- * 3 خيارات فقط: نقداً، المحفظة، البطاقة
+ * يجلب طرق الدفع من قاعدة البيانات (جدول payment_methods)
  * مع دعم البطاقات المحفوظة ونافذة إضافة بطاقة جديدة
  */
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Banknote, Wallet, CreditCard, Check, Plus } from "lucide-react";
 import { useSavedCards } from "@/hooks/useSavedCards";
+import { usePaymentMethods } from "@/hooks/usePaymentMethods";
 import AddCardModal from "./AddCardModal";
 import type { PaymentMethod } from "@/types/savedCards";
 
@@ -26,33 +27,21 @@ interface PaymentMethodSelectorProps {
   walletBalance?: number; // رصيد المحفظة
 }
 
-// الخيارات الثلاثة الأساسية
-const paymentOptions: PaymentOption[] = [
-  {
-    type: "cash",
-    name: "نقداً",
-    nameEn: "Cash",
-    icon: <Banknote className="w-5 h-5" />,
-    color: "bg-green-500/20 text-green-600",
-    description: "ادفع للسائق مباشرة",
-  },
-  {
-    type: "wallet",
-    name: "المحفظة",
-    nameEn: "Wallet",
-    icon: <Wallet className="w-5 h-5" />,
-    color: "bg-primary/20 text-primary",
-    description: "الاستقطاع من رصيدك",
-  },
-  {
-    type: "card",
-    name: "البطاقة",
-    nameEn: "Card",
-    icon: <CreditCard className="w-5 h-5" />,
-    color: "bg-blue-500/20 text-blue-600",
-    description: "الدفع عبر البطاقة",
-  },
-];
+// ربط أيقونات لكل نوع دفع
+const ICON_MAP: Record<string, { icon: React.ReactNode; color: string }> = {
+  cash: { icon: <Banknote className="w-5 h-5" />, color: "bg-green-500/20 text-green-600" },
+  banknote: { icon: <Banknote className="w-5 h-5" />, color: "bg-green-500/20 text-green-600" },
+  wallet: { icon: <Wallet className="w-5 h-5" />, color: "bg-primary/20 text-primary" },
+  card: { icon: <CreditCard className="w-5 h-5" />, color: "bg-blue-500/20 text-blue-600" },
+  "credit-card": { icon: <CreditCard className="w-5 h-5" />, color: "bg-blue-500/20 text-blue-600" },
+};
+
+// وصف تلقائي لكل نوع
+const DESCRIPTION_MAP: Record<string, string> = {
+  cash: "ادفع للسائق مباشرة",
+  wallet: "الاستقطاع من رصيدك",
+  card: "الدفع عبر البطاقة",
+};
 
 const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   selectedMethod,
@@ -62,6 +51,22 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
 }) => {
   const [addCardOpen, setAddCardOpen] = useState(false);
   const { data: savedCards } = useSavedCards();
+  const { paymentMethods } = usePaymentMethods();
+
+  // تحويل بيانات الDB إلى PaymentOption[]
+  const paymentOptions: PaymentOption[] = useMemo(() => {
+    return paymentMethods.map((pm) => {
+      const iconInfo = ICON_MAP[pm.icon_name] || ICON_MAP[pm.method_key] || ICON_MAP['cash'];
+      return {
+        type: pm.method_key as PaymentMethod,
+        name: pm.name_ar,
+        nameEn: pm.name_en,
+        icon: iconInfo.icon,
+        color: iconInfo.color,
+        description: DESCRIPTION_MAP[pm.method_key] || pm.name_ar,
+      };
+    });
+  }, [paymentMethods]);
 
   // البطاقة الافتراضية (أو أول بطاقة)
   const defaultCard = savedCards?.find((c) => c.is_default) || savedCards?.[0];
@@ -187,9 +192,14 @@ export const PaymentMethodBadge: React.FC<{
   onClick?: () => void;
   showChangeButton?: boolean;
 }> = ({ method, onClick, showChangeButton = true }) => {
+  const { paymentMethods } = usePaymentMethods();
   const normalizedMethod = normalizePaymentMethod(method);
-  const option = paymentOptions.find((o) => o.type === normalizedMethod);
-  if (!option) return null;
+  
+  // البحث في بيانات DB أولاً
+  const dbMethod = paymentMethods.find((m) => m.method_key === normalizedMethod);
+  const iconInfo = ICON_MAP[dbMethod?.icon_name || normalizedMethod] || ICON_MAP['cash'];
+  const name = dbMethod?.name_ar || normalizedMethod;
+  const nameEn = dbMethod?.name_en || normalizedMethod;
 
   return (
     <button
@@ -198,16 +208,16 @@ export const PaymentMethodBadge: React.FC<{
     >
       {/* أيقونة */}
       <div
-        className={`w-10 h-10 rounded-md flex items-center justify-center ${option.color}`}
+        className={`w-10 h-10 rounded-md flex items-center justify-center ${iconInfo.color}`}
       >
-        {option.icon}
+        {iconInfo.icon}
       </div>
 
       {/* معلومات */}
       <div className="flex-1 text-right">
-        <span className="font-semibold text-foreground">{option.name}</span>
+        <span className="font-semibold text-foreground">{name}</span>
         <span className="text-xs text-muted-foreground mr-2">
-          ({option.nameEn})
+          ({nameEn})
         </span>
       </div>
 
@@ -234,11 +244,17 @@ export const PaymentMethodBadge: React.FC<{
   );
 };
 
+// === خريطة أسماء طرق الدفع (للاستخدام خارج React) ===
+const PAYMENT_NAME_MAP: Record<string, string> = {
+  cash: "نقداً",
+  wallet: "المحفظة",
+  card: "البطاقة",
+};
+
 // === دالة الحصول على اسم طريقة الدفع ===
 export const getPaymentMethodLabel = (method: PaymentMethod | string): string => {
   const normalized = normalizePaymentMethod(method);
-  const option = paymentOptions.find((o) => o.type === normalized);
-  return option?.name || "نقداً";
+  return PAYMENT_NAME_MAP[normalized] || "نقداً";
 };
 
 export default PaymentMethodSelector;

@@ -20,6 +20,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 interface SearchMessage {
   text: string;
@@ -116,6 +117,7 @@ export default function AdminRiderWaitSettings() {
   }
 
   return (
+    <AdminLayout title="إعدادات انتظار الراكب">
     <div className="min-h-screen bg-background p-6">
       <div className="container max-w-4xl mx-auto space-y-6">
         {/* Header */}
@@ -351,5 +353,6 @@ export default function AdminRiderWaitSettings() {
         </Card>
       </div>
     </div>
+    </AdminLayout>
   );
 }

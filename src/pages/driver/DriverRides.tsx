@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import SplashScreen from "@/components/common/SplashScreen";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Session } from "@supabase/supabase-js";
 import { 
   Car, 
-  ArrowRight,
   MapPin, 
-  DollarSign, 
   Clock,
   CheckCircle,
   XCircle,
@@ -19,6 +17,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
+import DriverPageHeader from "@/components/driver/DriverPageHeader";
 
 interface Ride {
   id: string;
@@ -135,17 +134,7 @@ const DriverRides = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 glass">
-        <div className="container flex items-center h-16">
-          <Link to="/driver" className="p-2">
-            <ArrowRight className="w-6 h-6" />
-          </Link>
-          <h1 className="flex-1 text-center font-bold text-lg">رحلاتي</h1>
-          <div className="w-10" />
-        </div>
-      </header>
-
+      <DriverPageHeader title="رحلاتي" />
       {/* Main Content */}
       <main className="pt-20 pb-8 px-4">
         <div className="container max-w-lg">

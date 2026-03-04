@@ -166,7 +166,7 @@ const AddCardModal: React.FC<AddCardModalProps> = ({
               {/* زر الإضافة */}
               <Button
                 onClick={handleAddCard}
-                className="w-full h-14 rounded-xl text-base font-bold bg-primary hover:bg-primary/90"
+                className="w-full h-14 text-base font-bold bg-primary hover:bg-primary/90"
               >
                 <CreditCard className="w-5 h-5 ml-2" />
                 إضافة بطاقة

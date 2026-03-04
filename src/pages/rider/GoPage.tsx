@@ -912,6 +912,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     setActiveRide(null);
     setSearchQuery("");
     setLocalServiceAreaStatus(null);
+    // ✔️ ملاحظة: لا نمسح showCompletedScreen / completedRide هنا لتجنب إخفاء شاشة التقييم قبل ظهورها
     
     // Reset to pickup mode to allow user to start fresh
     setCurrentMode("pickup");
@@ -1038,11 +1039,17 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         return;
       }
 
-      if (!userId) {
+      // ✅ إصلاح: استخدام getUser() مع timeout صريح — أكثر موثوقية من getSession() التي قد تتعلق
+      let resolvedUserId = userId;
+      if (!resolvedUserId) {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user?.id) {
-            console.log("✅ Session refreshed — proceeding with booking");
+          const userResult = await Promise.race([
+            supabase.auth.getUser(),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('auth_timeout')), 5000))
+          ]);
+          resolvedUserId = (userResult as { data: { user: { id: string } | null } }).data?.user?.id || null;
+          if (resolvedUserId) {
+            console.log("✅ User resolved via getUser() — proceeding with booking");
           } else {
             toast({
               title: "يجب تسجيل الدخول",
@@ -1053,7 +1060,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             if (navigate) navigate("/auth?redirect=/rider/go");
             return;
           }
-        } catch {
+        } catch (err) {
+          const isTimeout = err instanceof Error && err.message === 'auth_timeout';
+          console.warn('⚠️ Auth check failed:', isTimeout ? 'timeout' : err);
           toast({
             title: "يجب تسجيل الدخول",
             description: "الرجاء تسجيل الدخول للحجز",
@@ -1103,6 +1112,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               : "الرجاء اختيار موقع داخل مناطق الخدمة المتاحة",
             variant: "destructive"
           });
+          // تأخير 2 ثانية لمنع الضغط المتكرر على الزر
+          await new Promise(r => setTimeout(r, 2000));
           return;
         }
 
@@ -1120,6 +1131,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               : "الرجاء اختيار وجهة داخل مناطق الخدمة المتاحة",
             variant: "destructive"
           });
+          // تأخير 2 ثانية لمنع الضغط المتكرر على الزر
+          await new Promise(r => setTimeout(r, 2000));
           return;
         }
       } catch (error) {
@@ -1407,7 +1420,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   if (showLiveTracker && activeRide) {
     return <Suspense fallback={<ScreenSkeleton />}>
         <LiveRideTracker ride={activeRide} onClose={resetBooking} onRideUpdate={updatedRide => {
-        if (updatedRide.status === "completed" || updatedRide.status === "cancelled") {
+        // ✔️ إصلاح race condition: عند completed لا نستدعي resetBooking لأن useActiveRide يكتشف الإتمام
+        // ويضبط شاشة التقييم تلقائياً — نستدعيها فقط عند الإلغاء
+        if (updatedRide.status === "cancelled") {
           resetBooking();
         }
       }} />
@@ -1655,11 +1670,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
           </div>
 
-          {/* زر الحجز — معطّل حتى يكتمل حساب السعر */}
+          {/* زر الحجز — يعمل فور وجود تقدير (محلي أو سيرفر) */}
           {!bottomNavEnabled && (
             <button
               onClick={handleBookRide}
-              disabled={!fareBreakdown || isBooking || fareLoading}
+              disabled={!fareBreakdown || isBooking}
               className="w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-50 active:brightness-90 transition-all shrink-0"
               style={{ borderRadius: 0 }}
             >
@@ -1668,16 +1683,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span>جاري إنشاء الحجز...</span>
                 </>
-              ) : fareLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>جاري حساب السعر...</span>
-                </>
               ) : (
                 <>
                   <Navigation className="w-5 h-5" />
                   <span>احجز الآن</span>
-                  <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold">
+                  <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold flex items-center gap-1">
+                    {fareLoading && <Loader2 className="w-3 h-3 animate-spin opacity-70" />}
                     {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع
                   </span>
                 </>
@@ -1686,12 +1697,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           )}
         </div>
 
-          {/* زر الحجز الثابت لـ bottomNav — معطّل حتى يكتمل حساب السعر */}
+          {/* زر الحجز الثابت لـ bottomNav — يعمل فور وجود تقدير */}
           {bottomNavEnabled && (
             <div className="fixed bottom-16 left-0 right-0 z-50">
               <button
                 onClick={handleBookRide}
-                disabled={!fareBreakdown || isBooking || fareLoading}
+                disabled={!fareBreakdown || isBooking}
                 className="w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-50 active:brightness-90 transition-all"
                 style={{ borderRadius: 0 }}
               >
@@ -1700,16 +1711,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                     <Loader2 className="w-5 h-5 animate-spin" />
                     <span>جاري إنشاء الحجز...</span>
                   </>
-                ) : fareLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>جاري حساب السعر...</span>
-                  </>
                 ) : (
                   <>
                     <Navigation className="w-5 h-5" />
                     <span>احجز الآن</span>
-                    <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold">
+                    <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold flex items-center gap-1">
+                      {fareLoading && <Loader2 className="w-3 h-3 animate-spin opacity-70" />}
                       {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع
                     </span>
                   </>

@@ -6,7 +6,6 @@
 
 import { useNavigate } from "react-router-dom";
 import { 
-  ArrowRight,
   Wifi, 
   WifiOff, 
   Coffee,
@@ -30,6 +29,7 @@ import {
   Target,
   TrendingUp
 } from "lucide-react";
+import DriverPageHeader from "@/components/driver/DriverPageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -139,28 +139,10 @@ const DriverGuide = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-emerald-950/5">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/50 px-4 py-3">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 rounded-xl bg-card hover:bg-accent transition-colors"
-            aria-label="رجوع"
-          >
-            <ArrowRight className="w-5 h-5" />
-          </button>
-          <div className="flex-1">
-            <h1 className="font-bold text-lg text-foreground flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-amber-500" />
-              خاص لعائلة ران
-            </h1>
-            <p className="text-xs text-muted-foreground">دليل شامل لنظام السائق</p>
-          </div>
-        </div>
-      </header>
+      <DriverPageHeader title="دليل عائلة ران" />
 
       {/* Welcome Banner */}
-      <div className="px-4 pt-4 pb-2">
+      <div className="px-4 pt-20 pb-2">
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-5 text-white shadow-xl">
           <div className="relative z-10">
             <h2 className="text-xl font-black mb-1">مرحباً بك في عائلة ران 🚕</h2>

@@ -6,7 +6,7 @@
  */
 
 import { logger } from "@/lib/logger";
-import { getAudioContext } from "@/lib/audioContext";
+import { getAudioContext, initAudioContext, playFallbackBeep } from "@/lib/audioContext";
 import { safeVibrate } from "@/lib/userGestureTracker";
 
 // ═══ الثوابت ═══
@@ -25,10 +25,19 @@ let isAlertActive = false;
  */
 export const playLoudAlert = (audioCtx?: AudioContext | null): void => {
   try {
-    // استخدم السياق المُمرر أو المشترك — لا ننشئ واحداً جديداً
-    const ctx = audioCtx ?? getAudioContext();
+    // استخدم السياق المُمرر أو المشترك — حاول الإنشاء التلقائي كخطة بديلة
+    let ctx = audioCtx ?? getAudioContext();
     if (!ctx || ctx.state === "closed") {
-      logger.debug("LoudAlerts", "AudioContext للصوت غير جاهز — تخطي");
+      // محاولة إنشاء تلقائي (ينجح إذا كان هناك تفاعل مستخدم حديث)
+      try {
+        ctx = initAudioContext();
+      } catch {
+        // ignore
+      }
+    }
+    if (!ctx || ctx.state === "closed") {
+      logger.debug("LoudAlerts", "AudioContext غير جاهز — استخدام HTML5 Audio كبديل");
+      playFallbackBeep();
       return;
     }
 

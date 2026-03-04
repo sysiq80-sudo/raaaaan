@@ -317,7 +317,7 @@ export default function TrackRide() {
             <p className="text-muted-foreground mb-6">{error}</p>
             <button
               onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-none text-sm font-medium hover:bg-primary/90 transition w-full justify-center h-12"
             >
               <RefreshCw className="h-4 w-4" />
               إعادة المحاولة

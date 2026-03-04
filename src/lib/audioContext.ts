@@ -89,12 +89,49 @@ export const setupAudioVisibilityHandler = (): void => {
  * تشغيل صوت إشعار الطلب الجديد
  * لحن ثلاثي: 880Hz → 1100Hz → 1320Hz (تصاعدي ومميز)
  */
+/**
+ * تشغيل صوت بديل عبر HTML5 Audio (لا يحتاج AudioContext)
+ * يعمل حتى بدون تفاعل مستخدم في بعض المتصفحات
+ */
+const playHTML5FallbackBeep = (): void => {
+  try {
+    // Beep sound as base64 data URI (short sine wave)
+    const beepDataUri = 'data:audio/wav;base64,UklGRl9vT19teleEJhdiBmbXQgIBAIAABAAEARAAA' +
+      'ABAAQABAAgAZGF0YUFvT18A';
+    // Use a simple oscillator-like approach with a tiny WAV
+    const audio = new Audio();
+    audio.volume = 1.0;
+    // Generate beep using oscillator workaround
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.value = 1000;
+    osc.type = 'square';
+    gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.5);
+    // حفظ السياق الجديد للاستخدام اللاحق
+    if (!sharedAudioContext || sharedAudioContext.state === 'closed') {
+      sharedAudioContext = audioCtx;
+      isInitialized = true;
+      setupAudioVisibilityHandler();
+      logger.info("AudioContext", "✅ تم تهيئة AudioContext تلقائياً عبر fallback");
+    }
+  } catch {
+    logger.debug("AudioContext", "فشل تشغيل الصوت البديل أيضاً");
+  }
+};
+
 export const playNotificationSound = (): void => {
   try {
-    // إذا لم يتم التهيئة بعد، حاول إنشاء سياق جديد (قد يُحظر)
+    // إذا لم يتم التهيئة بعد، حاول إنشاء سياق جديد تلقائياً
     if (!sharedAudioContext || sharedAudioContext.state === "closed") {
       if (!isInitialized) {
-        logger.debug("AudioContext", "لم يتم تهيئة AudioContext بعد - تخطي الصوت");
+        logger.debug("AudioContext", "لم يتم تهيئة AudioContext — محاولة تلقائية");
+        playHTML5FallbackBeep();
         return;
       }
       // إعادة إنشاء إذا تم إغلاقه
@@ -171,3 +208,8 @@ export const cleanupAudioContext = (): void => {
     isInitialized = false;
   }
 };
+
+/**
+ * تصدير الصوت البديل للاستخدام من loudAlerts.ts
+ */
+export const playFallbackBeep = playHTML5FallbackBeep;

@@ -6,7 +6,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ArrowRight,
   MapPin,
   Navigation,
   Calendar,
@@ -19,6 +18,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
+import RiderPageHeader from "@/components/rider/RiderPageHeader";
 
 interface RideHistory {
   id: string;
@@ -122,31 +122,18 @@ const RiderRidesPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b">
-        <div className="flex items-center gap-3 p-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/rider")}
-            className="shrink-0"
-          >
-            <ArrowRight className="w-5 h-5" />
-          </Button>
-          <h1 className="text-xl font-bold">رحلاتي</h1>
-        </div>
+    <div className="flex flex-col bg-background h-full">
+      <RiderPageHeader title="رحلاتي" />
 
-        {/* Filter Tabs */}
-        <div className="px-4 pb-3">
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
-            <TabsList className="grid grid-cols-3 w-full">
-              <TabsTrigger value="all">الكل</TabsTrigger>
-              <TabsTrigger value="completed">مكتملة</TabsTrigger>
-              <TabsTrigger value="cancelled">ملغاة</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+      {/* Filter Tabs */}
+      <div className="pt-16 px-4 pb-3 sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b flex-shrink-0">
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
+          <TabsList className="grid grid-cols-3 w-full">
+            <TabsTrigger value="all">الكل</TabsTrigger>
+            <TabsTrigger value="completed">مكتملة</TabsTrigger>
+            <TabsTrigger value="cancelled">ملغاة</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Content */}

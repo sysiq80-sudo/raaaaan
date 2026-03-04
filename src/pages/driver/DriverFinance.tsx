@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { format, startOfWeek, startOfMonth } from "date-fns";
 import { ar } from "date-fns/locale";
+import DriverPageHeader from "@/components/driver/DriverPageHeader";
 
 interface Transaction {
   id: string;
@@ -307,8 +308,7 @@ export default function DriverFinance() {
       if (wSettings) setMinWithdrawal(Number(wSettings.min_withdrawal_amount) || 10000);
 
       // Fetch withdrawal requests
-      const { data: wRequests } = await (supabase
-        .from('withdrawal_requests' as any) as any)
+      const { data: wRequests } = await (supabase as any)
         .from('withdrawal_requests')
         .select('*')
         .eq('driver_id', driverId)
@@ -369,7 +369,7 @@ export default function DriverFinance() {
     }
     setWithdrawing(true);
     try {
-      const { error } = await (supabase.from("withdrawal_requests" as any) as any).insert({
+      const { error } = await (supabase as any).from("withdrawal_requests").insert({
         driver_id: driverId,
         wallet_id: walletId,
         amount: withdrawalAmount,
@@ -443,70 +443,83 @@ export default function DriverFinance() {
 
   return (
     <div className="min-h-screen bg-background pb-20" dir="rtl">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-primary via-primary/90 to-primary/80 text-primary-foreground py-6 px-4">
+      <DriverPageHeader title="المالية" />
+
+      {/* Hero — أسود/أبيض/أخضر */}
+      <div className="bg-[#0a0a0a] pt-20 pb-6 px-4 border-b border-white/5">
         <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-primary-foreground/10" onClick={() => navigate('/driver')}>
-              <ChevronLeft className="w-6 h-6" />
-            </Button>
-            <h1 className="text-xl font-bold">المالية</h1>
-            <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-primary-foreground/10" onClick={handleRefresh} disabled={refreshing}>
-              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
-            </Button>
+
+          {/* زر تحديث */}
+          <div className="flex items-center justify-end mb-3">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              aria-label="تحديث البيانات"
+              className="p-2 rounded-full bg-white/5 hover:bg-white/10 active:scale-90 transition-all"
+            >
+              <RefreshCw className={`w-4 h-4 text-white/60 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
           </div>
 
-          {/* Total Earnings Hero */}
-          <div className="bg-primary-foreground/10 backdrop-blur-sm rounded-2xl p-6 mb-4">
-            <div className="flex items-start justify-between mb-4">
+          {/* إجمالي الأرباح */}
+          <div className="bg-white/5 border border-white/8 rounded-2xl p-5 mb-3">
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm opacity-80 mb-1">إجمالي الأرباح</p>
-                <p className="text-4xl font-bold">{totalEarnings.toLocaleString()}</p>
-                <p className="text-sm opacity-70">دينار عراقي</p>
+                <p className="text-white/50 text-xs mb-1">إجمالي الأرباح الكلية</p>
+                <p className="text-4xl font-bold text-white">{totalEarnings.toLocaleString()}</p>
+                <p className="text-emerald-400 text-sm font-medium mt-0.5">دينار عراقي</p>
               </div>
-              <div className="w-14 h-14 rounded-2xl bg-primary-foreground/20 flex items-center justify-center">
-                <DollarSign className="w-7 h-7" />
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-emerald-400" />
               </div>
             </div>
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-1.5">
-                <Car className="w-4 h-4 opacity-70" />
+            {/* إحصاء سريع */}
+            <div className="flex items-center gap-4 mt-4 pt-3 border-t border-white/8 text-sm">
+              <div className="flex items-center gap-1.5 text-white/50">
+                <Car className="w-4 h-4" />
                 <span>{driverData?.total_rides || 0} رحلة</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Star className="w-4 h-4 opacity-70" />
-                <span>{driverData?.rating?.toFixed(1) || "5.0"}</span>
+              <div className="flex items-center gap-1.5 text-white/50">
+                <Star className="w-4 h-4 text-amber-400" />
+                <span className="text-white/70">{driverData?.rating?.toFixed(1) || "5.0"}</span>
               </div>
             </div>
           </div>
 
-          {/* Commission Balance */}
-          <div className="bg-primary-foreground/10 backdrop-blur-sm rounded-2xl p-4">
+          {/* رصيد العمولة */}
+          <div className="bg-white/5 border border-white/8 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Wallet className="w-5 h-5" />
+              <div className="flex items-center gap-2 text-white/60">
+                <Wallet className="w-4 h-4" />
                 <span className="text-sm">رصيد العمولة</span>
               </div>
-              <div className="text-left">
-                <span className="text-2xl font-bold">{stats?.balance.toLocaleString() || 0}</span>
-                <span className="text-xs mr-1">د.ع</span>
+              <div className="flex items-baseline gap-1">
+                <span className={`text-2xl font-bold ${isZeroBalance ? 'text-red-400' : isLowBalance ? 'text-amber-400' : 'text-white'}`}>
+                  {stats?.balance.toLocaleString() || 0}
+                </span>
+                <span className="text-white/40 text-xs">د.ع</span>
               </div>
             </div>
-            <Progress value={balancePercentage} className="h-2" />
-            
+            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${isZeroBalance ? 'bg-red-500' : isLowBalance ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                style={{ width: `${balancePercentage}%` }}
+              />
+            </div>
             {isZeroBalance && (
-              <div className="mt-3 bg-red-500/20 rounded-lg p-2 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-200" />
-                <p className="text-xs">رصيد صفر! أضف رصيداً للاستمرار</p>
+              <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-lg p-2 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <p className="text-xs text-red-300">رصيد صفر! أضف رصيداً للاستمرار في استقبال الطلبات</p>
               </div>
             )}
             {isLowBalance && (
-              <div className="mt-3 bg-yellow-500/20 rounded-lg p-2 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-yellow-200" />
-                <p className="text-xs">رصيد منخفض</p>
+              <div className="mt-3 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <p className="text-xs text-amber-300">رصيد منخفض — يُنصح بالشحن</p>
               </div>
             )}
           </div>
+
         </div>
       </div>
 

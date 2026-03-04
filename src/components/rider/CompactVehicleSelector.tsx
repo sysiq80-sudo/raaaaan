@@ -1,61 +1,48 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { roundFare } from "@/lib/constants";
-
-type VehicleType = "economy" | "comfort" | "premium" | "women_only";
+import { useVehicleTypes, type VehicleTypeKey } from "@/hooks/useVehicleTypes";
 
 interface CompactVehicleSelectorProps {
-  selectedVehicle: VehicleType;
-  onSelect: (type: VehicleType) => void;
+  selectedVehicle: VehicleTypeKey;
+  onSelect: (type: VehicleTypeKey) => void;
   baseFare?: number;
-  availableDrivers?: Record<VehicleType, number>;
+  availableDrivers?: Record<VehicleTypeKey, number>;
 }
 
-const vehicles: {
-  type: VehicleType;
-  name: string;
-  multiplier: number;
-  color: string;
-  selectedBg: string;
-  selectedBorder: string;
-  selectedText: string;
-}[] = [
-  {
-    type: "economy",
-    name: "اقتصادي",
-    multiplier: 1.0,
+// ألوان CSS لكل نوع مركبة
+const VEHICLE_COLORS: Record<string, { color: string; selectedBg: string; selectedBorder: string; selectedText: string }> = {
+  economy: {
     color: "text-primary",
     selectedBg: "bg-primary/10",
     selectedBorder: "border-primary",
     selectedText: "text-primary",
   },
-  {
-    type: "comfort",
-    name: "مريح",
-    multiplier: 1.3,
+  comfort: {
     color: "text-blue-500",
     selectedBg: "bg-blue-500/10",
     selectedBorder: "border-blue-500",
     selectedText: "text-blue-600",
   },
-  {
-    type: "premium",
-    name: "فاخر",
-    multiplier: 1.6,
+  premium: {
     color: "text-amber-500",
     selectedBg: "bg-amber-500/10",
     selectedBorder: "border-amber-500",
     selectedText: "text-amber-600",
   },
-  {
-    type: "women_only",
-    name: "نسائي",
-    multiplier: 1.2,
+  women_only: {
     color: "text-pink-500",
     selectedBg: "bg-pink-500/10",
     selectedBorder: "border-pink-500",
     selectedText: "text-pink-600",
   },
-];
+};
+
+const DEFAULT_COLORS = {
+  color: "text-primary",
+  selectedBg: "bg-primary/10",
+  selectedBorder: "border-primary",
+  selectedText: "text-primary",
+};
 
 const CompactVehicleSelector = ({
   selectedVehicle,
@@ -63,6 +50,18 @@ const CompactVehicleSelector = ({
   baseFare,
   availableDrivers,
 }: CompactVehicleSelectorProps) => {
+  const { vehicleTypes } = useVehicleTypes();
+
+  // تحويل بيانات DB إلى عناصر العرض
+  const vehicles = useMemo(() => {
+    return vehicleTypes.map((vt) => ({
+      type: vt.id as VehicleTypeKey,
+      name: vt.name_ar,
+      multiplier: vt.multiplier,
+      ...(VEHICLE_COLORS[vt.id] || DEFAULT_COLORS),
+    }));
+  }, [vehicleTypes]);
+
   return (
     <div className="grid grid-cols-4 gap-1.5">
       {vehicles.map((v) => {

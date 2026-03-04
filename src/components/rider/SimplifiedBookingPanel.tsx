@@ -229,7 +229,7 @@ const SimplifiedBookingPanel = ({
         {/* Book Button + Schedule Button */}
         <div className="flex gap-2">
           <Button
-            className="flex-1 h-14 text-lg font-bold rounded-2xl shadow-lg relative overflow-hidden group"
+            className="flex-1 h-14 text-lg font-bold shadow-lg relative overflow-hidden group"
             disabled={!isLoggedIn || bookingLoading || fareLoading}
             onClick={onBook}
           >
@@ -260,7 +260,7 @@ const SimplifiedBookingPanel = ({
           {/* Advanced Schedule Button */}
           {isLoggedIn && pickupCoords && dropoffCoords && (
             <Button
-              className="h-14 px-4 bg-primary/10 hover:bg-primary/20 text-primary font-bold rounded-2xl shadow-lg border border-primary/30 transition-all"
+              className="h-14 px-4 bg-primary/10 hover:bg-primary/20 text-primary font-bold shadow-lg border border-primary/30 transition-all"
               onClick={() => scheduleDialogRef.current?.openDialog()}
               title="احجز رحلة متقدمة مع تحديد التاريخ والوقت"
             >

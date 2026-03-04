@@ -336,7 +336,7 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
     : "linear-gradient(to bottom, #0ea5e9, transparent)";
   const bgOpacity = isPickup ? "bg-green-500/30" : "bg-sky-400/40";
   return (
-    <div className="fixed inset-0 z-40 bg-background flex flex-col">
+    <div className="fixed inset-0 z-[70] bg-background flex flex-col">
       {/* Header */}
       <div className="bg-card/95 backdrop-blur-md border-b border-border/50 z-30">
         <div className="flex items-center justify-between p-4 safe-area-top">

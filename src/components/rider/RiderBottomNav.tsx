@@ -1,127 +1,121 @@
 /**
  * ران - شريط التنقل السفلي للراكب
- * تصميم مسطح بحواف حادة + فواصل بين الأزرار
+ * shrink-0 — لا fixed، لا تراكب، يدفع المحتوى للأعلى طبيعياً
  */
 
-import { useLocation, Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { Home, Car, User, MapPin, Mic } from "lucide-react";
+import { useLocation, Link, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Car, Wallet, Navigation, MapPin, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useRiderStore } from "@/stores/riderStore";
 
-const NAV_ITEMS = [
-  { id: "home",    path: "/rider/go",           label: "الخريطة", icon: Home,   exact: true  },
-  { id: "places",  path: "/rider/saved-places",  label: "أماكني",  icon: MapPin, exact: false },
-  { id: "voice",   path: "/rider",               label: "صوتي AI", icon: Mic,    exact: true  },
-  { id: "rides",   path: "/rider/rides",         label: "رحلاتي",  icon: Car,    exact: false },
-  { id: "account", path: "/rider/settings",      label: "حسابي",   icon: User,   exact: false },
+/* ───────────── عناصر الشريط ───────────── */
+const RIGHT_ITEMS = [
+  { id: "rides",  path: "/rider/rides",    label: "رحلاتي",  icon: Car    },
+  { id: "wallet", path: "/rider/payments", label: "المحفظة", icon: Wallet },
 ] as const;
 
-const RiderBottomNav = () => {
-  const location  = useLocation();
-  const bottomNavEnabled = useRiderStore((s) => s.bottomNavEnabled);
+const LEFT_ITEMS = [
+  { id: "places",   path: "/rider/saved-places", label: "أماكني",    icon: MapPin   },
+  { id: "settings", path: "/rider/settings",     label: "الإعدادات", icon: Settings },
+] as const;
 
-  const getActiveId = () => {
-    if (location.pathname === "/rider/go") return "home";
-    if (location.pathname === "/rider")    return "voice";
-    for (const item of NAV_ITEMS) {
-      if (item.exact) {
-        if (location.pathname === item.path) return item.id;
-      } else {
-        if (location.pathname.startsWith(item.path) && location.pathname !== "/rider") return item.id;
-      }
-    }
-    return "home";
+/* ───────────── المكوّن ───────────────── */
+const RiderBottomNav = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const isActive = (path: string) =>
+    location.pathname === path || location.pathname.startsWith(path + "/");
+
+  const NavItem = ({
+    path,
+    label,
+    icon: Icon,
+  }: {
+    id: string;
+    path: string;
+    label: string;
+    icon: React.ElementType;
+  }) => {
+    const active = isActive(path);
+    return (
+      <Link
+        to={path}
+        aria-label={label}
+        className="relative flex flex-col items-center justify-center flex-1 h-full gap-1 group"
+      >
+        {active && (
+          <motion.div
+            layoutId="rider-nav-indicator"
+            className="absolute top-0 inset-x-3 h-0.5 rounded-full bg-primary"
+            transition={{ type: "spring", stiffness: 500, damping: 35 }}
+          />
+        )}
+        <Icon
+          className={cn(
+            "w-5 h-5 transition-all duration-200",
+            active
+              ? "text-primary stroke-[2.5px]"
+              : "text-muted-foreground/60 group-hover:text-muted-foreground"
+          )}
+        />
+        <span
+          className={cn(
+            "text-[10px] font-semibold leading-none transition-colors",
+            active ? "text-primary" : "text-muted-foreground/50 group-hover:text-muted-foreground"
+          )}
+        >
+          {label}
+        </span>
+      </Link>
+    );
   };
 
-  const activeId = getActiveId();
-
   return (
-    <AnimatePresence mode="wait">
-      {bottomNavEnabled && (
-        <>
-          {/* Spacer */}
-          <motion.div
-            key="nav-spacer"
-            initial={{ height: 0 }}
-            animate={{ height: 64 }}
-            exit={{ height: 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="w-full"
-            aria-hidden="true"
-          />
+    <div
+      dir="rtl"
+      className="shrink-0 w-full border-t border-border/50"
+      role="navigation"
+      aria-label="التنقل الرئيسي"
+    >
+      {/* خط علوي */}
+      <div className="h-px w-full bg-border/50" />
 
-          <motion.nav
-            key="bottom-nav"
-            dir="rtl"
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0,  opacity: 1 }}
-            exit={{ y: 80,   opacity: 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed bottom-0 left-0 right-0 z-50"
-            role="navigation"
-            aria-label="التنقل الرئيسي للراكب"
-            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      <div
+        className="bg-card/95 backdrop-blur-xl flex items-center h-[68px]"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      >
+        {/* يمين: رحلاتي + المحفظة */}
+        {RIGHT_ITEMS.map((item) => (
+          <NavItem key={item.id} {...item} />
+        ))}
+
+        {/* وسط: زر رحلة جديدة البارز */}
+        <div className="flex items-center justify-center flex-shrink-0 px-3">
+          <motion.button
+            onClick={() => navigate("/rider")}
+            whileTap={{ scale: 0.92 }}
+            className={cn(
+              "relative flex flex-col items-center justify-center gap-1.5",
+              "w-[64px] h-[52px] rounded-2xl -mt-4",
+              "bg-primary text-primary-foreground",
+              "shadow-lg shadow-primary/40",
+              "transition-shadow duration-200"
+            )}
+            aria-label="رحلة جديدة"
           >
-            {/* خط علوي مضيء عند النشاط */}
-            <div className="h-px w-full bg-border/60" />
+            <div className="absolute inset-0 rounded-2xl bg-primary/20 blur-md -z-10" />
+            <Navigation className="w-6 h-6 stroke-[2.5px]" />
+            <span className="text-[9px] font-bold leading-none">رحلة جديدة</span>
+          </motion.button>
+        </div>
 
-            {/* الشريط الرئيسي */}
-            <div className="bg-card/95 backdrop-blur-xl grid grid-cols-5 h-16 w-full">
-              {NAV_ITEMS.map((item, idx) => {
-                const active = activeId === item.id;
-                const Icon   = item.icon;
-                const isLast = idx === NAV_ITEMS.length - 1;
-
-                return (
-                  <Link
-                    key={item.id}
-                    to={item.path}
-                    aria-label={item.label}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "relative flex flex-col items-center justify-center h-full gap-1 transition-colors duration-150",
-                      !isLast && "border-l border-border/30",
-                      active ? "bg-primary/8" : "hover:bg-muted/40"
-                    )}
-                  >
-                    {/* مؤشر نشاط — خط علوي حاد */}
-                    {active && (
-                      <motion.div
-                        layoutId="nav-active-bar"
-                        className="absolute top-0 left-0 right-0 h-0.5 bg-primary"
-                        initial={false}
-                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                      />
-                    )}
-
-                    {/* الأيقونة */}
-                    <Icon
-                      className={cn(
-                        "w-5 h-5 transition-all duration-150",
-                        active
-                          ? "text-primary stroke-[2.5px]"
-                          : "text-muted-foreground/60 stroke-2"
-                      )}
-                    />
-
-                    {/* النص */}
-                    <span
-                      className={cn(
-                        "text-[10px] font-semibold leading-none transition-colors duration-150",
-                        active ? "text-primary" : "text-muted-foreground/50"
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          </motion.nav>
-        </>
-      )}
-    </AnimatePresence>
+        {/* يسار: أماكني + الإعدادات */}
+        {LEFT_ITEMS.map((item) => (
+          <NavItem key={item.id} {...item} />
+        ))}
+      </div>
+    </div>
   );
 };
 

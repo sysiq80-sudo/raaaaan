@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  ArrowRight,
   User,
   Phone,
   Mail,
@@ -23,6 +22,7 @@ import {
   Shield,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import RiderPageHeader from "@/components/rider/RiderPageHeader";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -140,24 +140,11 @@ const RiderSettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b">
-        <div className="flex items-center gap-3 p-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/rider")}
-            className="shrink-0"
-          >
-            <ArrowRight className="w-5 h-5" />
-          </Button>
-          <h1 className="text-xl font-bold">الإعدادات</h1>
-        </div>
-      </div>
+    <div className="flex flex-col bg-background h-full">
+      <RiderPageHeader title="الإعدادات" />
 
       {/* Content */}
-      <div className="p-4 pb-28 space-y-6">
+      <div className="pt-16 p-4 pb-6 space-y-6">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />

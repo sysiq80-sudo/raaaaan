@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { 
+import {
   ArrowRight, 
   User, 
   Car, 
@@ -41,6 +41,7 @@ import {
   Send
 } from "lucide-react";
 import logo from "@/assets/logo.png";
+import DriverPageHeader from "@/components/driver/DriverPageHeader";
 
 interface DriverData {
   id: string;
@@ -303,17 +304,7 @@ const DriverProfile = () => {
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-30 bg-card/95 backdrop-blur-sm border-b border-border">
-        <div className="container max-w-lg flex items-center justify-between h-16 px-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/driver")}>
-            <ArrowRight className="w-5 h-5" />
-          </Button>
-          <h1 className="text-lg font-bold">الملف الشخصي</h1>
-          <div className="w-10" />
-        </div>
-      </header>
-
+      <DriverPageHeader title="الملف الشخصي" />
       <main className="pt-20 pb-8 px-4">
         <div className="container max-w-lg space-y-6">
           

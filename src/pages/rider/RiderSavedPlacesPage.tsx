@@ -11,7 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  ArrowRight,
   MapPin,
   Home,
   Briefcase,
@@ -35,6 +34,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import MapLocationPicker from "@/components/rider/MapLocationPicker";
+import RiderPageHeader from "@/components/rider/RiderPageHeader";
 
 interface SearchResult {
   id: string;
@@ -437,24 +437,15 @@ const RiderSavedPlacesPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b">
-        <div className="flex items-center gap-3 p-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/rider")}
-            className="shrink-0"
-          >
-            <ArrowRight className="w-5 h-5" />
-          </Button>
-          <h1 className="text-xl font-bold flex-1">الأماكن المحفوظة</h1>
-          <Button size="sm" onClick={openAddDialog} className="gap-2">
-            <Plus className="w-4 h-4" />
-            إضافة مكان
-          </Button>
-        </div>
+    <div className="flex flex-col bg-background h-full">
+      <RiderPageHeader title="الأماكن المحفوظة" />
+
+      {/* زر إضافة مكان — ثابت */}
+      <div className="pt-16 px-4 py-3 flex-shrink-0 bg-background/95 backdrop-blur-md border-b flex items-center justify-end">
+        <Button size="sm" onClick={openAddDialog} className="gap-2">
+          <Plus className="w-4 h-4" />
+          إضافة مكان
+        </Button>
       </div>
 
       {/* Content */}

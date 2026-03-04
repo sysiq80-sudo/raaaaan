@@ -32,6 +32,7 @@ import {
   CheckCircle2,
   Shield
 } from "lucide-react";
+import DriverPageHeader from "@/components/driver/DriverPageHeader";
 
 // Local storage keys for notification preferences
 const NOTIFICATION_PREFS_KEY = 'driver_notification_prefs';
@@ -273,17 +274,7 @@ const DriverSettings = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 glass">
-        <div className="container flex items-center h-16">
-          <Link to="/driver" className="p-2">
-            <ArrowRight className="w-6 h-6" />
-          </Link>
-          <h1 className="flex-1 text-center font-bold text-lg">الإعدادات</h1>
-          <div className="w-10" />
-        </div>
-      </header>
-
+      <DriverPageHeader title="الإعدادات" />
       {/* Main Content */}
       <main className="pt-20 pb-8 px-4">
         <div className="container max-w-lg space-y-6">
