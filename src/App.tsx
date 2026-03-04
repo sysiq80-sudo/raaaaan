@@ -68,6 +68,7 @@ const AdminLandmarks = lazy(() => import("./pages/admin/AdminLandmarks"));
 const AdminCancellationSettings = lazy(() => import("./pages/admin/AdminCancellationSettings"));
 const AdminCancellationReport = lazy(() => import("./pages/admin/AdminCancellationReport"));
 const AdminIncentives = lazy(() => import("./pages/admin/AdminIncentives"));
+const AdminDriverDetails = lazy(() => import("./pages/admin/AdminDriverDetails"));
 const AdminDriverApplication = lazy(() => import("./pages/admin/AdminDriverApplication"));
 const AdminPendingRides = lazy(() => import("./pages/admin/AdminPendingRides"));
 const AdminCommissionReports = lazy(() => import("./pages/admin/AdminCommissionReports"));
@@ -92,6 +93,7 @@ const AdminComplaints = lazy(() => import("./pages/admin/AdminComplaints"));
 const AdminStoppedRides = lazy(() => import("./pages/admin/AdminStoppedRides"));
 const AdminEmergencySettings = lazy(() => import("./pages/admin/AdminEmergencySettings"));
 const AdminBotCustomers = lazy(() => import("./pages/admin/AdminBotCustomers"));
+const AdminBotChats = lazy(() => import("./pages/admin/AdminBotChats"));
 const AdminMessengerAccounts = lazy(() => import("./pages/admin/AdminMessengerAccounts"));
 const AdminDeveloperSettings = lazy(() => import("./pages/admin/AdminDeveloperSettings"));
 const AdminSecuritySettings = lazy(() => import("./pages/admin/AdminSecuritySettings"));
@@ -724,7 +726,7 @@ const AppRoutes = () => {
               element={
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
-                    <AdminDriverApplication />
+                    <AdminDriverDetails />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }
@@ -865,6 +867,16 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminBotController />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/bot-chats"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminBotChats />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }

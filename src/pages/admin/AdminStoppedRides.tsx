@@ -41,14 +41,10 @@ interface StoppedRide {
     status: string;
     driver_location: { lat: number; lng: number } | null;
     rider_location: { lat: number; lng: number } | null;
-    profiles_rides_rider_id_fkey: {
-      full_name: string;
-      phone: string;
-    };
-    profiles_rides_driver_id_fkey: {
-      full_name: string;
-      phone: string;
-    };
+    rider_id: string;
+    driver_id: string;
+    rider?: { full_name: string; phone: string };
+    driver?: { full_name: string; phone: string };
   };
 }
 
@@ -96,22 +92,49 @@ const AdminStoppedRides = () => {
             status,
             driver_location,
             rider_location,
-            profiles!rides_rider_id_fkey (
-              full_name,
-              phone
-            ),
-            profiles!rides_driver_id_fkey (
-              full_name,
-              phone
-            )
+            rider_id,
+            driver_id
           )
         `)
         .is('resolved_at', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      let alertsData: any[] = data || [];
+
+      // gather rider/driver ids for profile lookup
+      const riderIds = Array.from(
+        new Set(alertsData.map(a => a.rides?.rider_id).filter(Boolean))
+      ) as string[];
+      const driverIds = Array.from(
+        new Set(alertsData.map(a => a.rides?.driver_id).filter(Boolean))
+      ) as string[];
+
+      if (riderIds.length || driverIds.length) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id,full_name,phone')
+          .in('user_id', [...riderIds, ...driverIds]);
+        const profileMap: Record<string, { full_name: string; phone: string }> = {};
+        (profiles || []).forEach(p => {
+          if (p.user_id) profileMap[p.user_id] = { full_name: p.full_name, phone: p.phone };
+        });
+
+        alertsData = alertsData.map(a => {
+          const r = a.rides || {};
+          return {
+            ...a,
+            rides: {
+              ...r,
+              rider: profileMap[r.rider_id] || undefined,
+              driver: profileMap[r.driver_id] || undefined,
+            },
+          };
+        });
+      }
+
       // @ts-expect-error - Type will match after migration
-      setAlerts(data || []);
+      setAlerts(alertsData || []);
     } catch (error: any) {
       console.error('Error fetching stopped rides:', error);
       toast({
@@ -239,16 +262,16 @@ const AdminStoppedRides = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">
-                    الراكب: {alert.rides.profiles_rides_rider_id_fkey.full_name}
+                    الراكب: {alert.rides.rider?.full_name || 'غير معروف'}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {alert.rides.profiles_rides_rider_id_fkey.phone}
+                    {alert.rides.rider?.phone || ''}
                   </p>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => window.open(`tel:${alert.rides.profiles_rides_rider_id_fkey.phone}`)}
+                  onClick={() => alert.rides.rider?.phone && window.open(`tel:${alert.rides.rider.phone}`)}
                 >
                   <Phone className="w-4 h-4" />
                 </Button>
@@ -257,16 +280,16 @@ const AdminStoppedRides = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">
-                    السائق: {alert.rides.profiles_rides_driver_id_fkey.full_name}
+                    السائق: {alert.rides.driver?.full_name || 'غير معروف'}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {alert.rides.profiles_rides_driver_id_fkey.phone}
+                    {alert.rides.driver?.phone || ''}
                   </p>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => window.open(`tel:${alert.rides.profiles_rides_driver_id_fkey.phone}`)}
+                  onClick={() => alert.rides.driver?.phone && window.open(`tel:${alert.rides.driver.phone}`)}
                 >
                   <Phone className="w-4 h-4" />
                 </Button>

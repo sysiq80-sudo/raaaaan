@@ -33,6 +33,7 @@ import {
   Megaphone,
   FileText,
   MessageCircle,
+  MessageSquare,
   Code,
   Wallet,
   Phone,
@@ -240,6 +241,7 @@ const AdminLayout = ({
         { icon: Bot, label: "البوت المتحكم", href: "/admin/bot-controller" },
         { icon: GitBranch, label: "التدفقات المرئية", href: "/admin/workflows" },
         { icon: MessageCircle, label: "حسابات Messenger", href: "/admin/messenger-accounts" },
+        { icon: MessageSquare, label: "محادثات البوت", href: "/admin/bot-chats" },
       ],
     },
     {

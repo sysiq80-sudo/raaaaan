@@ -465,8 +465,8 @@ const AdminDrivers = () => {
                 <TableRow key={driver.id}>
                   <TableCell>
                     <div 
-                      className={driver.status === 'pending' ? 'cursor-pointer hover:text-primary transition-colors' : ''}
-                      onClick={() => driver.status === 'pending' && navigate(`/admin/drivers/${driver.id}`)}
+                      className="cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => navigate(`/admin/drivers/${driver.id}`)}
                     >
                       <p className="font-medium">{driver.full_name}</p>
                       <p className="text-xs text-muted-foreground">
@@ -548,6 +548,15 @@ const AdminDrivers = () => {
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-8 w-8 text-primary hover:text-primary"
+                        onClick={() => navigate(`/admin/drivers/${driver.id}`)}
+                        title="عرض التفاصيل"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="h-8 w-8"
                         onClick={() => {
                           setSelectedDriver(driver);
@@ -581,19 +590,6 @@ const AdminDrivers = () => {
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
-                      {driver.status === "pending" && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() => navigate(`/admin/drivers/${driver.id}`)}
-                          >
-                            <Eye className="w-3 h-3 ml-1" />
-                            عرض الطلب
-                          </Button>
-                        </>
-                      )}
                     </div>
                   </TableCell>
                 </TableRow>

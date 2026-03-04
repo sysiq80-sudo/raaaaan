@@ -93,6 +93,9 @@ import {
   forceFlushEvents,
 } from "./lib/analytics.ts";
 
+// Import message logging utility
+import { logIncomingBotMessage } from "../_shared/log-message.ts";
+
 // ════════════════════════════════════════
 // ════════════════════════════════════════
 // Handler الرئيسي
@@ -231,8 +234,9 @@ serve(async (req) => {
   // ═══════════════════════════════════
   // 📊 تسجيل العميل في قاعدة التسويق (صامت)
   // ═══════════════════════════════════
+  let botCustomerId: string | null = null;
   try {
-    await supabase.from("bot_customers").upsert({
+    const { data: customer } = await supabase.from("bot_customers").upsert({
       platform: "whatsapp",
       platform_id: phoneNumber,
       full_name: profileName || "WhatsApp User",
@@ -241,13 +245,58 @@ serve(async (req) => {
       interaction_count: 1,
     }, {
       onConflict: "platform,platform_id",
-    });
+    }).select("id").single();
+
+    botCustomerId = customer?.id || null;
+
     await supabase.rpc("increment_bot_customer_interactions", {
       p_platform: "whatsapp",
       p_platform_id: phoneNumber,
     }).then(() => { }, () => { });
   } catch (e) {
     console.warn("[wa] bot_customers upsert failed (non-critical):", e);
+  }
+
+  // ═══════════════════════════════════
+  // 📝 Log incoming message
+  // ═══════════════════════════════════
+  if (botCustomerId) {
+    try {
+      // Extract message content based on type
+      let messageContent = "";
+      const metadata: any = {
+        message_type: msgType,
+        message_id: message.id
+      };
+
+      if (msgType === "text") {
+        messageContent = message.text?.body || "";
+      } else if (msgType === "interactive") {
+        const buttonReply = message.interactive?.button_reply;
+        const listReply = message.interactive?.list_reply;
+        messageContent = buttonReply?.id || listReply?.id || "[interactive]";
+        metadata.button_title = buttonReply?.title || listReply?.title;
+      } else if (msgType === "location") {
+        messageContent = `[location: ${message.location?.latitude},${message.location?.longitude}]`;
+        metadata.latitude = message.location?.latitude;
+        metadata.longitude = message.location?.longitude;
+      } else if (msgType === "audio") {
+        messageContent = "[audio message]";
+        metadata.media_id = message.audio?.id;
+      } else {
+        messageContent = `[${msgType} message]`;
+      }
+
+      await logIncomingBotMessage({
+        botCustomerId,
+        message: messageContent,
+        platform: "whatsapp",
+        messageId: message.id,
+        metadata
+      });
+    } catch (logErr) {
+      console.warn("[wa] Message logging failed (non-critical):", logErr);
+    }
   }
 
   // ═══════════════════════════════════
@@ -358,7 +407,7 @@ serve(async (req) => {
 
       // ── استفسار سريع ──
       if (buttonId === "action_inquiry") {
-        await sendTextMessage(phoneNumber, MESSAGES.inquiryPrompt(userName));
+        await sendTextMessage(phoneNumber, MESSAGES.inquiryPrompt(userName), botCustomerId || undefined);
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
@@ -380,7 +429,8 @@ serve(async (req) => {
                 { id: "action_my_info", title: "ℹ️ معلوماتي", description: "بيانات حسابك" },
               ],
             },
-          ]
+          ],
+          botCustomerId || undefined
         );
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
@@ -398,7 +448,7 @@ serve(async (req) => {
           .maybeSingle();
 
         if (!lastRide) {
-          await sendTextMessage(phoneNumber, `أستاذ ${userName}، ما عندك رحلات سابقة بعد. دز موقعك وبنساعدك بأول رحلة! 🚕`);
+          await sendTextMessage(phoneNumber, `أستاذ ${userName}، ما عندك رحلات سابقة بعد. دز موقعك وبنساعدك بأول رحلة! 🚕`, botCustomerId || undefined);
           return new Response("EVENT_RECEIVED", { status: 200 });
         }
 
@@ -406,7 +456,7 @@ serve(async (req) => {
         const dropoff = lastRide.dropoff_location as { lat: number; lng: number };
 
         if (!pickup?.lat || !dropoff?.lat) {
-          await sendTextMessage(phoneNumber, `⚠️ ما كدرنا نسترجع تفاصيل رحلتك السابقة. دز موقعك الحالي من جديد 📍`);
+          await sendTextMessage(phoneNumber, `⚠️ ما كدرنا نسترجع تفاصيل رحلتك السابقة. دز موقعك الحالي من جديد 📍`, botCustomerId || undefined);
           return new Response("EVENT_RECEIVED", { status: 200 });
         }
 
@@ -435,7 +485,7 @@ serve(async (req) => {
 
         if (insertErr || !newRide) {
           console.error("[wa] Repeat ride failed:", insertErr);
-          await sendTextMessage(phoneNumber, MESSAGES.error);
+          await sendTextMessage(phoneNumber, MESSAGES.error, botCustomerId || undefined);
           return new Response("EVENT_RECEIVED", { status: 200 });
         }
 
@@ -460,7 +510,8 @@ serve(async (req) => {
           last_intent: "awaiting_schedule"
         }).eq("platform", "whatsapp").eq("platform_id", phoneNumber);
         await sendTextMessage(phoneNumber,
-          `أستاذ ${userName}، اكتب تفاصيل رحلتك المجدولة بهذا الشكل:\n\n📍 من وين: (مثلاً: حي التأميم)\n🏁 لوين: (مثلاً: جامعة الأنبار)\n🕒 متى: (مثلاً: غداً الساعة 8 صباحاً)\n\nاكتب كل شي برسالة وحدة 👇`
+          `أستاذ ${userName}، اكتب تفاصيل رحلتك المجدولة بهذا الشكل:\n\n📍 من وين: (مثلاً: حي التأميم)\n🏁 لوين: (مثلاً: جامعة الأنبار)\n🕒 متى: (مثلاً: غداً الساعة 8 صباحاً)\n\nاكتب كل شي برسالة وحدة 👇`,
+          botCustomerId || undefined
         );
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
@@ -477,7 +528,7 @@ serve(async (req) => {
           .order("created_at", { ascending: false })
           .limit(5);
         if (!rides || rides.length === 0) {
-          await sendTextMessage(phoneNumber, `أستاذ ${userName}، ما عندك رحلات سابقة بعد 🚕`);
+          await sendTextMessage(phoneNumber, `أستاذ ${userName}، ما عندك رحلات سابقة بعد 🚕`, botCustomerId || undefined);
         } else {
           let msg = `📒 *آخر ${rides.length} رحلات:*\n\n`;
           rides.forEach((r: any, i: number) => {
@@ -485,7 +536,7 @@ serve(async (req) => {
             const date = new Date(r.created_at).toLocaleDateString("ar-IQ");
             msg += `${i + 1}. ${statusEmoji} *${r.pickup_address || "—"}* → *${r.dropoff_address || "—"}*\n   💰 ${r.estimated_fare?.toLocaleString() || "—"} د.ع | ${date}\n\n`;
           });
-          await sendTextMessage(phoneNumber, msg);
+          await sendTextMessage(phoneNumber, msg, botCustomerId || undefined);
         }
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
@@ -500,7 +551,7 @@ serve(async (req) => {
           .eq("user_id", riderId)
           .maybeSingle();
         const balance = profile?.wallet_balance || 0;
-        await sendTextMessage(phoneNumber, `💰 رصيدك الحالي أستاذ ${userName}: *${balance.toLocaleString()} د.ع*`);
+        await sendTextMessage(phoneNumber, `💰 رصيدك الحالي أستاذ ${userName}: *${balance.toLocaleString()} د.ع*`, botCustomerId || undefined);
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
@@ -516,10 +567,11 @@ serve(async (req) => {
         if (profile) {
           const joinDate = new Date(profile.created_at).toLocaleDateString("ar-IQ");
           await sendTextMessage(phoneNumber,
-            `ℹ️ *معلومات حسابك:*\n\n👤 الاسم: ${profile.full_name || "—"}\n📱 الهاتف: ${profile.phone || "—"}\n💰 الرصيد: ${(profile.wallet_balance || 0).toLocaleString()} د.ع\n📅 تاريخ الانضمام: ${joinDate}`
+            `ℹ️ *معلومات حسابك:*\n\n👤 الاسم: ${profile.full_name || "—"}\n📱 الهاتف: ${profile.phone || "—"}\n💰 الرصيد: ${(profile.wallet_balance || 0).toLocaleString()} د.ع\n📅 تاريخ الانضمام: ${joinDate}`,
+            botCustomerId || undefined
           );
         } else {
-          await sendTextMessage(phoneNumber, `عذراً أستاذ ${userName}، ما كدرنا نجيب معلوماتك حالياً ⚠️`);
+          await sendTextMessage(phoneNumber, `عذراً أستاذ ${userName}، ما كدرنا نجيب معلوماتك حالياً ⚠️`, botCustomerId || undefined);
         }
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
@@ -535,7 +587,7 @@ serve(async (req) => {
           .maybeSingle();
 
         if (!ride || ride.status !== "draft") {
-          await sendTextMessage(phoneNumber, "⚠️ هذا الطلب انتهت صلاحيته. دز موقعك من جديد.");
+          await sendTextMessage(phoneNumber, "⚠️ هذا الطلب انتهت صلاحيته. دز موقعك من جديد.", botCustomerId || undefined);
           return new Response("EVENT_RECEIVED", { status: 200 });
         }
 
@@ -547,7 +599,7 @@ serve(async (req) => {
 
         if (updateErr) {
           console.error("[wa] Failed to confirm ride:", updateErr);
-          await sendTextMessage(phoneNumber, MESSAGES.error);
+          await sendTextMessage(phoneNumber, MESSAGES.error, botCustomerId || undefined);
           return new Response("EVENT_RECEIVED", { status: 200 });
         }
 
@@ -563,7 +615,7 @@ serve(async (req) => {
         const waitSettings = await getWaitSettings(supabase);
         const confirmMsg = MESSAGES.rideConfirmed +
           `\n\n⏱️ أقصى وقت انتظار: ${waitSettings.max_wait_minutes} دقيقة`;
-        await sendTextMessage(phoneNumber, confirmMsg);
+        await sendTextMessage(phoneNumber, confirmMsg, botCustomerId || undefined);
         trackBookingFunnel("confirm", phoneNumber, rideId);
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
@@ -580,7 +632,7 @@ serve(async (req) => {
           .maybeSingle();
 
         if (!rideToCancel) {
-          await sendTextMessage(phoneNumber, "⚠️ هذا الطلب غير موجود.");
+          await sendTextMessage(phoneNumber, "⚠️ هذا الطلب غير موجود.", botCustomerId || undefined);
           return new Response("EVENT_RECEIVED", { status: 200 });
         }
 
@@ -619,7 +671,7 @@ serve(async (req) => {
           .eq("id", rideId)
           .in("status", ["draft", "pending", "accepted", "arrived"]);
 
-        await sendTextMessage(phoneNumber, MESSAGES.rideCancelled + feeMessage);
+        await sendTextMessage(phoneNumber, MESSAGES.rideCancelled + feeMessage, botCustomerId || undefined);
         console.log(`[wa] Ride ${rideId} cancelled (fee: ${cancellationFee})`);
         trackBookingFunnel("cancel", phoneNumber, rideId, { fee: cancellationFee });
         return new Response("EVENT_RECEIVED", { status: 200 });
@@ -627,7 +679,7 @@ serve(async (req) => {
 
       // ── استمر بالبحث ──
       if (buttonId === "keep_searching") {
-        await sendTextMessage(phoneNumber, "👌 ما يخالف، نستمر بالبحث عن كابتن.");
+        await sendTextMessage(phoneNumber, "👌 ما يخالف، نستمر بالبحث عن كابتن.", botCustomerId || undefined);
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
@@ -645,14 +697,15 @@ serve(async (req) => {
           if (token) {
             const trackingUrl = `${SITE_URL}/track/${token}`;
             await sendTextMessage(phoneNumber,
-              `📍 *تتبع موقع الكابتن مباشرة:*\n\n${trackingUrl}\n\nاضغط على الرابط لمتابعة موقعه بالوقت الحقيقي 🗺️`
+              `📍 *تتبع موقع الكابتن مباشرة:*\n\n${trackingUrl}\n\nاضغط على الرابط لمتابعة موقعه بالوقت الحقيقي 🗺️`,
+              botCustomerId || undefined
             );
           } else {
-            await sendTextMessage(phoneNumber, "⚠️ ما كدرنا ننشئ رابط التتبع. حاول مرة ثانية.");
+            await sendTextMessage(phoneNumber, "⚠️ ما كدرنا ننشئ رابط التتبع. حاول مرة ثانية.", botCustomerId || undefined);
           }
         } catch (e) {
           console.error("[wa] Track link generation failed:", e);
-          await sendTextMessage(phoneNumber, "⚠️ حدث خطأ في إنشاء رابط التتبع.");
+          await sendTextMessage(phoneNumber, "⚠️ حدث خطأ في إنشاء رابط التتبع.", botCustomerId || undefined);
         }
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
@@ -670,7 +723,8 @@ serve(async (req) => {
         }).eq("platform", "whatsapp").eq("platform_id", phoneNumber);
 
         await sendTextMessage(phoneNumber,
-          "اكتب رسالتك أدناه وراح تصل للكابتن فوراً 💬\n\nللخروج اكتب: خلص"
+          "اكتب رسالتك أدناه وراح تصل للكابتن فوراً 💬\n\nللخروج اكتب: خلص",
+          botCustomerId || undefined
         );
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
@@ -713,10 +767,11 @@ serve(async (req) => {
 
             const stars = "⭐".repeat(rating);
             await sendTextMessage(phoneNumber,
-              `${stars}\n\nشكراً لتقييمك! رأيك يهمنا ويساعدنا نتحسن 🙏`
+              `${stars}\n\nشكراً لتقييمك! رأيك يهمنا ويساعدنا نتحسن 🙏`,
+              botCustomerId || undefined
             );
           } else {
-            await sendTextMessage(phoneNumber, "⚠️ ما كدرنا نحفظ التقييم. حاول مرة ثانية.");
+            await sendTextMessage(phoneNumber, "⚠️ ما كدرنا نحفظ التقييم. حاول مرة ثانية.", botCustomerId || undefined);
           }
         } catch (e) {
           console.error("[wa] Rating save failed:", e);

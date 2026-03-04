@@ -92,47 +92,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Detect user role (admin, rider, or driver)
   const detectUserRole = useCallback(async (userId: string): Promise<UserRole> => {
     try {
-      // 1. تحقق من نوع الإيميل: حسابات الهاتف لا يُسمح لها بدور admin أبداً
-      // دخول الأدمن يكون فقط عبر إيميل حقيقي من صفحة /admin/login
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      // ✅ تشغيل الطلبات بالتوازي لتسريع الكشف
+      const [
+        { data: { user: authUser } },
+        { data: adminRole },
+        { data: driver },
+      ] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle(),
+        supabase.from("drivers").select("status").eq("user_id", userId).maybeSingle(),
+      ]);
+
       const email = authUser?.email || "";
       const isPhoneAccount = (
         email.endsWith("@raan.app") ||
         email.endsWith("@driver.raan.app") ||
         email.endsWith("@whatsapp.raan.app")
       );
-
-      // 2. حسابات نطاق السائق: تحقق من جدول drivers مباشرة وأعد دور "driver"
       const isDriverDomain = email.endsWith("@driver.raan.app");
 
-      if (!isPhoneAccount) {
-        // فقط للإيميلات الحقيقية: تحقق من صلاحية المدير عبر جدول user_roles
-        const { data: adminRole } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", userId)
-          .eq("role", "admin")
-          .maybeSingle();
-
-        if (adminRole) {
-          return "admin";
-        }
+      // 1. تحقق من صلاحية الأدمن (فقط الإيميلات الحقيقية)
+      if (!isPhoneAccount && adminRole) {
+        return "admin";
       }
 
-      // 3. تحقق إذا كان المستخدم سائق
-      const { data: driver } = await supabase
-        .from("drivers")
-        .select("status")
-        .eq("user_id", userId)
-        .maybeSingle();
-
+      // 2. تحقق إذا كان المستخدم سائق
       if (driver) {
         setCanSwitchToDriver(driver.status === "approved");
-        // حساب نطاق السائق أو سائق معتمد → دور السائق مباشرة
         if (isDriverDomain || driver.status === "approved") {
           return "driver";
         }
-        return "rider"; // سائق غير معتمد → راكب مؤقتاً
+        return "rider";
       }
 
       return "rider"; // Default
@@ -215,51 +205,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session.user);
         userRef.current = session.user; // ✅ sync ref
 
-        // كشف الدور قبل إنهاء التحميل لمنع حلقات إعادة التوجيه
-        try {
-          // ✅ FIX: timeout لـ detectUserRole لمنع التعليق على السبلاش
-          const rolePromise = detectUserRole(session.user.id);
-          const roleTimeout = new Promise<UserRole>((resolve) =>
-            setTimeout(() => {
-              console.warn("[AuthContext] detectUserRole timed out — defaulting to rider");
-              resolve("rider");
-            }, 3000)
-          );
-          const role = await Promise.race([rolePromise, roleTimeout]);
+        // ✅ INSTANT LOAD: لا نحجب التطبيق على الشبكة أبداً
+        // 1. ابحث عن الدور المخزن (cache أو raan_current_role)
+        const cacheKey = `raan_role_${session.user.id}`;
+        const cachedRole = (localStorage.getItem(cacheKey) || localStorage.getItem("raan_current_role")) as UserRole;
+        const immediateRole: UserRole = cachedRole || "rider";
 
-          if (isMounted) {
-            setUserRole(role);
-            // مزامنة localStorage مع الدور المكتشف
-            if (role === "driver") {
-              localStorage.setItem("raan_current_role", "driver");
-            }
-            // استعادة الدور المحفوظ في localStorage إذا متاح
-            // مع إعادة التحقق من حالة السائق لمنع استخدام دور قديم
-            const savedRole = localStorage.getItem("raan_current_role");
-            if (savedRole === "driver" && role === "rider") {
-              // إعادة التحقق: هل السائق لا يزال معتمداً؟
-              const { data: driver } = await supabase
-                .from("drivers")
-                .select("status")
-                .eq("user_id", session.user.id)
-                .maybeSingle();
-              
-              if (driver?.status === "approved") {
-                setUserRole("driver");
-              } else {
-                // السائق لم يعد معتمداً — إزالة الدور القديم
-                localStorage.removeItem("raan_current_role");
-                console.warn("[AuthContext] Stale driver role cleared — driver no longer approved");
-              }
-            }
-          }
-        } catch (roleError) {
-          console.error("[AuthContext] Role detection error:", roleError);
-          if (isMounted) setUserRole("rider");
+        if (isMounted) {
+          console.log(`[AuthContext] Immediate role (cache): ${immediateRole}`);
+          setUserRole(immediateRole);
+          setIsLoading(false); // أوقف التحميل فوراً — بدون انتظار الشبكة
         }
 
-        // إنهاء التحميل بعد تحديد الدور
-        if (isMounted) setIsLoading(false);
+        // 2. تحقق من الدور الحقيقي في الخلفية (non-blocking)
+        detectUserRole(session.user.id).then((freshRole) => {
+          if (!isMounted || !freshRole) return;
+          localStorage.setItem(cacheKey, freshRole);
+          if (freshRole !== immediateRole) {
+            console.log(`[AuthContext] Role corrected in background: ${immediateRole} → ${freshRole}`);
+            setUserRole(freshRole);
+          }
+        }).catch((err) => {
+          console.error("[AuthContext] Background role detection error:", err);
+        });
 
         // Monitor device sessions (non-blocking)
         monitorDeviceSessions(session.user.id).catch(() => {});
@@ -269,6 +237,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log("[AuthContext] User signed out, clearing state");
           setUser(null);
           setUserRole(null);
+          // حذف role cache للمستخدم الحالي
+          const uid = userRef.current?.id;
+          if (uid) localStorage.removeItem(`raan_role_${uid}`);
           localStorage.removeItem("raan_current_role");
           localStorage.removeItem("raan_remember_me");
           sessionStorage.removeItem("raan_session_alive");

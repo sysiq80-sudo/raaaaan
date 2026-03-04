@@ -1,96 +1,54 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { User, Session } from "@supabase/supabase-js";
-
-interface AdminAuthState {
-  user: User | null;
-  session: Session | null;
-  isAdmin: boolean;
-  loading: boolean;
-}
+import { useAuth } from "@/contexts/AuthContext";
 
 export const useAdminAuth = () => {
   const navigate = useNavigate();
-  const [state, setState] = useState<AdminAuthState>({
-    user: null,
-    session: null,
-    isAdmin: false,
-    loading: true,
-  });
+  const { user, userRole, isLoading: authLoading } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAdminRole = async (userId: string) => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .maybeSingle();
+    if (authLoading) return; // انتظر AuthContext فقط (cache-first = فوري)
 
-      return !error && !!data;
-    };
+    if (!user) {
+      setIsAdmin(false);
+      setLoading(false);
+      navigate("/auth");
+      return;
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          // Use setTimeout to avoid Supabase auth deadlock
-          setTimeout(async () => {
-            const isAdmin = await checkAdminRole(session.user.id);
-            setState({
-              user: session.user,
-              session,
-              isAdmin,
-              loading: false,
-            });
+    // ✅ استخدم الدور من AuthContext (cache-first) بدون طلب شبكة إضافي
+    if (userRole === "admin") {
+      setIsAdmin(true);
+      setLoading(false);
+    } else {
+      // fallback: تحقق مباشر في حال AuthContext لم يكشف admin بعد
+      const checkAdmin = async () => {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("role", "admin")
+          .maybeSingle();
 
-            if (!isAdmin) {
-              navigate("/");
-            }
-          }, 0);
+        if (data) {
+          setIsAdmin(true);
         } else {
-          setState({
-            user: null,
-            session: null,
-            isAdmin: false,
-            loading: false,
-          });
-          navigate("/auth");
-        }
-      }
-    );
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const isAdmin = await checkAdminRole(session.user.id);
-        setState({
-          user: session.user,
-          session,
-          isAdmin,
-          loading: false,
-        });
-
-        if (!isAdmin) {
+          setIsAdmin(false);
           navigate("/");
         }
-      } else {
-        setState({
-          user: null,
-          session: null,
-          isAdmin: false,
-          loading: false,
-        });
-        navigate("/auth");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+        setLoading(false);
+      };
+      checkAdmin();
+    }
+  }, [user, userRole, authLoading, navigate]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/");
   };
 
-  return { ...state, handleLogout };
+  return { user, session: null, isAdmin, loading, handleLogout };
 };

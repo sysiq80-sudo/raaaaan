@@ -68,10 +68,8 @@ interface Complaint {
     driver_id: string;
     pickup_address: string;
     dropoff_address: string;
-    profiles: {
-      full_name: string;
-      phone: string;
-    };
+    rider?: { full_name: string; phone: string };
+    driver?: { full_name: string; phone: string };
   };
 }
 
@@ -106,19 +104,47 @@ const AdminComplaints = () => {
             rider_id,
             driver_id,
             pickup_address,
-            dropoff_address,
-            profiles!rides_rider_id_fkey (
-              full_name,
-              phone
-            )
+            dropoff_address
           )
         `)
         .eq('status', activeTab)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      // @ts-expect-error - Type will match after migration
-      setComplaints(data || []);
+      let complaintsData: any[] = data || [];
+
+      // gather unique rider/driver ids for profile lookup
+      const riderIds = Array.from(
+        new Set(complaintsData.map(c => c.rides?.rider_id).filter(Boolean))
+      ) as string[];
+      const driverIds = Array.from(
+        new Set(complaintsData.map(c => c.rides?.driver_id).filter(Boolean))
+      ) as string[];
+
+      if (riderIds.length || driverIds.length) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id,full_name,phone')
+          .in('user_id', [...riderIds, ...driverIds]);
+        const profileMap: Record<string, { full_name: string; phone: string }> = {};
+        (profiles || []).forEach(p => {
+          if (p.user_id) profileMap[p.user_id] = { full_name: p.full_name, phone: p.phone };
+        });
+
+        complaintsData = complaintsData.map(c => {
+          const r = c.rides || {};
+          return {
+            ...c,
+            rides: {
+              ...r,
+              rider: profileMap[r.rider_id] || undefined,
+              driver: profileMap[r.driver_id] || undefined,
+            },
+          };
+        });
+      }
+
+      setComplaints(complaintsData);
     } catch (error: any) {
       console.error('Error fetching complaints:', error);
       toast({

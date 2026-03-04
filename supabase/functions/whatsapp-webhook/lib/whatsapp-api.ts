@@ -7,6 +7,9 @@
 import { WHATSAPP_ACCESS_TOKEN, GRAPH_API } from "./config.ts";
 import { trackEvent } from "./analytics.ts";
 
+// Import message logging utility
+import { logOutgoingBotMessage } from "../../_shared/log-message.ts";
+
 // ════════════════════════════════════════
 // 🔄 Retry Helper — إعادة المحاولة مع تأخير تصاعدي
 // ════════════════════════════════════════
@@ -51,7 +54,7 @@ async function fetchWithRetry(
 // ════════════════════════════════════════
 // WhatsApp Cloud API: إرسال رسالة نصية
 // ════════════════════════════════════════
-export async function sendTextMessage(to: string, text: string) {
+export async function sendTextMessage(to: string, text: string, botCustomerId?: string) {
   try {
     const res = await fetchWithRetry(GRAPH_API, {
       method: "POST",
@@ -72,6 +75,22 @@ export async function sendTextMessage(to: string, text: string) {
       trackEvent("wa_send_failed", { to, type: "text", status: res.status });
     } else {
       console.log(`[wa] sendText (${res.status}): ${result.substring(0, 200)}`);
+
+      // Log outgoing message if botCustomerId is provided
+      if (botCustomerId) {
+        try {
+          const resultData = JSON.parse(result);
+          await logOutgoingBotMessage({
+            botCustomerId,
+            message: text,
+            platform: "whatsapp",
+            messageId: resultData?.messages?.[0]?.id,
+            metadata: { message_type: "text" }
+          });
+        } catch (logErr) {
+          console.warn("[wa] Outgoing message logging failed:", logErr);
+        }
+      }
     }
   } catch (e) {
     console.error("[wa] sendTextMessage failed:", e);
@@ -115,7 +134,8 @@ export async function sendLocationRequest(to: string, bodyText: string) {
 export async function sendInteractiveButtons(
   to: string,
   bodyText: string,
-  buttons: Array<{ id: string; title: string }>
+  buttons: Array<{ id: string; title: string }>,
+  botCustomerId?: string
 ) {
   try {
     const payload = {
@@ -151,6 +171,22 @@ export async function sendInteractiveButtons(
       trackEvent("wa_send_failed", { to, type: "buttons", status: res.status });
     } else {
       console.log(`[wa] ✅ sendButtons OK to ${to}:`, result.substring(0, 200));
+
+      // Log outgoing message if botCustomerId is provided
+      if (botCustomerId) {
+        try {
+          const resultData = JSON.parse(result);
+          await logOutgoingBotMessage({
+            botCustomerId,
+            message: bodyText,
+            platform: "whatsapp",
+            messageId: resultData?.messages?.[0]?.id,
+            metadata: { message_type: "interactive_buttons", buttons: buttons.length }
+          });
+        } catch (logErr) {
+          console.warn("[wa] Outgoing message logging failed:", logErr);
+        }
+      }
     }
   } catch (e) {
     console.error("[wa] sendInteractiveButtons failed:", e);
@@ -165,7 +201,8 @@ export async function sendListMessage(
   to: string,
   bodyText: string,
   buttonText: string,
-  sections: Array<{ title: string; rows: Array<{ id: string; title: string; description?: string }> }>
+  sections: Array<{ title: string; rows: Array<{ id: string; title: string; description?: string }> }>,
+  botCustomerId?: string
 ) {
   try {
     const res = await fetchWithRetry(GRAPH_API, {
@@ -189,9 +226,31 @@ export async function sendListMessage(
       }),
     });
     const result = await res.text();
-    console.log(`[wa] sendListMessage (${res.status}): ${result.substring(0, 300)}`);
+    if (!res.ok) {
+      console.error(`[wa] sendListMessage FAILED (${res.status}):`, result.substring(0, 300));
+      trackEvent("wa_send_failed", { to, type: "list", status: res.status });
+    } else {
+      console.log(`[wa] sendListMessage (${res.status}): ${result.substring(0, 300)}`);
+
+      // Log outgoing message if botCustomerId is provided
+      if (botCustomerId) {
+        try {
+          const resultData = JSON.parse(result);
+          await logOutgoingBotMessage({
+            botCustomerId,
+            message: bodyText,
+            platform: "whatsapp",
+            messageId: resultData?.messages?.[0]?.id,
+            metadata: { message_type: "interactive_list", sections: sections.length }
+          });
+        } catch (logErr) {
+          console.warn("[wa] Outgoing message logging failed:", logErr);
+        }
+      }
+    }
   } catch (e) {
     console.error("[wa] sendListMessage failed:", e);
+    trackEvent("wa_send_error", { to, type: "list", error: String(e) });
   }
 }
 
