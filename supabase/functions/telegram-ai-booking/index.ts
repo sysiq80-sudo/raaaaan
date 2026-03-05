@@ -299,6 +299,7 @@ async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promis
 // ════════════════════════════════════════
 interface ExtractedDestination {
   destination_search_query: string;
+  pickup_search_query?: string | null;
   vehicle_type: "economy" | "comfort" | "premium" | "women_only";
   notes: string | null;
 }
@@ -311,10 +312,25 @@ Context for this session:
 - The operational area is the ENTIRE Al Anbar Governorate (e.g., Ramadi, Fallujah, Hit, Haditha, etc.).
 - When the user asks to go to a named place (e.g., a restaurant, hospital, or market), you MUST assume they mean the branch or location NEAREST to their current coordinates. Do not assume Ramadi if they are starting from Fallujah.
 
-The user has ALREADY shared their GPS pickup location. Now they are telling you their DESTINATION only.
+The user may or may NOT have shared their GPS pickup location yet.
 The user speaks in Iraqi Arabic dialect.
 
-Your ONLY job: Extract the destination name EXACTLY as the user says it.
+Your job: Extract the destination (and optionally the pickup) from the user's message.
+
+═══ CRITICAL PICKUP + DROPOFF EXTRACTION RULES: ═══
+When the user explicitly states a route using "من" (From) and "إلى/ل/لـ" (To):
+Example: "اريد رحلة من جامع بدر الكبرى إلى مول ام عمار"
+- pickup_search_query MUST be ONLY the pickup location name: "جامع بدر الكبرى"
+- destination_search_query MUST be ONLY the dropoff location name: "مول ام عمار"
+- NEVER return the entire sentence as a single location.
+- NEVER include "اريد رحلة" or "من" or "إلى" in the location names.
+
+More examples:
+- "وديني من حي المعلمين إلى السوق" → pickup: "حي المعلمين", destination: "السوق"
+- "خذني من الجامعة لمستشفى الرمادي" → pickup: "الجامعة", destination: "مستشفى الرمادي"
+- "تكسي من شارع 60 الى حي الملعب" → pickup: "شارع 60", destination: "حي الملعب"
+
+If the user mentions ONLY a destination (no "من" pattern), set pickup_search_query to null.
 
 ⚠️ STRICT RULE — NUMBERED STREETS:
 If the user provides a numbered street (e.g., "شارع 20", "شارع 60", "شارع 17"), YOU MUST KEEP IT EXACTLY AS IS.
@@ -364,6 +380,7 @@ Well-known Ramadi landmarks (for reference only — do NOT substitute user input
 Respond in JSON ONLY:
 {
   "destination_search_query": "اسم الوجهة كما قالها المستخدم — حرفياً",
+  "pickup_search_query": "اسم مكان الانطلاق إذا ذكره (بعد من)، أو null",
   "vehicle_type": "economy",
   "notes": null
 }`;
@@ -2109,9 +2126,74 @@ serve(async (req) => {
 
       // ── Step 4: GPT-4o — استخراج نية أعمق ──
       const intent = await extractDestination(userMsgText);
+
       if (intent.destination_search_query && intent.destination_search_query.trim().length >= 2
           && intent.destination_search_query !== "__OUT_OF_BOUNDS__") {
-        // GPT extracted a destination — save as Scenario B
+
+        // 🎯 Check if GPT extracted BOTH pickup and destination (Scenario A via GPT)
+        if (intent.pickup_search_query && intent.pickup_search_query.trim().length >= 2) {
+          console.log(`[telegram] ✅ FULL BOOKING (GPT): "${intent.pickup_search_query}" → "${intent.destination_search_query}"`);
+          await directSend(chatId, MESSAGES.processing);
+
+          // Geocode الانطلاق
+          const pickupLoc = await resolveRamadiLocation(intent.pickup_search_query);
+          if (pickupLoc) {
+            const pDistCenter = haversineDistance(pickupLoc.lat, pickupLoc.lng, 33.4233, 43.2974);
+            if (pDistCenter <= 60) {
+              // إنشاء session
+              let sId: string;
+              try {
+                sId = await createPickupSession(supabase, riderId, pickupLoc.lat, pickupLoc.lng, pickupLoc.address);
+              } catch (se: any) {
+                if (se?.message?.startsWith("IN_PROGRESS_RIDE:")) {
+                  await directSend(chatId, "🚕 عندك رحلة فعلاً جارية! انتظر لين تخلص.");
+                  return new Response("OK", { status: 200, headers: corsHeaders });
+                }
+                throw se;
+              }
+
+              // Geocode الوجهة
+              const dLoc = await resolveRamadiLocation(intent.destination_search_query, pickupLoc.lat, pickupLoc.lng);
+              if (dLoc) {
+                const dKm = haversineDistance(pickupLoc.lat, pickupLoc.lng, dLoc.lat, dLoc.lng);
+                const f = estimateFare(dKm);
+                await supabase.from("rides").update({
+                  dropoff_location: { lat: dLoc.lat, lng: dLoc.lng },
+                  dropoff_address: dLoc.address,
+                  vehicle_type: intent.vehicle_type || "economy",
+                  distance_km: Math.round(dKm * 100) / 100,
+                  estimated_fare: f,
+                }).eq("id", sId);
+
+                await sendInlineKeyboard(
+                  chatId,
+                  MESSAGES.confirmationPrompt(pickupLoc.address, dLoc.address, f, dKm),
+                  [
+                    [
+                      { text: "✅ اعتمد الرحلة", callback_data: `confirm_ride_${sId}` },
+                      { text: "❌ إلغاء", callback_data: `cancel_ride_${sId}` },
+                    ],
+                  ]
+                );
+                return new Response("OK", { status: 200, headers: corsHeaders });
+              } else {
+                // وجهة فشلت — session مفتوح
+                await sendAndRemoveKeyboard(chatId, MESSAGES.locationReceived(pickupLoc.address));
+                await directSend(chatId, MESSAGES.geocodeFailed(intent.destination_search_query));
+                return new Response("OK", { status: 200, headers: corsHeaders });
+              }
+            }
+          }
+          // Pickup geocode failed — fallback to Scenario B
+          try {
+            await supabase.from("bot_customers").update({ last_intent: `pending_dropoff:${intent.destination_search_query}` })
+              .eq("platform", "telegram").eq("platform_id", platformId);
+          } catch { }
+          await sendWithLocationKeyboard(chatId, MESSAGES.dropoffSavedAskPickup(intent.destination_search_query, tgName));
+          return new Response("OK", { status: 200, headers: corsHeaders });
+        }
+
+        // 📍 Scenario B via GPT: dropoff only
         console.log(`[telegram] 📍 DROPOFF ONLY (GPT): "${intent.destination_search_query}"`);
         try {
           await supabase.from("bot_customers").update({ last_intent: `pending_dropoff:${intent.destination_search_query}` })

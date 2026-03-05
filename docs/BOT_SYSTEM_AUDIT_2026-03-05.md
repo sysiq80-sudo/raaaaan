@@ -425,6 +425,27 @@ When ride status changes (via DB trigger), **separate** Edge Functions send stat
 32. **M5:** Stop using `cancellation_reason` for notes
 33. **M8:** Block invalid state transitions
 
+### Hotfix 7.1 — Critical NLP Parsing Fix ✅ (Completed 2026-03-05)
+34. **HF7.1:** ✅ **Fix `extractPickupAndDropoff()` regex prefix cleaning** — Both `_shared/local-classifier.ts` AND `whatsapp-webhook/lib/local-classifier.ts`:
+    - **Root Cause:** The prefix cleaner only handled `"اريد اروح"` but NOT `"اريد رحلة"`, `"اريد تكسي"`, `"ابي سيارة"`, etc. Input like `"اريد رحلة من X إلى Y"` left `"اريد"` prefix intact, causing the `"من X إلى Y"` regex to fail.
+    - **Fix:** Added comprehensive compound prefix patterns: `(أريد|اريد|ابي|ابغى|احتاج|اباي|ممكن)` + `(رحلة|رحله|سيارة|سياره|تكسي|تاكسي|أروح|اروح|حجز)` as first priority cleanup.
+    - **Also added:** `(سياره|سيارة|تكسي|تاكسي)` to secondary simple prefix list.
+    - Tested pattern: `"اريد رحلة من جامع بدر الكبرى إلى مول ام عمار"` → now correctly cleaned to `"من جامع بدر الكبرى إلى مول ام عمار"` → regex extracts pickup=`"جامع بدر الكبرى"`, dropoff=`"مول ام عمار"`.
+35. **HF7.2:** ✅ **Telegram `extractDestination` GPT prompt — add pickup support**:
+    - Added `pickup_search_query` field to `ExtractedDestination` interface
+    - Updated GPT system prompt with STRICT rules: when user says "من X إلى Y", extract pickup and destination SEPARATELY
+    - Added explicit examples in prompt: `"اريد رحلة من جامع بدر الكبرى إلى مول ام عمار"` → pickup: `"جامع بدر الكبرى"`, destination: `"مول ام عمار"`
+    - Added rule: "NEVER return the entire sentence as a single location"
+36. **HF7.3:** ✅ **Telegram GPT handler — Scenario A via GPT**:
+    - Step 4 now checks `intent.pickup_search_query` — if GPT returns BOTH pickup and destination, triggers full Scenario A flow (geocode both → create session → calculate fare → send confirmation buttons)
+    - Falls back to Scenario B if pickup geocoding fails
+37. **HF7.4:** ✅ **WhatsApp `classifyAndRespond` GPT prompt strengthened**:
+    - Expanded `pickup_hint`/`destination_hint` extraction rules with explicit examples
+    - Added prohibition: "ممنوع نهائياً: إرجاع الجملة الكاملة كموقع واحد!"
+    - Added prohibition: "ممنوع: تضمين 'اريد رحلة' أو 'من' أو 'إلى' ضمن اسم المكان!"
+38. **HF7.5:** ✅ **Scheduled ride button confirmed purged** — `"حجز مجدول"` button was already removed in Phase 3 from code. Redeployment ensures the live function uses the latest code.
+39. **HF7.6:** ✅ **Deployment** — `telegram-ai-booking` + `whatsapp-webhook` redeployed to Supabase.
+
 ---
 
 **Report generated: 2026-03-05**
@@ -434,4 +455,5 @@ When ride status changes (via DB trigger), **separate** Edge Functions send stat
 **Phase 4 completed: 2026-03-05**
 **Phase 5 completed: 2026-06-11**
 **Phase 6 completed: 2026-03-05**
+**Hotfix 7.1 completed: 2026-03-05**
 **والحمد لله رب العالمين** 🤲
