@@ -1380,17 +1380,54 @@ serve(async (req) => {
     }
 
     // ═══════════════════════════════════
-    // ➕ إضافة رصيد (Add Balance Instructions)
+    // ➕ إضافة رصيد (اختيار طريقة الدفع)
     // ═══════════════════════════════════
     if (cbData === "action_add_balance" && cbChatId) {
       await answerCallbackQuery(cbQuery.id, "➕");
-      await directSend(cbChatId,
-        `لإضافة رصيد إلى محفظتك، يرجى تحويل المبلغ المطلوب إلى أحد الحسابات التالية، ثم إرسال صورة وصل التحويل هنا في المحادثة:\n\n` +
-        `🟣 زين كاش:\n<code>07844446633</code>\n\n` +
-        `🟡 سوبر كي:\n<code>07844446633</code>\n\n` +
-        `💳 كيو كارد (QCard):\n<code>7117309554</code>\n\n` +
-        `بمجرد إرسالك لصورة الوصل، سيتم تدقيقها من الإدارة وإضافة الرصيد فوراً.`
+      await sendInlineKeyboard(cbChatId,
+        `اختر طريقة الدفع المناسبة لك لشحن محفظتك:`,
+        [
+          [{ text: "🟣 زين كاش", callback_data: "topup_zaincash" }],
+          [{ text: "🟡 سوبر كي", callback_data: "topup_superqi" }],
+          [{ text: "💳 كيو كارد", callback_data: "topup_qicard" }],
+        ]
       );
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // 🟣 تحويل عبر زين كاش
+    // ═══════════════════════════════════
+    if (cbData === "topup_zaincash" && cbChatId) {
+      await answerCallbackQuery(cbQuery.id, "🟣");
+      await directSend(cbChatId,
+        `لإضافة رصيد عبر 🟣 زين كاش، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`
+      );
+      await directSend(cbChatId, `07844446633`);
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // 🟡 تحويل عبر سوبر كي
+    // ═══════════════════════════════════
+    if (cbData === "topup_superqi" && cbChatId) {
+      await answerCallbackQuery(cbQuery.id, "🟡");
+      await directSend(cbChatId,
+        `لإضافة رصيد عبر 🟡 سوبر كي، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`
+      );
+      await directSend(cbChatId, `07844446633`);
+      return new Response("OK", { status: 200, headers: corsHeaders });
+    }
+
+    // ═══════════════════════════════════
+    // 💳 تحويل عبر كيو كارد
+    // ═══════════════════════════════════
+    if (cbData === "topup_qicard" && cbChatId) {
+      await answerCallbackQuery(cbQuery.id, "💳");
+      await directSend(cbChatId,
+        `لإضافة رصيد عبر 💳 كيو كارد، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`
+      );
+      await directSend(cbChatId, `7117309554`);
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 

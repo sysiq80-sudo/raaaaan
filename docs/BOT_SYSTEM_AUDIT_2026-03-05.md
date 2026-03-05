@@ -479,6 +479,20 @@ When ride status changes (via DB trigger), **separate** Edge Functions send stat
     - WhatsApp early greeting check (pre-session) expanded with same menu/help patterns
 50. **HF7.3.7:** ✅ **Deployment** — `whatsapp-webhook` + `telegram-ai-booking` redeployed to Supabase.
 
+### Hotfix 7.4 — Wallet Top-Up UX Refinement (Smart Menu & Copyable Numbers) ✅ (Completed 2026-03-05)
+51. **HF7.4.1:** ✅ **Replace `action_add_balance` long message with 3-button payment method picker** — Both platforms:
+    - **Before:** One long message listing all 3 payment accounts + numbers — hard to copy, cluttered UX.
+    - **After:** Interactive 3-button menu: `🟣 زين كاش` | `🟡 سوبر كي` | `💳 كيو كارد`. (Perfectly fits Meta's 3-button limit.)
+    - WhatsApp: `sendInteractiveButtons` with `topup_zaincash`, `topup_superqi`, `topup_qicard` IDs.
+    - Telegram: `sendInlineKeyboard` with same callback_data values.
+52. **HF7.4.2:** ✅ **Add topup callback handlers** — Both platforms:
+    - `topup_zaincash` → Message 1: instruction text for Zain Cash → Message 2: standalone `07844446633` (easy long-press copy).
+    - `topup_superqi` → Message 1: instruction text for Super Qi → Message 2: standalone `07844446633`.
+    - `topup_qicard` → Message 1: instruction text for QiCard → Message 2: standalone `7117309554`.
+    - UX principle: The account number is sent as a **separate standalone message** so the user can long-press and copy it easily without any surrounding text.
+    - Instruction text reminds user to send receipt image after transfer.
+53. **HF7.4.3:** ✅ **Deployment** — `whatsapp-webhook` + `telegram-ai-booking` redeployed to Supabase.
+
 ---
 
 **Report generated: 2026-03-05**
@@ -491,4 +505,5 @@ When ride status changes (via DB trigger), **separate** Edge Functions send stat
 **Hotfix 7.1 completed: 2026-03-05**
 **Hotfix 7.2 completed: 2026-03-05**
 **Hotfix 7.3 completed: 2026-03-05**
+**Hotfix 7.4 completed: 2026-03-05**
 **والحمد لله رب العالمين** 🤲

@@ -617,17 +617,50 @@ serve(async (req) => {
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
-      // ── إضافة رصيد (تعليمات التحويل) ──
+      // ── إضافة رصيد (اختيار طريقة الدفع) ──
       if (buttonId === "action_add_balance") {
+        await sendInteractiveButtons(
+          phoneNumber,
+          `اختر طريقة الدفع المناسبة لك لشحن محفظتك:`,
+          [
+            { id: "topup_zaincash", title: "🟣 زين كاش" },
+            { id: "topup_superqi", title: "🟡 سوبر كي" },
+            { id: "topup_qicard", title: "💳 كيو كارد" },
+          ]
+        );
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── تحويل عبر زين كاش ──
+      if (buttonId === "topup_zaincash") {
         await sendTextMessage(
           phoneNumber,
-          `لإضافة رصيد إلى محفظتك، يرجى تحويل المبلغ المطلوب إلى أحد الحسابات التالية، ثم إرسال صورة وصل التحويل هنا في المحادثة:\n\n` +
-          `🟣 زين كاش:\n\`\`\`07844446633\`\`\`\n\n` +
-          `🟡 سوبر كي:\n\`\`\`07844446633\`\`\`\n\n` +
-          `💳 كيو كارد (QCard):\n\`\`\`7117309554\`\`\`\n\n` +
-          `بمجرد إرسالك لصورة الوصل، سيتم تدقيقها من الإدارة وإضافة الرصيد فوراً.`,
+          `لإضافة رصيد عبر 🟣 زين كاش، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`,
           botCustomerId || undefined
         );
+        await sendTextMessage(phoneNumber, `07844446633`, botCustomerId || undefined);
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── تحويل عبر سوبر كي ──
+      if (buttonId === "topup_superqi") {
+        await sendTextMessage(
+          phoneNumber,
+          `لإضافة رصيد عبر 🟡 سوبر كي، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`,
+          botCustomerId || undefined
+        );
+        await sendTextMessage(phoneNumber, `07844446633`, botCustomerId || undefined);
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── تحويل عبر كيو كارد ──
+      if (buttonId === "topup_qicard") {
+        await sendTextMessage(
+          phoneNumber,
+          `لإضافة رصيد عبر 💳 كيو كارد، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`,
+          botCustomerId || undefined
+        );
+        await sendTextMessage(phoneNumber, `7117309554`, botCustomerId || undefined);
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
