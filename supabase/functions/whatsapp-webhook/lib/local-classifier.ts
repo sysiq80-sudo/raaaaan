@@ -10,11 +10,16 @@
  */
 
 // ════════════════════════════════════════
-// أنماط التحيات
+// أنماط التحيات (تعرض القائمة الرئيسية)
 // ════════════════════════════════════════
 const GREETING_PATTERNS = [
   /^(مرحب|هلا|اهلا|أهلا|السلام|وعليكم|هلو|hello|hi|سلام|مساء|صباح)/i,
   /^(ران|raan|start|شلونك|كيفك|هاي)$/i,
+  // طلب القائمة / المساعدة / الخيارات → نعرض القائمة الرئيسية
+  /^(خيارات|خياراتي|القائم[ةه]|المنيو|menu|options|مساعد[ةه]|ساعدني|help)$/i,
+  // أسئلة عن الأزرار / القائمة (مثل: "اين زر الخيارات؟")
+  /(وين|اين|أين|فين).*(زر|خيارات|قائم[ةه]|منيو|ازرار|أزرار)/i,
+  /(زر|خيارات|قائم[ةه]|منيو|ازرار|أزرار).*(وين|اين|أين|فين)/i,
 ];
 
 // ════════════════════════════════════════
@@ -67,10 +72,19 @@ const FAQ_PATTERNS: Array<{ pattern: RegExp; response: string }> = [
 ];
 
 // ════════════════════════════════════════
+// أوامر الإجراءات المباشرة (رصيدي، رحلاتي، معلوماتي)
+// ════════════════════════════════════════
+const ACTION_COMMAND_PATTERNS: Array<{ pattern: RegExp; intent: "balance" | "my_rides" | "my_info" }> = [
+  { pattern: /^(رصيدي|الرصيد|رصيد|محفظتي|حسابي|كم رصيدي|شكد رصيدي)$/i, intent: "balance" },
+  { pattern: /^(رحلاتي|طلباتي|رحلات|حجوزاتي)$/i, intent: "my_rides" },
+  { pattern: /^(معلوماتي|بياناتي|حسابي|ملفي|بروفايلي|profile)$/i, intent: "my_info" },
+];
+
+// ════════════════════════════════════════
 // أنماط الحجز المباشر (بدون GPT)
 // ════════════════════════════════════════
 const BOOKING_INTENT_PATTERNS = [
-  /أريد أروح|اريد اروح|وديني|خذني|ودني|ابي اروح|ابغى اروح|يلا على|رحلة|حجز|احجز|أحجز|بوك/i,
+  /أريد أروح|اريد اروح|وديني|خذني|ودني|ابي اروح|ابغى اروح|يلا على|حجز|احجز|أحجز|بوك/i,
   /^(لـ|ل |إلى |الى |على |ع )/i,
 ];
 
@@ -79,7 +93,7 @@ const BOOKING_INTENT_PATTERNS = [
 // ════════════════════════════════════════
 export interface LocalClassification {
   handled: boolean;
-  intent?: "greeting" | "complaint" | "inquiry" | "booking" | "thanks";
+  intent?: "greeting" | "complaint" | "faq" | "booking" | "thanks" | "balance" | "my_rides" | "my_info";
   reply?: string;
   destination_hint?: string | null;
 }
@@ -88,15 +102,22 @@ export function classifyLocally(text: string, userName: string): LocalClassifica
   const trimmed = text.trim();
   const lower = trimmed.toLowerCase();
 
-  // 1. تحيات
+  // 1. تحيات (تعرض القائمة الرئيسية)
   for (const pattern of GREETING_PATTERNS) {
     if (pattern.test(lower)) {
       return { handled: true, intent: "greeting" };
-      // لا نرد هنا — القائمة الرئيسية تتولى
     }
   }
 
-  // 2. شكاوى
+  // 2. أوامر مباشرة: رصيدي، رحلاتي، معلوماتي
+  // يجب أن تُفحص قبل الشكاوى والأسئلة لتفادي تصنيف "رصيدي" كوجهة
+  for (const cmd of ACTION_COMMAND_PATTERNS) {
+    if (cmd.pattern.test(trimmed)) {
+      return { handled: true, intent: cmd.intent };
+    }
+  }
+
+  // 3. شكاوى
   for (const complaint of COMPLAINT_PATTERNS) {
     if (complaint.pattern.test(trimmed)) {
       const response = COMPLAINT_RESPONSES[Math.floor(Math.random() * COMPLAINT_RESPONSES.length)]
@@ -105,17 +126,16 @@ export function classifyLocally(text: string, userName: string): LocalClassifica
     }
   }
 
-  // 3. أسئلة متكررة
+  // 4. أسئلة متكررة (FAQ) — تُرد مباشرة بنص جاهز، لا تُحوّل للإدارة
   for (const faq of FAQ_PATTERNS) {
     if (faq.pattern.test(trimmed)) {
-      return { handled: true, intent: "inquiry", reply: faq.response };
+      return { handled: true, intent: "faq", reply: faq.response };
     }
   }
 
-  // 4. نية حجز واضحة (لا نرد — نطلب الموقع)
+  // 5. نية حجز واضحة (لا نرد — نطلب الموقع)
   for (const pattern of BOOKING_INTENT_PATTERNS) {
     if (pattern.test(trimmed)) {
-      // نستخرج الوجهة المحتملة
       let hint: string | null = null;
       const match = trimmed.match(/(?:أريد أروح|اريد اروح|وديني|خذني|ودني|لـ|إلى|الى|على|ع)\s+(.+)/i);
       if (match) {
@@ -125,7 +145,7 @@ export function classifyLocally(text: string, userName: string): LocalClassifica
     }
   }
 
-  // 5. لم يتم التصنيف محلياً
+  // 6. لم يتم التصنيف محلياً
   return { handled: false };
 }
 
@@ -173,10 +193,17 @@ export function extractPickupAndDropoff(text: string): { pickup: string; dropoff
 
 // ════════════════════════════════════════
 // استخراج الوجهة المباشرة (بدون GPT)
-// للوجهات الواضحة جداً
+// ⚠️ يتطلب وجود فعل سفر أو حرف جر — لا يقبل نص عشوائي كوجهة!
 // ════════════════════════════════════════
 export function extractDirectDestination(text: string): { destination: string; vehicle_type: string } | null {
   const trimmed = text.trim();
+
+  // ⚠️ الشرط الأساسي: يجب أن يحتوي النص على فعل سفر أو حرف جر
+  // بدون هذا الشرط، أي نص عشوائي (مثل "رصيدي") سيُعامل كوجهة!
+  const TRAVEL_INTENT_PATTERN = /أريد أروح|اريد اروح|وديني|خذني|ودني|ابي اروح|يلا على|خلني اروح|^لـ|^ل |^إلى |^الى |^على |^ع |رحلة\s+(لـ|ل|إلى|الى|على|ع)|حجز\s+(لـ|ل|إلى|الى|على|ع)/i;
+  if (!TRAVEL_INTENT_PATTERN.test(trimmed)) {
+    return null;
+  }
 
   // إزالة بادئات شائعة
   const prefixes = [

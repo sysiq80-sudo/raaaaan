@@ -1265,13 +1265,15 @@ serve(async (req) => {
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
-    // ── إذا أرسل المستخدم تحية → قائمة ترحيب بأزرار ──
+    // ── إذا أرسل المستخدم تحية أو طلب قائمة → قائمة ترحيب بأزرار ──
     if (hasText) {
       const txt = message.text.body.trim();
       const txtLower = txt.toLowerCase();
       const isGreeting =
         ["ران", "raan", "start"].includes(txtLower) ||
-        /^(مرحب|هلا|اهلا|أهلا|السلام|وعليكم|هلو|hello|hi|سلام|مساء|صباح)/.test(txtLower);
+        /^(مرحب|هلا|اهلا|أهلا|السلام|وعليكم|هلو|hello|hi|سلام|مساء|صباح)/.test(txtLower) ||
+        /^(خيارات|خياراتي|القائم[ةه]|المنيو|menu|options|مساعد[ةه]|ساعدني|help)$/i.test(txt) ||
+        /(وين|اين|أين|فين).*(زر|خيارات|قائم[ةه]|منيو|ازرار|أزرار)/i.test(txt);
 
       if (isGreeting) {
         await sendInteractiveButtons(
@@ -1320,14 +1322,29 @@ serve(async (req) => {
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
-      // ── Step 1: تصنيف محلي — تحيات/شكاوى/FAQ فقط ──
+      // ── Step 1: تصنيف محلي — تحيات/شكاوى/FAQ/أوامر فقط ──
       const localResult = classifyLocally(userMsgText, userName);
       if (localResult.handled && localResult.intent !== "booking") {
         console.log(`[classify] ⚡ LOCAL: intent=${localResult.intent}`);
         trackEvent("classify_local", { intent: localResult.intent }, phoneNumber);
 
-        // 🔥 Phase 6: شكاوى/استفسارات → تحويل مباشر للإدارة
-        if (localResult.intent === "complaint" || localResult.intent === "inquiry") {
+        // 🎯 أوامر مباشرة: رصيدي، رحلاتي، معلوماتي → أزرار القائمة
+        if (localResult.intent === "balance" || localResult.intent === "my_rides" || localResult.intent === "my_info") {
+          await sendInteractiveButtons(
+            phoneNumber,
+            `أستاذ ${userName}، اختر من القائمة 👇`,
+            [
+              { id: "action_my_balance", title: "💰 رصيدي" },
+              { id: "action_my_rides", title: "📒 رحلاتي" },
+              { id: "action_my_info", title: "ℹ️ معلوماتي" },
+            ]
+          );
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+
+        // 🔥 Phase 6: شكاوى فقط → تحويل مباشر للإدارة
+        // FAQ (أسئلة متكررة) لها رد جاهز ولا تُحوّل للإدارة
+        if (localResult.intent === "complaint") {
           // جلب معرّف الرحلة النشطة (إن وجدت)
           let activeRideId: string | null = null;
           try {
@@ -1343,9 +1360,8 @@ serve(async (req) => {
 
           // تحويل للإدارة عبر بوت الأدمن
           if (ADMIN_TELEGRAM_BOT_TOKEN && ADMIN_GROUP_CHAT_ID) {
-            const intentLabel = localResult.intent === "complaint" ? "🔴 شكوى" : "🟡 استفسار";
             const adminMsg =
-              `${intentLabel} جديد(ة) من واتساب:\n\n` +
+              `🔴 شكوى جديدة من واتساب:\n\n` +
               `👤 الاسم: ${userName}\n` +
               `📱 الرقم: ${phoneNumber}\n` +
               (activeRideId ? `🚕 رحلة نشطة: ${activeRideId}\n` : "") +

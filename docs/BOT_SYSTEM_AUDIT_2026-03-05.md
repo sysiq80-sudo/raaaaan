@@ -452,6 +452,33 @@ When ride status changes (via DB trigger), **separate** Edge Functions send stat
 42. **HF7.2.3:** ✅ **WhatsApp 3-button limit audit** — Full scan of all `sendInteractiveButtons` calls across `whatsapp-webhook` (10 call sites) and `whatsapp-ride-updates` (4 call sites). **Result: NO violations found.** All interactive button messages use ≤ 3 buttons. The main menu correctly uses 3 buttons (`اطلب رحلة` + `استفسار` + `المزيد`) and overflows to `sendListMessage` for additional options.
 43. **HF7.2.4:** ✅ **Deployment** — All 3 functions redeployed: `whatsapp-ride-updates`, `whatsapp-webhook`, `telegram-ride-updates`.
 
+### Hotfix 7.3 — Critical Intent Classifier Fix & Aggressive Destination Guard ✅ (Completed 2026-03-05)
+44. **HF7.3.1:** ✅ **Expand GREETING_PATTERNS** — Both `_shared/local-classifier.ts` AND `whatsapp-webhook/lib/local-classifier.ts`:
+    - Added menu/help keywords: `خيارات|خياراتي|القائمة|المنيو|menu|options|مساعدة|ساعدني|help`
+    - Added question patterns: `"اين زر الخيارات؟"` → now matched as greeting → shows main menu
+    - Added bidirectional patterns: `(وين|اين|أين|فين).*(زر|خيارات|قائمة|ازرار)` and reverse
+45. **HF7.3.2:** ✅ **Add ACTION_COMMAND_PATTERNS** — New intent categories in both classifier copies:
+    - `balance`: `رصيدي|الرصيد|رصيد|محفظتي|حسابي|كم رصيدي|شكد رصيدي` → shows action buttons
+    - `my_rides`: `رحلاتي|طلباتي|رحلات|حجوزاتي` → shows action buttons
+    - `my_info`: `معلوماتي|بياناتي|ملفي|بروفايلي` → shows action buttons
+    - **Root Cause:** "رصيدي" was not matched by any classifier pattern, fell through to `extractDirectDestination` which blindly accepted it as a destination.
+46. **HF7.3.3:** ✅ **Guard `extractDirectDestination()` with travel intent check** — Both classifier copies:
+    - Added `TRAVEL_INTENT_PATTERN` gate: text MUST contain a travel verb or preposition (`أريد أروح|وديني|خذني|^لـ|^إلى|رحلة ل...`) BEFORE any destination extraction occurs.
+    - Without this gate, ANY text ≥2 chars (e.g. "رصيدي", "اين زر الخيارات") was incorrectly returned as a destination.
+    - This eliminates the "Accumulated Stupidity" bug where random commands become Scenario B dropoffs.
+47. **HF7.3.4:** ✅ **Remove `رحلة` from BOOKING_INTENT_PATTERNS** — Both copies:
+    - `رحلة` alone (without a travel verb) is too generic and would match "رحلاتي" as booking intent.
+    - Compound forms like "اريد رحلة من X إلى Y" are already handled by `extractPickupAndDropoff()` prefix cleaning.
+48. **HF7.3.5:** ✅ **Fix FAQ vs Complaint admin routing** — Both `whatsapp-webhook/index.ts` AND `telegram-ai-booking/index.ts`:
+    - **Bug:** All `"inquiry"` intents (including FAQ with pre-canned answers like "كم السعر") were being forwarded to admin group + user got generic "تم تحويل" instead of the FAQ answer.
+    - **Fix:** FAQ intent renamed from `"inquiry"` to `"faq"`. Only `"complaint"` intent now forwards to admin group.
+    - FAQ questions (pricing, service area, cancellation, etc.) now correctly reply with their pre-canned text answers — NOT forwarded to admin.
+49. **HF7.3.6:** ✅ **Add action command handlers in webhook handlers** — Both platforms:
+    - WhatsApp: `balance|my_rides|my_info` → `sendInteractiveButtons` with 3 action buttons (رصيدي, رحلاتي, معلوماتي)
+    - Telegram: `balance|my_rides|my_info` → `sendInlineKeyboard` with action buttons
+    - WhatsApp early greeting check (pre-session) expanded with same menu/help patterns
+50. **HF7.3.7:** ✅ **Deployment** — `whatsapp-webhook` + `telegram-ai-booking` redeployed to Supabase.
+
 ---
 
 **Report generated: 2026-03-05**
@@ -463,4 +490,5 @@ When ride status changes (via DB trigger), **separate** Edge Functions send stat
 **Phase 6 completed: 2026-03-05**
 **Hotfix 7.1 completed: 2026-03-05**
 **Hotfix 7.2 completed: 2026-03-05**
+**Hotfix 7.3 completed: 2026-03-05**
 **والحمد لله رب العالمين** 🤲

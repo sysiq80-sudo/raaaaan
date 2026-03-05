@@ -1988,7 +1988,7 @@ serve(async (req) => {
         return new Response("OK", { status: 200, headers: corsHeaders });
       }
 
-      // ── Step 1: تصنيف محلي — تحيات/شكاوى/FAQ ──
+      // ── Step 1: تصنيف محلي — تحيات/شكاوى/FAQ/أوامر ──
       const localResult = classifyLocally(userMsgText, tgName);
       if (localResult.handled && localResult.intent !== "booking") {
         console.log(`[telegram] ⚡ LOCAL classify: intent=${localResult.intent}`);
@@ -2000,8 +2000,17 @@ serve(async (req) => {
               [{ text: "💬 استفسار", callback_data: "action_inquiry" }],
               [{ text: "📋 رحلاتي", callback_data: "action_my_rides" }, { text: "💰 رصيدي", callback_data: "action_my_balance" }],
             ]);
-        } else if (localResult.intent === "complaint" || localResult.intent === "inquiry") {
-          // 🔥 Phase 6: شكاوى/استفسارات → تحويل مباشر للإدارة
+        } else if (localResult.intent === "balance" || localResult.intent === "my_rides" || localResult.intent === "my_info") {
+          // 🎯 أوامر مباشرة: رصيدي، رحلاتي، معلوماتي → أزرار القائمة
+          await sendInlineKeyboard(chatId,
+            `أستاذ ${tgName}، اختر من القائمة 👇`,
+            [
+              [{ text: "💰 رصيدي", callback_data: "action_my_balance" }],
+              [{ text: "📋 رحلاتي", callback_data: "action_my_rides" }, { text: "ℹ️ معلوماتي", callback_data: "action_my_info" }],
+            ]);
+        } else if (localResult.intent === "complaint") {
+          // 🔥 Phase 6: شكاوى فقط → تحويل مباشر للإدارة
+          // FAQ (أسئلة متكررة) لها رد جاهز ولا تُحوّل للإدارة
           let activeRideId: string | null = null;
           try {
             const { data: aRide } = await supabase
@@ -2015,9 +2024,8 @@ serve(async (req) => {
           } catch { }
 
           if (ADMIN_TELEGRAM_BOT_TOKEN && ADMIN_GROUP_CHAT_ID) {
-            const intentLabel = localResult.intent === "complaint" ? "🔴 شكوى" : "🟡 استفسار";
             const adminMsg =
-              `${intentLabel} جديد(ة) من تيليغرام:\n\n` +
+              `🔴 شكوى جديدة من تيليغرام:\n\n` +
               `👤 الاسم: ${tgName}\n` +
               `🆔 معرّف: ${platformId}\n` +
               (activeRideId ? `🚕 رحلة نشطة: ${activeRideId}\n` : "") +
