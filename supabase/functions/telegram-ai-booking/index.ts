@@ -855,7 +855,18 @@ function estimateFare(distanceKm: number): number {
 }
 
 // ════════════════════════════════════════
-// البحث عن أو إنشاء مستخدم تيليغرام
+// البحث عن أو إنشاء مستخدم تيليغرام (Omnichannel)
+// ══ ملاحظة: تيليغرام لا يوفر رقم الهاتف تلقائياً ══
+// يُستخدم telegram_id كمعرّف أساسي. إذا شارك المستخدم رقم هاتفه
+// عبر زر "مشاركة رقم الهاتف"، يتم ربط حسابه بحساب التطبيق.
+//
+// ══ تحضير لمطوري Flutter/React Native ══
+// عند محاولة مستخدم التسجيل/الدخول من التطبيق:
+// 1. استدعِ is_phone_registered RPC — إذا الرقم موجود (Ghost Account من البوت):
+//    - أرسل OTP عبر SMS أو واتساب للتحقق من الهوية
+//    - بعد التحقق، استخدم supabase.auth.updateUser({ password: new_password })
+//      لتفعيل وصول التطبيق بالكامل
+// 2. إذا الرقم غير موجود → تسجيل عادي (signUp)
 // ════════════════════════════════════════
 async function findOrCreateTelegramUser(
   supabase: any,
@@ -878,7 +889,7 @@ async function findOrCreateTelegramUser(
     return existing.user_id;
   }
 
-  // ── 2. محاولة إنشاء مستخدم جديد
+  // ── 2. محاولة إنشاء "حساب شبح" — Ghost Account
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email,
     password: crypto.randomUUID(),
@@ -888,6 +899,8 @@ async function findOrCreateTelegramUser(
       source: "telegram",
       telegram_id: telegramUser.id,
       telegram_username: telegramUser.username,
+      is_ghost_account: true,
+      ghost_created_at: new Date().toISOString(),
     },
   });
 
@@ -923,7 +936,7 @@ async function findOrCreateTelegramUser(
     throw new Error("Failed to create auth user: no user returned");
   } else {
     userId = authData.user.id;
-    console.log(`[auth] Created new auth user: ${userId}`);
+    console.log(`[auth] 👻 Created Telegram Ghost Account: ${userId}`);
   }
 
   // ── إنشاء/تحديث profile
@@ -1317,10 +1330,12 @@ serve(async (req) => {
 
       try {
         const riderId = await findOrCreateTelegramUser(supabase, cbQuery.from || { id: cbChatId });
+        // ══ Wallet Single Source of Truth ══
+        // نستخدم user_id (وليس id) لأن findOrCreateTelegramUser يُرجع user_id
         const { data: profile } = await supabase
           .from("profiles")
           .select("wallet_balance")
-          .eq("id", riderId)
+          .eq("user_id", riderId)
           .maybeSingle();
 
         const balance = profile?.wallet_balance ?? 0;
@@ -1342,10 +1357,11 @@ serve(async (req) => {
 
       try {
         const riderId = await findOrCreateTelegramUser(supabase, cbQuery.from || { id: cbChatId });
+        // ══ Wallet Single Source of Truth — نستخدم user_id ══
         const { data: profile } = await supabase
           .from("profiles")
           .select("full_name, phone, created_at")
-          .eq("id", riderId)
+          .eq("user_id", riderId)
           .maybeSingle();
 
         const { count: ridesCount } = await supabase

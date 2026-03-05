@@ -190,15 +190,30 @@ serve(async (req) => {
       );
     }
 
-    // Update user password
+    // Build update payload — clear ghost flag if this was a ghost account
+    const isGhost = user.user_metadata?.is_ghost_account === true;
+    const updatePayload: Record<string, unknown> = { password: newPassword };
+    if (isGhost) {
+      updatePayload.user_metadata = {
+        ...user.user_metadata,
+        is_ghost_account: false,
+        app_activated_at: new Date().toISOString(),
+      };
+    }
+
+    // Update user password (and metadata if ghost)
     const { error: updateError } = await supabase.auth.admin.updateUserById(
       user.id,
-      { password: newPassword }
+      updatePayload
     );
 
     if (updateError) {
       console.error('Error updating password:', updateError);
       throw new Error('فشل في تحديث كلمة المرور');
+    }
+
+    if (isGhost) {
+      console.log(`Ghost account activated for user: ${user.id}`);
     }
 
     // Delete all OTP records for this phone/purpose (cleanup)

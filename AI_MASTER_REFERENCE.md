@@ -468,6 +468,44 @@ stateDiagram-v2
 
 ## 12. سجل التغييرات
 
+### 2026-03-05 — توحيد الحسابات: هندسة Omnichannel Account Sync (App ↔ Bot)
+
+| النوع | التغيير | السبب |
+|-------|---------|-------|
+| **تحول معماري** | **توحيد أرقام الهواتف بصيغة E.164 (+964XXXXXXXXX)** | **جميع الأرقام (تطبيق + واتساب + تيليغرام) تُحفظ بصيغة دولية موحدة لمنع الحسابات المكررة** |
+| **تحول معماري** | **Ghost Account — حسابات شبح للبوت** | **عند تسجيل مستخدم عبر البوت أولاً، يُنشأ حساب GoTrue حقيقي بكلمة مرور عشوائية. عند تحميل التطبيق لاحقاً، يستعيد حسابه عبر OTP ويضع كلمة مرور جديدة** |
+| **تحول معماري** | **Ghost Account OTP Recovery Flow (Frontend)** | **تدفق كامل في Auth.tsx: كشف Ghost Account تلقائي → OTP → تعيين كلمة مرور → تسجيل دخول تلقائي. المستخدم يرى رصيده ورحلاته السابقة مباشرة!** |
+| **ميزة** | **بحث Omnichannel — مطابقة الحسابات عبر المنصات** | **`findOrCreateWhatsAppUser` يبحث الآن بجميع صيغ الرقم (E.164, محلي, wa_ القديمة) قبل إنشاء حساب جديد** |
+| **إصلاح** | **Telegram Wallet Bug** | **تم إصلاح `action_my_balance` و `action_my_info` في تيليغرام: كان `.eq("id", riderId)` والصحيح `.eq("user_id", riderId)`** |
+| **ميزة** | **Frontend E.164 Normalization** | **التطبيق يحفظ الرقم بصيغة E.164 عند التسجيل لضمان المطابقة مع حسابات البوت** |
+| **توثيق** | **تعليمات OTP للمطورين** | **تعليقات تفصيلية في Auth.tsx وuser-session.ts لمطوري Flutter/React Native عن تدفق استعادة Ghost Account** |
+
+#### الملفات الجديدة:
+| الملف | الوصف |
+|-------|-------|
+| `supabase/functions/_shared/phoneUtils.ts` | أدوات توحيد أرقام الهواتف العراقية (E.164) — Backend |
+| `src/lib/phoneUtils.ts` | أدوات توحيد أرقام الهواتف العراقية (E.164) — Frontend |
+| `.github/prompts/omnichannel-account-sync.prompt.md` | Prompt قابل لإعادة الاستخدام لمهام Omnichannel |
+| `supabase/migrations/20260611000000_check_ghost_account_rpc.sql` | دالة RPC لكشف حسابات الشبح من الفرونتند |
+
+#### الملفات المُعدلة:
+| الملف | التغيير |
+|-------|---------|
+| `supabase/functions/whatsapp-webhook/lib/user-session.ts` | إعادة كتابة `findOrCreateWhatsAppUser` — بحث Omnichannel + Ghost Account + E.164 |
+| `supabase/functions/telegram-ai-booking/index.ts` | إصلاح wallet/info bug (id→user_id) + Ghost Account metadata + توثيق OTP |
+| `supabase/functions/reset-password/index.ts` | إزالة علامة Ghost Account تلقائياً عند تعيين كلمة مرور جديدة |
+| `src/pages/Auth.tsx` | تدفق Ghost Account كامل: `ghost-otp` + `ghost-password` steps + كشف تلقائي + تسجيل دخول تلقائي |
+
+#### سيناريوهات التوحيد:
+```
+السيناريو 1 (App → Bot): المستخدم يسجل بالتطبيق → يراسل الواتساب →
+  البوت يجد حسابه بـ E.164 → يربط المحادثة بنفس الحساب ← لا حساب مكرر!
+
+السيناريو 2 (Bot → App): المستخدم يراسل الواتساب أولاً → يُنشئ Ghost Account →
+  يحمل التطبيق → يُدخل رقمه → is_phone_registered = true →
+  يطلب OTP → يضع كلمة مرور → يرى رصيده + رحلاته السابقة!
+```
+
 ### 2026-02-27 — قاعدة الرسالة الواحدة (Single Message Rule)
 
 | النوع | التغيير | السبب |
@@ -689,6 +727,8 @@ https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/sms-webhook
 ### الأولوية القصوى 🔴
 
 - [x] ~~نظام الدردشة في الرحلة~~ ✅
+- [x] ~~توحيد الحسابات Omnichannel (App ↔ Bot)~~ ✅
+- [ ] تفعيل OTP لاستعادة Ghost Account في التطبيق
 - [ ] إشعارات Push للتطبيق
 - [ ] تحسين أداء الخريطة
 
@@ -730,4 +770,4 @@ https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/sms-webhook
 ---
 
 **نهاية الوثيقة**  
-*آخر تحديث: 2026-02-23 بتوقيت بغداد*
+*آخر تحديث: 2026-06-11 بتوقيت بغداد*

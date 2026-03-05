@@ -1,3 +1,33 @@
+/**
+ * ران — صفحة المصادقة (Omnichannel-Ready)
+ *
+ * ══ هندسة توحيد الحسابات (App ↔ Bot) — تعليمات لمطوري Flutter/React Native ══
+ *
+ * عندما يحاول مستخدم التسجيل/الدخول من التطبيق:
+ *
+ * السيناريو 1: مستخدم جديد تماماً → تسجيل عادي (signUp)
+ *
+ * السيناريو 2: مستخدم "حساب شبح" (Ghost Account) — جاء من البوت أولاً:
+ *   1. استدعِ is_phone_registered(p_phone) → ستُرجع true
+ *   2. المستخدم يحاول تسجيل الدخول لكنه لا يعرف كلمة المرور (عشوائية)
+ *   3. عند فشل تسجيل الدخول أو طلب "نسيت كلمة المرور":
+ *      a. أرسل OTP عبر SMS (OTPIQ) أو عبر بوت واتساب نفسه
+ *      b. بعد تحقق OTP بنجاح، استخدم:
+ *         supabase.auth.admin.updateUserById(user_id, { password: new_password })
+ *         أو من جانب العميل بعد signIn:
+ *         supabase.auth.updateUser({ password: new_password })
+ *      c. حدّث user_metadata لإزالة علامة الشبح:
+ *         supabase.auth.admin.updateUserById(user_id, {
+ *           user_metadata: { is_ghost_account: false, app_activated_at: new Date() }
+ *         })
+ *   4. النتيجة: المستخدم يرى رصيده + رحلاته السابقة من البوت!
+ *
+ * السيناريو 3: مستخدم تطبيق يراسل البوت لاحقاً:
+ *   - البوت يبحث بصيغة E.164 (+964...) → يجد الحساب → يربط تلقائياً
+ *   - لا يُنشئ حساب مكرر
+ *
+ * الأرقام تُحفظ بصيغة E.164 الموحدة: +964XXXXXXXXX
+ */
 import { useState, useEffect } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,8 +48,9 @@ import logo from "@/assets/logo.png";
 import OTPVerification from "@/components/OTPVerification";
 import PasswordResetDialog from "@/components/PasswordResetDialog";
 import { phoneSignupSchema } from "@/lib/validations";
+import { normalizeIraqiPhoneToE164 } from "@/lib/phoneUtils";
 
-type AuthStep = "phone" | "login" | "register" | "otp";
+type AuthStep = "phone" | "login" | "register" | "otp" | "ghost-otp" | "ghost-password";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -50,6 +81,10 @@ const Auth = () => {
   // Common
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Ghost account recovery
+  const [ghostPassword, setGhostPassword] = useState("");
+  const [ghostConfirmPassword, setGhostConfirmPassword] = useState("");
 
   useEffect(() => {
     const {
@@ -119,12 +154,27 @@ const Auth = () => {
       console.log("Phone registration check result:", isRegistered);
 
       if (isRegistered) {
-        // Phone exists - go to login
-        setStep("login");
-        toast({
-          title: "مرحباً بعودتك! 👋",
-          description: "الرقم مسجل مسبقاً، يرجى إدخال كلمة المرور",
-        });
+        // تحقق إذا كان حساب شبح (Ghost Account) من بوت واتساب/تلغرام
+        const { data: isGhost } = await supabase.rpc(
+          "check_ghost_account",
+          { p_phone: phoneInput }
+        );
+
+        if (isGhost) {
+          // حساب شبح — توجيه لتفعيل الحساب عبر OTP
+          setStep("ghost-otp");
+          toast({
+            title: "وجدنا حسابك! 🎉",
+            description: "حسابك من واتساب/تلغرام جاهز. فعّله الآن بخطوة بسيطة",
+          });
+        } else {
+          // Phone exists - go to login
+          setStep("login");
+          toast({
+            title: "مرحباً بعودتك! 👋",
+            description: "الرقم مسجل مسبقاً، يرجى إدخال كلمة المرور",
+          });
+        }
       } else {
         // New phone - go to register
         setStep("register");
@@ -276,7 +326,7 @@ const Auth = () => {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
             full_name: fullName,
-            phone: phoneInput,
+            phone: normalizeIraqiPhoneToE164(phoneInput),
             auth_method: "phone",
           },
         },
@@ -305,11 +355,14 @@ const Auth = () => {
       if (data.user) {
         console.log("User created successfully:", data.user.id);
 
+        // تخزين الرقم بصيغة E.164 الموحدة لضمان المطابقة مع حسابات البوت (Omnichannel Sync)
+        const e164Phone = normalizeIraqiPhoneToE164(phoneInput);
+
         // Update profile with phone number
         const { error: profileError } = await supabase
           .from("profiles")
           .update({
-            phone: phoneInput,
+            phone: e164Phone,
             full_name: fullName,
             email: optionalEmail || null,
           })
@@ -342,6 +395,71 @@ const Auth = () => {
     }
   };
 
+  // تفعيل حساب شبح — تعيين كلمة مرور بعد التحقق من OTP
+  const handleGhostPasswordSet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+
+    if (!ghostPassword || ghostPassword.length < 6) {
+      setErrors({ ghostPassword: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" });
+      return;
+    }
+
+    if (ghostPassword !== ghostConfirmPassword) {
+      setErrors({ ghostConfirmPassword: "كلمات المرور غير متطابقة" });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // استخدام نفس edge function لتغيير كلمة المرور (يزيل علامة الشبح تلقائياً)
+      const { data, error } = await supabase.functions.invoke('reset-password', {
+        body: { phone: phoneInput, newPassword: ghostPassword },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      // محاولة تسجيل دخول تلقائي بكلمة المرور الجديدة
+      const phoneFormats = formatPhoneForLookup(phoneInput);
+      let loginSuccess = false;
+
+      for (const phone of phoneFormats) {
+        const { error: loginError } = await supabase.auth.signInWithPassword({
+          email: `${phone}@raan.app`,
+          password: ghostPassword,
+        });
+        if (!loginError) {
+          loginSuccess = true;
+          break;
+        }
+      }
+
+      if (loginSuccess) {
+        toast({
+          title: "تم تفعيل حسابك! ✅",
+          description: "مرحباً بك في تطبيق ران — رصيدك ورحلاتك السابقة بانتظارك",
+        });
+      } else {
+        // نجح تعيين كلمة المرور لكن فشل الدخول التلقائي — توجيه لصفحة الدخول
+        toast({
+          title: "تم تعيين كلمة المرور ✅",
+          description: "يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة",
+        });
+        setStep("login");
+      }
+    } catch (error: any) {
+      console.error("Ghost activation error:", error);
+      toast({
+        title: "خطأ",
+        description: error.message || "حدث خطأ في تعيين كلمة المرور",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Reset to phone step
   const resetToPhoneStep = () => {
     setStep("phone");
@@ -349,6 +467,8 @@ const Auth = () => {
     setFullName("");
     setRegisterPassword("");
     setOptionalEmail("");
+    setGhostPassword("");
+    setGhostConfirmPassword("");
     setErrors({});
   };
 
@@ -383,6 +503,127 @@ const Auth = () => {
                 onVerified={handleOTPVerified}
                 onBack={() => setStep("register")}
               />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Render ghost account OTP verification step
+  if (step === "ghost-otp") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <img src={logo} alt="RAAN" className="w-20 h-20 mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-foreground">
+              ران <span className="text-primary">RAAN</span>
+            </h1>
+          </div>
+
+          <Card className="border-0 shadow-xl">
+            <CardHeader className="text-center pb-2">
+              <CardTitle className="text-lg">وجدنا حسابك من واتساب/تلغرام!</CardTitle>
+              <CardDescription>
+                تحقق من رقمك لتفعيل حسابك في التطبيق
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <OTPVerification
+                phone={phoneInput}
+                purpose="password_reset"
+                onVerified={() => setStep("ghost-password")}
+                onBack={resetToPhoneStep}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Render ghost account password setup step
+  if (step === "ghost-password") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <img src={logo} alt="RAAN" className="w-20 h-20 mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-foreground">
+              ران <span className="text-primary">RAAN</span>
+            </h1>
+          </div>
+
+          <Card className="border-0 shadow-xl">
+            <CardHeader className="text-center pb-2">
+              <CardTitle className="text-lg">تعيين كلمة مرور للتطبيق</CardTitle>
+              <CardDescription>
+                اختر كلمة مرور لتسجيل الدخول من التطبيق. رصيدك ورحلاتك السابقة ستكون بانتظارك!
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleGhostPasswordSet} className="space-y-4">
+                {/* عرض رقم الهاتف */}
+                <div className="bg-muted/50 rounded-lg p-3 flex items-center justify-center gap-2">
+                  <Phone className="h-4 w-4 text-primary" />
+                  <span className="font-medium" dir="ltr">
+                    {formatPhoneDisplay(phoneInput)}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>كلمة المرور الجديدة</Label>
+                  <div className="relative">
+                    <Lock className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="password"
+                      placeholder="••••••••"
+                      value={ghostPassword}
+                      onChange={(e) => setGhostPassword(e.target.value)}
+                      className={`pr-10 ${errors.ghostPassword ? "border-destructive" : ""}`}
+                      required
+                      minLength={6}
+                      dir="ltr"
+                      autoFocus
+                    />
+                  </div>
+                  {errors.ghostPassword && (
+                    <p className="text-xs text-destructive">{errors.ghostPassword}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>تأكيد كلمة المرور</Label>
+                  <div className="relative">
+                    <Lock className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="password"
+                      placeholder="••••••••"
+                      value={ghostConfirmPassword}
+                      onChange={(e) => setGhostConfirmPassword(e.target.value)}
+                      className={`pr-10 ${errors.ghostConfirmPassword ? "border-destructive" : ""}`}
+                      required
+                      minLength={6}
+                      dir="ltr"
+                    />
+                  </div>
+                  {errors.ghostConfirmPassword && (
+                    <p className="text-xs text-destructive">{errors.ghostConfirmPassword}</p>
+                  )}
+                </div>
+
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                      جاري تفعيل الحساب...
+                    </>
+                  ) : (
+                    "تفعيل الحساب"
+                  )}
+                </Button>
+              </form>
             </CardContent>
           </Card>
         </div>

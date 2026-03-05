@@ -1,20 +1,40 @@
 /**
- * ران — إدارة المستخدمين والجلسات
+ * ران — إدارة المستخدمين والجلسات (Omnichannel Sync)
  * RAAN User Management & Session Handling
+ *
+ * ══ هندسة توحيد الحسابات (App ↔ Bot) ══
+ * جميع الأرقام تُحفظ بصيغة E.164 الدولية (+964XXXXXXXXX)
+ * عند وصول رسالة واتساب، نبحث أولاً عن حساب تطبيق موجود بنفس الرقم.
+ * إذا لم نجد، نُنشئ "حساب شبح" (Ghost Account) حقيقي في auth.users
+ * بكلمة مرور عشوائية. عندما يُحمّل المستخدم التطبيق لاحقاً،
+ * يستعيد حسابه عبر OTP ويضع كلمة مرور جديدة.
+ *
+ * ══ تحضير لمطوري Flutter/React Native ══
+ * عند محاولة مستخدم التسجيل/الدخول من التطبيق:
+ * 1. استدعِ is_phone_registered RPC — إذا الرقم موجود (Ghost Account من البوت):
+ *    - أرسل OTP عبر SMS أو واتساب للتحقق من الهوية
+ *    - بعد التحقق، استخدم supabase.auth.updateUser({ password: new_password })
+ *      لتفعيل وصول التطبيق بالكامل
+ * 2. إذا الرقم غير موجود → تسجيل عادي (signUp)
+ *
+ * هذا يضمن: الرصيد + تاريخ الرحلات = متزامن 100% بين التطبيق والبوت
  */
 
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "./config.ts";
+import { normalizeToE164, generatePhoneVariants } from "../../_shared/phoneUtils.ts";
 
 // ════════════════════════════════════════
-// البحث عن / إنشاء مستخدم واتساب
+// البحث عن / إنشاء مستخدم واتساب (Omnichannel)
 // ════════════════════════════════════════
 export async function findOrCreateWhatsAppUser(
   supabase: any,
   phoneNumber: string,
   profileName: string | null
 ): Promise<string> {
-  const waRef = `wa_${phoneNumber}`;
-  const email = `wa_${phoneNumber}@whatsapp.raan.app`;
+  // ── توحيد رقم الهاتف إلى E.164 (+964XXXXXXXXX) ──
+  const e164Phone = normalizeToE164(phoneNumber);
+  const phoneVariants = generatePhoneVariants(e164Phone);
+  const waEmail = `wa_${phoneNumber}@whatsapp.raan.app`;
   const displayName = profileName || "راكب واتساب";
 
   // 0. فحص الأسماء المحظورة
@@ -41,28 +61,56 @@ export async function findOrCreateWhatsAppUser(
   }
   const finalName = profileName || "راكب واتساب";
 
-  // 1. البحث في profiles
+  // ══ 1. البحث الموحّد — Omnichannel Lookup ══
+  // نبحث عن أي حساب موجود بأي صيغة من صيغ الرقم (تطبيق أو بوت قديم)
+  const phoneOrFilter = phoneVariants.map(v => `phone.eq.${v}`).join(",");
   const { data: existing } = await supabase
     .from("profiles")
-    .select("user_id")
-    .or(`phone.eq.${waRef},email.eq.${email}`)
+    .select("user_id, phone")
+    .or(`${phoneOrFilter},email.eq.${waEmail}`)
     .limit(1)
     .maybeSingle();
 
   if (existing?.user_id) {
-    console.log(`[auth] Found existing WA user: ${existing.user_id}`);
+    console.log(`[auth] 🔗 Omnichannel match! Bound WA session to existing user: ${existing.user_id} (profile phone: ${existing.phone})`);
+
+    // ── تحديث الرقم إلى E.164 إذا كان بصيغة قديمة ──
+    if (existing.phone !== e164Phone) {
+      await supabase.from("profiles").update({ phone: e164Phone }).eq("user_id", existing.user_id);
+      console.log(`[auth] 📱 Normalized phone from "${existing.phone}" to "${e164Phone}"`);
+    }
+
+    // ── تحديث user_metadata بمعلومات واتساب ──
+    try {
+      await supabase.auth.admin.updateUserById(existing.user_id, {
+        user_metadata: {
+          whatsapp_phone: phoneNumber,
+          whatsapp_linked: true,
+          whatsapp_linked_at: new Date().toISOString(),
+        },
+      });
+    } catch (e) {
+      console.warn("[auth] Failed to update user metadata with WA info:", e);
+    }
+
     return existing.user_id;
   }
 
-  // 2. إنشاء مستخدم جديد
+  // ══ 2. إنشاء "حساب شبح" — Ghost Account ══
+  // المستخدم جديد تماماً. نُنشئ حساب GoTrue حقيقي بكلمة مرور عشوائية.
+  // عندما يُحمّل التطبيق لاحقاً، يستعيد الحساب عبر OTP ويضع كلمة مرور جديدة.
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email,
+    email: waEmail,
+    phone: e164Phone,
     password: crypto.randomUUID(),
     email_confirm: true,
+    phone_confirm: true,
     user_metadata: {
       full_name: finalName,
       source: "whatsapp",
       whatsapp_phone: phoneNumber,
+      is_ghost_account: true,
+      ghost_created_at: new Date().toISOString(),
     },
   });
 
@@ -71,7 +119,7 @@ export async function findOrCreateWhatsAppUser(
   if (authError) {
     if (authError.message.includes("already been registered")) {
       const lookupRes = await fetch(
-        `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1&filter=${encodeURIComponent(email)}`,
+        `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1&filter=${encodeURIComponent(waEmail)}`,
         {
           headers: {
             Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
@@ -91,15 +139,15 @@ export async function findOrCreateWhatsAppUser(
     throw new Error("Failed to create WA auth user: no user returned");
   } else {
     userId = authData.user.id;
-    console.log(`[auth] Created new WA auth user: ${userId}`);
+    console.log(`[auth] 👻 Created Ghost Account: ${userId} | Phone: ${e164Phone}`);
   }
 
-  // إنشاء/تحديث profile
+  // ── إنشاء/تحديث الملف الشخصي بصيغة E.164 الموحدة ──
   await supabase.from("profiles").upsert({
     user_id: userId,
     full_name: finalName,
-    phone: waRef,
-    email,
+    phone: e164Phone,
+    email: waEmail,
     status: "active",
   });
 

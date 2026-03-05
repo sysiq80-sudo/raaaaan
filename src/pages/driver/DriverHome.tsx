@@ -937,44 +937,38 @@ const DriverHome = () => {
               </div>
             </div>
 
-            {/* ═══ Sticky Action Bar — Fixed Bottom (Uber-style) ═══ */}
-            <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-              <div className="w-full max-w-lg mx-auto pointer-events-auto">
-                {/* Active Ride Card */}
-                {!isMinimized && (
-                  <ActiveRideCard
-                    driverId={driverId}
-                    driverLocation={currentLocation}
-                    refreshTrigger={rideAcceptedTrigger}
-                    onMinimize={() => setIsMinimized(true)}
-                    onNavigationClick={(lat, lng, label) => {
-                      setNavigationDestination({ lat, lng });
-                      setShowNavigationModal(true);
-                    }}
-                  />
-                )}
+            {/* ═══ Bottom Sheet Cards — positioned absolutely within map area ═══ */}
+            {!isMinimized && (
+              <ActiveRideCard
+                driverId={driverId}
+                driverLocation={currentLocation}
+                refreshTrigger={rideAcceptedTrigger}
+                onMinimize={() => setIsMinimized(true)}
+                onNavigationClick={(lat, lng, label) => {
+                  setNavigationDestination({ lat, lng });
+                  setShowNavigationModal(true);
+                }}
+              />
+            )}
 
-                {/* Ride Request Card */}
-                {!isMinimized && (
-                  <RideRequestCard
-                    driverId={driverId}
-                    vehicleType={vehicleType}
-                    isOnline={isOnline}
-                    isPaused={isPaused}
-                    driverLocation={currentLocation}
-                    maxPickupRadius={maxPickupRadius}
-                    onRideRequestVisible={setHasRideRequest}
-                    onRideAccepted={() => {
-                      console.log(
-                        "[DriverHome] Ride accepted — triggering ActiveRideCard refresh"
-                      );
-                      setIsPaused(false);
-                      setRideAcceptedTrigger(prev => prev + 1);
-                    }}
-                  />
-                )}
-              </div>
-            </div>
+            {!isMinimized && (
+              <RideRequestCard
+                driverId={driverId}
+                vehicleType={vehicleType}
+                isOnline={isOnline}
+                isPaused={isPaused}
+                driverLocation={currentLocation}
+                maxPickupRadius={maxPickupRadius}
+                onRideRequestVisible={setHasRideRequest}
+                onRideAccepted={() => {
+                  console.log(
+                    "[DriverHome] Ride accepted — triggering ActiveRideCard refresh"
+                  );
+                  setIsPaused(false);
+                  setRideAcceptedTrigger(prev => prev + 1);
+                }}
+              />
+            )}
 
 
 
