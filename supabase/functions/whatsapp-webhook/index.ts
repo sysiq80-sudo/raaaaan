@@ -29,6 +29,9 @@ import {
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
   SITE_URL,
+  OPENAI_API_KEY,
+  ADMIN_TELEGRAM_BOT_TOKEN,
+  ADMIN_GROUP_CHAT_ID,
   isRateLimited,
   isRateLimitedDB,
   getOrLoadSecuritySettings,
@@ -53,7 +56,6 @@ import {
   getWaitSettings,
   extractDestination,
   classifyAndRespond,
-  extractScheduledRideDetails,
 } from "./lib/ai-services.ts";
 
 import {
@@ -76,6 +78,7 @@ import {
 import {
   classifyLocally,
   extractDirectDestination,
+  extractPickupAndDropoff,
 } from "./lib/local-classifier.ts";
 
 import {
@@ -95,6 +98,9 @@ import {
 
 // Import message logging utility
 import { logIncomingBotMessage } from "../_shared/log-message.ts";
+
+// Import receipt vision parser
+import { parseReceiptImage, notifyAdminGroup } from "../_shared/receipt-vision.ts";
 
 // ════════════════════════════════════════
 // ════════════════════════════════════════
@@ -423,7 +429,6 @@ serve(async (req) => {
               title: "خدمات إضافية",
               rows: [
                 { id: "action_repeat_last", title: "🔁 نفس الرحلة", description: "كرر آخر رحلة بنقرة" },
-                { id: "action_scheduled_ride", title: "🕒 حجز مجدول", description: "احجز رحلة مسبقاً" },
                 { id: "action_my_rides", title: "📒 رحلاتي", description: "عرض آخر 5 رحلات" },
                 { id: "action_my_balance", title: "💰 رصيدي", description: "عرض الرصيد الحالي" },
                 { id: "action_my_info", title: "ℹ️ معلوماتي", description: "بيانات حسابك" },
@@ -503,16 +508,69 @@ serve(async (req) => {
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
-      // ── حجز مجدول ──
-      if (buttonId === "action_scheduled_ride") {
-        const userName = profileName || "عزيزي";
-        await supabase.from("bot_customers").update({
-          last_intent: "awaiting_schedule"
-        }).eq("platform", "whatsapp").eq("platform_id", phoneNumber);
-        await sendTextMessage(phoneNumber,
-          `أستاذ ${userName}، اكتب تفاصيل رحلتك المجدولة بهذا الشكل:\n\n📍 من وين: (مثلاً: حي التأميم)\n🏁 لوين: (مثلاً: جامعة الأنبار)\n🕒 متى: (مثلاً: غداً الساعة 8 صباحاً)\n\nاكتب كل شي برسالة وحدة 👇`,
-          botCustomerId || undefined
+      // ══ 🔄 رحلة عكسية (Reverse Ride — Phase 6) ══
+      const reverseMatch = buttonId.match(/^reverse_ride_([a-f0-9\-]+)$/);
+      if (reverseMatch) {
+        const originalRideId = reverseMatch[1];
+        const riderId = await findOrCreateWhatsAppUser(supabase, phoneNumber, profileName);
+        const { data: origRide } = await supabase
+          .from("rides")
+          .select("pickup_location, pickup_address, dropoff_location, dropoff_address, vehicle_type")
+          .eq("id", originalRideId)
+          .eq("status", "completed")
+          .maybeSingle();
+
+        if (!origRide) {
+          await sendTextMessage(phoneNumber, `⚠️ ما كدرنا نسترجع تفاصيل الرحلة. دز موقعك من جديد 📍`, botCustomerId || undefined);
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+
+        // عكس الانطلاق والوجهة
+        const newPickup = origRide.dropoff_location as { lat: number; lng: number };
+        const newDropoff = origRide.pickup_location as { lat: number; lng: number };
+
+        if (!newPickup?.lat || !newDropoff?.lat) {
+          await sendTextMessage(phoneNumber, `⚠️ ما كدرنا نسترجع إحداثيات الرحلة. دز موقعك من جديد 📍`, botCustomerId || undefined);
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+
+        const distKm = haversineDistance(newPickup.lat, newPickup.lng, newDropoff.lat, newDropoff.lng);
+        const newFare = await calculateFareFromEdge(supabase, newPickup.lat, newPickup.lng, newDropoff.lat, newDropoff.lng, distKm, origRide.vehicle_type || "economy");
+
+        const { data: newRide, error: insertErr } = await supabase
+          .from("rides")
+          .insert({
+            rider_id: riderId,
+            status: "draft",
+            pickup_location: newPickup,
+            pickup_address: origRide.dropoff_address,
+            dropoff_location: newDropoff,
+            dropoff_address: origRide.pickup_address,
+            vehicle_type: origRide.vehicle_type || "economy",
+            distance_km: Math.round(distKm * 100) / 100,
+            estimated_fare: newFare,
+            payment_method: "cash",
+            trip_type: "whatsapp",
+          })
+          .select("id")
+          .single();
+
+        if (insertErr || !newRide) {
+          console.error("[wa] Reverse ride failed:", insertErr);
+          await sendTextMessage(phoneNumber, MESSAGES.error, botCustomerId || undefined);
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+
+        await sendInteractiveButtons(
+          phoneNumber,
+          MESSAGES.confirmationPrompt(origRide.dropoff_address || "نقطة الانطلاق", origRide.pickup_address || "الوجهة", newFare, distKm),
+          [
+            { id: `confirm_ride_${newRide.id}`, title: "✅ اعتمد الرحلة" },
+            { id: `cancel_ride_${newRide.id}`, title: "❌ إلغاء" },
+          ]
         );
+
+        console.log(`[wa] 🔄 Reverse ride created: ${newRide.id} (from ${originalRideId})`);
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
@@ -551,7 +609,25 @@ serve(async (req) => {
           .eq("user_id", riderId)
           .maybeSingle();
         const balance = profile?.wallet_balance || 0;
-        await sendTextMessage(phoneNumber, `💰 رصيدك الحالي أستاذ ${userName}: *${balance.toLocaleString()} د.ع*`, botCustomerId || undefined);
+        await sendInteractiveButtons(
+          phoneNumber,
+          `💰 رصيدك الحالي أستاذ ${userName}: *${balance.toLocaleString()} د.ع*`,
+          [{ id: "action_add_balance", title: "➕ إضافة رصيد" }]
+        );
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── إضافة رصيد (تعليمات التحويل) ──
+      if (buttonId === "action_add_balance") {
+        await sendTextMessage(
+          phoneNumber,
+          `لإضافة رصيد إلى محفظتك، يرجى تحويل المبلغ المطلوب إلى أحد الحسابات التالية، ثم إرسال صورة وصل التحويل هنا في المحادثة:\n\n` +
+          `🟣 زين كاش:\n\`\`\`07844446633\`\`\`\n\n` +
+          `🟡 سوبر كي:\n\`\`\`07844446633\`\`\`\n\n` +
+          `💳 كيو كارد (QCard):\n\`\`\`7117309554\`\`\`\n\n` +
+          `بمجرد إرسالك لصورة الوصل، سيتم تدقيقها من الإدارة وإضافة الرصيد فوراً.`,
+          botCustomerId || undefined
+        );
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
@@ -837,16 +913,193 @@ serve(async (req) => {
       console.log(`[wa] Session created: ${sessionId}`);
 
       const userName = profileName || "عزيزي";
+
+      // ── Phase 5: فحص وجهة محفوظة مسبقاً (Scenario B completion) ──
+      try {
+        const { data: botCust } = await supabase
+          .from("bot_customers")
+          .select("last_intent")
+          .eq("platform", "whatsapp")
+          .eq("platform_id", phoneNumber)
+          .maybeSingle();
+
+        if (botCust?.last_intent?.startsWith("pending_dropoff:")) {
+          const savedDropoff = botCust.last_intent.replace("pending_dropoff:", "");
+          console.log(`[wa] 🎯 Phase 5: Found saved dropoff "${savedDropoff}" — auto-processing`);
+
+          // مسح intent فوراً
+          await supabase.from("bot_customers").update({ last_intent: null })
+            .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+
+          await sendTextMessage(phoneNumber, MESSAGES.autoProcessingDropoff(savedDropoff, userName));
+
+          // Geocode الوجهة المحفوظة
+          const dropoffLocation = await resolveRamadiLocation(savedDropoff, lat, lng);
+          if (dropoffLocation) {
+            const distanceKm = haversineDistance(lat, lng, dropoffLocation.lat, dropoffLocation.lng);
+            const fare = await calculateFareFromEdge(supabase, lat, lng, dropoffLocation.lat, dropoffLocation.lng, distanceKm, "economy");
+
+            await supabase.from("rides").update({
+              dropoff_location: { lat: dropoffLocation.lat, lng: dropoffLocation.lng },
+              dropoff_address: dropoffLocation.address,
+              vehicle_type: "economy",
+              distance_km: Math.round(distanceKm * 100) / 100,
+              estimated_fare: fare,
+            }).eq("id", sessionId);
+
+            await sendInteractiveButtons(
+              phoneNumber,
+              MESSAGES.confirmationPrompt(address, dropoffLocation.address, fare, distanceKm),
+              [
+                { id: `confirm_ride_${sessionId}`, title: "✅ اعتمد الرحلة" },
+                { id: `cancel_ride_${sessionId}`, title: "❌ إلغاء" },
+              ]
+            );
+            trackBookingFunnel("destination", phoneNumber, sessionId, {
+              destination: dropoffLocation.address, fare, distance_km: distanceKm, source: "saved_dropoff",
+            });
+            return new Response("EVENT_RECEIVED", { status: 200 });
+          } else {
+            console.warn(`[wa] Phase 5: Saved dropoff "${savedDropoff}" geocode failed — fallback to normal flow`);
+            // لم نتمكن من ترميز الوجهة المحفوظة — نكمل التدفق العادي
+          }
+        }
+      } catch (e) {
+        console.warn("[wa] Phase 5: Saved dropoff check failed (non-critical):", e);
+      }
+
       await sendTextMessage(phoneNumber, MESSAGES.locationReceived(address, userName));
       trackBookingFunnel("location", phoneNumber, sessionId, { address });
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
     // ═══════════════════════════════════
-    // 🎤 صوت أو ✏️ نص
+    // 🎤 صوت أو ✏️ نص أو 🧾 صورة إيصال
     // ═══════════════════════════════════
     const hasText = msgType === "text" && message.text?.body;
     const hasAudio = msgType === "audio" && message.audio?.id;
+    const hasImage = msgType === "image" && message.image?.id;
+
+    // ═══════════════════════════════════
+    // 🧾 معالجة صورة إيصال الدفع
+    // ═══════════════════════════════════
+    if (hasImage) {
+      console.log(`[wa] 🧾 Image received from ${phoneNumber} — processing as receipt`);
+      const userName = profileName || "عزيزي";
+
+      try {
+        // تحميل الصورة
+        const imageBytes = await downloadWhatsAppMedia(message.image.id);
+        if (!imageBytes || imageBytes.length === 0) {
+          await sendTextMessage(phoneNumber, `عذراً أستاذ ${userName}، ما كدرنا نحمّل الصورة. حاول مرة ثانية 📷`);
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+        console.log(`[wa] Downloaded image: ${imageBytes.length} bytes`);
+
+        const mimeType = message.image.mime_type || "image/jpeg";
+
+        // تحليل الإيصال بـ GPT-4o Vision
+        await sendTextMessage(phoneNumber, "🔍 جاري تحليل الإيصال... لحظة واحدة");
+        const receiptData = await parseReceiptImage(imageBytes, mimeType, OPENAI_API_KEY);
+        console.log(`[wa] Receipt parsed:`, JSON.stringify(receiptData));
+
+        if (!receiptData.is_valid_receipt) {
+          await sendTextMessage(phoneNumber,
+            `أستاذ ${userName}، هذي الصورة ما تبين إيصال دفع واضح 🤔\n\n` +
+            `لو تريد تشحن رصيدك، أرسل لنا صورة واضحة لإيصال التحويل (زين كاش، كي كارد، الخ) 📸`
+          );
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+
+        // فحص التكرار
+        if (receiptData.transaction_reference) {
+          const { data: existingTxn } = await supabase
+            .from("receipt_transactions")
+            .select("id, status")
+            .eq("transaction_reference", receiptData.transaction_reference)
+            .maybeSingle();
+
+          if (existingTxn) {
+            const statusText = existingTxn.status === "approved" ? "تمت الموافقة عليها ✅" :
+                               existingTxn.status === "rejected" ? "تم رفضها ❌" :
+                               "قيد المراجعة ⏳";
+            await sendTextMessage(phoneNumber,
+              `أستاذ ${userName}، هذا الإيصال مسجل مسبقاً وحالته: ${statusText}\n\n` +
+              `رقم المعاملة: ${receiptData.transaction_reference}`
+            );
+            return new Response("EVENT_RECEIVED", { status: 200 });
+          }
+        }
+
+        // البحث عن المستخدم المسجل
+        const riderId = await findOrCreateWhatsAppUser(supabase, phoneNumber, profileName);
+
+        // حفظ المعاملة في قاعدة البيانات
+        const { data: txn, error: txnError } = await supabase
+          .from("receipt_transactions")
+          .insert({
+            user_id: riderId,
+            platform: "whatsapp",
+            platform_user_id: phoneNumber,
+            amount: receiptData.amount,
+            transaction_reference: receiptData.transaction_reference,
+            provider: receiptData.provider,
+            status: "pending",
+            parsed_data: receiptData,
+          })
+          .select("id")
+          .single();
+
+        if (txnError) {
+          console.error("[wa] Failed to save receipt transaction:", txnError);
+          await sendTextMessage(phoneNumber, `عذراً أستاذ ${userName}، حدث خطأ تقني. حاول مرة ثانية ⚠️`);
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+
+        console.log(`[wa] Receipt transaction created: ${txn.id}`);
+
+        // إشعار الأدمن عبر بوت تليجرام
+        if (ADMIN_TELEGRAM_BOT_TOKEN && ADMIN_GROUP_CHAT_ID) {
+          const adminMsgId = await notifyAdminGroup(
+            ADMIN_TELEGRAM_BOT_TOKEN,
+            ADMIN_GROUP_CHAT_ID,
+            receiptData,
+            txn.id,
+            `${userName} (${phoneNumber})`,
+            "whatsapp",
+            imageBytes,
+            mimeType
+          );
+
+          if (adminMsgId) {
+            await supabase.from("receipt_transactions").update({
+              admin_message_id: adminMsgId,
+              admin_chat_id: ADMIN_GROUP_CHAT_ID,
+            }).eq("id", txn.id);
+          }
+        } else {
+          console.warn("[wa] Admin bot not configured — receipt saved but no admin notification");
+        }
+
+        // إشعار العميل
+        const amountText = receiptData.amount ? `${receiptData.amount.toLocaleString()} د.ع` : "غير محدد";
+        await sendTextMessage(phoneNumber,
+          `✅ تم استلام إيصالك بنجاح أستاذ ${userName}!\n\n` +
+          `💰 المبلغ: ${amountText}\n` +
+          `🏦 المزود: ${receiptData.provider || "غير محدد"}\n` +
+          `🔢 رقم المعاملة: ${receiptData.transaction_reference || "—"}\n\n` +
+          `⏳ طلبك قيد المراجعة وسيتم إضافة الرصيد لحسابك بعد التأكد.\n` +
+          `سنرسل لك إشعار فور الموافقة إن شاء الله 🙏`
+        );
+
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      } catch (imgErr) {
+        console.error("[wa] Receipt processing error:", imgErr);
+        const userName2 = profileName || "عزيزي";
+        await sendTextMessage(phoneNumber, `عذراً أستاذ ${userName2}، ما كدرنا نحلل الإيصال. حاول مرة ثانية ⚠️`);
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+    }
 
     if (!hasText && !hasAudio) {
       await sendLocationRequest(phoneNumber, MESSAGES.welcome);
@@ -1038,151 +1291,288 @@ serve(async (req) => {
     const session = await findPendingSession(supabase, riderId);
 
     if (!session) {
-      // لا يوجد session
+      // ═══════════════════════════════════════════════════════════
+      // 🧠 Phase 5: Smart Initial Intent — لا يوجد session
+      // بدلاً من طلب GPS فوراً، نحلل النص/الصوت أولاً
+      // ═══════════════════════════════════════════════════════════
       const userName = profileName || "عزيزي";
 
-      // ── فحص حجز مجدول ──
+      // ── الحصول على النص (من نص أو صوت مُحوّل) ──
+      let userMsgText = "";
       if (hasText) {
-        const { data: botCustomer } = await supabase
-          .from("bot_customers")
-          .select("last_intent")
-          .eq("platform", "whatsapp")
-          .eq("platform_id", phoneNumber)
-          .maybeSingle();
-
-        if (botCustomer?.last_intent === "awaiting_schedule") {
-          console.log("[wa] Awaiting schedule — processing scheduled ride request");
-          const userMsgText = message.text.body;
-
-          // مسح الـ intent
-          await supabase.from("bot_customers").update({ last_intent: null })
-            .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
-
-          const scheduleDetails = await extractScheduledRideDetails(userMsgText, userName);
-
-          if (!scheduleDetails.is_valid) {
-            await sendTextMessage(phoneNumber, scheduleDetails.error_reply || "عذراً، ما فهمت تفاصيل الرحلة. حاول مرة ثانية 🙏");
-            await supabase.from("bot_customers").update({ last_intent: "awaiting_schedule" })
-              .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
-            return new Response("EVENT_RECEIVED", { status: 200 });
-          }
-
-          if (!scheduleDetails.scheduled_time) {
-            await sendTextMessage(phoneNumber, `أستاذ ${userName}، يا ريت تحدد الوقت بالضبط. مثلاً: "غداً الساعة 8 صباحاً" أو "بعد ساعتين" 🕒`);
-            await supabase.from("bot_customers").update({ last_intent: "awaiting_schedule" })
-              .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
-            return new Response("EVENT_RECEIVED", { status: 200 });
-          }
-
-          // Geocode
-          const dropoffResolved = await resolveRamadiLocation(scheduleDetails.dropoff_query);
-          if (!dropoffResolved) {
-            await sendTextMessage(phoneNumber, MESSAGES.geocodeFailed(scheduleDetails.dropoff_query, userName));
-            return new Response("EVENT_RECEIVED", { status: 200 });
-          }
-
-          let pickupLocation = { lat: 33.4233, lng: 43.2974 };
-          let pickupAddress = scheduleDetails.pickup_query || "موقع المستخدم";
-          if (scheduleDetails.pickup_query && scheduleDetails.pickup_query !== "موقع المستخدم") {
-            const pickupResolved = await resolveRamadiLocation(scheduleDetails.pickup_query);
-            if (pickupResolved) {
-              pickupLocation = { lat: pickupResolved.lat, lng: pickupResolved.lng };
-              pickupAddress = pickupResolved.address;
-            }
-          }
-
-          const distanceKm = haversineDistance(pickupLocation.lat, pickupLocation.lng, dropoffResolved.lat, dropoffResolved.lng);
-          const fare = await calculateFareFromEdge(supabase, pickupLocation.lat, pickupLocation.lng, dropoffResolved.lat, dropoffResolved.lng, distanceKm, scheduleDetails.vehicle_type);
-
-          // إنشاء الحجز المجدول
-          const { data: scheduledRide, error: schedError } = await supabase
-            .from("scheduled_rides")
-            .insert({
-              rider_id: riderId,
-              pickup_location: pickupLocation,
-              pickup_address: pickupAddress,
-              dropoff_location: { lat: dropoffResolved.lat, lng: dropoffResolved.lng },
-              dropoff_address: dropoffResolved.address,
-              scheduled_time: scheduleDetails.scheduled_time,
-              vehicle_type: scheduleDetails.vehicle_type,
-              estimated_fare: fare,
-              notes: scheduleDetails.notes,
-              status: "scheduled",
-            })
-            .select("id")
-            .single();
-
-          if (schedError) {
-            console.error("[wa] Scheduled ride insert failed:", schedError);
-            await sendTextMessage(phoneNumber, MESSAGES.error);
-            return new Response("EVENT_RECEIVED", { status: 200 });
-          }
-
-          const scheduledDate = new Date(scheduleDetails.scheduled_time!);
-          const dateStr = scheduledDate.toLocaleDateString("ar-IQ", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-          const timeStr = scheduledDate.toLocaleTimeString("ar-IQ", { hour: "2-digit", minute: "2-digit" });
-
-          await sendTextMessage(phoneNumber,
-            `✅ *تم حجز رحلتك المجدولة بنجاح!*\n\n` +
-            `📍 *من:* ${pickupAddress}\n` +
-            `🏁 *إلى:* ${dropoffResolved.address}\n` +
-            `📏 *المسافة:* ${distanceKm.toFixed(1)} كم\n` +
-            `💰 *السعر التقديري:* ${fare.toLocaleString()} د.ع\n` +
-            `📅 *الموعد:* ${dateStr}\n` +
-            `🕒 *الساعة:* ${timeStr}\n\n` +
-            `سيتم إشعارك وتأكيد الرحلة قبل الموعد إن شاء الله 🙏`
-          );
-
-          console.log(`[wa] Scheduled ride created: ${scheduledRide.id}`);
+        userMsgText = message.text.body;
+      } else if (hasAudio) {
+        // Phase 5: تحويل الصوت إلى نص حتى في حالة عدم وجود session
+        try {
+          const mediaBytes = await downloadWhatsAppMedia(message.audio.id);
+          const mimeType = message.audio.mime_type || "audio/ogg";
+          userMsgText = await transcribeAudio(mediaBytes, mimeType);
+          console.log(`[whisper] 🎙️ Idle-state transcript: "${userMsgText}"`);
+        } catch (e) {
+          console.error("[whisper] Idle-state transcription failed:", e);
+          await sendLocationRequest(phoneNumber, MESSAGES.needLocationFirst);
           return new Response("EVENT_RECEIVED", { status: 200 });
         }
       }
 
-      // ── لا يوجد session ولا awaiting_schedule — تصنيف النية ──
-      if (hasText) {
-        const userMsgText = message.text.body;
+      if (!userMsgText || userMsgText.trim().length < 2) {
+        await sendLocationRequest(phoneNumber, MESSAGES.needLocationFirst);
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
 
-        // محاولة 1: تصنيف محلي (بدون GPT) — يوفـر ~60% من استدعاءات API
-        const localResult = classifyLocally(userMsgText, userName);
-        if (localResult.handled) {
-          console.log(`[classify] ⚡ LOCAL: intent=${localResult.intent}`);
-          trackEvent("classify_local", { intent: localResult.intent }, phoneNumber);
-          if (localResult.intent === "booking") {
-            await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
-          } else if (localResult.reply) {
-            await sendTextMessage(phoneNumber, localResult.reply);
-          } else {
-            // greeting — handled by the greeting check above
-            await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
-          }
-        } else {
-          // محاولة 2: Cache للـ AI
-          const cachedAI = getCachedAIClassification(userMsgText);
-          if (cachedAI) {
-            console.log(`[classify] 📦 CACHED: intent=${cachedAI.intent}`);
-            trackEvent("classify_cached", { intent: cachedAI.intent }, phoneNumber);
-            if (cachedAI.intent === "booking" || cachedAI.destination_hint) {
-              await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
-            } else {
-              await sendTextMessage(phoneNumber, cachedAI.reply);
+      // ── Step 1: تصنيف محلي — تحيات/شكاوى/FAQ فقط ──
+      const localResult = classifyLocally(userMsgText, userName);
+      if (localResult.handled && localResult.intent !== "booking") {
+        console.log(`[classify] ⚡ LOCAL: intent=${localResult.intent}`);
+        trackEvent("classify_local", { intent: localResult.intent }, phoneNumber);
+
+        // 🔥 Phase 6: شكاوى/استفسارات → تحويل مباشر للإدارة
+        if (localResult.intent === "complaint" || localResult.intent === "inquiry") {
+          // جلب معرّف الرحلة النشطة (إن وجدت)
+          let activeRideId: string | null = null;
+          try {
+            const { data: aRide } = await supabase
+              .from("rides")
+              .select("id")
+              .eq("rider_id", riderId)
+              .in("status", ["pending", "accepted", "arrived", "in_progress"])
+              .limit(1)
+              .maybeSingle();
+            activeRideId = aRide?.id || null;
+          } catch { }
+
+          // تحويل للإدارة عبر بوت الأدمن
+          if (ADMIN_TELEGRAM_BOT_TOKEN && ADMIN_GROUP_CHAT_ID) {
+            const intentLabel = localResult.intent === "complaint" ? "🔴 شكوى" : "🟡 استفسار";
+            const adminMsg =
+              `${intentLabel} جديد(ة) من واتساب:\n\n` +
+              `👤 الاسم: ${userName}\n` +
+              `📱 الرقم: ${phoneNumber}\n` +
+              (activeRideId ? `🚕 رحلة نشطة: ${activeRideId}\n` : "") +
+              `\n💬 الرسالة:\n"${userMsgText}"`;
+
+            try {
+              await fetch(`https://api.telegram.org/bot${ADMIN_TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: ADMIN_GROUP_CHAT_ID, text: adminMsg }),
+              });
+              console.log(`[wa] ✅ Forwarded ${localResult.intent} to admin group`);
+            } catch (e) {
+              console.error("[wa] Admin forward failed:", e);
             }
-          } else {
-            // محاولة 3: GPT-4o (fallback)
-            const aiResponse = await classifyAndRespond(userMsgText, userName);
-            console.log(`[classify] 🧠 GPT: intent=${aiResponse.intent}, hint=${aiResponse.destination_hint}`);
-            trackEvent("classify_gpt", { intent: aiResponse.intent, hint: aiResponse.destination_hint }, phoneNumber);
-            cacheAIClassification(userMsgText, aiResponse);
+          }
 
-            if (aiResponse.intent === "booking" || aiResponse.destination_hint) {
-              await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
+          await sendTextMessage(phoneNumber,
+            "تم تحويل طلبك/شكواك مباشرة إلى الإدارة. نحن نتابع الأمر وسنتواصل معك فوراً لحل المشكلة. 🙏",
+            botCustomerId || undefined
+          );
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+
+        if (localResult.reply) {
+          await sendTextMessage(phoneNumber, localResult.reply);
+        } else {
+          await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
+        }
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── Step 2: محاولة استخراج نقطة الانطلاق والوجهة معاً (محلي) ──
+      const fullBooking = extractPickupAndDropoff(userMsgText);
+      if (fullBooking) {
+        // 🎯 Scenario A: انطلاق + وجهة — حجز كامل بدون GPS!
+        console.log(`[smart-intent] ✅ FULL BOOKING: "${fullBooking.pickup}" → "${fullBooking.dropoff}"`);
+        trackEvent("smart_intent_full", { pickup: fullBooking.pickup, dropoff: fullBooking.dropoff }, phoneNumber);
+        await sendTextMessage(phoneNumber, MESSAGES.processing);
+
+        // Geocode الانطلاق
+        const pickupLocation = await resolveRamadiLocation(fullBooking.pickup);
+        if (!pickupLocation) {
+          console.warn(`[smart-intent] Pickup geocode failed for "${fullBooking.pickup}"`);
+          // حفظ الوجهة وطلب GPS بدلاً
+          try {
+            await supabase.from("bot_customers").update({ last_intent: `pending_dropoff:${fullBooking.dropoff}` })
+              .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+          } catch { }
+          await sendLocationRequest(phoneNumber, MESSAGES.pickupGeocodeFailed(fullBooking.pickup));
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+
+        // فحص نطاق الخدمة
+        const pickupDistFromCenter = haversineDistance(pickupLocation.lat, pickupLocation.lng, 33.4233, 43.2974);
+        if (pickupDistFromCenter > 100) {
+          await sendTextMessage(phoneNumber, MESSAGES.locationTooFar);
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+
+        // إنشاء session بالانطلاق
+        let sessionId: string;
+        try {
+          sessionId = await createPickupSession(supabase, riderId, pickupLocation.lat, pickupLocation.lng, pickupLocation.address);
+        } catch (sessionErr: any) {
+          if (sessionErr?.message?.startsWith("IN_PROGRESS_RIDE:")) {
+            await sendTextMessage(phoneNumber, MESSAGES.activeRideWithDriver("جارية 🚕"));
+            return new Response("EVENT_RECEIVED", { status: 200 });
+          }
+          throw sessionErr;
+        }
+
+        // Geocode الوجهة
+        const dropoffLocation = await resolveRamadiLocation(fullBooking.dropoff, pickupLocation.lat, pickupLocation.lng);
+        if (!dropoffLocation) {
+          // نجح الانطلاق لكن فشلت الوجهة — session مفتوح، يكمل المستخدم
+          await sendTextMessage(phoneNumber, MESSAGES.locationReceived(pickupLocation.address, userName));
+          await sendTextMessage(phoneNumber, MESSAGES.geocodeFailed(fullBooking.dropoff, userName));
+          return new Response("EVENT_RECEIVED", { status: 200 });
+        }
+
+        // حساب المسافة والأجرة
+        const distanceKm = haversineDistance(pickupLocation.lat, pickupLocation.lng, dropoffLocation.lat, dropoffLocation.lng);
+        const fare = await calculateFareFromEdge(supabase, pickupLocation.lat, pickupLocation.lng, dropoffLocation.lat, dropoffLocation.lng, distanceKm, fullBooking.vehicle_type);
+
+        // تحديث الرحلة بالوجهة
+        await supabase.from("rides").update({
+          dropoff_location: { lat: dropoffLocation.lat, lng: dropoffLocation.lng },
+          dropoff_address: dropoffLocation.address,
+          vehicle_type: fullBooking.vehicle_type,
+          distance_km: Math.round(distanceKm * 100) / 100,
+          estimated_fare: fare,
+        }).eq("id", sessionId);
+
+        // إرسال أزرار التأكيد
+        await sendInteractiveButtons(
+          phoneNumber,
+          MESSAGES.confirmationPrompt(pickupLocation.address, dropoffLocation.address, fare, distanceKm),
+          [
+            { id: `confirm_ride_${sessionId}`, title: "✅ اعتمد الرحلة" },
+            { id: `cancel_ride_${sessionId}`, title: "❌ إلغاء" },
+          ]
+        );
+
+        trackBookingFunnel("destination", phoneNumber, sessionId, {
+          destination: dropoffLocation.address, fare, distance_km: distanceKm, source: "smart_full_booking",
+        });
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── Step 3: محاولة استخراج وجهة فقط (محلي) ──
+      const directDest = extractDirectDestination(userMsgText);
+      const localDestHint = directDest?.destination || (localResult.handled && localResult.destination_hint) || null;
+
+      if (localDestHint) {
+        // 📍 Scenario B: وجهة فقط — نحفظها ونطلب GPS
+        console.log(`[smart-intent] 📍 DROPOFF ONLY (local): "${localDestHint}"`);
+        trackEvent("smart_intent_dropoff", { dropoff: localDestHint }, phoneNumber);
+        try {
+          await supabase.from("bot_customers").update({ last_intent: `pending_dropoff:${localDestHint}` })
+            .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+        } catch { }
+        await sendLocationRequest(phoneNumber, MESSAGES.dropoffSavedAskPickup(localDestHint, userName));
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── Step 4: Cache للـ AI ──
+      const cachedAI = getCachedAIClassification(userMsgText);
+      if (cachedAI) {
+        console.log(`[classify] 📦 CACHED: intent=${cachedAI.intent}`);
+        trackEvent("classify_cached", { intent: cachedAI.intent }, phoneNumber);
+        if (cachedAI.pickup_hint && cachedAI.destination_hint) {
+          // Cached full booking — redirect to Scenario A processing would be complex, just save dropoff
+          try {
+            await supabase.from("bot_customers").update({ last_intent: `pending_dropoff:${cachedAI.destination_hint}` })
+              .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+          } catch { }
+          await sendLocationRequest(phoneNumber, MESSAGES.dropoffSavedAskPickup(cachedAI.destination_hint, userName));
+        } else if (cachedAI.destination_hint) {
+          try {
+            await supabase.from("bot_customers").update({ last_intent: `pending_dropoff:${cachedAI.destination_hint}` })
+              .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+          } catch { }
+          await sendLocationRequest(phoneNumber, MESSAGES.dropoffSavedAskPickup(cachedAI.destination_hint, userName));
+        } else if (cachedAI.intent === "booking") {
+          await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
+        } else {
+          await sendTextMessage(phoneNumber, cachedAI.reply);
+        }
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
+
+      // ── Step 5: GPT-4o (fallback) ──
+      const aiResponse = await classifyAndRespond(userMsgText, userName);
+      console.log(`[classify] 🧠 GPT: intent=${aiResponse.intent}, pickup=${aiResponse.pickup_hint}, dest=${aiResponse.destination_hint}`);
+      trackEvent("classify_gpt", { intent: aiResponse.intent, pickup: aiResponse.pickup_hint, hint: aiResponse.destination_hint }, phoneNumber);
+      cacheAIClassification(userMsgText, aiResponse);
+
+      if (aiResponse.pickup_hint && aiResponse.destination_hint) {
+        // 🎯 Scenario A via GPT: full booking
+        console.log(`[smart-intent] ✅ FULL BOOKING (GPT): "${aiResponse.pickup_hint}" → "${aiResponse.destination_hint}"`);
+        await sendTextMessage(phoneNumber, MESSAGES.processing);
+
+        const pickupLoc = await resolveRamadiLocation(aiResponse.pickup_hint);
+        if (pickupLoc) {
+          const pDistCenter = haversineDistance(pickupLoc.lat, pickupLoc.lng, 33.4233, 43.2974);
+          if (pDistCenter <= 100) {
+            let sId: string;
+            try {
+              sId = await createPickupSession(supabase, riderId, pickupLoc.lat, pickupLoc.lng, pickupLoc.address);
+            } catch (se: any) {
+              if (se?.message?.startsWith("IN_PROGRESS_RIDE:")) {
+                await sendTextMessage(phoneNumber, MESSAGES.activeRideWithDriver("جارية 🚕"));
+                return new Response("EVENT_RECEIVED", { status: 200 });
+              }
+              throw se;
+            }
+
+            const dLoc = await resolveRamadiLocation(aiResponse.destination_hint, pickupLoc.lat, pickupLoc.lng);
+            if (dLoc) {
+              const dKm = haversineDistance(pickupLoc.lat, pickupLoc.lng, dLoc.lat, dLoc.lng);
+              const f = await calculateFareFromEdge(supabase, pickupLoc.lat, pickupLoc.lng, dLoc.lat, dLoc.lng, dKm, "economy");
+              await supabase.from("rides").update({
+                dropoff_location: { lat: dLoc.lat, lng: dLoc.lng },
+                dropoff_address: dLoc.address,
+                vehicle_type: "economy",
+                distance_km: Math.round(dKm * 100) / 100,
+                estimated_fare: f,
+              }).eq("id", sId);
+              await sendInteractiveButtons(phoneNumber,
+                MESSAGES.confirmationPrompt(pickupLoc.address, dLoc.address, f, dKm),
+                [
+                  { id: `confirm_ride_${sId}`, title: "✅ اعتمد الرحلة" },
+                  { id: `cancel_ride_${sId}`, title: "❌ إلغاء" },
+                ]);
+              trackBookingFunnel("destination", phoneNumber, sId, {
+                destination: dLoc.address, fare: f, distance_km: dKm, source: "smart_gpt_full",
+              });
+              return new Response("EVENT_RECEIVED", { status: 200 });
             } else {
-              await sendTextMessage(phoneNumber, aiResponse.reply);
+              // وجهة فشلت — session مفتوح
+              await sendTextMessage(phoneNumber, MESSAGES.locationReceived(pickupLoc.address, userName));
+              await sendTextMessage(phoneNumber, MESSAGES.geocodeFailed(aiResponse.destination_hint, userName));
+              return new Response("EVENT_RECEIVED", { status: 200 });
             }
           }
         }
+        // Pickup geocode failed — fallback to Scenario B
+        try {
+          await supabase.from("bot_customers").update({ last_intent: `pending_dropoff:${aiResponse.destination_hint}` })
+            .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+        } catch { }
+        await sendLocationRequest(phoneNumber, MESSAGES.dropoffSavedAskPickup(aiResponse.destination_hint, userName));
+      } else if (aiResponse.destination_hint) {
+        // 📍 Scenario B via GPT: dropoff only
+        console.log(`[smart-intent] 📍 DROPOFF ONLY (GPT): "${aiResponse.destination_hint}"`);
+        try {
+          await supabase.from("bot_customers").update({ last_intent: `pending_dropoff:${aiResponse.destination_hint}` })
+            .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+        } catch { }
+        await sendLocationRequest(phoneNumber, MESSAGES.dropoffSavedAskPickup(aiResponse.destination_hint, userName));
+      } else if (aiResponse.intent === "booking") {
+        // Scenario C: نية حجز بدون أي مكان محدد
+        await sendLocationRequest(phoneNumber, MESSAGES.askForLocation(userName));
       } else {
-        // صوت بدون session — اطلب الموقع
-        await sendLocationRequest(phoneNumber, MESSAGES.needLocationFirst);
+        // ليس حجز — رد عادي
+        await sendTextMessage(phoneNumber, aiResponse.reply);
       }
 
       return new Response("EVENT_RECEIVED", { status: 200 });

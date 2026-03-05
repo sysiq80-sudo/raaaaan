@@ -41,7 +41,7 @@ export async function findOrCreateWhatsAppUser(
   }
   const finalName = profileName || "راكب واتساب";
 
-  // 1. البحث في profiles
+  // 1. البحث في profiles — أولاً بالمعرف الداخلي (wa_xxx)
   const { data: existing } = await supabase
     .from("profiles")
     .select("user_id")
@@ -52,6 +52,38 @@ export async function findOrCreateWhatsAppUser(
   if (existing?.user_id) {
     console.log(`[auth] Found existing WA user: ${existing.user_id}`);
     return existing.user_id;
+  }
+
+  // 1.5 🔗 مزامنة الحسابات — البحث عن حساب تطبيق موجود بنفس رقم الهاتف
+  // تحويل رقم واتساب (مثل 9647xxxxxxxxx) إلى أشكال محلية للبحث
+  const phoneVariants: string[] = [];
+  if (phoneNumber.startsWith("964")) {
+    const localNum = "0" + phoneNumber.substring(3); // 9647xxx → 07xxx
+    phoneVariants.push(localNum, `+${phoneNumber}`, phoneNumber);
+  } else {
+    phoneVariants.push(phoneNumber, `+${phoneNumber}`);
+    if (phoneNumber.startsWith("0")) {
+      phoneVariants.push(`964${phoneNumber.substring(1)}`);
+      phoneVariants.push(`+964${phoneNumber.substring(1)}`);
+    }
+  }
+
+  for (const variant of phoneVariants) {
+    const { data: appUser } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .eq("phone", variant)
+      .limit(1)
+      .maybeSingle();
+
+    if (appUser?.user_id) {
+      console.log(`[auth] 🔗 Linked WA user to existing app account: ${appUser.user_id} (phone: ${variant})`);
+      // تحديث الحساب الموجود بمعلومات واتساب الإضافية
+      await supabase.from("profiles").update({
+        whatsapp_phone: phoneNumber,
+      }).eq("user_id", appUser.user_id);
+      return appUser.user_id;
+    }
   }
 
   // 2. إنشاء مستخدم جديد

@@ -403,6 +403,15 @@ serve(async (req: Request) => {
         ]
       );
 
+      // 🔄 Phase 6: زر الرحلة العكسية
+      await sendInteractiveButtons(
+        phoneNumber,
+        `هل تريد رحلة عكسية (العودة)؟ 🔄`,
+        [
+          { id: `reverse_ride_${ride_id}`, title: "🔄 رحلة عكسية" },
+        ]
+      );
+
       // 🔥 CRITICAL: مسح sub-state الدردشة عند اكتمال الرحلة
       try {
         await supabase.from("bot_customers").update({ last_intent: null })

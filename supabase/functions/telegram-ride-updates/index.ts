@@ -272,7 +272,7 @@ serve(async (req: Request) => {
         `━━━━━━━━━━━━━━━━━━\n\n` +
         `شكراً لاستخدامك ران! الرحلة انتهت. كيف تقيم الكابتن؟ 👇`;
 
-      // أزرار التقييم Inline (5 نجوم)
+      // أزرار التقييم Inline (5 نجوم) + رحلة عكسية
       const ratingButtons = {
         inline_keyboard: [
           [
@@ -281,6 +281,9 @@ serve(async (req: Request) => {
             { text: "⭐ 3", callback_data: `rate_${ride_id}_3` },
             { text: "⭐ 4", callback_data: `rate_${ride_id}_4` },
             { text: "⭐ 5", callback_data: `rate_${ride_id}_5` },
+          ],
+          [
+            { text: "🔄 رحلة عكسية", callback_data: `reverse_ride_${ride_id}` },
           ],
         ],
       };

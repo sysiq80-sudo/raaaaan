@@ -179,11 +179,11 @@ serve(async (req) => {
 
     console.log("Found regions:", regions?.length || 0);
 
-    // Default pricing if no region found
-    let baseFare = 2000;
-    let perKmFare = 500;
-    let waitingFarePerMin = 100;
-    let regionName = "بغداد";
+    // Default pricing — read from app_settings fare_calculation (NO hardcoded fallbacks)
+    let baseFare = fareSettings.default_base_fare ?? fareSettings.base_fare ?? 2000;
+    let perKmFare = fareSettings.default_per_km_fare ?? fareSettings.per_km_fare ?? 500;
+    let waitingFarePerMin = fareSettings.default_waiting_fare_per_min ?? fareSettings.waiting_fare_per_min ?? 100;
+    let regionName = "الأنبار";
     let regionId = null;
 
     // Find matching region based on pickup coordinates using Point-in-Polygon

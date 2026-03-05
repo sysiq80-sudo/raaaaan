@@ -50,6 +50,17 @@ export const MESSAGES = {
 
   locationTooFar: "⚠️ موقعك يبين بعيد عن منطقة خدمتنا. حالياً نخدم:\n\n📍 الرمادي وضواحيها\n📍 الفلوجة | هيت | حديثة\n\nدز موقعك من داخل هذه المناطق 📍",
 
+  // ═══ رسائل Phase 5: Smart Initial Intent ═══
+  
+  dropoffSavedAskPickup: (destination: string, name?: string) =>
+    `✅ حددنا الوجهة: 📍 ${destination}${name ? ` أستاذ ${name}` : ""}\n\nمن فضلك أرسل موقعك الحالي (انطلاقك) لنحسب السعر 👇`,
+
+  pickupGeocodeFailed: (place: string) =>
+    `ما كدرنا نحدد مكان الانطلاق "${place}" على الخريطة 🗺️\nمن فضلك أرسل موقعك الحالي (GPS) 📍`,
+
+  autoProcessingDropoff: (destination: string, name?: string) =>
+    `✅ عاشت ايدك${name ? ` أستاذ ${name}` : ""}! حددنا مكانك.\n🎯 جاري حساب الأجرة إلى: ${destination}...`,
+
   // ═══ رسائل جديدة ═══
   
   rideCompleted: (fare: number, driverName: string) =>

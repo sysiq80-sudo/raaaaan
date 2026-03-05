@@ -1,7 +1,8 @@
 /**
- * ران — التصنيف المحلي الذكي (بدون GPT)
+ * ران — التصنيف المحلي الذكي (بدون GPT) — Shared Module
  * RAAN Smart Local Classifier — Handles common patterns without AI calls
- * 
+ * يُستخدم من: whatsapp-webhook, telegram-ai-booking
+ *
  * يوفّر ~60% من استدعاءات GPT-4o عبر معالجة:
  * - التحيات الشائعة
  * - الشكاوى المتكررة
@@ -92,7 +93,6 @@ export function classifyLocally(text: string, userName: string): LocalClassifica
   for (const pattern of GREETING_PATTERNS) {
     if (pattern.test(lower)) {
       return { handled: true, intent: "greeting" };
-      // لا نرد هنا — القائمة الرئيسية تتولى
     }
   }
 
@@ -115,7 +115,6 @@ export function classifyLocally(text: string, userName: string): LocalClassifica
   // 4. نية حجز واضحة (لا نرد — نطلب الموقع)
   for (const pattern of BOOKING_INTENT_PATTERNS) {
     if (pattern.test(trimmed)) {
-      // نستخرج الوجهة المحتملة
       let hint: string | null = null;
       const match = trimmed.match(/(?:أريد أروح|اريد اروح|وديني|خذني|ودني|لـ|إلى|الى|على|ع)\s+(.+)/i);
       if (match) {
@@ -172,12 +171,10 @@ export function extractPickupAndDropoff(text: string): { pickup: string; dropoff
 
 // ════════════════════════════════════════
 // استخراج الوجهة المباشرة (بدون GPT)
-// للوجهات الواضحة جداً
 // ════════════════════════════════════════
 export function extractDirectDestination(text: string): { destination: string; vehicle_type: string } | null {
   const trimmed = text.trim();
 
-  // إزالة بادئات شائعة
   const prefixes = [
     /^(أريد أروح|اريد اروح|وديني|خذني|ودني|ابي اروح|يلا على|خلني اروح)\s+(لـ|ل|إلى|الى|على|ع)?\s*/i,
     /^(لـ|ل |إلى |الى |على |ع )\s*/i,
@@ -189,10 +186,8 @@ export function extractDirectDestination(text: string): { destination: string; v
     destination = destination.replace(prefix, "").trim();
   }
 
-  // إذا بقي نص قصير جداً أو فارغ — لا نستطيع استخراج الوجهة
   if (destination.length < 2) return null;
 
-  // كشف نوع السيارة
   let vehicle_type = "economy";
   if (/فخم|فاخر|بريميوم|premium/i.test(destination)) {
     vehicle_type = "premium";
