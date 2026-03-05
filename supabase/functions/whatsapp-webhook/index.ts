@@ -633,6 +633,9 @@ serve(async (req) => {
 
       // ── تحويل عبر زين كاش ──
       if (buttonId === "topup_zaincash") {
+        // حفظ اختيار طريقة الدفع في last_intent
+        await supabase.from("bot_customers").update({ last_intent: "awaiting_receipt:zaincash" })
+          .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
         await sendTextMessage(
           phoneNumber,
           `لإضافة رصيد عبر 🟣 زين كاش، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`,
@@ -644,6 +647,8 @@ serve(async (req) => {
 
       // ── تحويل عبر سوبر كي ──
       if (buttonId === "topup_superqi") {
+        await supabase.from("bot_customers").update({ last_intent: "awaiting_receipt:superqi" })
+          .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
         await sendTextMessage(
           phoneNumber,
           `لإضافة رصيد عبر 🟡 سوبر كي، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`,
@@ -655,6 +660,8 @@ serve(async (req) => {
 
       // ── تحويل عبر كيو كارد ──
       if (buttonId === "topup_qicard") {
+        await supabase.from("bot_customers").update({ last_intent: "awaiting_receipt:qicard" })
+          .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
         await sendTextMessage(
           phoneNumber,
           `لإضافة رصيد عبر 💳 كيو كارد، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`,
@@ -675,8 +682,14 @@ serve(async (req) => {
           .maybeSingle();
         if (profile) {
           const joinDate = new Date(profile.created_at).toLocaleDateString("ar-IQ");
+          // عرض رقم الهاتف بشكل مقروء — تحويل wa_964xxx إلى 07xxx
+          let displayPhone = profile.phone || "—";
+          if (displayPhone.startsWith("wa_")) {
+            const rawNum = displayPhone.replace("wa_", "");
+            displayPhone = rawNum.startsWith("964") ? `0${rawNum.slice(3)}` : rawNum;
+          }
           await sendTextMessage(phoneNumber,
-            `ℹ️ *معلومات حسابك:*\n\n👤 الاسم: ${profile.full_name || "—"}\n📱 الهاتف: ${profile.phone || "—"}\n💰 الرصيد: ${(profile.wallet_balance || 0).toLocaleString()} د.ع\n📅 تاريخ الانضمام: ${joinDate}`,
+            `ℹ️ *معلومات حسابك:*\n\n👤 الاسم: ${profile.full_name || "—"}\n📱 الهاتف: ${displayPhone}\n💰 الرصيد: ${(profile.wallet_balance || 0).toLocaleString()} د.ع\n📅 تاريخ الانضمام: ${joinDate}`,
             botCustomerId || undefined
           );
         } else {
@@ -1067,6 +1080,30 @@ serve(async (req) => {
         // البحث عن المستخدم المسجل
         const riderId = await findOrCreateWhatsAppUser(supabase, phoneNumber, profileName);
 
+        // استخراج المزود من last_intent (إذا اختار المستخدم طريقة دفع مسبقاً)
+        let selectedProvider = receiptData.provider; // الافتراضي: ما استخرجه GPT
+        try {
+          const { data: bc } = await supabase.from("bot_customers")
+            .select("last_intent")
+            .eq("platform", "whatsapp").eq("platform_id", phoneNumber)
+            .maybeSingle();
+          if (bc?.last_intent?.startsWith("awaiting_receipt:")) {
+            const providerKey = bc.last_intent.replace("awaiting_receipt:", "");
+            const PROVIDER_MAP: Record<string, string> = {
+              zaincash: "Zain Cash",
+              superqi: "Super Qi",
+              qicard: "QiCard",
+            };
+            selectedProvider = PROVIDER_MAP[providerKey] || selectedProvider;
+            console.log(`[wa] Provider from last_intent: ${selectedProvider}`);
+            // مسح الـ last_intent بعد الاستخدام
+            await supabase.from("bot_customers").update({ last_intent: null })
+              .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+          }
+        } catch (e) {
+          console.warn("[wa] Failed to read provider from last_intent:", e);
+        }
+
         // حفظ المعاملة في قاعدة البيانات
         const { data: txn, error: txnError } = await supabase
           .from("receipt_transactions")
@@ -1076,7 +1113,7 @@ serve(async (req) => {
             platform_user_id: phoneNumber,
             amount: receiptData.amount,
             transaction_reference: receiptData.transaction_reference,
-            provider: receiptData.provider,
+            provider: selectedProvider,
             status: "pending",
             parsed_data: receiptData,
           })

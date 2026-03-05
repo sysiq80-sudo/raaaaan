@@ -1364,7 +1364,7 @@ serve(async (req) => {
         const { data: profile } = await supabase
           .from("profiles")
           .select("wallet_balance")
-          .eq("id", riderId)
+          .eq("user_id", riderId)
           .maybeSingle();
 
         const balance = profile?.wallet_balance ?? 0;
@@ -1400,6 +1400,10 @@ serve(async (req) => {
     // ═══════════════════════════════════
     if (cbData === "topup_zaincash" && cbChatId) {
       await answerCallbackQuery(cbQuery.id, "🟣");
+      // حفظ اختيار طريقة الدفع في last_intent
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      await supabase.from("bot_customers").update({ last_intent: "awaiting_receipt:zaincash" })
+        .eq("platform", "telegram").eq("platform_id", String(cbQuery.from?.id || cbChatId));
       await directSend(cbChatId,
         `لإضافة رصيد عبر 🟣 زين كاش، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`
       );
@@ -1412,6 +1416,9 @@ serve(async (req) => {
     // ═══════════════════════════════════
     if (cbData === "topup_superqi" && cbChatId) {
       await answerCallbackQuery(cbQuery.id, "🟡");
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      await supabase.from("bot_customers").update({ last_intent: "awaiting_receipt:superqi" })
+        .eq("platform", "telegram").eq("platform_id", String(cbQuery.from?.id || cbChatId));
       await directSend(cbChatId,
         `لإضافة رصيد عبر 🟡 سوبر كي، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`
       );
@@ -1424,6 +1431,9 @@ serve(async (req) => {
     // ═══════════════════════════════════
     if (cbData === "topup_qicard" && cbChatId) {
       await answerCallbackQuery(cbQuery.id, "💳");
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      await supabase.from("bot_customers").update({ last_intent: "awaiting_receipt:qicard" })
+        .eq("platform", "telegram").eq("platform_id", String(cbQuery.from?.id || cbChatId));
       await directSend(cbChatId,
         `لإضافة رصيد عبر 💳 كيو كارد، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`
       );
@@ -1443,8 +1453,8 @@ serve(async (req) => {
         const riderId = await findOrCreateTelegramUser(supabase, cbQuery.from || { id: cbChatId });
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name, phone, created_at")
-          .eq("id", riderId)
+          .select("full_name, phone, created_at, wallet_balance")
+          .eq("user_id", riderId)
           .maybeSingle();
 
         const { count: ridesCount } = await supabase
@@ -1454,10 +1464,17 @@ serve(async (req) => {
           .eq("status", "completed");
 
         if (profile) {
+          // عرض رقم الهاتف بشكل مقروء — إذا كان tg_xxx نعرض اليوزرنيم
+          let displayPhone = profile.phone || "غير محدد";
+          if (displayPhone.startsWith("tg_")) {
+            displayPhone = cbQuery.from?.username ? `@${cbQuery.from.username}` : `TG:${cbQuery.from?.id || cbChatId}`;
+          }
+          const balance = profile.wallet_balance || 0;
           await directSend(cbChatId,
             `ملفك الشخصي 👤:\n\n` +
             `الاسم: ${profile.full_name || tgName}\n` +
-            `رقم الهاتف: ${profile.phone || "غير محدد"}\n` +
+            `رقم الهاتف: ${displayPhone}\n` +
+            `💰 الرصيد: ${balance.toLocaleString()} د.ع\n` +
             `إجمالي رحلاتك: ${ridesCount ?? 0} رحلة 🚕`
           );
         } else {
@@ -1920,16 +1937,41 @@ serve(async (req) => {
         // البحث عن المستخدم
         const riderId = await findOrCreateTelegramUser(supabase, telegramUser);
 
+        // استخراج المزود من last_intent (إذا اختار المستخدم طريقة دفع مسبقاً)
+        const tgPlatformId = String(telegramUser?.id || chatId);
+        let selectedProvider = receiptData.provider; // الافتراضي: ما استخرجه GPT
+        try {
+          const { data: bc } = await supabase.from("bot_customers")
+            .select("last_intent")
+            .eq("platform", "telegram").eq("platform_id", tgPlatformId)
+            .maybeSingle();
+          if (bc?.last_intent?.startsWith("awaiting_receipt:")) {
+            const providerKey = bc.last_intent.replace("awaiting_receipt:", "");
+            const PROVIDER_MAP: Record<string, string> = {
+              zaincash: "Zain Cash",
+              superqi: "Super Qi",
+              qicard: "QiCard",
+            };
+            selectedProvider = PROVIDER_MAP[providerKey] || selectedProvider;
+            console.log(`[telegram] Provider from last_intent: ${selectedProvider}`);
+            // مسح الـ last_intent بعد الاستخدام
+            await supabase.from("bot_customers").update({ last_intent: null })
+              .eq("platform", "telegram").eq("platform_id", tgPlatformId);
+          }
+        } catch (e) {
+          console.warn("[telegram] Failed to read provider from last_intent:", e);
+        }
+
         // حفظ المعاملة
         const { data: txn, error: txnError } = await supabase
           .from("receipt_transactions")
           .insert({
             user_id: riderId,
             platform: "telegram",
-            platform_user_id: String(telegramUser?.id || chatId),
+            platform_user_id: tgPlatformId,
             amount: receiptData.amount,
             transaction_reference: receiptData.transaction_reference,
-            provider: receiptData.provider,
+            provider: selectedProvider,
             status: "pending",
             parsed_data: receiptData,
           })

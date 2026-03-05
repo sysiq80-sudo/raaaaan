@@ -239,37 +239,48 @@ serve(async (req) => {
         }
 
         // إضافة الرصيد للمستخدم
+        let walletUpdateSuccess = false;
         if (txn.user_id && amount > 0) {
-          // جلب الرصيد الحالي
-          const { data: profile } = await supabase
+          // جلب الرصيد الحالي — profiles PK هو user_id
+          const { data: profile, error: profileErr } = await supabase
             .from("profiles")
             .select("wallet_balance")
-            .eq("id", txn.user_id)
+            .eq("user_id", txn.user_id)
             .single();
 
-          const currentBalance = profile?.wallet_balance || 0;
-          const newBalance = currentBalance + amount;
+          if (profileErr) {
+            console.error("[admin-bot] Failed to fetch profile:", profileErr);
+            await sendAdminMessage(adminChatId, `⚠️ تمت الموافقة لكن فشل جلب بيانات المستخدم: ${profileErr.message}\nuser_id: ${txn.user_id}`);
+          } else {
+            const currentBalance = profile?.wallet_balance || 0;
+            const newBalance = currentBalance + amount;
 
-          const { error: walletErr } = await supabase
-            .from("profiles")
-            .update({ wallet_balance: newBalance })
-            .eq("id", txn.user_id);
+            const { error: walletErr, count } = await supabase
+              .from("profiles")
+              .update({ wallet_balance: newBalance })
+              .eq("user_id", txn.user_id);
 
-          if (walletErr) {
-            console.error("[admin-bot] Failed to update wallet:", walletErr);
-            await sendAdminMessage(adminChatId, `⚠️ تمت الموافقة لكن فشل تحديث الرصيد: ${walletErr.message}`);
+            if (walletErr) {
+              console.error("[admin-bot] Failed to update wallet:", walletErr);
+              await sendAdminMessage(adminChatId, `⚠️ تمت الموافقة لكن فشل تحديث الرصيد: ${walletErr.message}\nuser_id: ${txn.user_id}`);
+            } else {
+              walletUpdateSuccess = true;
+              console.log(`[admin-bot] ✅ Wallet updated: ${currentBalance} → ${newBalance} for user ${txn.user_id}`);
+            }
           }
 
           // تسجيل في wallet_transactions
-          await supabase.from("rider_wallet_transactions").insert({
-            user_id: txn.user_id,
-            amount: amount,
-            type: "deposit",
-            status: "completed",
-            payment_method: txn.provider || "receipt",
-            reference_id: txnId,
-            description: `شحن رصيد — إيصال ${txn.transaction_reference || txnId.substring(0, 8)}`,
-          }).then(() => {}, (e: unknown) => console.warn("[admin-bot] wallet_transactions insert:", e));
+          if (walletUpdateSuccess) {
+            await supabase.from("rider_wallet_transactions").insert({
+              user_id: txn.user_id,
+              amount: amount,
+              type: "deposit",
+              status: "completed",
+              payment_method: txn.provider || "receipt",
+              reference_id: txnId,
+              description: `شحن رصيد — إيصال ${txn.transaction_reference || txnId.substring(0, 8)}`,
+            }).then(() => {}, (e: unknown) => console.warn("[admin-bot] wallet_transactions insert:", e));
+          }
         }
 
         // تحديث رسالة الأدمن
@@ -288,15 +299,22 @@ serve(async (req) => {
           } catch { }
         }
 
-        // إشعار العميل
-        const customerMsg =
-          `✅ تم شحن رصيدك بنجاح!\n\n` +
-          `💰 المبلغ: ${amount.toLocaleString()} د.ع\n` +
-          `🏦 المزود: ${txn.provider || "—"}\n` +
-          `🔢 رقم المعاملة: ${txn.transaction_reference || "—"}\n\n` +
-          `رصيدك الحالي متاح الآن. شكراً لاستخدامك ران! 🚕`;
+        // إشعار العميل — فقط إذا تم تحديث الرصيد بنجاح
+        let notified = false;
+        if (walletUpdateSuccess) {
+          const customerMsg =
+            `✅ تم شحن رصيدك بنجاح!\n\n` +
+            `💰 المبلغ: ${amount.toLocaleString()} د.ع\n` +
+            `🏦 المزود: ${txn.provider || "—"}\n` +
+            `🔢 رقم المعاملة: ${txn.transaction_reference || "—"}\n\n` +
+            `رصيدك الحالي متاح الآن. شكراً لاستخدامك ران! 🚕`;
 
-        const notified = await notifyCustomer(txn.platform, txn.platform_user_id, customerMsg);
+          notified = await notifyCustomer(txn.platform, txn.platform_user_id, customerMsg);
+        } else if (!txn.user_id || amount <= 0) {
+          // لا يوجد user_id أو مبلغ — إشعار بسيط
+          notified = await notifyCustomer(txn.platform, txn.platform_user_id,
+            `✅ تمت مراجعة إيصالك. يرجى التواصل مع الإدارة لإضافة الرصيد.`);
+        }
 
         await supabase.from("receipt_transactions").update({
           customer_notified: notified,

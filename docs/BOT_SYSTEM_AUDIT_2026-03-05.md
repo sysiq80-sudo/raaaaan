@@ -493,6 +493,30 @@ When ride status changes (via DB trigger), **separate** Edge Functions send stat
     - Instruction text reminds user to send receipt image after transfer.
 53. **HF7.4.3:** ✅ **Deployment** — `whatsapp-webhook` + `telegram-ai-booking` redeployed to Supabase.
 
+### Hotfix 7.5 — Wallet DB Updates, State Memory & Profile Data ✅ (Completed 2026-03-05)
+54. **HF7.5.1:** ✅ **Fix wallet balance DB update (admin-telegram-webhook)** — CRITICAL:
+    - **Root Cause:** Approval handler used `.eq("id", txn.user_id)` but `profiles` PK is `user_id`, NOT `id`. Both SELECT and UPDATE queries matched NOTHING → balance stayed at 0 silently.
+    - **Fix:** Changed to `.eq("user_id", txn.user_id)` for both profile fetch and wallet update.
+    - Added explicit error checking: if profile fetch or wallet update fails, admin is notified with error details and user_id.
+    - Customer is NOT notified with "success" unless the DB update actually succeeds (prevents false "تم شحن رصيدك" messages).
+    - `wallet_transactions` insert only runs if wallet update succeeded.
+55. **HF7.5.2:** ✅ **Fix provider state memory (both platforms)** — When user selects payment method:
+    - `topup_zaincash` → saves `bot_customers.last_intent = "awaiting_receipt:zaincash"`
+    - `topup_superqi` → saves `bot_customers.last_intent = "awaiting_receipt:superqi"`
+    - `topup_qicard` → saves `bot_customers.last_intent = "awaiting_receipt:qicard"`
+    - Image handler reads `last_intent`, extracts provider via `PROVIDER_MAP` (`zaincash→"Zain Cash"`, `superqi→"Super Qi"`, `qicard→"QiCard"`).
+    - Selected provider overrides GPT-4o Vision's parsed provider (which was unreliable/null).
+    - `last_intent` is cleared after receipt is processed.
+    - Applied to BOTH `whatsapp-webhook` AND `telegram-ai-booking` image handlers.
+56. **HF7.5.3:** ✅ **Fix profile data fetching (action_my_info & action_my_balance)** — Telegram:
+    - **Root Cause:** Telegram `action_my_balance` and `action_my_info` used `.eq("id", riderId)` but `profiles` PK is `user_id`. Queries returned null → balance showed 0, phone showed "--".
+    - **Fix:** Changed to `.eq("user_id", riderId)` in both handlers.
+    - `action_my_info` now also shows `wallet_balance` and handles `tg_xxx` phone format (shows `@username` or `TG:id` instead of raw `tg_xxx`).
+57. **HF7.5.4:** ✅ **Fix WhatsApp phone number display** — `action_my_info`:
+    - **Root Cause:** `profile.phone` stores `wa_964xxxxxxx` format which is ugly and confusing.
+    - **Fix:** If phone starts with `wa_`, strip prefix and convert `964xxx` → `07xxx` format for display.
+58. **HF7.5.5:** ✅ **Deployment** — All 3 functions redeployed: `admin-telegram-webhook` + `whatsapp-webhook` + `telegram-ai-booking`.
+
 ---
 
 **Report generated: 2026-03-05**
@@ -506,4 +530,5 @@ When ride status changes (via DB trigger), **separate** Edge Functions send stat
 **Hotfix 7.2 completed: 2026-03-05**
 **Hotfix 7.3 completed: 2026-03-05**
 **Hotfix 7.4 completed: 2026-03-05**
+**Hotfix 7.5 completed: 2026-03-05**
 **والحمد لله رب العالمين** 🤲
