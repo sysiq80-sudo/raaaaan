@@ -172,28 +172,11 @@ serve(async (req: Request) => {
       const driver = await fetchDriverDetails(supabase, driver_id);
       const eta = driver?.eta ?? 5;
 
-      // إنشاء رابط التتبع المباشر
-      let trackingUrl = "";
-      try {
-        const { data: token } = await supabase.rpc("generate_ride_tracking_token", {
-          p_ride_id: ride_id,
-        });
-        if (token) {
-          trackingUrl = `${SITE_URL}/track/${token}`;
-        }
-      } catch (e) {
-        console.warn("[RideUpdates] Failed to generate tracking link:", e);
-      }
-
-      // أزرار inline: موقع + محادثة (تظهر دائماً)
-      const trackButton = trackingUrl
-        ? { text: "📍 موقع السائق", url: trackingUrl }
-        : { text: "📍 موقع السائق", callback_data: `track_${ride_id}` };
-
+      // أزرار inline: محادثة فقط
+      // ❌ تم إزالة زر التتبع مؤقتاً (track_) بسبب فشل إنشاء رابط التتبع في الإنتاج
       const inlineKeyboard = {
         inline_keyboard: [
           [
-            trackButton,
             { text: "💬 راسل السائق", callback_data: `chat_${ride_id}` },
           ],
         ],

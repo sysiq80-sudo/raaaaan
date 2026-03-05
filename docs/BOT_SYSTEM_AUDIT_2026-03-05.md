@@ -258,7 +258,7 @@ When ride status changes (via DB trigger), **separate** Edge Functions send stat
 | Local classifier | ✅ | ✅ | ❌ |
 | AI cache | ✅ | ❌ | ❌ |
 | Proxy chat | ✅ | ✅ | ❌ |
-| Live tracking link | ✅ | ✅ | ❌ |
+| Live tracking link | ❌ (disabled) | ❌ (disabled) | ❌ |
 | Rating post-ride | ✅ | ✅ | ✅ (basic) |
 | Message logging | ✅ | ❌ | ❌ |
 | Signature verification | ✅ (optional) | ❌ (N/A) | ❌ |
@@ -446,6 +446,12 @@ When ride status changes (via DB trigger), **separate** Edge Functions send stat
 38. **HF7.5:** ✅ **Scheduled ride button confirmed purged** — `"حجز مجدول"` button was already removed in Phase 3 from code. Redeployment ensures the live function uses the latest code.
 39. **HF7.6:** ✅ **Deployment** — `telegram-ai-booking` + `whatsapp-webhook` redeployed to Supabase.
 
+### Hotfix 7.2 — Remove Broken Tracking Button & Button Audit ✅ (Completed 2026-03-05)
+40. **HF7.2.1:** ✅ **Remove tracking button from `whatsapp-ride-updates`** — Removed `📍 موقع السائق` (`track_{id}`) button from the `accepted` status notification. Only `💬 راسل السائق` (`chat_{id}`) button remains. Also removed the dead `generate_ride_tracking_token` RPC call and fallback token generation code. Removed `wa_tracking_token` from ride metadata. **Reason:** Tracking link generation (`generate_ride_tracking_token` RPC) is failing in production, causing a bad user experience ("ما كدرنا ننشئ رابط التتبع").
+41. **HF7.2.2:** ✅ **Remove tracking button from `telegram-ride-updates`** — Same removal: `📍 موقع السائق` button (both `url` and `callback_data` variants) removed from the `accepted` inline keyboard. Only `💬 راسل السائق` remains. Also removed the dead tracking token generation RPC call.
+42. **HF7.2.3:** ✅ **WhatsApp 3-button limit audit** — Full scan of all `sendInteractiveButtons` calls across `whatsapp-webhook` (10 call sites) and `whatsapp-ride-updates` (4 call sites). **Result: NO violations found.** All interactive button messages use ≤ 3 buttons. The main menu correctly uses 3 buttons (`اطلب رحلة` + `استفسار` + `المزيد`) and overflows to `sendListMessage` for additional options.
+43. **HF7.2.4:** ✅ **Deployment** — All 3 functions redeployed: `whatsapp-ride-updates`, `whatsapp-webhook`, `telegram-ride-updates`.
+
 ---
 
 **Report generated: 2026-03-05**
@@ -456,4 +462,5 @@ When ride status changes (via DB trigger), **separate** Edge Functions send stat
 **Phase 5 completed: 2026-06-11**
 **Phase 6 completed: 2026-03-05**
 **Hotfix 7.1 completed: 2026-03-05**
+**Hotfix 7.2 completed: 2026-03-05**
 **والحمد لله رب العالمين** 🤲

@@ -277,40 +277,6 @@ serve(async (req: Request) => {
       }
 
       // إنشاء رابط التتبع المباشر
-      let trackingToken = "";
-      try {
-        const { data: token, error: rpcErr } = await supabase.rpc("generate_ride_tracking_token", {
-          p_ride_id: ride_id,
-        });
-
-        if (rpcErr) {
-          console.error("[WhatsAppRideUpdates] RPC tracking FAILED:", rpcErr.message, rpcErr.details, rpcErr.hint);
-
-          // Fallback: إدراج مباشر
-          const fallbackToken = crypto.randomUUID().replace(/-/g, "").substring(0, 24);
-          const { error: insertErr } = await supabase
-            .from("ride_share_links")
-            .insert({
-              ride_id: ride_id,
-              token: fallbackToken,
-              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-              is_active: true,
-            });
-
-          if (!insertErr) {
-            trackingToken = fallbackToken;
-            console.log(`[WhatsAppRideUpdates] ✅ Fallback token: ${fallbackToken}`);
-          } else {
-            console.error("[WhatsAppRideUpdates] Fallback insert FAILED:", insertErr.message);
-          }
-        } else if (token) {
-          trackingToken = token;
-          console.log(`[WhatsAppRideUpdates] ✅ RPC token: ${token}`);
-        }
-      } catch (e) {
-        console.warn("[WhatsAppRideUpdates] Tracking generation error:", e);
-      }
-
       // الرسالة الرئيسية مع تفاصيل الكابتن
       const mainMessage =
         `🚕 *الكابتن ${driver?.full_name ?? "غير معروف"} في الطريق إليك!*\n\n` +
@@ -319,10 +285,10 @@ serve(async (req: Request) => {
         `⏳ وقت الوصول: ${etaText}.\n` +
         `خليك جاهز!`;
 
-      // إرسال رسالة مع أزرار تفاعلية (موقع + محادثة)
+      // إرسال رسالة مع زر محادثة تفاعلي
       // ⚠️ WhatsApp button title limit: 20 chars max!
+      // ❌ تم إزالة زر التتبع مؤقتاً (track_) بسبب فشل إنشاء رابط التتبع في الإنتاج
       await sendInteractiveButtons(phoneNumber, mainMessage, [
-        { id: `track_${ride_id}`, title: "📍 موقع السائق" },
         { id: `chat_${ride_id}`, title: "💬 راسل السائق" },
       ]);
 
@@ -333,7 +299,6 @@ serve(async (req: Request) => {
           .from("rides")
           .update({
             metadata: {
-              wa_tracking_token: trackingToken,
               wa_buttons_sent: true,
               wa_accepted_at: new Date().toISOString(),
             },
