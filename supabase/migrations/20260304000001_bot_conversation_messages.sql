@@ -44,6 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_bot_conversation_messages_customer_created
 ALTER TABLE public.bot_conversation_messages ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Admins can see all messages
+DROP POLICY IF EXISTS "admin_all_bot_messages" ON public.bot_conversation_messages;
 CREATE POLICY "admin_all_bot_messages" ON public.bot_conversation_messages
   FOR ALL USING (
     EXISTS (
@@ -54,9 +55,11 @@ CREATE POLICY "admin_all_bot_messages" ON public.bot_conversation_messages
   );
 
 -- Policy: Service role can insert/update messages (for webhooks)
+DROP POLICY IF EXISTS "service_bot_messages_insert" ON public.bot_conversation_messages;
 CREATE POLICY "service_bot_messages_insert" ON public.bot_conversation_messages
   FOR INSERT WITH CHECK (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "service_bot_messages_update" ON public.bot_conversation_messages;
 CREATE POLICY "service_bot_messages_update" ON public.bot_conversation_messages
   FOR UPDATE USING (auth.role() = 'service_role');
 

@@ -41,14 +41,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_receipt_unique_reference
 ALTER TABLE receipt_transactions ENABLE ROW LEVEL SECURITY;
 
 -- المستخدم يرى معاملاته فقط
+DROP POLICY IF EXISTS "users_own_receipts" ON receipt_transactions;
 CREATE POLICY "users_own_receipts" ON receipt_transactions
   FOR SELECT USING (user_id = auth.uid());
 
 -- Service role يمكنه إدراج/تعديل (البوتات تعمل بـ service role)
+DROP POLICY IF EXISTS "service_role_all" ON receipt_transactions;
 CREATE POLICY "service_role_all" ON receipt_transactions
   FOR ALL USING (auth.role() = 'service_role');
 
 -- Admin يرى كل المعاملات
+DROP POLICY IF EXISTS "admin_view_all_receipts" ON receipt_transactions;
 CREATE POLICY "admin_view_all_receipts" ON receipt_transactions
   FOR SELECT USING (
     EXISTS (
@@ -67,6 +70,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_receipt_transactions_updated_at ON receipt_transactions;
 CREATE TRIGGER trigger_update_receipt_transactions_updated_at
   BEFORE UPDATE ON receipt_transactions
   FOR EACH ROW
