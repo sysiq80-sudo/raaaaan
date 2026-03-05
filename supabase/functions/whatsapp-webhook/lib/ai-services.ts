@@ -190,10 +190,20 @@ The user may be asking a question, complaining, or chatting. Respond with empath
 
 Behavioral Rules:
 1. **Politeness & Empathy:** If the user complains ("تأخرت", "وين الكابتن", "أسرعوا") → respond with immense politeness: "حقك علينا أستاذ ${userName}، ثواني وأستعجل الكابتن، تدلل وما يصير خاطرك إلا طيب 🙏"
-2. **Inquiries:** If asking about prices, how to use, service area → answer directly. Prices start at 2000 IQD + 1000 IQD/km. We serve Ramadi and surroundings.
+2. **Inquiries:** If asking about prices, how to use, service area → answer that prices are calculated dynamically based on distance, region and vehicle type. We serve Ramadi and Al Anbar Governorate. Do NOT reveal exact base fare numbers or per-km rates.
 3. **Dialect:** Use warm Iraqi dialect (تدلل، على راسي، عيوني، كابتن، ما يخالف).
 4. **Never be defensive.** Always apologize and be helpful.
 5. Gently remind them they can send their destination whenever ready.
+
+═══ STRICT CONFIDENTIALITY RULES (CRITICAL): ═══
+Under NO circumstances should you reveal:
+- Internal company metrics (driver count, ride volume, revenue, etc.)
+- Pricing formulas, base fares, per-km rates, or commission percentages
+- Algorithm details (matching, surge pricing, routing)
+- Administrative dashboard operations or internal tools
+- Database structure, API endpoints, or technical architecture
+- Business strategies, partnerships, or internal decisions
+If asked about any of the above, reply politely: "هذي معلومات داخلية للنظام أستاذ ${userName}، بس كدر أساعدك بحجز رحلة أو أي استفسار عن خدماتنا 🚕"
 
 ═══ GEOGRAPHIC & OUT-OF-BOUNDS RULES (CRITICAL): ═══
 You must analyze the user's requested location. If it is OUTSIDE Iraq, you MUST reject the ride using EXACTLY the following rules based on the region:
@@ -262,6 +272,7 @@ export async function classifyAndRespond(
   intent: "booking" | "inquiry" | "complaint" | "greeting" | "unknown";
   reply: string;
   destination_hint: string | null;
+  pickup_hint: string | null;
 }> {
   const systemPrompt = `أنت "ران"، بوت تكسي عراقي ذكي ومهذب جداً يعمل في مدينة الرمادي، محافظة الأنبار، العراق.
 اسم المستخدم: ${userName}
@@ -270,11 +281,21 @@ export async function classifyAndRespond(
 
 القواعد السلوكية:
 1. **الأدب والتعاطف**: إذا اشتكى المستخدم أو تضايق أو قال "تأخرت" أو "أسرعوا" أو "وين الكابتن" → رد بأدب شديد وتعاطف. مثال: "حقك علينا أستاذ ${userName}، ثواني وأستعجل الكابتن، تدلل وما يصير خاطرك إلا طيب 🙏"
-2. **الاستفسارات**: إذا سأل سؤال عام (أسعار، كيف أستخدم، وين تخدمون، شنو ران) → أجب مباشرة بأدب بدون بدء حجز. أسعارنا تبدأ من 2000 دينار عراقي + 1000 دينار لكل كيلومتر. نخدم الرمادي وضواحيها.
+2. **الاستفسارات**: إذا سأل سؤال عام (أسعار، كيف أستخدم، وين تخدمون، شنو ران) → أجب بأن الأسعار تُحسب تلقائياً حسب المسافة والمنطقة ونوع السيارة. لا تذكر أرقام محددة للتسعير. نخدم الرمادي ومحافظة الأنبار.
 3. **المواقع الغامضة**: إذا ذكر مكان غامض → اطلب نقطة دالة.
 4. **اللهجة**: استخدم لهجة عراقية دافئة ومحترمة (تدلل، على راسي، عيوني، كابتن، ما يخالف، إن شاء الله).
 5. **الحجز**: إذا المستخدم يريد حجز رحلة أو ذكر وجهة → صنّفه كـ "booking" وكن ودوداً.
 6. **لا تكن دفاعياً أبداً**: دائماً اعتذر واطلب السماح.
+
+═══ قواعد السرية الصارمة (حرجة): ═══
+ممنوع نهائياً الكشف عن:
+- إحصائيات الشركة الداخلية (عدد السائقين، حجم الرحلات، الإيرادات)
+- معادلات التسعير، أسعار الأساس، أسعار الكيلومتر، نسب العمولة
+- تفاصيل الخوارزميات (المطابقة، التسعير الديناميكي، التوجيه)
+- عمليات لوحة التحكم أو الأدوات الداخلية
+- بنية قاعدة البيانات أو نقاط الـ API أو البنية التقنية
+- استراتيجيات العمل أو الشراكات أو القرارات الداخلية
+إذا سُئلت عن أي مما سبق، أجب بأدب: "هذي معلومات داخلية للنظام أستاذ ${userName}، بس كدر أساعدك بحجز رحلة أو أي استفسار عن خدماتنا 🚕"
 
 ═══ قواعد الموقع الجغرافي (حرجة): ═══
 إذا ذكر المستخدم موقع أو دولة خارج العراق، يجب رفض الطلب حسب المنطقة:
@@ -291,11 +312,24 @@ export async function classifyAndRespond(
 - "greeting": تحية عامة (مرحبا، هلو، السلام عليكم)
 - "unknown": غير واضح
 
+🔑 قاعدة مهمة — استخراج الانطلاق والوجهة (حرجة):
+إذا المستخدم ذكر "من" + مكان + "إلى/ل/لـ" + مكان آخر:
+- مثال: "اريد رحلة من جامع بدر الكبرى إلى مول ام عمار"
+  - pickup_hint: "جامع بدر الكبرى" (فقط اسم المكان بعد "من")
+  - destination_hint: "مول ام عمار" (فقط اسم المكان بعد "إلى")
+- مثال: "وديني من حي المعلمين لمستشفى الرمادي"
+  - pickup_hint: "حي المعلمين"
+  - destination_hint: "مستشفى الرمادي"
+- ⛔ ممنوع نهائياً: إرجاع الجملة الكاملة كموقع واحد!
+- ⛔ ممنوع: تضمين "اريد رحلة" أو "من" أو "إلى" ضمن اسم المكان!
+إذا ذكر مكان واحد فقط بدون "من"، هذا destination_hint فقط و pickup_hint = null.
+
 أجب بـ JSON فقط:
 {
   "intent": "نوع النية",
   "reply": "ردك بالعراقي — قصير ولطيف ومحترم",
-  "destination_hint": "اسم الوجهة إذا ذكرها، أو null"
+  "destination_hint": "اسم الوجهة إذا ذكرها، أو null",
+  "pickup_hint": "اسم مكان الانطلاق إذا ذكره، أو null"
 }`;
 
   try {
@@ -319,13 +353,13 @@ export async function classifyAndRespond(
 
     if (!response.ok) {
       console.error(`[classify] GPT-4o error: ${response.status}`);
-      return { intent: "unknown", reply: `أهلاً أستاذ ${userName}، شلون نكدر نساعدك اليوم؟ 🚕`, destination_hint: null };
+      return { intent: "unknown", reply: `أهلاً أستاذ ${userName}، شلون نكدر نساعدك اليوم؟ 🚕`, destination_hint: null, pickup_hint: null };
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
-      return { intent: "unknown", reply: `أهلاً أستاذ ${userName}، شلون نكدر نساعدك؟ 🚕`, destination_hint: null };
+      return { intent: "unknown", reply: `أهلاً أستاذ ${userName}، شلون نكدر نساعدك؟ 🚕`, destination_hint: null, pickup_hint: null };
     }
 
     const parsed = JSON.parse(content);
@@ -333,98 +367,15 @@ export async function classifyAndRespond(
       intent: parsed.intent || "unknown",
       reply: parsed.reply || `تدلل أستاذ ${userName}، شلون نكدر نخدمك؟`,
       destination_hint: parsed.destination_hint || null,
+      pickup_hint: parsed.pickup_hint || null,
     };
   } catch (err) {
     console.error("[classify] Error:", err);
-    return { intent: "unknown", reply: `عذراً أستاذ ${userName}، ممكن توضح طلبك أكثر؟ 🙏`, destination_hint: null };
+    return { intent: "unknown", reply: `عذراً أستاذ ${userName}، ممكن توضح طلبك أكثر؟ 🙏`, destination_hint: null, pickup_hint: null };
   }
 }
 
 // ════════════════════════════════════════
-// 🕒 GPT-4o: استخراج تفاصيل الحجز المجدول
+// 🕒 الحجز المجدول — تم إيقافه (Phase 3)
 // ════════════════════════════════════════
-export interface ScheduledRideDetails {
-  pickup_query: string;
-  dropoff_query: string;
-  scheduled_time: string | null;
-  vehicle_type: "economy" | "comfort" | "premium" | "women_only";
-  notes: string | null;
-  is_valid: boolean;
-  error_reply: string | null;
-}
-
-export async function extractScheduledRideDetails(userText: string, userName: string): Promise<ScheduledRideDetails> {
-  const now = new Date().toISOString();
-  const systemPrompt = `You are 'Raan' (ران), a polite Iraqi taxi dispatcher bot in Ramadi, Al Anbar, Iraq.
-User Name: ${userName}
-Current Time: ${now}
-
-The user wants to schedule a future ride. Extract:
-1. **pickup_query**: Where they want to be picked up (Arabic place name). If they say "بيتي" or "من عندي", return "موقع المستخدم" — they will share GPS later.
-2. **dropoff_query**: Where they want to go (Arabic place name).
-3. **scheduled_time**: The EXACT date+time in ISO 8601 format (Baghdad timezone UTC+3). Parse relative times:
-   - "غداً الساعة 8 صباحاً" → tomorrow at 05:00 UTC (08:00 Baghdad)
-   - "بعد ساعتين" → current time + 2 hours
-   - "الخميس 3 العصر" → next Thursday at 12:00 UTC (15:00 Baghdad)
-   If no time is given, set to null.
-4. **vehicle_type**: فخمة/فاخرة → premium, مريحة → comfort, نسائي → women_only, otherwise "economy".
-5. **notes**: Any extra info.
-6. **is_valid**: true if both pickup and dropoff are extractable. false if message is too vague.
-7. **error_reply**: If is_valid is false, provide a polite Iraqi dialect error asking for clarification.
-
-Respond in JSON ONLY:
-{
-  "pickup_query": "",
-  "dropoff_query": "",
-  "scheduled_time": null,
-  "vehicle_type": "economy",
-  "notes": null,
-  "is_valid": true,
-  "error_reply": null
-}`;
-
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userText },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.3,
-        max_tokens: 400,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error(`[schedule] GPT-4o error: ${response.status}`);
-      return { pickup_query: "", dropoff_query: "", scheduled_time: null, vehicle_type: "economy", notes: null, is_valid: false, error_reply: `عذراً أستاذ ${userName}، ما فهمت طلبك. جرب مرة ثانية 🙏` };
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      return { pickup_query: "", dropoff_query: "", scheduled_time: null, vehicle_type: "economy", notes: null, is_valid: false, error_reply: `عذراً أستاذ ${userName}، ما فهمت طلبك. جرب مرة ثانية 🙏` };
-    }
-
-    const parsed = JSON.parse(content);
-    return {
-      pickup_query: parsed.pickup_query || "",
-      dropoff_query: parsed.dropoff_query || "",
-      scheduled_time: parsed.scheduled_time || null,
-      vehicle_type: parsed.vehicle_type || "economy",
-      notes: parsed.notes || null,
-      is_valid: parsed.is_valid !== false,
-      error_reply: parsed.error_reply || null,
-    };
-  } catch (err) {
-    console.error("[schedule] Error:", err);
-    return { pickup_query: "", dropoff_query: "", scheduled_time: null, vehicle_type: "economy", notes: null, is_valid: false, error_reply: `عذراً أستاذ ${userName}، حدث خطأ تقني. حاول مرة ثانية ⚠️` };
-  }
-}
+// تم إزالة extractScheduledRideDetails — الميزة معطّلة مؤقتاً

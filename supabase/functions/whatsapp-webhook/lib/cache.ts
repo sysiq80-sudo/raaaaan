@@ -117,6 +117,7 @@ interface AIClassifyResult {
   intent: string;
   reply: string;
   destination_hint: string | null;
+  pickup_hint?: string | null;
 }
 
 const aiClassifyCache = new TTLCache<AIClassifyResult>(100, 15); // 100 إدخال، 15 دقيقة

@@ -1,7 +1,8 @@
 /**
- * ران — التصنيف المحلي الذكي (بدون GPT)
+ * ران — التصنيف المحلي الذكي (بدون GPT) — Shared Module
  * RAAN Smart Local Classifier — Handles common patterns without AI calls
- * 
+ * يُستخدم من: whatsapp-webhook, telegram-ai-booking
+ *
  * يوفّر ~60% من استدعاءات GPT-4o عبر معالجة:
  * - التحيات الشائعة
  * - الشكاوى المتكررة
@@ -205,7 +206,6 @@ export function extractDirectDestination(text: string): { destination: string; v
     return null;
   }
 
-  // إزالة بادئات شائعة
   const prefixes = [
     /^(أريد أروح|اريد اروح|وديني|خذني|ودني|ابي اروح|يلا على|خلني اروح)\s+(لـ|ل|إلى|الى|على|ع)?\s*/i,
     /^(لـ|ل |إلى |الى |على |ع )\s*/i,
@@ -217,10 +217,8 @@ export function extractDirectDestination(text: string): { destination: string; v
     destination = destination.replace(prefix, "").trim();
   }
 
-  // إذا بقي نص قصير جداً أو فارغ — لا نستطيع استخراج الوجهة
   if (destination.length < 2) return null;
 
-  // كشف نوع السيارة
   let vehicle_type = "economy";
   if (/فخم|فاخر|بريميوم|premium/i.test(destination)) {
     vehicle_type = "premium";

@@ -89,6 +89,8 @@ export let OPENAI_API_KEY = "";
 export let GOOGLE_MAPS_KEY = "";
 export let SITE_URL = "https://raanai.lovable.app";
 export let GRAPH_API = "";
+export let ADMIN_TELEGRAM_BOT_TOKEN = "";
+export let ADMIN_GROUP_CHAT_ID = "";
 let _configLoaded = false;
 
 export async function loadDynamicConfig() {
@@ -102,6 +104,8 @@ export async function loadDynamicConfig() {
       "OPENAI_API_KEY",
       "GOOGLE_MAPS_KEY",
       "SITE_URL",
+      "ADMIN_TELEGRAM_BOT_TOKEN",
+      "ADMIN_GROUP_CHAT_ID",
     ]);
     VERIFY_TOKEN = cfg["WHATSAPP_VERIFY_TOKEN"] || VERIFY_TOKEN;
     WHATSAPP_ACCESS_TOKEN = cfg["WHATSAPP_ACCESS_TOKEN"] || WHATSAPP_ACCESS_TOKEN;
@@ -109,6 +113,8 @@ export async function loadDynamicConfig() {
     OPENAI_API_KEY = cfg["OPENAI_API_KEY"] || OPENAI_API_KEY;
     GOOGLE_MAPS_KEY = cfg["GOOGLE_MAPS_KEY"] || GOOGLE_MAPS_KEY;
     SITE_URL = cfg["SITE_URL"] || SITE_URL;
+    ADMIN_TELEGRAM_BOT_TOKEN = cfg["ADMIN_TELEGRAM_BOT_TOKEN"] || ADMIN_TELEGRAM_BOT_TOKEN;
+    ADMIN_GROUP_CHAT_ID = cfg["ADMIN_GROUP_CHAT_ID"] || ADMIN_GROUP_CHAT_ID;
     GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/messages`;
     _configLoaded = true;
     console.log("[wa] ✅ Dynamic config loaded from system_configs");
@@ -120,6 +126,8 @@ export async function loadDynamicConfig() {
     OPENAI_API_KEY = OPENAI_API_KEY || Deno.env.get("OPENAI_API_KEY") || "";
     GOOGLE_MAPS_KEY = GOOGLE_MAPS_KEY || Deno.env.get("GOOGLE_MAPS_KEY") || "";
     SITE_URL = SITE_URL || Deno.env.get("SITE_URL") || "https://raanai.lovable.app";
+    ADMIN_TELEGRAM_BOT_TOKEN = ADMIN_TELEGRAM_BOT_TOKEN || Deno.env.get("ADMIN_TELEGRAM_BOT_TOKEN") || "";
+    ADMIN_GROUP_CHAT_ID = ADMIN_GROUP_CHAT_ID || Deno.env.get("ADMIN_GROUP_CHAT_ID") || "";
     GRAPH_API = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_ID}/messages`;
   }
 }
