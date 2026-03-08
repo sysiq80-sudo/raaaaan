@@ -229,7 +229,7 @@ const AdminBotChats = () => {
   }
 
   return (
-    <AdminLayout>
+    <AdminLayout title="محادثات البوت">
       <div className="space-y-6">
         {/* ─── العنوان ─── */}
         <div className="flex items-center justify-between">

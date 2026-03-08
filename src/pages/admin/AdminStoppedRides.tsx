@@ -133,7 +133,6 @@ const AdminStoppedRides = () => {
         });
       }
 
-      // @ts-expect-error - Type will match after migration
       setAlerts(alertsData || []);
     } catch (error: any) {
       console.error('Error fetching stopped rides:', error);

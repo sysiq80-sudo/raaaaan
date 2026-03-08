@@ -155,7 +155,7 @@ const Auth = () => {
 
       if (isRegistered) {
         // تحقق إذا كان حساب شبح (Ghost Account) من بوت واتساب/تلغرام
-        const { data: isGhost } = await supabase.rpc(
+        const { data: isGhost } = await (supabase as any).rpc(
           "check_ghost_account",
           { p_phone: phoneInput }
         );
