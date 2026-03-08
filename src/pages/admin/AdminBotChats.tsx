@@ -219,7 +219,7 @@ const AdminBotChats = () => {
 
   if (!isAdmin) {
     return (
-      <AdminLayout>
+      <AdminLayout title="محادثات البوت">
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold text-red-600">غير مصرح لك</h2>
           <p className="text-gray-600 mt-2">تحتاج صلاحيات مدير للوصول لهذه الصفحة</p>
