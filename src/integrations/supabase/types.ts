@@ -233,6 +233,47 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_conversation_messages: {
+        Row: {
+          bot_customer_id: string
+          created_at: string | null
+          direction: string
+          id: string
+          message: string
+          message_id: string | null
+          metadata: Json | null
+          platform: string
+        }
+        Insert: {
+          bot_customer_id: string
+          created_at?: string | null
+          direction: string
+          id?: string
+          message: string
+          message_id?: string | null
+          metadata?: Json | null
+          platform: string
+        }
+        Update: {
+          bot_customer_id?: string
+          created_at?: string | null
+          direction?: string
+          id?: string
+          message?: string
+          message_id?: string | null
+          metadata?: Json | null
+          platform?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_conversation_messages_bot_customer_id_fkey"
+            columns: ["bot_customer_id"]
+            isOneToOne: false
+            referencedRelation: "bot_customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bot_customers: {
         Row: {
           display_name: string | null
@@ -2875,6 +2916,69 @@ export type Database = {
         }
         Relationships: []
       }
+      receipt_transactions: {
+        Row: {
+          admin_chat_id: string | null
+          admin_message_id: string | null
+          amount: number | null
+          created_at: string | null
+          customer_notified: boolean | null
+          id: string
+          parsed_data: Json | null
+          platform: string
+          platform_user_id: string
+          provider: string | null
+          receipt_image_url: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          transaction_reference: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          admin_chat_id?: string | null
+          admin_message_id?: string | null
+          amount?: number | null
+          created_at?: string | null
+          customer_notified?: boolean | null
+          id?: string
+          parsed_data?: Json | null
+          platform: string
+          platform_user_id: string
+          provider?: string | null
+          receipt_image_url?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          transaction_reference?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          admin_chat_id?: string | null
+          admin_message_id?: string | null
+          amount?: number | null
+          created_at?: string | null
+          customer_notified?: boolean | null
+          id?: string
+          parsed_data?: Json | null
+          platform?: string
+          platform_user_id?: string
+          provider?: string | null
+          receipt_image_url?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          transaction_reference?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       referral_codes: {
         Row: {
           code: string
@@ -5223,6 +5327,7 @@ export type Database = {
         Returns: undefined
       }
       check_emergency_abuse: { Args: { p_user_id: string }; Returns: Json }
+      check_ghost_account: { Args: { p_phone: string }; Returns: boolean }
       check_ip_rate_limit: {
         Args: {
           p_action: string
@@ -5253,7 +5358,7 @@ export type Database = {
         Returns: Json
       }
       count_rider_cancellations: {
-        Args: { p_interval?: unknown; p_rider_id: string }
+        Args: { p_interval?: string; p_rider_id: string }
         Returns: number
       }
       create_delay_alerts_table: { Args: never; Returns: boolean }
@@ -5383,6 +5488,17 @@ export type Database = {
           name_en: string
           processing_fee_fixed: number
           processing_fee_percentage: number
+        }[]
+      }
+      get_bot_conversation_history: {
+        Args: { p_bot_customer_id: string; p_limit?: number }
+        Returns: {
+          created_at: string
+          direction: string
+          id: string
+          message: string
+          metadata: Json
+          platform: string
         }[]
       }
       get_cancellation_penalties_report: {
@@ -5567,6 +5683,26 @@ export type Database = {
           p_request_count?: number
         }
         Returns: undefined
+      }
+      log_bot_incoming_message: {
+        Args: {
+          p_bot_customer_id: string
+          p_message: string
+          p_message_id?: string
+          p_metadata?: Json
+          p_platform: string
+        }
+        Returns: string
+      }
+      log_bot_outgoing_message: {
+        Args: {
+          p_bot_customer_id: string
+          p_message: string
+          p_message_id?: string
+          p_metadata?: Json
+          p_platform: string
+        }
+        Returns: string
       }
       mark_notification_acknowledged: {
         Args: { p_method?: string; p_notification_id: string }
