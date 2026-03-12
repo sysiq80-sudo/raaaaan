@@ -112,7 +112,7 @@ const WelcomeLocationScreen = ({
     lat: number;
     lng: number;
   } | null>(null);
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<any>();
 
   // Get user location and reverse geocode using Google Maps
   useEffect(() => {

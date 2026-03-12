@@ -76,10 +76,10 @@ export const useOptimizedNearbyDrivers = (
   const [isLoading, setIsLoading] = useState(false);
 
   // Refs for debouncing and caching
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<any>(null);
   const lastFetchRef = useRef<number>(0);
   const driversCache = useRef<Map<string, DriverLocation>>(new Map());
-  const throttleRef = useRef<NodeJS.Timeout | null>(null);
+  const throttleRef = useRef<any>(null);
   const fallbackLogShownRef = useRef(false);
 
   // Memoize filtered drivers based on vehicle type and distance

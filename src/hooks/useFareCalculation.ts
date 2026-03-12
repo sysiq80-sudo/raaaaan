@@ -32,7 +32,7 @@ export const useFareCalculation = (
   const [fareBreakdown, setFareBreakdown] = useState<FareBreakdown | null>(null);
   const [fareLoading, setFareLoading] = useState(false);
   const [fareError, setFareError] = useState<string | null>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<any>(null);
   const lastSuccessfulFareRef = useRef<FareBreakdown | null>(null);
 
   // جلب معاملات أنواع المركبات من DB بدل القيم الثابتة

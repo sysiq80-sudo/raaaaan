@@ -68,7 +68,7 @@ const UnifiedSearchOverlay = ({
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [recentPlaces, setRecentPlaces] = useState<RecentPlace[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<any>();
 
   // Fetch saved and recent places
   useEffect(() => {

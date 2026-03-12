@@ -109,7 +109,7 @@ const LocationSearchInput = forwardRef<
     } | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const debounceRef = useRef<NodeJS.Timeout>();
+    const debounceRef = useRef<any>();
 
     // Expose methods to parent via ref
     useImperativeHandle(ref, () => ({

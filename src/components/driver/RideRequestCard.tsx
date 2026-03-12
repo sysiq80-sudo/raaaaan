@@ -118,7 +118,7 @@ export const RideRequestCard = ({
   // Ref لـ fetchPendingRides — يمنع إعادة الاشتراك في Realtime مع كل تغيير موقع
   const fetchPendingRidesRef = useRef<() => void>(() => {});
   // Refs لإدارة الاشتراك بالـ debounce
-  const setupTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const setupTimerRef = useRef<any>(null);
   const activeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const visibilityHandlerRef = useRef<(() => void) | null>(null);
 

@@ -92,8 +92,8 @@ const DriverHome = () => {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancellingRide, setIsCancellingRide] = useState(false);
   const watchIdRef = useRef<number | null>(null);
-  const locationUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
+  const locationUpdateIntervalRef = useRef<any>(null);
+  const heartbeatRef = useRef<any>(null);
   const [rating, setRating] = useState(5.0);
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [adminActivated, setAdminActivated] = useState(true);
