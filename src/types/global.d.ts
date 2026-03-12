@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-empty-interface */
 /// <reference types="google.maps" />
 
-// Ensure process.env works in browser context
+// Browser environment shims
 declare const process: {
   env: {
     NODE_ENV: string;
@@ -9,13 +8,9 @@ declare const process: {
   };
 };
 
-// Force browser setTimeout/setInterval signatures (return number, not NodeJS.Timeout)
-// This resolves conflicts when @types/node is pulled in transitively
-declare global {
-  function setTimeout(handler: TimerHandler, timeout?: number, ...arguments: any[]): number;
-  function clearTimeout(id: number | undefined): void;
-  function setInterval(handler: TimerHandler, timeout?: number, ...arguments: any[]): number;
-  function clearInterval(id: number | undefined): void;
+// Ensure NodeJS.Timeout is compatible with number for clearTimeout
+declare namespace NodeJS {
+  // Make Timeout assignable to number parameter
+  type Timeout = ReturnType<typeof globalThis.setTimeout>;
+  type Timer = ReturnType<typeof globalThis.setInterval>;
 }
-
-export {};
