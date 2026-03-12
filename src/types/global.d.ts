@@ -7,6 +7,8 @@ declare const process: {
   };
 };
 
-// Fix NodeJS.Timeout vs number conflict between @types/node and lib.dom
-declare function clearTimeout(id: any): void;
-declare function clearInterval(id: any): void;
+// Force browser-style timer types (return number, not NodeJS.Timeout)
+declare function setTimeout(handler: TimerHandler, timeout?: number, ...arguments: any[]): number;
+declare function clearTimeout(id: number | undefined): void;
+declare function setInterval(handler: TimerHandler, timeout?: number, ...arguments: any[]): number;
+declare function clearInterval(id: number | undefined): void;
