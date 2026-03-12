@@ -7,8 +7,6 @@ declare const process: {
   };
 };
 
-// Override setTimeout/clearTimeout to always return number (browser environment)
-declare function setTimeout(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
-declare function clearTimeout(id: number | undefined): void;
-declare function setInterval(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
-declare function clearInterval(id: number | undefined): void;
+// Fix NodeJS.Timeout vs number conflict between @types/node and lib.dom
+declare function clearTimeout(id: any): void;
+declare function clearInterval(id: any): void;
