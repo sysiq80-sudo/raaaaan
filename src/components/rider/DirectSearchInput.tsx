@@ -40,7 +40,7 @@ const DirectSearchInput: React.FC<DirectSearchInputProps> = ({
   const [loadingSaved, setLoadingSaved] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<any>();
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Load saved places

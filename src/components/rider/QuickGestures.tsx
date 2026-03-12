@@ -21,7 +21,7 @@ export const QuickGestures: React.FC<QuickGesturesProps> = ({
 
     let startY = 0;
     let tapCount = 0;
-    let longPressTimer: NodeJS.Timeout;
+    let longPressTimer: any;
 
     const handleTouchStart = (e: TouchEvent) => {
       startY = e.touches[0].clientY;

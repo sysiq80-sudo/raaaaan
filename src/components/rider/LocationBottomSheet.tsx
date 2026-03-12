@@ -65,7 +65,7 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
   const placesApiReadyRef = useRef(false);
   const pickupInputRef = useRef<HTMLInputElement>(null);
   const dropoffInputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<any>();
 
   // Check if we're in pickup-only mode
   const isPickupOnlyMode = activeField === 'pickup_only';

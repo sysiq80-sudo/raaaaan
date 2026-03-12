@@ -50,8 +50,8 @@ interface State {
 }
 
 class ErrorBoundary extends Component<Props, State> {
-  private resetTimeoutId: NodeJS.Timeout | null = null;
-  private feedbackTimeoutId: NodeJS.Timeout | null = null;
+  private resetTimeoutId: any = null;
+  private feedbackTimeoutId: any = null;
   private retryAttempts: number = 0;
 
   public state: State = {

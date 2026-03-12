@@ -68,8 +68,8 @@ export const useSessionTimeout = (config: Partial<SessionConfig> = {}): SessionH
   });
 
   const warningShownRef = useRef(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const warningRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<any>(null);
+  const warningRef = useRef<any>(null);
   const sessionStartRef = useRef(Date.now());
 
   // Activity handler
