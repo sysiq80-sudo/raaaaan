@@ -6,7 +6,7 @@
  */
 
 // معرف القياس - استبدله بمعرفك الحقيقي
-const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX';
+const GA_MEASUREMENT_ID = 'G-NDV0675R1V';
 
 // تعريف gtag
 declare global {
