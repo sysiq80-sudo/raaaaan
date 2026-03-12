@@ -7,8 +7,8 @@ declare const process: {
   };
 };
 
-// Fix NodeJS.Timeout vs number conflict for setTimeout/setInterval
-declare namespace NodeJS {
-  type Timeout = number;
-  type Timer = number;
-}
+// Override setTimeout/clearTimeout to always return number (browser environment)
+declare function setTimeout(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
+declare function clearTimeout(id: number | undefined): void;
+declare function setInterval(callback: (...args: any[]) => void, ms?: number, ...args: any[]): number;
+declare function clearInterval(id: number | undefined): void;
