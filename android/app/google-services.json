@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "74442208724",
+    "project_id": "raan-47989",
+    "storage_bucket": "raan-47989.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:74442208724:android:b3c8221feca357eced9241",
+        "android_client_info": {
+          "package_name": "com.raan.captain"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC_qrpFe2cXFnuaADpM05gNznd5rFgvzI8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

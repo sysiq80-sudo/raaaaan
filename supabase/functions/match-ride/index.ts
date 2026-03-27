@@ -1,0 +1,569 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { haversineDistance, calculateETA, corsHeaders, getAuthUser, jsonResponse, errorResponse, corsPreflightResponse } from "../_shared/utils.ts";
+
+// ═══ Constants ═══
+const MAX_RETRY_ROUNDS = 5;
+const RETRY_DELAY_MS = 30_000; // 30s between retry rounds
+const RADIUS_EXPANSION_KM = 3; // expand search radius by 3km per round
+
+// Vehicle type compatibility - which drivers can serve which rides
+function isVehicleTypeCompatible(
+  driverType: string,
+  rideType: string,
+  preferWomenDriver: boolean,
+): boolean {
+  // إذا كان العميل يفضّل سائقة، لا نقبل إلا women_only
+  if (preferWomenDriver) return driverType === "women_only";
+
+  // Women only is exclusive
+  if (rideType === "women_only") return driverType === "women_only";
+  if (driverType === "women_only") return false;
+
+  // Higher tier can serve lower tier
+  const tiers: Record<string, number> = { economy: 1, comfort: 2, premium: 3 };
+  return (tiers[driverType] || 1) >= (tiers[rideType] || 1);
+}
+
+serve(async (req) => {
+  const startTime = performance.now();
+
+  // Handle CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return corsPreflightResponse();
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // التحقق من المستخدم — مطلوب بعد تفعيل JWT
+    const caller = await getAuthUser(req);
+    if (!caller) {
+      return errorResponse("غير مصرّح: يجب تسجيل الدخول", 401);
+    }
+
+    const body = await req.json();
+    const rideId = body.rideId;
+    const isReMatch = body.re_match === true;
+
+    if (!rideId) {
+      throw new Error("رقم الرحلة مطلوب");
+    }
+
+    // ═══════════════════════════════════
+    // 🛡️ حد الرحلات النشطة — من إعدادات الأمان
+    // ═══════════════════════════════════
+    try {
+      const { data: secConf } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "security_settings")
+        .maybeSingle();
+
+      const maxActive = (secConf?.value as any)?.max_active_rides_per_user ?? 3;
+
+      const { count } = await supabase
+        .from("rides")
+        .select("id", { count: "exact", head: true })
+        .eq("rider_id", caller.id)
+        .in("status", ["pending", "accepted", "in_progress"]);
+
+      if (count !== null && count >= maxActive) {
+        return errorResponse(
+          `لديك ${count} رحلات نشطة بالفعل — الحد الأقصى ${maxActive}`,
+          429
+        );
+      }
+    } catch (e) {
+      console.warn("[match-ride] ⚠️ Failed to check ride limit, continuing:", e);
+    }
+
+    console.log("🔍 بدء مطابقة الرحلة:", rideId);
+
+    // 1. جلب تفاصيل الرحلة
+    const { data: ride, error: rideError } = await supabase
+      .from("rides")
+      .select("*")
+      .eq("id", rideId)
+      .single();
+
+    if (rideError || !ride) {
+      throw new Error("الرحلة غير موجودة");
+    }
+
+    // التحقق من أن المتصل هو صاحب الرحلة
+    if (ride.rider_id !== caller.id) {
+      // التحقق من أنه مدير (admin)
+      const { data: adminRole } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", caller.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      
+      if (!adminRole) {
+        return errorResponse("غير مصرّح: لا يمكنك مطابقة رحلة ليست لك", 403);
+      }
+    }
+
+    // التحقق من حالة الرحلة
+    if (ride.status !== "pending") {
+      console.log("⚠️ الرحلة ليست في حالة انتظار:", ride.status);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "الرحلة ليست في حالة انتظار",
+          status: ride.status,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // منع الحجز الذاتي - Check if rider is also a driver
+    const { data: riderAsDriver } = await supabase
+      .from("drivers")
+      .select("id")
+      .eq("user_id", ride.rider_id)
+      .single();
+
+    if (riderAsDriver) {
+      console.log("🚫 منع الحجز الذاتي - الراكب هو سائق أيضاً:", ride.rider_id);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "لا يمكنك حجز رحلة لنفسك",
+          error_code: "SELF_BOOKING_NOT_ALLOWED",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 2. البحث عن السائقين المتاحين - Optimized query
+    const { data: drivers, error: driversError } = await supabase
+      .from("drivers")
+      .select(
+        "id, user_id, full_name, vehicle_type, current_location, rating, total_rides, max_pickup_radius",
+      )
+      .eq("is_online", true)
+      .eq("is_available", true)
+      .eq("status", "approved")
+      .not("current_location", "is", null);
+
+    if (driversError) {
+      console.error("❌ خطأ في جلب السائقين:", driversError);
+      throw new Error("فشل في جلب السائقين");
+    }
+
+    console.log(`👥 عدد السائقين المتصلين: ${drivers?.length || 0}`);
+
+    if (!drivers || drivers.length === 0) {
+      const noDriverAttempt = (ride.matching_attempts || 0) + 1;
+      await supabase
+        .from("rides")
+        .update({
+          matching_attempts: noDriverAttempt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", rideId);
+
+      // ═══ جدولة إعادة محاولة حتى مع عدم وجود سائقين ═══
+      // ربما يتصل سائقون جدد قريباً
+      if (noDriverAttempt < MAX_RETRY_ROUNDS) {
+        const retryEmpty = async () => {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+          const { data: currentRide } = await supabase
+            .from("rides")
+            .select("status")
+            .eq("id", rideId)
+            .single();
+          if (currentRide?.status !== "pending") return;
+
+          console.log(`[match-ride] 🔄 Retry (no online drivers) round ${noDriverAttempt + 1}/${MAX_RETRY_ROUNDS}`);
+          try {
+            await supabase.functions.invoke("match-ride", {
+              body: { rideId },
+              headers: { Authorization: req.headers.get("Authorization") || "" },
+            });
+          } catch (e) {
+            console.error("[match-ride] Retry invocation failed:", e);
+          }
+        };
+        retryEmpty().catch((e) => console.error("[match-ride] Retry error:", e));
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "لا يوجد سائقين متاحين حالياً — سيتم إعادة المحاولة",
+          drivers_count: 0,
+          retry_scheduled: noDriverAttempt < MAX_RETRY_ROUNDS,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // 3. حساب المسافة لكل سائق وترتيبهم - Optimized
+    const pickupLoc = ride.pickup_location as { lat: number; lng: number };
+    let alreadyNotified = new Set((ride.notified_drivers || []) as string[]);
+    const radiusBonus = (ride.metadata as any)?.radius_bonus_km || 0;
+
+    // ═══ إعادة المطابقة: تنظيف السائقين الرافضين من القائمة ═══
+    // عند إعادة المطابقة، نحذف السائقين الذين رفضوا/انتهت مهلتهم من notified_drivers
+    // هذا يسمح بإعادة إرسال إشعارات لهم (ربما تغيرت ظروفهم)
+    if (isReMatch && alreadyNotified.size > 0) {
+      try {
+        const { data: rejectedLogs } = await supabase
+          .from("ride_matching_log")
+          .select("driver_id")
+          .eq("ride_id", rideId)
+          .in("response", ["rejected", "timeout"]);
+
+        if (rejectedLogs && rejectedLogs.length > 0) {
+          const rejectedIds = new Set(rejectedLogs.map((l: any) => l.driver_id));
+          // حذف الرافضين من القائمة لإعادة إشعارهم
+          const filteredNotified = Array.from(alreadyNotified).filter(id => !rejectedIds.has(id));
+          alreadyNotified = new Set(filteredNotified);
+
+          console.log(`[match-ride] 🔄 Re-match: cleared ${rejectedIds.size} rejected/timed-out drivers from notified list`);
+
+          // تحديث قاعدة البيانات
+          await supabase
+            .from("rides")
+            .update({ notified_drivers: filteredNotified })
+            .eq("id", rideId);
+        }
+      } catch (e) {
+        console.warn("[match-ride] ⚠️ Failed to clear rejected drivers:", e);
+      }
+    }
+
+    const driversWithDistance = drivers
+      .filter((driver) => {
+        // Filter by vehicle type compatibility + تفضيل السائقة
+        if (
+          !isVehicleTypeCompatible(
+            driver.vehicle_type,
+            ride.vehicle_type,
+            !!ride.prefer_women_driver,
+          )
+        )
+          return false;
+        // Skip already notified drivers
+        if (alreadyNotified.has(driver.id)) return false;
+        return true;
+      })
+      .map((driver) => {
+        const driverLoc = driver.current_location as {
+          lat: number;
+          lng: number;
+        };
+        const distance = haversineDistance(
+          pickupLoc.lat,
+          pickupLoc.lng,
+          driverLoc.lat,
+          driverLoc.lng,
+        );
+        const eta = calculateETA(distance);
+        const maxRadius =
+          (driver.max_pickup_radius || 10) + (ride.high_priority ? 5 : 0) + radiusBonus;
+
+        // Weighted dispatch: distance + rating (primary) with a small experience tie-breaker
+        const normalizedDistance = Math.max(0, 1 - distance / maxRadius);
+        const normalizedRating = Math.min(5, driver.rating || 5.0) / 5;
+        const distanceWeight = 0.7;
+        const ratingWeight = 0.3;
+        const experienceBonus = Math.min(
+          0.05,
+          (driver.total_rides || 0) / 1000,
+        );
+        const weightedScore =
+          normalizedDistance * distanceWeight +
+          normalizedRating * ratingWeight +
+          experienceBonus;
+        const priorityScore = Math.round(weightedScore * 100);
+
+        return {
+          ...driver,
+          distance_km: Math.round(distance * 100) / 100,
+          eta_minutes: eta,
+          priority_score: Math.round(priorityScore),
+          max_radius: maxRadius,
+        };
+      })
+      .filter((driver) => driver.distance_km <= driver.max_radius)
+      .sort((a, b) => b.priority_score - a.priority_score);
+
+    console.log(`🎯 السائقين المؤهلين: ${driversWithDistance.length}`);
+
+    if (driversWithDistance.length === 0) {
+      const currentAttemptZero = (ride.matching_attempts || 0) + 1;
+
+      // تحديث عداد المحاولات
+      await supabase
+        .from("rides")
+        .update({
+          matching_attempts: currentAttemptZero,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", rideId);
+
+      // ═══ جدولة إعادة محاولة حتى مع 0 سائقين جدد ═══
+      // الرحلة تبقى pending — ربما يتصل سائقون جدد قريباً
+      if (currentAttemptZero < MAX_RETRY_ROUNDS) {
+        const retryNoDrivers = async () => {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+          const { data: currentRide } = await supabase
+            .from("rides")
+            .select("status")
+            .eq("id", rideId)
+            .single();
+          if (currentRide?.status !== "pending") return;
+
+          console.log(`[match-ride] 🔄 Retry (no compatible drivers) round ${currentAttemptZero + 1}/${MAX_RETRY_ROUNDS}`);
+          await supabase
+            .from("rides")
+            .update({
+              metadata: {
+                ...(ride.metadata || {}),
+                radius_bonus_km: RADIUS_EXPANSION_KM * currentAttemptZero,
+              },
+            })
+            .eq("id", rideId);
+
+          try {
+            await supabase.functions.invoke("match-ride", {
+              body: { rideId },
+              headers: { Authorization: req.headers.get("Authorization") || "" },
+            });
+          } catch (e) {
+            console.error("[match-ride] Retry invocation failed:", e);
+          }
+        };
+        retryNoDrivers().catch((e) => console.error("[match-ride] Retry error:", e));
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "لا يوجد سائقين قريبين متوافقين — سيتم إعادة المحاولة",
+          drivers_count: 0,
+          already_notified: alreadyNotified.size,
+          retry_scheduled: currentAttemptZero < MAX_RETRY_ROUNDS,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // 4. اختيار أفضل السائقين لإرسال الإشعارات
+    const maxDrivers = ride.high_priority ? 10 : 5;
+    const topDrivers = driversWithDistance.slice(0, maxDrivers);
+
+    console.log(
+      "🏆 أفضل السائقين:",
+      topDrivers.map((d) => ({
+        name: d.full_name,
+        distance: d.distance_km,
+        eta: d.eta_minutes,
+        score: d.priority_score,
+        vehicle: d.vehicle_type,
+      })),
+    );
+
+    // 5. تسجيل محاولات المطابقة - Batch insert
+    const matchingLogs = topDrivers.map((driver) => ({
+      ride_id: rideId,
+      driver_id: driver.id,
+      distance_km: driver.distance_km,
+      priority_score: driver.priority_score,
+      notified_at: new Date().toISOString(),
+      response: null,
+      responded_at: null,
+    }));
+
+    await supabase.from("ride_matching_log").insert(matchingLogs);
+
+    // 6. تحديث الرحلة بالسائقين المُشعرين
+    const allNotifiedDrivers = [
+      ...Array.from(alreadyNotified),
+      ...topDrivers.map((d) => d.id),
+    ];
+    await supabase
+      .from("rides")
+      .update({
+        notified_drivers: allNotifiedDrivers,
+        matching_attempts: (ride.matching_attempts || 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", rideId);
+
+    // 7. إرسال الإشعارات للسائقين بالتوازي مع تأخير تدريجي
+    const notificationPromises = topDrivers.map(async (driver, index) => {
+      try {
+        // تأخير تدريجي: السائق الأول فوراً، ثم بفواصل أسرع للطلبات العاجلة
+        const baseDelay = ride.high_priority ? 4000 : 8000;
+        const delay = index * baseDelay;
+
+        if (delay > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+
+        // التحقق من أن الرحلة لا تزال متاحة
+        const { data: currentRide } = await supabase
+          .from("rides")
+          .select("status")
+          .eq("id", rideId)
+          .single();
+
+        if (currentRide?.status !== "pending") {
+          console.log(`⏭️ تخطي السائق ${driver.full_name} - الرحلة تم قبولها`);
+          return { success: false, reason: "ride_accepted" };
+        }
+
+        // إرسال الإشعار مع نوع محدد للإشعارات الذكية
+        const { error: notifError } = await supabase.functions.invoke(
+          "send-push-notification",
+          {
+            body: {
+              user_id: driver.user_id,
+              title: "🚗 طلب رحلة جديد!",
+              body: `على بعد ${driver.distance_km} كم • ${
+                ride.estimated_fare?.toLocaleString() || 0
+              } د.ع`,
+              data: {
+                type: "NEW_RIDE_REQUEST",
+                ride_id: rideId,
+                distance: driver.distance_km,
+                eta_minutes: driver.eta_minutes,
+                estimated_fare: ride.estimated_fare,
+                pickup_address: ride.pickup_address,
+                dropoff_address: ride.dropoff_address,
+                vehicle_type: ride.vehicle_type,
+                priority: index + 1,
+              },
+            },
+          },
+        );
+
+        if (notifError) {
+          console.error(
+            `❌ فشل إرسال الإشعار للسائق ${driver.full_name}:`,
+            notifError,
+          );
+          return { success: false, error: notifError };
+        }
+
+        console.log(
+          `✅ إشعار للسائق ${driver.full_name} (${index + 1}/${
+            topDrivers.length
+          })`,
+        );
+        return { success: true, driver_id: driver.id };
+      } catch (error) {
+        console.error(`❌ خطأ في إرسال الإشعار:`, error);
+        return { success: false, error };
+      }
+    });
+
+    const notificationResults = await Promise.all(notificationPromises);
+    const successCount = notificationResults.filter((r) => r.success).length;
+
+    // ═══ 8. Schedule progressive re-matching retry ═══
+    // If we haven't exhausted all retry rounds and there might be more drivers
+    const currentAttempt = (ride.matching_attempts || 0) + 1;
+    let retryScheduled = false;
+
+    if (currentAttempt < MAX_RETRY_ROUNDS) {
+      // Schedule a delayed retry invocation to expand search
+      const retryFn = async () => {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+
+        // Re-check ride is still pending
+        const { data: currentRide } = await supabase
+          .from("rides")
+          .select("status")
+          .eq("id", rideId)
+          .single();
+
+        if (currentRide?.status !== "pending") {
+          console.log(`[match-ride] ⏭️ Retry skipped — ride ${rideId} is now ${currentRide?.status}`);
+          return;
+        }
+
+        // Invoke self for next round (with expanded radius bonus)
+        console.log(`[match-ride] 🔄 Retry round ${currentAttempt + 1}/${MAX_RETRY_ROUNDS} for ride ${rideId} (+${RADIUS_EXPANSION_KM * currentAttempt}km radius)`);
+
+        // Update ride with radius expansion hint
+        await supabase
+          .from("rides")
+          .update({
+            metadata: {
+              ...(ride.metadata || {}),
+              radius_bonus_km: RADIUS_EXPANSION_KM * currentAttempt,
+            },
+          })
+          .eq("id", rideId);
+
+        try {
+          await supabase.functions.invoke("match-ride", {
+            body: { rideId },
+            headers: { Authorization: req.headers.get("Authorization") || "" },
+          });
+        } catch (e) {
+          console.error(`[match-ride] Retry invocation failed:`, e);
+        }
+      };
+
+      // Fire and forget — don't block the response
+      retryFn().catch((e) => console.error("[match-ride] Retry error:", e));
+      retryScheduled = true;
+    }
+
+    const endTime = performance.now();
+    const processingTime = Math.round(endTime - startTime);
+
+    console.log(
+      `📨 تم إرسال ${successCount}/${topDrivers.length} إشعار (${processingTime}ms) | retry=${retryScheduled}`,
+    );
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "تم مطابقة الرحلة بنجاح",
+        ride_id: rideId,
+        drivers_notified: successCount,
+        total_drivers: topDrivers.length,
+        already_notified: alreadyNotified.size,
+        matching_attempt: currentAttempt,
+        retry_scheduled: retryScheduled,
+        radius_bonus_km: radiusBonus,
+        processing_time_ms: processingTime,
+        top_drivers: topDrivers.map((d) => ({
+          id: d.id,
+          name: d.full_name,
+          distance_km: d.distance_km,
+          eta_minutes: d.eta_minutes,
+          rating: d.rating,
+          vehicle_type: d.vehicle_type,
+        })),
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (error) {
+    console.error("❌ خطأ في مطابقة الرحلة:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "خطأ غير معروف";
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: errorMessage,
+      }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+});

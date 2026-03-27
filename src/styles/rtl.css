@@ -1,0 +1,243 @@
+/* ران RAAN - RTL (Right-to-Left) CSS */
+
+html {
+  direction: rtl;
+}
+
+body {
+  direction: rtl;
+}
+
+/* Flip margins for RTL */
+.ml-4 {
+  margin-left: 0 !important;
+  margin-right: 1rem !important;
+}
+
+.ml-2 {
+  margin-left: 0 !important;
+  margin-right: 0.5rem !important;
+}
+
+.ml-6 {
+  margin-left: 0 !important;
+  margin-right: 1.5rem !important;
+}
+
+.ml-8 {
+  margin-left: 0 !important;
+  margin-right: 2rem !important;
+}
+
+.mr-4 {
+  margin-right: 0 !important;
+  margin-left: 1rem !important;
+}
+
+.mr-2 {
+  margin-right: 0 !important;
+  margin-left: 0.5rem !important;
+}
+
+.mr-6 {
+  margin-right: 0 !important;
+  margin-left: 1.5rem !important;
+}
+
+.mr-8 {
+  margin-right: 0 !important;
+  margin-left: 2rem !important;
+}
+
+.pl-4 {
+  padding-left: 0 !important;
+  padding-right: 1rem !important;
+}
+
+.pl-2 {
+  padding-left: 0 !important;
+  padding-right: 0.5rem !important;
+}
+
+.pl-6 {
+  padding-left: 0 !important;
+  padding-right: 1.5rem !important;
+}
+
+.pr-4 {
+  padding-right: 0 !important;
+  padding-left: 1rem !important;
+}
+
+.pr-2 {
+  padding-right: 0 !important;
+  padding-left: 0.5rem !important;
+}
+
+.pr-6 {
+  padding-right: 0 !important;
+  padding-left: 1.5rem !important;
+}
+
+/* Text alignment */
+.text-left {
+  text-align: right !important;
+}
+
+.text-right {
+  text-align: left !important;
+}
+
+/* Flexbox RTL fixes */
+.flex {
+  flex-direction: row-reverse;
+}
+
+.flex-row {
+  flex-direction: row-reverse;
+}
+
+/* Transform for icons - flip them */
+.icon-flip {
+  transform: scaleX(-1);
+}
+
+/* RTL-specific transitions */
+.transition-all {
+  transition: all 0.3s ease;
+}
+
+/* Positioning */
+[class*="left-"] {
+  right: unset;
+}
+
+[class*="right-"] {
+  left: unset;
+}
+
+/* Border radius */
+.rounded-l-lg {
+  border-radius: 0 0.5rem 0.5rem 0 !important;
+}
+
+.rounded-r-lg {
+  border-radius: 0.5rem 0 0 0.5rem !important;
+}
+
+/* Input and textarea RTL */
+input,
+textarea {
+  direction: rtl;
+  text-align: right;
+}
+
+input[type="number"] {
+  direction: ltr;
+  text-align: left;
+}
+
+/* Placeholder for RTL */
+input::placeholder,
+textarea::placeholder {
+  text-align: right;
+  direction: rtl;
+}
+
+/* RTL Drawer/Sidebar */
+.sidebar {
+  right: 0;
+  left: auto;
+}
+
+.drawer-backdrop {
+  direction: rtl;
+}
+
+/* RTL Dropdown/Menu */
+.dropdown-menu {
+  right: 0;
+  left: auto;
+  text-align: right;
+}
+
+/* RTL Modal */
+.modal {
+  direction: rtl;
+}
+
+.modal-content {
+  text-align: right;
+}
+
+/* RTL form elements */
+.form-group {
+  text-align: right;
+}
+
+.form-label {
+  text-align: right;
+  display: block;
+}
+
+.checkbox,
+.radio {
+  margin-right: 0.5rem;
+  margin-left: 0;
+}
+
+/* RTL for flags/icons */
+.flag-icon-rtl {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+/* Responsive RTL adjustments */
+@media (max-width: 768px) {
+  .mobile-rtl {
+    direction: rtl;
+  }
+
+  .mobile-ml-4 {
+    margin-left: 0;
+    margin-right: 1rem;
+  }
+
+  .mobile-mr-4 {
+    margin-right: 0;
+    margin-left: 1rem;
+  }
+}
+
+/* Utility: Force LTR for specific elements (like numbers, codes) */
+.force-ltr {
+  direction: ltr;
+  text-align: left;
+}
+
+/* Animation RTL support */
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.slide-in-left {
+  animation: slideInFromLeft 0.3s ease-out;
+}
+
+.slide-in-right {
+  animation: slideInFromRight 0.3s ease-out;
+}

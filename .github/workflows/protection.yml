@@ -1,0 +1,180 @@
+name: 🛡️ حماية قاعدة البيانات والكود
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  # فحص ملفات الترحيل (Migrations)
+  check-migrations:
+    name: 🗄️ فحص تعديلات قاعدة البيانات
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: فحص ملفات migrations
+        run: |
+          echo "🔍 فحص التعديلات على ملفات قاعدة البيانات..."
+          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
+
+          if echo "$CHANGED_FILES" | grep -q "supabase/migrations/"; then
+            echo "⚠️ تحذير: تم تعديل ملفات migrations!"
+            echo "📝 الملفات المعدلة:"
+            echo "$CHANGED_FILES" | grep "supabase/migrations/"
+            echo ""
+            echo "❌ يجب مراجعة هذه التعديلات من المطور الرئيسي"
+            exit 1
+          else
+            echo "✅ لا توجد تعديلات على ملفات migrations"
+          fi
+
+  # فحص عمليات الحذف
+  check-deletions:
+    name: 🗑️ فحص عمليات الحذف
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: فحص أوامر DELETE
+        run: |
+          echo "🔍 البحث عن عمليات حذف من قاعدة البيانات..."
+
+          # البحث عن .delete() في ملفات TypeScript/JavaScript
+          DELETE_OPERATIONS=$(grep -r "\.delete()" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ || true)
+
+          # البحث عن DELETE FROM في SQL
+          SQL_DELETES=$(grep -r "DELETE FROM" --include="*.sql" supabase/ || true)
+
+          if [ ! -z "$DELETE_OPERATIONS" ] || [ ! -z "$SQL_DELETES" ]; then
+            echo "⚠️ تحذير: تم العثور على عمليات حذف!"
+            echo ""
+            if [ ! -z "$DELETE_OPERATIONS" ]; then
+              echo "📝 عمليات حذف في الكود:"
+              echo "$DELETE_OPERATIONS"
+              echo ""
+            fi
+            if [ ! -z "$SQL_DELETES" ]; then
+              echo "📝 عمليات حذف في SQL:"
+              echo "$SQL_DELETES"
+              echo ""
+            fi
+            echo "❌ يجب مراجعة عمليات الحذف من المطور الرئيسي"
+            # لا نفشل الـ workflow، فقط ننبه
+            exit 0
+          else
+            echo "✅ لا توجد عمليات حذف جديدة"
+          fi
+
+  # فحص الملفات الحساسة
+  check-sensitive-files:
+    name: 🔐 فحص الملفات الحساسة
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: فحص تعديلات الملفات الحساسة
+        run: |
+          echo "🔍 فحص التعديلات على الملفات الحساسة..."
+          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
+
+          SENSITIVE_FILES=(
+            "supabaseConfig.ts"
+            ".env"
+            "package.json"
+            "AI_MASTER_REFERENCE.md"
+          )
+
+          SENSITIVE_CHANGED=""
+          for file in "${SENSITIVE_FILES[@]}"; do
+            if echo "$CHANGED_FILES" | grep -q "$file"; then
+              SENSITIVE_CHANGED="${SENSITIVE_CHANGED}\n- $file"
+            fi
+          done
+
+          if [ ! -z "$SENSITIVE_CHANGED" ]; then
+            echo "⚠️ تحذير: تم تعديل ملفات حساسة!"
+            echo "📝 الملفات:"
+            echo -e "$SENSITIVE_CHANGED"
+            echo ""
+            echo "⚠️ يُنصح بمراجعة هذه التعديلات بعناية"
+          else
+            echo "✅ لا توجد تعديلات على ملفات حساسة"
+          fi
+
+  # فحص credentials
+  check-credentials:
+    name: 🔑 فحص بيانات الاعتماد
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: فحص API keys و secrets
+        run: |
+          echo "🔍 البحث عن credentials في الكود..."
+
+          # أنماط للبحث عنها
+          PATTERNS=(
+            "pk_live_"
+            "sk_live_"
+            "api_key"
+            "apiKey"
+            "password.*=.*[\"\']"
+            "secret.*=.*[\"\']"
+          )
+
+          FOUND_SECRETS=0
+          for pattern in "${PATTERNS[@]}"; do
+            # استخدام grep مع -q للتحقق الصامت
+            if grep -r -i -q "$pattern" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ 2>/dev/null; then
+              echo "⚠️ وُجد نمط مشبوه: $pattern"
+              FOUND_SECRETS=1
+            fi
+          done
+
+          if [ $FOUND_SECRETS -eq 1 ]; then
+            echo ""
+            echo "❌ تحذير: قد توجد credentials في الكود!"
+            echo "يجب مراجعة الكود والتأكد من عدم وجود بيانات حساسة"
+            exit 1
+          else
+            echo "✅ لم يتم العثور على credentials مكشوفة"
+          fi
+
+  # تقرير نهائي
+  summary:
+    name: 📊 تقرير الفحص
+    runs-on: ubuntu-latest
+    needs:
+      [
+        check-migrations,
+        check-deletions,
+        check-sensitive-files,
+        check-credentials,
+      ]
+    if: always()
+    steps:
+      - name: عرض التقرير
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 تقرير فحص الحماية"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "الوظائف المكتملة:"
+          echo "✅ فحص ملفات migrations"
+          echo "✅ فحص عمليات الحذف"
+          echo "✅ فحص الملفات الحساسة"
+          echo "✅ فحص بيانات الاعتماد"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🤲 تم الحمد لله رب العالمين"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

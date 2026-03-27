@@ -1,0 +1,52 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react-swc";
+import path from "path";
+import { componentTagger } from "lovable-tagger";
+
+// https://vitejs.dev/config/
+export default defineConfig(({ mode }) => ({
+  server: {
+    host: "::",
+    port: 8080,
+  },
+  plugins: [
+    react(),
+    mode === "development" && componentTagger(),
+  ].filter(Boolean),
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+  build: {
+    target: "es2020",
+    sourcemap: false,
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        drop_console: mode === "production",
+        drop_debugger: true,
+        passes: 2,
+      },
+    },
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // المكتبات الأساسية
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-query": ["@tanstack/react-query"],
+          "vendor-supabase": ["@supabase/supabase-js"],
+          // مكتبات الواجهة
+          "vendor-ui": ["framer-motion", "zustand", "class-variance-authority", "clsx", "tailwind-merge"],
+          // الخرائط والجغرافيا
+          "vendor-maps": ["@turf/turf"],
+          // Mapbox فقط لصفحات الأدمن المحددة - يحمل عند الحاجة فقط
+          "vendor-mapbox": ["mapbox-gl"],
+          // الرسوم البيانية (للأدمن فقط)
+          "vendor-charts": ["recharts"],
+        },
+      },
+    },
+  },
+}));

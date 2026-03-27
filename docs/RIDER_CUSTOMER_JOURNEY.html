@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>تدفق الراكب - ران RAAN</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(
+          135deg,
+          #1a1a2e 0%,
+          #16213e 50%,
+          #0f3460 100%
+        );
+        min-height: 100vh;
+        padding: 20px;
+        color: #fff;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 40px;
+        padding: 30px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        backdrop-filter: blur(10px);
+      }
+
+      .header h1 {
+        font-size: 3em;
+        margin-bottom: 10px;
+        background: linear-gradient(90deg, #00d9ff, #00ff88);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .header p {
+        font-size: 1.2em;
+        opacity: 0.8;
+      }
+
+      .journey-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .phase {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 20px;
+        padding: 25px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        position: relative;
+      }
+
+      .phase-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+
+      .phase-number {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5em;
+        font-weight: bold;
+      }
+
+      .phase-1 .phase-number {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+      }
+      .phase-2 .phase-number {
+        background: linear-gradient(135deg, #f093fb, #f5576c);
+      }
+      .phase-3 .phase-number {
+        background: linear-gradient(135deg, #4facfe, #00f2fe);
+      }
+      .phase-4 .phase-number {
+        background: linear-gradient(135deg, #43e97b, #38f9d7);
+      }
+      .phase-5 .phase-number {
+        background: linear-gradient(135deg, #fa709a, #fee140);
+      }
+      .phase-6 .phase-number {
+        background: linear-gradient(135deg, #a8edea, #fed6e3);
+        color: #333;
+      }
+      .phase-7 .phase-number {
+        background: linear-gradient(135deg, #5ee7df, #b490ca);
+      }
+      .phase-8 .phase-number {
+        background: linear-gradient(135deg, #d299c2, #fef9d7);
+        color: #333;
+      }
+
+      .phase-title {
+        font-size: 1.5em;
+        font-weight: bold;
+      }
+
+      .phase-content {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+      }
+
+      .info-card {
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 15px;
+        padding: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .info-card h4 {
+        color: #00d9ff;
+        margin-bottom: 10px;
+        font-size: 1.1em;
+      }
+
+      .info-card ul {
+        list-style: none;
+        padding: 0;
+      }
+
+      .info-card li {
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .info-card li:last-child {
+        border-bottom: none;
+      }
+
+      .info-card li::before {
+        content: "✓";
+        color: #00ff88;
+        font-weight: bold;
+      }
+
+      .code-ref {
+        background: rgba(0, 217, 255, 0.2);
+        padding: 2px 8px;
+        border-radius: 5px;
+        font-family: monospace;
+        font-size: 0.9em;
+        color: #00d9ff;
+      }
+
+      .arrow {
+        text-align: center;
+        font-size: 2em;
+        color: #00d9ff;
+        padding: 10px 0;
+      }
+
+      .flow-diagram {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 20px;
+        padding: 30px;
+        margin: 30px 0;
+        overflow-x: auto;
+      }
+
+      .flow-steps {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .flow-step {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        padding: 15px 25px;
+        border-radius: 10px;
+        text-align: center;
+        min-width: 120px;
+      }
+
+      .flow-step.active {
+        background: linear-gradient(135deg, #43e97b, #38f9d7);
+        color: #1a1a2e;
+      }
+
+      .flow-step.error {
+        background: linear-gradient(135deg, #f5576c, #f093fb);
+      }
+
+      .flow-arrow {
+        font-size: 1.5em;
+        color: #00d9ff;
+      }
+
+      .tech-stack {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 30px;
+      }
+
+      .tech-item {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+      }
+
+      .tech-item strong {
+        color: #00ff88;
+        display: block;
+        margin-bottom: 5px;
+      }
+
+      .status-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+
+      .status-table th,
+      .status-table td {
+        padding: 12px;
+        text-align: right;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .status-table th {
+        background: rgba(0, 217, 255, 0.2);
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.85em;
+      }
+
+      .status-pending {
+        background: #ffc107;
+        color: #000;
+      }
+      .status-accepted {
+        background: #17a2b8;
+        color: #fff;
+      }
+      .status-arrived {
+        background: #6f42c1;
+        color: #fff;
+      }
+      .status-progress {
+        background: #007bff;
+        color: #fff;
+      }
+      .status-completed {
+        background: #28a745;
+        color: #fff;
+      }
+      .status-cancelled {
+        background: #dc3545;
+        color: #fff;
+      }
+
+      .footer {
+        text-align: center;
+        margin-top: 40px;
+        padding: 20px;
+        opacity: 0.7;
+      }
+
+      @media print {
+        body {
+          background: #fff;
+          color: #000;
+        }
+        .phase {
+          border: 2px solid #333;
+          page-break-inside: avoid;
+        }
+        .info-card {
+          border: 1px solid #ccc;
+        }
+      }
+
+      .download-btn {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        background: linear-gradient(135deg, #00d9ff, #00ff88);
+        color: #1a1a2e;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 30px;
+        font-size: 1.1em;
+        font-weight: bold;
+        cursor: pointer;
+        box-shadow: 0 5px 20px rgba(0, 217, 255, 0.4);
+        transition: transform 0.3s;
+      }
+
+      .download-btn:hover {
+        transform: scale(1.05);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <h1>🚕 تدفق الراكب - ران RAAN</h1>
+        <p>
+          Customer Journey Documentation - الرحلة الكاملة من التسجيل إلى إكمال
+          الرحلة
+        </p>
+        <p style="margin-top: 10px; font-size: 0.9em">
+          📅 آخر تحديث: 10 يناير 2026
+        </p>
+      </header>
+
+      <!-- Flow Diagram -->
+      <div class="flow-diagram">
+        <h3 style="text-align: center; margin-bottom: 20px">
+          📊 مخطط التدفق الرئيسي
+        </h3>
+        <div class="flow-steps">
+          <div class="flow-step">🏠 الترحيب</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">📍 تحديد الانطلاق</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">🎯 تحديد الوجهة</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">💰 حساب الأجرة</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">✅ تأكيد الحجز</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step active">⏳ انتظار السائق</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">🚗 تتبع مباشر</div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-step">⭐ تقييم</div>
+        </div>
+      </div>
+
+      <div class="journey-container">
+        <!-- Phase 1 -->
+        <div class="phase phase-1">
+          <div class="phase-header">
+            <div class="phase-number">1</div>
+            <div class="phase-title">🏠 شاشة الترحيب</div>
+          </div>
+          <div class="phase-content">
+            <div class="info-card">
+              <h4>📁 الملفات</h4>
+              <ul>
+                <li><span class="code-ref">RiderHomeWelcome.tsx</span></li>
+                <li><span class="code-ref">/rider</span> المسار</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>⚙️ الوظائف</h4>
+              <ul>
+                <li>عرض رسالة ترحيبية للمستخدم</li>
+                <li>زر "ابدأ الحجز" للانتقال للخطوة التالية</li>
+                <li>عرض معلومات التطبيق الأساسية</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>🔗 الانتقال</h4>
+              <ul>
+                <li>→ <span class="code-ref">/rider-main</span></li>
+                <li>
+                  يُرسل <span class="code-ref">pickupCoords</span> إن توفر
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">⬇️</div>
+
+        <!-- Phase 2 -->
+        <div class="phase phase-2">
+          <div class="phase-header">
+            <div class="phase-number">2</div>
+            <div class="phase-title">📍 تحديد موقع الانطلاق</div>
+          </div>
+          <div class="phase-content">
+            <div class="info-card">
+              <h4>📁 الملفات</h4>
+              <ul>
+                <li>
+                  <span class="code-ref">RiderHomeCustom.tsx</span> (1509 سطر)
+                </li>
+                <li><span class="code-ref">MapLocationPicker.tsx</span></li>
+                <li><span class="code-ref">useRiderLocation.ts</span></li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>⚙️ الوظائف</h4>
+              <ul>
+                <li>تحديد الموقع تلقائياً عبر GPS</li>
+                <li>اختيار من الخريطة يدوياً</li>
+                <li>البحث بالنص عن عنوان</li>
+                <li>اختيار من الأماكن المحفوظة</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>🔧 الدوال الرئيسية</h4>
+              <ul>
+                <li><span class="code-ref">getCurrentLocation()</span></li>
+                <li><span class="code-ref">handlePickupSelect()</span></li>
+                <li><span class="code-ref">fetchAddressFromCoords()</span></li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>📊 الحالة State</h4>
+              <ul>
+                <li><span class="code-ref">pickup</span> - عنوان الانطلاق</li>
+                <li>
+                  <span class="code-ref">pickupCoords</span> - إحداثيات {lat,
+                  lng}
+                </li>
+                <li><span class="code-ref">isLocating</span> - حالة التحديد</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">⬇️</div>
+
+        <!-- Phase 3 -->
+        <div class="phase phase-3">
+          <div class="phase-header">
+            <div class="phase-number">3</div>
+            <div class="phase-title">🎯 تحديد الوجهة</div>
+          </div>
+          <div class="phase-content">
+            <div class="info-card">
+              <h4>📁 الملفات</h4>
+              <ul>
+                <li><span class="code-ref">MapLocationPicker.tsx</span></li>
+                <li><span class="code-ref">LocationSearchInput.tsx</span></li>
+                <li><span class="code-ref">SavedPlacesQuickIcons.tsx</span></li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>⚙️ الوظائف</h4>
+              <ul>
+                <li>اختيار الوجهة من الخريطة</li>
+                <li>البحث النصي عن الوجهة</li>
+                <li>اختيار من الأماكن المحفوظة</li>
+                <li>إضافة محطات وسيطة (اختياري)</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>🔧 الدوال الرئيسية</h4>
+              <ul>
+                <li><span class="code-ref">handleMapPickerConfirm()</span></li>
+                <li><span class="code-ref">handleDestinationSelect()</span></li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>📊 الحالة State</h4>
+              <ul>
+                <li><span class="code-ref">dropoff</span> - عنوان الوجهة</li>
+                <li><span class="code-ref">dropoffCoords</span> - إحداثيات</li>
+                <li>
+                  <span class="code-ref">intermediateStops[]</span> - المحطات
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">⬇️</div>
+
+        <!-- Phase 4 -->
+        <div class="phase phase-4">
+          <div class="phase-header">
+            <div class="phase-number">4</div>
+            <div class="phase-title">💰 حساب الأجرة</div>
+          </div>
+          <div class="phase-content">
+            <div class="info-card">
+              <h4>📁 الملفات</h4>
+              <ul>
+                <li><span class="code-ref">useFareCalculation.ts</span></li>
+                <li>
+                  <span class="code-ref">calculate-fare/index.ts</span> (Edge
+                  Function)
+                </li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>📐 معادلة الحساب</h4>
+              <ul>
+                <li>fare = base_fare</li>
+                <li>+ (distance_km × per_km_rate)</li>
+                <li>+ (waiting_minutes × waiting_rate)</li>
+                <li>× vehicle_multiplier</li>
+                <li>× surge_multiplier</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>🚗 معاملات المركبات</h4>
+              <ul>
+                <li>Economy: 1.0x</li>
+                <li>Comfort: 1.3x</li>
+                <li>Premium: 1.8x</li>
+                <li>Women Only: 1.2x</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>📊 النتائج</h4>
+              <ul>
+                <li><span class="code-ref">fareBreakdown.total_fare</span></li>
+                <li>
+                  <span class="code-ref">routeDistance</span> - المسافة بالكم
+                </li>
+                <li>
+                  <span class="code-ref">routeDuration</span> - الوقت بالدقائق
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">⬇️</div>
+
+        <!-- Phase 5 -->
+        <div class="phase phase-5">
+          <div class="phase-header">
+            <div class="phase-number">5</div>
+            <div class="phase-title">✅ تأكيد الحجز</div>
+          </div>
+          <div class="phase-content">
+            <div class="info-card">
+              <h4>📁 الملفات</h4>
+              <ul>
+                <li><span class="code-ref">RiderHomeCustom.tsx</span></li>
+                <li>
+                  <span class="code-ref">CompactVehicleSelector.tsx</span>
+                </li>
+                <li><span class="code-ref">PaymentMethodSheet.tsx</span></li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>⚙️ الوظائف</h4>
+              <ul>
+                <li>اختيار نوع المركبة</li>
+                <li>اختيار طريقة الدفع</li>
+                <li>عرض ملخص الرحلة</li>
+                <li>عرض عدد السائقين المتاحين</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>🔧 الدالة الرئيسية</h4>
+              <ul>
+                <li><span class="code-ref">handleBookRide()</span></li>
+                <li>إنشاء سجل في جدول <span class="code-ref">rides</span></li>
+                <li>
+                  استدعاء <span class="code-ref">match-ride</span> Edge Function
+                </li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>💳 طرق الدفع</h4>
+              <ul>
+                <li>نقداً (cash)</li>
+                <li>المحفظة (wallet)</li>
+                <li>بطاقة (card)</li>
+                <li>زين كاش (zain_cash)</li>
+                <li>ناس (nas_wallet)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">⬇️</div>
+
+        <!-- Phase 6 -->
+        <div class="phase phase-6">
+          <div class="phase-header">
+            <div class="phase-number">6</div>
+            <div class="phase-title">⏳ انتظار السائق</div>
+          </div>
+          <div class="phase-content">
+            <div class="info-card">
+              <h4>📁 الملفات</h4>
+              <ul>
+                <li><span class="code-ref">RideWaitingScreen.tsx</span></li>
+                <li>
+                  <span class="code-ref">match-ride/index.ts</span> (Edge
+                  Function)
+                </li>
+                <li><span class="code-ref">useActiveRide.ts</span></li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>⚙️ خوارزمية المطابقة</h4>
+              <ul>
+                <li>فلترة: status=approved, is_online=true</li>
+                <li>فلترة: is_available=true, vehicle_type</li>
+                <li>ترتيب: الأقرب → الأعلى تقييماً</li>
+                <li>5 محاولات × 20 ثانية لكل محاولة</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>🔔 الإشعارات</h4>
+              <ul>
+                <li>Supabase Realtime للتحديثات</li>
+                <li>صوت عند قبول السائق</li>
+                <li>اهتزاز للتنبيه</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>❌ الإلغاء</h4>
+              <ul>
+                <li>يمكن للراكب الإلغاء</li>
+                <li>غرامة إلغاء بعد قبول السائق</li>
+                <li>
+                  <span class="code-ref">CancellationReasonDialog.tsx</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">⬇️</div>
+
+        <!-- Phase 7 -->
+        <div class="phase phase-7">
+          <div class="phase-header">
+            <div class="phase-number">7</div>
+            <div class="phase-title">🚗 تتبع الرحلة المباشر</div>
+          </div>
+          <div class="phase-content">
+            <div class="info-card">
+              <h4>📁 الملفات</h4>
+              <ul>
+                <li><span class="code-ref">LiveRideTracker.tsx</span></li>
+                <li><span class="code-ref">StaticRideMap.tsx</span></li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>⚙️ الوظائف</h4>
+              <ul>
+                <li>عرض موقع السائق الحي</li>
+                <li>عرض المسار على الخريطة</li>
+                <li>وقت الوصول المتوقع ETA</li>
+                <li>معلومات السائق والمركبة</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>📱 التواصل</h4>
+              <ul>
+                <li>الاتصال بالسائق</li>
+                <li>محادثة نصية <span class="code-ref">RideChat.tsx</span></li>
+                <li>زر الطوارئ</li>
+                <li>مشاركة الرحلة</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>📊 حالات الرحلة</h4>
+              <table class="status-table">
+                <tr>
+                  <th>الحالة</th>
+                  <th>الوصف</th>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="status-badge status-accepted">accepted</span>
+                  </td>
+                  <td>السائق في الطريق</td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="status-badge status-arrived">arrived</span>
+                  </td>
+                  <td>السائق وصل</td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="status-badge status-progress"
+                      >in_progress</span
+                    >
+                  </td>
+                  <td>الرحلة جارية</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">⬇️</div>
+
+        <!-- Phase 8 -->
+        <div class="phase phase-8">
+          <div class="phase-header">
+            <div class="phase-number">8</div>
+            <div class="phase-title">⭐ إكمال الرحلة والتقييم</div>
+          </div>
+          <div class="phase-content">
+            <div class="info-card">
+              <h4>📁 الملفات</h4>
+              <ul>
+                <li><span class="code-ref">RideCompletedScreen.tsx</span></li>
+                <li><span class="code-ref">AdvancedRatingDialog.tsx</span></li>
+                <li><span class="code-ref">SmartRatingFlow.tsx</span></li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>⚙️ الوظائف</h4>
+              <ul>
+                <li>عرض تفاصيل الرحلة النهائية</li>
+                <li>المبلغ النهائي (final_fare)</li>
+                <li>تقييم السائق (1-5 نجوم)</li>
+                <li>كتابة تعليق (اختياري)</li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>💾 تحديث قاعدة البيانات</h4>
+              <ul>
+                <li>
+                  تحديث <span class="code-ref">rides.status</span> = completed
+                </li>
+                <li>تحديث <span class="code-ref">rides.driver_rating</span></li>
+                <li>
+                  تحديث <span class="code-ref">drivers.rating</span> (المتوسط)
+                </li>
+                <li>
+                  إنشاء سجل في <span class="code-ref">company_earnings</span>
+                </li>
+              </ul>
+            </div>
+            <div class="info-card">
+              <h4>🔄 بعد الإكمال</h4>
+              <ul>
+                <li>عرض إيصال الرحلة</li>
+                <li>اقتراح حفظ الوجهة</li>
+                <li>العودة للشاشة الرئيسية</li>
+                <li><span class="code-ref">resetBooking()</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Technical Stack -->
+      <div style="margin-top: 40px">
+        <h2 style="text-align: center; margin-bottom: 20px">
+          🛠️ التقنيات المستخدمة
+        </h2>
+        <div class="tech-stack">
+          <div class="tech-item">
+            <strong>Frontend</strong>
+            React 18 + TypeScript
+          </div>
+          <div class="tech-item">
+            <strong>UI Framework</strong>
+            Tailwind CSS + shadcn/ui
+          </div>
+          <div class="tech-item">
+            <strong>State Management</strong>
+            React Query + Zustand
+          </div>
+          <div class="tech-item">
+            <strong>Backend</strong>
+            Supabase (PostgreSQL)
+          </div>
+          <div class="tech-item">
+            <strong>Maps</strong>
+            Mapbox GL JS
+          </div>
+          <div class="tech-item">
+            <strong>Realtime</strong>
+            Supabase Realtime
+          </div>
+          <div class="tech-item">
+            <strong>Edge Functions</strong>
+            Deno Runtime
+          </div>
+          <div class="tech-item">
+            <strong>Animations</strong>
+            Framer Motion
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Flow -->
+      <div style="margin-top: 40px">
+        <h2 style="text-align: center; margin-bottom: 20px">
+          📊 دورة حياة الرحلة (Ride Status)
+        </h2>
+        <div class="flow-diagram">
+          <div class="flow-steps">
+            <div class="flow-step" style="background: #ffc107; color: #000">
+              pending
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" style="background: #17a2b8">accepted</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" style="background: #6f42c1">arrived</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" style="background: #007bff">in_progress</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" style="background: #28a745">completed</div>
+          </div>
+          <div style="text-align: center; margin-top: 20px">
+            <div class="flow-step error" style="display: inline-block">
+              cancelled ❌
+            </div>
+            <p style="margin-top: 10px; opacity: 0.7">
+              يمكن الإلغاء من أي حالة ما عدا completed
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <footer class="footer">
+        <p>📱 تطبيق ران RAAN - تاكسي عراقي ذكي</p>
+        <p>تم إنشاء هذا التوثيق تلقائياً - 10 يناير 2026</p>
+      </footer>
+    </div>
+
+    <button class="download-btn" onclick="window.print()">
+      📥 طباعة / تحميل PDF
+    </button>
+  </body>
+</html>

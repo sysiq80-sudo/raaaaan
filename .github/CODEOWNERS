@@ -1,0 +1,44 @@
+# CODEOWNERS - ملاك الكود والمراجعين المطلوبين
+# هذا الملف يحدد من يجب أن يراجع التغييرات على ملفات معينة
+
+# 🔐 الملفات الحساسة - تحتاج موافقة المطور الرئيسي
+
+# قاعدة البيانات
+supabase/migrations/* @engkhalidmaster
+supabase/functions/* @engkhalidmaster
+*.sql @engkhalidmaster
+
+# ملفات الإعدادات الحرجة
+src/lib/supabaseConfig.ts @engkhalidmaster
+.env* @engkhalidmaster
+vite.config.ts @engkhalidmaster
+
+# الملفات المرجعية
+AI_MASTER_REFERENCE.md @engkhalidmaster
+RIDER_FLOW_DOCUMENTATION.md @engkhalidmaster
+SMART_FEATURES_README.md @engkhalidmaster
+
+# ملفات الحماية والـ Workflows
+.github/workflows/* @engkhalidmaster
+.github/copilot-instructions.md @engkhalidmaster
+.github/PROTECTION_RULES.md @engkhalidmaster
+
+# 🎯 ملفات مهمة - يُنصح بالمراجعة
+
+# Hooks المهمة
+src/hooks/useFareCalculation.ts @engkhalidmaster
+src/hooks/useNearbyDrivers.ts @engkhalidmaster
+src/hooks/useRiderLocation.ts @engkhalidmaster
+
+# المكونات الأساسية
+src/components/Map.tsx @engkhalidmaster
+src/components/LazyMap.tsx @engkhalidmaster
+
+# إعدادات المشروع
+package.json @engkhalidmaster
+tsconfig.json @engkhalidmaster
+tailwind.config.ts @engkhalidmaster
+
+# 📝 ملاحظة:
+# المطور الرئيسي: @engkhalidmaster
+# لإضافة مراجعين آخرين، أضف username@ بعد المسار
