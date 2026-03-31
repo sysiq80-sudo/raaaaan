@@ -322,21 +322,20 @@ const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: S
           </div>
 
           {/* الأزرار */}
-          <div className="shrink-0 flex border-t border-slate-700/30">
+          <div className="shrink-0 flex pb-[env(safe-area-inset-bottom)] border-t-2 border-emerald-500/20 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
             <button
               type="button" onClick={onSkip} title="تخطي"
-              className="flex-1 h-14 flex items-center justify-center text-sm font-bold text-slate-400 hover:bg-slate-800/60 active:bg-slate-800 transition-colors rounded-none"
+              className="flex-1 h-[72px] flex items-center justify-center text-sm font-bold text-slate-200 bg-[#1a2333] hover:bg-[#212d42] active:bg-[#283a52] transition-all rounded-none touch-manipulation border-r border-slate-600/40"
             >
               تخطي
             </button>
-            <div className="w-px bg-slate-700/30 shrink-0" />
             <button
               type="button" onClick={handleSubmit} disabled={loading} title="إرسال التقييم"
-              className="flex-1 h-14 flex items-center justify-center gap-2 text-sm font-bold text-white bg-gradient-to-l from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:from-emerald-700 active:to-emerald-600 transition-all disabled:opacity-50 rounded-none"
+              className="flex-[2] h-[72px] flex items-center justify-center gap-2 text-lg font-black text-white bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-600 shadow-[0_-4px_20px_rgba(16,185,129,0.25)] hover:from-emerald-500 hover:to-emerald-400 active:from-emerald-700 transition-all disabled:opacity-50 rounded-none touch-manipulation"
             >
               {loading
-                ? <Loader2 className="w-5 h-5 animate-spin" />
-                : <><CheckCircle className="w-4 h-4" />إرسال التقييم</>
+                ? <Loader2 className="w-6 h-6 animate-spin" />
+                : <><CheckCircle className="w-5 h-5" />تأكيد التقييم</>
               }
             </button>
           </div>

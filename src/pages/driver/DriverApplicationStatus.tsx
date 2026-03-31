@@ -14,7 +14,8 @@ import {
   MessageCircle,
   RefreshCw,
   ArrowLeft,
-  Bell
+  Bell,
+  Camera
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,6 +33,21 @@ interface DriverData {
   license_image_url: string | null;
   profile_image_url: string | null;
 }
+
+interface DocReview {
+  document_type: string;
+  status: string;
+  rejection_reason: string | null;
+}
+
+const DOC_TYPE_LABELS: Record<string, string> = {
+  profile_image: 'الصورة الشخصية',
+  id_front: 'البطاقة الموحدة (أمام)',
+  id_back: 'البطاقة الموحدة (خلف)',
+  license_front: 'إجازة السوق (أمام)',
+  license_back: 'إجازة السوق (خلف)',
+  vehicle_image: 'صورة السيارة',
+};
 
 const statusConfig: Record<DriverStatus, {
   icon: React.ReactNode;
@@ -75,6 +91,7 @@ export default function DriverApplicationStatus() {
   const [driver, setDriver] = useState<DriverData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [docReviews, setDocReviews] = useState<DocReview[]>([]);
 
   const fetchDriverStatus = async () => {
     try {
@@ -98,6 +115,16 @@ export default function DriverApplicationStatus() {
       }
 
       setDriver(data as DriverData);
+
+      // جلب حالات مراجعة الوثائق
+      const { data: reviews } = await supabase
+        .from("driver_document_reviews" as any)
+        .select("document_type, status, rejection_reason")
+        .eq("driver_id", data.id);
+      
+      if (reviews) {
+        setDocReviews(reviews as any[]);
+      }
     } catch (error) {
       console.error("Error fetching driver:", error);
       toast.error("حدث خطأ في جلب البيانات");
@@ -228,6 +255,61 @@ export default function DriverApplicationStatus() {
             </div>
           </CardContent>
         </Card>
+
+        {/* تفاصيل الوثائق المرفوضة */}
+        {docReviews.some(r => r.status === 'rejected') && (
+          <Card className="border-red-300 bg-red-50">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <XCircle className="h-6 w-6 text-red-600 mt-1 shrink-0" />
+                <div className="flex-1">
+                  <h3 className="font-bold text-red-800 mb-2">وثائق تحتاج إعادة رفع</h3>
+                  <div className="space-y-2">
+                    {docReviews.filter(r => r.status === 'rejected').map((r) => (
+                      <div key={r.document_type} className="bg-white/60 rounded p-2">
+                        <p className="font-medium text-sm text-red-800">{DOC_TYPE_LABELS[r.document_type] || r.document_type}</p>
+                        {r.rejection_reason && (
+                          <p className="text-xs text-red-600 mt-1">السبب: {r.rejection_reason}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <Button 
+                    className="mt-3"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => navigate("/driver/complete-registration")}
+                  >
+                    <Camera className="w-4 h-4 ml-1" />
+                    إعادة رفع الوثائق
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ملخص حالة الوثائق */}
+        {docReviews.length > 0 && !docReviews.some(r => r.status === 'rejected') && (
+          <Card className="border-muted">
+            <CardContent className="p-4">
+              <h3 className="font-medium mb-2 flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                حالة الوثائق
+              </h3>
+              <div className="space-y-1">
+                {docReviews.map((r) => (
+                  <div key={r.document_type} className="flex items-center justify-between text-sm py-1">
+                    <span className="text-muted-foreground">{DOC_TYPE_LABELS[r.document_type] || r.document_type}</span>
+                    <Badge variant={r.status === 'approved' ? 'default' : 'secondary'} className="text-xs">
+                      {r.status === 'approved' ? 'معتمد' : r.status === 'pending' ? 'قيد المراجعة' : 'مرفوض'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Profile Completion Warning */}
         {!isProfileComplete && driver.status === 'pending' && (

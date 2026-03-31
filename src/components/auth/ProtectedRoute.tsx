@@ -42,7 +42,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // 3. تحقق من الدور المطلوب (إذا حُدّد)
-  if (requiredRole) {
+  // ✅ في التطبيقات المستقلة (APK) لا نعيد توجيه لتطبيق آخر
+  const appMode = typeof __APP_MODE__ !== 'undefined' ? __APP_MODE__ : null;
+  // ✅ إذا كان redirectTo محدداً كـ /driver/auth، نحن في تطبيق السائق — لا نوجه لـ /rider
+  const isDriverApp = redirectTo === "/driver/auth" || appMode === "driver";
+
+  if (requiredRole && !appMode) {
     // إعادة توجيه حسب الدور الفعلي إذا لا يطابق المطلوب
     if (requiredRole === "rider" && userRole === "driver") {
       return <Navigate to="/driver" replace />;
@@ -50,7 +55,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     if (requiredRole === "rider" && userRole === "admin") {
       return <Navigate to="/admin" replace />;
     }
-    if (requiredRole === "driver" && userRole === "rider") {
+    if (requiredRole === "driver" && userRole === "rider" && !isDriverApp) {
       return <Navigate to="/rider" replace />;
     }
     if (requiredRole === "driver" && userRole === "admin") {

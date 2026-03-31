@@ -1,10 +1,11 @@
-﻿import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster as Sonner } from "@/components/ui/sonner";
 import { lazy, Suspense, useState, useEffect } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import DevInspector from "@/components/DevInspector";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import SplashScreen from "@/components/SplashScreen";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
@@ -24,6 +25,11 @@ const TrackRide = lazy(() => import("./pages/TrackRide"));
 const About = lazy(() => import("./pages/About"));
 const HelpAndContact = lazy(() => import("./pages/HelpAndContact"));
 const PaymentResult = lazy(() => import("./pages/payment/PaymentResult"));
+const AIPage = lazy(() => import("./pages/marketing/AIPage"));
+const FeaturesPage = lazy(() => import("./pages/marketing/FeaturesPage"));
+const DriverPage = lazy(() => import("./pages/marketing/DriverPage"));
+const MarketingAboutPage = lazy(() => import("./pages/marketing/AboutPage"));
+const ContactPage = lazy(() => import("./pages/marketing/ContactPage"));
 
 // ØµÙØ­Ø§Øª Ø§Ù„Ø±Ø§ÙƒØ¨ - ØªØ­Ù…ÙŠÙ„ ÙƒØ³ÙˆÙ„ (Ù„Ø§ ÙŠØ­Ù…Ù„Ù‡Ø§ Ø§Ù„Ø³Ø§Ø¦Ù‚ Ø£Ùˆ Ø§Ù„Ø£Ø¯Ù…Ù†)
 const GoPage = lazy(() => import("./pages/rider/GoPage"));
@@ -33,6 +39,7 @@ const RiderPaymentsPage = lazy(() => import("./pages/rider/RiderPaymentsPage"));
 const WalletTopupPage = lazy(() => import("./pages/rider/WalletTopupPage"));
 const RiderSavedPlacesPage = lazy(() => import("./pages/rider/RiderSavedPlacesPage"));
 const RiderSettingsPage = lazy(() => import("./pages/rider/RiderSettingsPage"));
+const RiderNotificationsPage = lazy(() => import("./pages/rider/RiderNotificationsPage"));
 
 // ØµÙØ­Ø§Øª Ø§Ù„Ø³Ø§Ø¦Ù‚ - ØªØ­Ù…ÙŠÙ„ ÙƒØ³ÙˆÙ„
 import DriverHome from "./pages/driver/DriverHome";
@@ -98,6 +105,10 @@ const AdminMessengerAccounts = lazy(() => import("./pages/admin/AdminMessengerAc
 const AdminDeveloperSettings = lazy(() => import("./pages/admin/AdminDeveloperSettings"));
 const AdminSecuritySettings = lazy(() => import("./pages/admin/AdminSecuritySettings"));
 const AdminWithdrawals = lazy(() => import("./pages/admin/AdminWithdrawals"));
+const AdminFleets = lazy(() => import("./pages/admin/AdminFleets"));
+const AdminNotifications = lazy(() => import("./pages/admin/AdminNotifications"));
+const AdminNotificationGroups = lazy(() => import("./pages/admin/AdminNotificationGroups"));
+const AdminDevInspector = lazy(() => import("./pages/admin/AdminDevInspector"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -114,11 +125,17 @@ const isMobileDevice = () => {
   if (typeof window === "undefined") return false;
   const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   const isNarrow = window.innerWidth < 768;
-  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || ('standalone' in window.navigator && window.navigator.standalone === true);
   return isMobileUA || isNarrow || isStandalone;
 };
 
-const LoadingFallback = () => <SplashScreen />;
+const RouteTransitionFallback = () => (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0b1326]/30 backdrop-blur-sm">
+    <div className="w-10 h-10 rounded-full border-4 border-[#5bdda6]/20 border-t-[#5bdda6] animate-spin" />
+  </div>
+);
+
+const LoadingFallback = () => <RouteTransitionFallback />;
 
 const App = () => {
   return (
@@ -129,6 +146,7 @@ const App = () => {
             <Sonner />
             <ConnectionStatus />
             <PWAInstallPrompt />
+            <DevInspector />
             <BrowserRouter
               future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
             >
@@ -160,6 +178,9 @@ const AppRoutes = () => {
       if (userRole === 'driver') {
         import("./pages/driver/DriverRides");
         import("./pages/driver/DriverProfile");
+      } else if (userRole === 'rider') {
+        import("./pages/rider/RiderRidesPage");
+        import("./pages/rider/RiderSettingsPage");
       }
     }, 3000);
     return () => clearTimeout(timer);
@@ -200,9 +221,12 @@ const AppRoutes = () => {
         />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
-        <Route path="/about" element={<About />} />
+        <Route path="/about" element={<MarketingAboutPage />} />
         <Route path="/help" element={<HelpAndContact />} />
-        <Route path="/contact" element={<HelpAndContact />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/ai" element={<AIPage />} />
+        <Route path="/features" element={<FeaturesPage />} />
+        <Route path="/drive" element={<DriverPage />} />
         <Route
           path="/track/:token"
           element={
@@ -273,9 +297,9 @@ const AppRoutes = () => {
         />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
-        <Route path="/about" element={<About />} />
+          <Route path="/about" element={<MarketingAboutPage />} />
         <Route path="/help" element={<HelpAndContact />} />
-        <Route path="/contact" element={<HelpAndContact />} />
+          <Route path="/contact" element={<ContactPage />} />
         {/* âœ… Redirect to onboarding if user tries other routes without completing it */}
         <Route path="*" element={<Navigate to="/onboarding" replace={false} />} />
       </Routes>
@@ -362,6 +386,18 @@ const AppRoutes = () => {
                   <ProtectedRoute requiredRole="rider">
                     <RiderLayout>
                       <GoPage scheduleMode={true} />
+                    </RiderLayout>
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/rider/notifications"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="rider">
+                    <RiderLayout>
+                      <RiderNotificationsPage />
                     </RiderLayout>
                   </ProtectedRoute>
                 </ErrorBoundary>
@@ -617,6 +653,36 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminDrivers />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/fleets"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminFleets />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/notifications"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminNotifications />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/notification-groups"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminNotificationGroups />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }
@@ -987,6 +1053,26 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminDeveloperSettings />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/settings/devInspector"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminDevInspector />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/dev-inspector"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminDevInspector />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }

@@ -13,6 +13,8 @@ import { Separator } from "@/components/ui/separator";
 import RadiusSlider from "@/components/driver/RadiusSlider";
 import { toast } from "sonner";
 import { User, Session } from "@supabase/supabase-js";
+import { isNativePlatform } from "@/lib/capacitorBridge";
+import { registerFCMToken } from "@/services/driverNotificationService";
 import ThemeToggle from "@/components/ThemeToggle";
 import { NotificationMuteScheduler } from "@/components/driver/NotificationMuteScheduler";
 import { 
@@ -97,7 +99,11 @@ const DriverSettings = () => {
     }
 
     // Check notification permission
-    if ('Notification' in window) {
+    if (isNativePlatform) {
+      // في التطبيق الأصلي، الإشعارات تعمل عبر FCM
+      const hasFcmToken = !!localStorage.getItem('raan_fcm_token');
+      setNotificationPermission(hasFcmToken ? 'granted' : 'default');
+    } else if ('Notification' in window) {
       setNotificationPermission(Notification.permission);
     } else {
       setNotificationPermission('unsupported');
@@ -135,6 +141,27 @@ const DriverSettings = () => {
     } catch (error) {
       console.error('Error requesting permission:', error);
       toast.error('حدث خطأ أثناء طلب الإذن');
+    }
+  };
+
+  // تفعيل إشعارات FCM للتطبيق الأصلي
+  const handleEnableNativeNotifications = async () => {
+    if (!driverId) {
+      toast.error('لم يتم تحديد هوية السائق');
+      return;
+    }
+    try {
+      const success = await registerFCMToken(driverId);
+      if (success) {
+        setNotificationPermission('granted');
+        saveNotificationPrefs({ ...notificationPrefs, pushEnabled: true });
+        toast.success('تم تفعيل إشعارات التطبيق بنجاح');
+      } else {
+        toast.error('فشل تفعيل الإشعارات - تأكد من منح الإذن');
+      }
+    } catch (error) {
+      console.error('FCM registration error:', error);
+      toast.error('حدث خطأ أثناء تفعيل الإشعارات');
     }
   };
 
@@ -280,7 +307,7 @@ const DriverSettings = () => {
         <div className="container max-w-lg space-y-6">
           
           {/* Notification Settings Section */}
-          <Card>
+          <Card className="driver-geometric-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Bell className="w-5 h-5 text-primary" />
@@ -311,20 +338,22 @@ const DriverSettings = () => {
                       <BellRing className="w-5 h-5 text-amber-500" />
                     )}
                     <div>
-                      <p className="font-medium text-foreground">إشعارات المتصفح</p>
+                      <p className="font-medium text-foreground">
+                        {isNativePlatform ? 'إشعارات التطبيق' : 'إشعارات المتصفح'}
+                      </p>
                       <p className="text-sm text-muted-foreground">
                         {notificationPermission === 'granted' 
-                          ? 'مفعّلة ✓' 
+                          ? (isNativePlatform ? 'مفعّلة عبر FCM ✓' : 'مفعّلة ✓')
                           : notificationPermission === 'denied'
-                          ? 'محظورة - فعّلها من إعدادات المتصفح'
+                          ? (isNativePlatform ? 'محظورة - فعّلها من إعدادات التطبيق' : 'محظورة - فعّلها من إعدادات المتصفح')
                           : notificationPermission === 'unsupported'
                           ? 'غير مدعومة'
-                          : 'غير مفعّلة'}
+                          : (isNativePlatform ? 'اضغط تفعيل لاستقبال الإشعارات' : 'غير مفعّلة')}
                       </p>
                     </div>
                   </div>
                   {notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
-                    <Button size="sm" onClick={requestNotificationPermission}>
+                    <Button size="sm" onClick={isNativePlatform ? handleEnableNativeNotifications : requestNotificationPermission}>
                       تفعيل
                     </Button>
                   )}
@@ -449,7 +478,7 @@ const DriverSettings = () => {
           </Card>
 
           {/* Profile Section */}
-          <Card>
+          <Card className="driver-geometric-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <UserIcon className="w-5 h-5 text-primary" />
@@ -492,7 +521,7 @@ const DriverSettings = () => {
           </Card>
 
           {/* Vehicle Section */}
-          <Card>
+          <Card className="driver-geometric-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Car className="w-5 h-5 text-primary" />
@@ -533,7 +562,7 @@ const DriverSettings = () => {
           </Card>
 
           {/* Work Preferences */}
-          <Card>
+          <Card className="driver-geometric-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <MapPin className="w-5 h-5 text-primary" />
@@ -570,7 +599,7 @@ const DriverSettings = () => {
           <ThemeToggle />
 
           {/* Language Section */}
-          <Card>
+          <Card className="driver-geometric-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Globe className="w-5 h-5 text-primary" />

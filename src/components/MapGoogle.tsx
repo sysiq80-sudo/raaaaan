@@ -262,7 +262,11 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
 
   // Initialize Map
   useEffect(() => {
-    if (!mapContainer.current || !apiKey || isApiKeyLoading) return;
+    if (!mapContainer.current || isApiKeyLoading) return;
+    if (!apiKey) {
+      console.warn("⚠️ Google Maps API key is empty — map will not load");
+      return;
+    }
 
     // Load Google Maps via centralized loader
     loadGoogleMaps(apiKey).then(() => {

@@ -6,7 +6,6 @@
  */
 
 import React from "react";
-import RiderBottomNav from "./RiderBottomNav";
 import MaintenanceScreen from "@/components/MaintenanceScreen";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 
@@ -23,14 +22,11 @@ const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] overflow-hidden">
+    <div className="rider-premium flex flex-col h-[100dvh] overflow-hidden">
       {/* المحتوى الرئيسي — يملأ المساحة المتبقية ويدعم السكرول */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {children}
       </div>
-
-      {/* شريط التنقل — shrink-0 يدفع المحتوى للأعلى بدون تراكب */}
-      <RiderBottomNav />
     </div>
   );
 };

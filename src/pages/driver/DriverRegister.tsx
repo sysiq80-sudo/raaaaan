@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Gift, Sparkles, CheckCircle2, Phone, Lock, User, MapPin, Mail, ArrowRight, Clock, Wallet, Trophy, Loader2 } from 'lucide-react';
+import { Gift, Sparkles, CheckCircle2, Phone, Lock, User, MapPin, Mail, ArrowRight, Clock, Wallet, Trophy, Loader2, AlertTriangle } from 'lucide-react';
 import logo from "@/assets/logo.png";
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -208,24 +208,24 @@ const DriverRegister = () => {
   };
 
   const renderStepIndicator = () => (
-    <div className="flex items-center justify-center gap-2 mb-6">
+    <div className="flex items-center justify-center gap-1 mb-5">
       {[1, 2, 3, 4].map((step) => (
         <div key={step} className="flex items-center">
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-              currentStep >= step
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground'
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-bold transition-all border-2 ${
+              currentStep > step
+                ? 'bg-emerald-500 border-emerald-500 text-white shadow-[0_0_10px_rgba(52,211,153,0.4)]'
+                : currentStep === step
+                ? 'bg-transparent border-emerald-500 text-emerald-400'
+                : 'bg-transparent border-slate-700 text-slate-500'
             }`}
           >
-            {currentStep > step ? <CheckCircle2 className="w-5 h-5" /> : step}
+            {currentStep > step ? <CheckCircle2 className="w-4 h-4" /> : step}
           </div>
           {step < 4 && (
-            <div
-              className={`w-8 h-1 mx-1 rounded ${
-                currentStep > step ? 'bg-primary' : 'bg-muted'
-              }`}
-            />
+            <div className={`w-8 h-0.5 mx-0.5 rounded-full transition-all ${
+              currentStep > step ? 'bg-emerald-500' : 'bg-slate-700'
+            }`} />
           )}
         </div>
       ))}
@@ -339,190 +339,201 @@ const DriverRegister = () => {
     
     // Paid registration (after promo end date)
     return (
-      <Card className="border-primary/30 bg-gradient-to-br from-background via-primary/5 to-background overflow-hidden relative">
-        <CardHeader>
-          <div className="flex items-center justify-center mb-4">
-            <img src={logo} alt="RAAN" className="w-20 h-20" />
+      <div className="flex flex-col gap-3">
+        {/* Activation fee card */}
+        <div className="bg-[#1a2333]/80 rounded-[20px] px-5 py-4 flex items-center justify-between border border-slate-700/50 shadow-md relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full" />
+          <p className="text-white text-[15px] font-medium z-10 font-bold order-2">
+            رسوم التفعيل: <span className="text-emerald-400 font-bold">{settings.paid_activation_fee.toLocaleString()} دينار</span>
+          </p>
+          <div className="w-[42px] h-[42px] bg-[#0c261e] border border-emerald-500/20 rounded-xl flex items-center justify-center z-10 order-1">
+             <Wallet className="w-[20px] h-[20px] text-emerald-500" />
           </div>
-          <CardTitle className="text-center text-2xl">
-            {settings.paid_title}
-          </CardTitle>
-          <CardDescription className="text-center text-lg mt-2">
-            {settings.paid_subtitle}
-          </CardDescription>
-        </CardHeader>
-        
-        <CardContent className="space-y-4">
-          {/* Activation fee */}
-          <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-xl border">
-            <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-              <Wallet className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="font-bold text-foreground">رسوم التفعيل: <span className="text-primary">{settings.paid_activation_fee.toLocaleString()} دينار</span></p>
-            </div>
-          </div>
+        </div>
+
+        {/* Benefits Card */}
+        <div className="bg-transparent border border-emerald-500/60 rounded-[20px] px-5 py-5 space-y-4 shadow-[inset_0_0_20px_rgba(52,211,153,0.03)] relative overflow-hidden">
+          <h3 className="text-emerald-400 font-bold text-[15px] flex items-center gap-2.5 mb-2">
+            <Gift className="w-5 h-5" />
+            بس لا تشيل هم! عدنا مفاجآت:
+          </h3>
           
-          {/* Benefits */}
-          <div className="bg-primary/10 rounded-xl p-4 space-y-3 border border-primary/20">
-            <p className="font-bold text-primary flex items-center gap-2">
-              <Gift className="w-5 h-5" />
-              بس لا تشيل هم! عدنا مفاجآت:
-            </p>
-            
-            <div className="flex items-start gap-2">
-              <span className="text-primary">🎁</span>
-              <p className="text-sm">{settings.paid_wallet_bonus_text}</p>
-            </div>
-            
-            <div className="flex items-start gap-2">
-              <span className="text-primary">🏆</span>
-              <p className="text-sm">{settings.paid_challenge_text}</p>
-            </div>
+          <div className="flex items-start gap-3">
+             <div className="mt-0.5"><Gift className="w-[18px] h-[18px] text-emerald-400" /></div>
+             <p className="text-white text-[13px] leading-relaxed">
+               {settings.paid_wallet_bonus_text || `رصيد ترحيبي: 50,000 دينار في محفظتك`}
+             </p>
           </div>
-          
-          {/* Summary */}
-          <div className="flex items-start gap-3 p-4 bg-green-500/10 rounded-xl border border-green-500/20">
-            <Trophy className="w-6 h-6 text-green-600 flex-shrink-0" />
-            <div>
-              <p className="font-bold text-green-600">💰 الزبدة:</p>
-              <p className="text-sm text-muted-foreground">
-                {settings.paid_summary_text}
+
+          <div className="flex items-start gap-3">
+             <div className="mt-0.5"><Trophy className="w-[18px] h-[18px] text-emerald-400" /></div>
+             <p className="text-white text-[13px] leading-relaxed">
+               {settings.paid_challenge_text || `تحدي المبتدئين: أكمل 10 رحلات واربح 100,000 دينار إضافي!`}
+             </p>
+          </div>
+        </div>
+
+        {/* Summary Card */}
+        <div className="bg-[#1a2333]/80 rounded-[20px] px-5 py-4 flex items-center gap-4 border border-slate-700/50 shadow-md">
+            <div className="flex-1 text-right">
+              <h3 className="text-emerald-400 font-bold text-[14px] mb-1">الزبدة:</h3>
+              <p className="text-[#a4b1cd] text-[12px] leading-snug">
+                 {settings.paid_summary_text || `رسوم التفعيل لمرة واحدة فقط - استثمار في مستقبلك`}
               </p>
             </div>
-          </div>
-          
-          {/* Note */}
-          <div className="flex items-start gap-2 p-3 bg-muted/30 rounded-lg text-sm">
-            <span>⚠️</span>
-            <p className="text-muted-foreground">
-              <strong>تنويه صغير:</strong> {settings.paid_warning_text}
-            </p>
-          </div>
+            <div className="w-[42px] h-[42px] flex items-center justify-end flex-shrink-0">
+               <Trophy className="w-[24px] h-[24px] text-emerald-500" strokeWidth={1.5} />
+            </div>
+        </div>
 
-          {/* Terms checkbox */}
-          <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-xl">
-            <Checkbox
-              id="terms"
-              checked={acceptedTerms}
-              onCheckedChange={(checked) => setAcceptedTerms(checked as boolean)}
-            />
-            <Label htmlFor="terms" className="text-sm cursor-pointer leading-relaxed">
-              {settings.terms_text.includes('أوافق على') ? (
-                <>
-                  أوافق على <Link to="/terms" className="text-primary underline">شروط الاستخدام</Link> و<Link to="/privacy" className="text-primary underline">سياسة الخصوصية</Link>
-                </>
-              ) : (
-                settings.terms_text
-              )}
-            </Label>
-          </div>
+        {/* Note */}
+        <div className="bg-[#1a2333]/60 rounded-xl px-4 py-3 flex items-start gap-3 border border-slate-700/30">
+             <div className="text-slate-400 flex-shrink-0 mt-0.5"><AlertTriangle className="w-[16px] h-[16px]" /></div>
+             <p className="text-[#a4b1cd] text-[12px] leading-relaxed text-right">
+                <span className="font-bold text-slate-200">تنويه صغير:</span> {settings.paid_warning_text || `مرة تدفع وتشتغل للأبد، بدون رسوم شهرية أو خفية`}
+             </p>
+        </div>
 
-          <Button 
-            onClick={handleTermsAccept} 
-            className="w-full h-14 text-lg font-bold" 
-            size="lg"
-            disabled={!acceptedTerms}
-          >
-            {settings.paid_button_text}
-          </Button>
-        </CardContent>
-      </Card>
+        {/* Checkbox */}
+        <div className="flex items-start justify-end gap-3 mt-3 mb-1 px-1">
+          <Label htmlFor="terms" className="text-[12px] text-[#a4b1cd] cursor-pointer leading-relaxed pt-0.5">
+             أوافق على <Link to="/terms" className="text-slate-200 underline underline-offset-4 decoration-slate-600 hover:text-emerald-400 font-medium transition-colors">شروط الاستخدام</Link> و<Link to="/privacy" className="text-slate-200 underline underline-offset-4 decoration-slate-600 hover:text-emerald-400 font-medium transition-colors">سياسة الخصوصية</Link>
+          </Label>
+          <Checkbox
+            id="terms"
+            checked={acceptedTerms}
+            onCheckedChange={(checked) => setAcceptedTerms(checked as boolean)}
+            className="mt-0.5 border-emerald-500/50 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500 rounded bg-[#0a0f1c]"
+          />
+        </div>
+
+        <Button 
+          onClick={handleTermsAccept} 
+          className="w-full h-[54px] bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-[#064e3b] text-[16px] font-bold rounded-2xl shadow-[0_4px_20px_rgba(52,211,153,0.25)] transition-all mt-3"
+          disabled={!acceptedTerms}
+        >
+          ابدأ التسجيل الآن
+        </Button>
+      </div>
     );
   };
 
   // Step 2: Personal Information
   const renderPersonalInfoStep = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <User className="w-5 h-5" />
-          المعلومات الشخصية
-        </CardTitle>
-        <CardDescription>أدخل بياناتك الأساسية فقط</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="fullName">الاسم الثلاثي (كما في البطاقة الموحدة) *</Label>
+    <div className="flex flex-col gap-4 pb-24">
+      {/* Card Header */}
+      <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-slate-700/50">
+        <div className="flex items-center gap-3 mb-1">
+          <User className="w-5 h-5 text-emerald-400" />
+          <h2 className="text-white font-bold text-[17px]">المعلومات الشخصية</h2>
+        </div>
+        <p className="text-slate-400 text-[12px] pe-8">أدخل بياناتك الأساسية فقط</p>
+      </div>
+
+      {/* Fields */}
+      <div className="flex flex-col gap-4">
+        {/* Full Name */}
+        <div className="space-y-1.5">
+          <label className="text-slate-300 text-[13px] font-medium flex items-center gap-1">
+            الاسم الثلاثي (كما في البطاقة الموحدة)
+            <span className="text-red-400">*</span>
+          </label>
           <div className="relative">
-            <User className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+            <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center">
+              <User className="w-4 h-4 text-slate-500" />
+            </div>
             <Input
               id="fullName"
               value={fullName}
               onChange={(e) => { setFullName(e.target.value); clearErrors(); }}
               placeholder="مثال: أحمد محمد علي"
-              className={`pr-10 ${errors.fullName ? 'border-destructive' : ''}`}
+              className={`h-12 bg-[#1a2333] border-slate-700/50 text-white placeholder:text-slate-500 rounded-xl pr-11 text-[14px] focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 ${errors.fullName ? 'border-red-500/60' : ''}`}
             />
           </div>
           {errors.fullName ? (
-            <p className="text-xs text-destructive">{errors.fullName}</p>
+            <p className="text-[11px] text-red-400 flex items-center gap-1"><span className="w-1 h-1 bg-red-400 rounded-full"/>{errors.fullName}</p>
           ) : (
-            <p className="text-xs text-muted-foreground">يجب أن يطابق الاسم المدون في البطاقة الموحدة</p>
+            <p className="text-[11px] text-slate-500">يجب أن يطابق الاسم المدون في البطاقة الموحدة</p>
           )}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="phone">رقم الهاتف (واتساب) *</Label>
-          <div className="relative">
-            <Phone className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+        {/* Phone */}
+        <div className="space-y-1.5">
+          <label className="text-slate-300 text-[13px] font-medium flex items-center gap-1">
+            رقم الهاتف (واتساب)
+            <span className="text-red-400">*</span>
+          </label>
+          <div className="relative flex items-center bg-[#1a2333] rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-emerald-500/50 transition-shadow border border-slate-700/50 mt-1">
+            <div className="absolute right-0 top-0 bottom-0 w-12 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_8px_rgba(0,0,0,0.1)]">
+              <Phone className="w-[18px] h-[18px] text-emerald-400" />
+            </div>
             <Input
-              id="phone"
-              type="tel"
+              id="phone" type="tel"
               value={phone}
               onChange={(e) => { setPhone(e.target.value); clearErrors(); }}
               placeholder="07XX XXX XXXX"
-              className={`pr-10 ${errors.phone ? 'border-destructive' : ''}`}
+              className={`h-12 bg-transparent border-0 text-emerald-400 placeholder:text-slate-500 rounded-none pr-14 pl-4 text-[16px] font-bold tracking-wider focus-visible:ring-0 w-full ${errors.phone ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
               dir="ltr"
             />
           </div>
           {errors.phone ? (
-            <p className="text-xs text-destructive">{errors.phone}</p>
+            <p className="text-[11px] text-red-400 flex items-center gap-1"><span className="w-1 h-1 bg-red-400 rounded-full"/>{ errors.phone}</p>
           ) : (
-            <p className="text-xs text-muted-foreground">تأكد أن الرقم مفعل عليه واتساب</p>
+            <p className="text-[11px] text-slate-500">تأكد أن الرقم مفعل عليه واتساب</p>
           )}
         </div>
 
+        {/* Gender */}
         <div className="space-y-2">
-          <Label>الجنس *</Label>
+          <label className="text-slate-300 text-[13px] font-medium flex items-center gap-1">
+            الجنس
+            <span className="text-red-400">*</span>
+          </label>
           <RadioGroup value={gender} onValueChange={(v) => setGender(v as 'male' | 'female')} className="flex gap-6">
             <div className="flex items-center gap-2">
-              <RadioGroupItem value="male" id="male" />
-              <Label htmlFor="male" className="cursor-pointer">ذكر</Label>
+              <RadioGroupItem value="male" id="male" className="border-emerald-500 text-emerald-500" />
+              <Label htmlFor="male" className="cursor-pointer text-white text-[14px]">ذكر</Label>
             </div>
             <div className="flex items-center gap-2">
-              <RadioGroupItem value="female" id="female" />
-              <Label htmlFor="female" className="cursor-pointer">أنثى</Label>
+              <RadioGroupItem value="female" id="female" className="border-emerald-500 text-emerald-500" />
+              <Label htmlFor="female" className="cursor-pointer text-white text-[14px]">أنثى</Label>
             </div>
           </RadioGroup>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="email">البريد الإلكتروني (اختياري)</Label>
+        {/* Email */}
+        <div className="space-y-1.5">
+          <label className="text-slate-300 text-[13px] font-medium">البريد الإلكتروني (اختياري)</label>
           <div className="relative">
-            <Mail className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+            <div className="absolute left-0 top-0 bottom-0 w-11 flex items-center justify-center">
+              <Mail className="w-4 h-4 text-slate-500" />
+            </div>
             <Input
-              id="email"
-              type="email"
+              id="email" type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@email.com"
-              className="pr-10"
+              className="h-12 bg-[#1a2333] border-slate-700/50 text-white placeholder:text-slate-500 rounded-xl pl-11 text-[14px] focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
               dir="ltr"
             />
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>مدينة العمل *</Label>
+        {/* City */}
+        <div className="space-y-1.5">
+          <label className="text-slate-300 text-[13px] font-medium flex items-center gap-1">
+            مدينة العمل
+            <span className="text-red-400">*</span>
+          </label>
           <Select value={workCity} onValueChange={setWorkCity}>
-            <SelectTrigger>
-              <SelectValue placeholder="اختر مدينة العمل" />
+            <SelectTrigger className="h-12 bg-[#1a2333] border-slate-700/50 text-white rounded-xl focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20">
+              <SelectValue placeholder="اختر مدينة العمل" className="text-slate-500" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-[#1a2333] border-slate-700">
               {ANBAR_CITIES.map((city) => (
-                <SelectItem key={city} value={city}>
+                <SelectItem key={city} value={city} className="text-white focus:bg-emerald-500/20 focus:text-white">
                   <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4" />
+                    <MapPin className="w-4 h-4 text-emerald-400" />
                     {city}
                   </div>
                 </SelectItem>
@@ -530,171 +541,219 @@ const DriverRegister = () => {
             </SelectContent>
           </Select>
         </div>
+      </div>
 
-        <div className="flex gap-2 pt-4">
-          <Button variant="outline" onClick={() => setCurrentStep(1)} className="flex-1">
-            رجوع
-          </Button>
-          <Button onClick={handlePersonalInfoSubmit} className="flex-1">
-            التالي
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      {/* Fixed Bottom Nav */}
+      <div className="fixed bottom-0 right-0 left-0 max-w-md mx-auto px-5 pb-[env(safe-area-inset-bottom,12px)] pt-3 bg-[#0a0f1c]/80 backdrop-blur-md border-t border-slate-800/60 flex gap-3">
+        <button onClick={() => setCurrentStep(1)} className="flex-1 h-12 rounded-2xl border border-slate-700 text-slate-200 text-[15px] font-medium hover:bg-slate-800 transition-colors active:scale-95">
+          السابق
+        </button>
+        <button onClick={handlePersonalInfoSubmit} className="flex-[2] h-12 rounded-2xl bg-[#34d399] hover:bg-[#10b981] text-[#064e3b] text-[15px] font-bold shadow-[0_4px_16px_rgba(52,211,153,0.25)] transition-all active:scale-95">
+          التالي
+        </button>
+      </div>
+    </div>
   );
 
   // Step 3: OTP Verification
   const renderOTPStep = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Phone className="w-5 h-5" />
-          التحقق من رقم الهاتف
-        </CardTitle>
-        <CardDescription>سيتم إرسال رمز تحقق إلى رقم واتساب الخاص بك</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="flex flex-col gap-4">
+      <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-slate-700/50">
+        <div className="flex items-center gap-3 mb-1">
+          <Phone className="w-5 h-5 text-emerald-400" />
+          <h2 className="text-white font-bold text-[17px]">التحقق من رقم الهاتف</h2>
+        </div>
+        <p className="text-slate-400 text-[12px] pe-8">سيتم إرسال رمز تحقق إلى رقم واتساب الخاص بك</p>
+      </div>
+      <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-slate-700/50">
         <OTPVerification
           phone={normalizeIraqiPhone(phone)}
           purpose="driver_registration"
           onVerified={handleOTPVerified}
           onBack={() => setCurrentStep(2)}
         />
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 
   // Step 4: Password
   const renderPasswordStep = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Lock className="w-5 h-5" />
-          إنشاء كلمة المرور
-        </CardTitle>
-        <CardDescription>اختر كلمة مرور قوية لحسابك</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="password">كلمة المرور *</Label>
-          <Input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => { setPassword(e.target.value); clearErrors(); }}
-            placeholder="أدخل كلمة مرور قوية"
-            className={errors.password ? 'border-destructive' : ''}
-          />
+    <div className="flex flex-col gap-4 pb-24">
+      <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-slate-700/50">
+        <div className="flex items-center gap-3 mb-1">
+          <Lock className="w-5 h-5 text-emerald-400" />
+          <h2 className="text-white font-bold text-[17px]">إنشاء كلمة المرور</h2>
+        </div>
+        <p className="text-slate-400 text-[12px] pe-8">اختر كلمة مرور قوية لحسابك</p>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <div className="space-y-1.5">
+          <label className="text-slate-300 text-[13px] font-medium flex items-center gap-1">
+            كلمة المرور
+            <span className="text-red-400">*</span>
+          </label>
+          <div className="relative">
+            <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center">
+              <Lock className="w-4 h-4 text-slate-500" />
+            </div>
+            <Input
+              id="password" type="password"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); clearErrors(); }}
+              placeholder="أدخل كلمة مرور قوية"
+              className={`h-12 bg-[#1a2333] border-slate-700/50 text-white placeholder:text-slate-500 rounded-xl pr-11 text-[14px] focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 ${errors.password ? 'border-red-500/60' : ''}`}
+            />
+          </div>
           {errors.password ? (
-            <p className="text-xs text-destructive">{errors.password}</p>
+            <p className="text-[11px] text-red-400 flex items-center gap-1"><span className="w-1 h-1 bg-red-400 rounded-full"/>{errors.password}</p>
           ) : (
-            <p className="text-xs text-muted-foreground">6 أحرف على الأقل</p>
+            <p className="text-[11px] text-slate-500">6 أحرف على الأقل</p>
           )}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="confirmPassword">تأكيد كلمة المرور *</Label>
-          <Input
-            id="confirmPassword"
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => { setConfirmPassword(e.target.value); clearErrors(); }}
-            placeholder="أعد إدخال كلمة المرور"
-            className={errors.confirmPassword ? 'border-destructive' : ''}
-          />
+        <div className="space-y-1.5">
+          <label className="text-slate-300 text-[13px] font-medium flex items-center gap-1">
+            تأكيد كلمة المرور
+            <span className="text-red-400">*</span>
+          </label>
+          <div className="relative">
+            <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center">
+              <Lock className="w-4 h-4 text-slate-500" />
+            </div>
+            <Input
+              id="confirmPassword" type="password"
+              value={confirmPassword}
+              onChange={(e) => { setConfirmPassword(e.target.value); clearErrors(); }}
+              placeholder="أعد إدخال كلمة المرور"
+              className={`h-12 bg-[#1a2333] border-slate-700/50 text-white placeholder:text-slate-500 rounded-xl pr-11 text-[14px] focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 ${errors.confirmPassword ? 'border-red-500/60' : ''}`}
+            />
+          </div>
           {errors.confirmPassword && (
-            <p className="text-xs text-destructive">{errors.confirmPassword}</p>
+            <p className="text-[11px] text-red-400 flex items-center gap-1"><span className="w-1 h-1 bg-red-400 rounded-full"/>{errors.confirmPassword}</p>
           )}
         </div>
+      </div>
 
-        <div className="flex gap-2 pt-4">
-          <Button variant="outline" onClick={() => setCurrentStep(3)} className="flex-1">
-            رجوع
-          </Button>
-          <Button onClick={handleRegister} className="flex-1" disabled={isLoading}>
-            {isLoading ? 'جاري التسجيل...' : 'إنشاء الحساب'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      {/* Fixed Bottom Nav */}
+      <div className="fixed bottom-0 right-0 left-0 max-w-md mx-auto px-5 pb-[env(safe-area-inset-bottom,12px)] pt-3 bg-[#0a0f1c]/80 backdrop-blur-md border-t border-slate-800/60 flex gap-3">
+        <button onClick={() => setCurrentStep(3)} className="flex-1 h-12 rounded-2xl border border-slate-700 text-slate-200 text-[15px] font-medium hover:bg-slate-800 transition-colors active:scale-95">
+          السابق
+        </button>
+        <button onClick={handleRegister} disabled={isLoading} className="flex-[2] h-12 rounded-2xl bg-[#34d399] hover:bg-[#10b981] text-[#064e3b] text-[15px] font-bold shadow-[0_4px_16px_rgba(52,211,153,0.25)] transition-all active:scale-95 disabled:opacity-60">
+          {isLoading ? 'جاري التسجيل...' : 'إنشاء الحساب'}
+        </button>
+      </div>
+    </div>
   );
 
   // Step 5: Success
   const renderSuccessStep = () => (
-    <Card className="border-primary/50 bg-primary/5">
-      <CardContent className="pt-8 text-center space-y-6">
-        <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mx-auto">
-          <CheckCircle2 className="w-12 h-12 text-primary" />
+    <div className="flex flex-col gap-4 pb-8">
+      {/* Success Icon */}
+      <div className="flex flex-col items-center py-6">
+        <div className="w-20 h-20 bg-emerald-500/20 border-2 border-emerald-500/40 rounded-full flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(52,211,153,0.2)]">
+          <CheckCircle2 className="w-10 h-10 text-emerald-400" />
         </div>
-        
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-primary">تم تقديم طلبك بنجاح! 🎉</h2>
-          <p className="text-muted-foreground">
-            شكراً لك {fullName} على التسجيل في منصة ران
-          </p>
-        </div>
+        <h2 className="text-[22px] font-bold text-white mb-1">تم تقديم طلبك بنجاح! 🎉</h2>
+        <p className="text-slate-400 text-[13px] text-center">
+          شكراً لك {fullName} على التسجيل في منصة ران
+        </p>
+      </div>
 
-        <div className="bg-background p-4 rounded-lg border text-sm space-y-3 text-right">
-          <p className="font-semibold text-foreground">📢 ماذا الآن؟</p>
-          <ul className="space-y-2 text-muted-foreground">
-            <li>• سيتم مراجعة طلبك من قبل فريق الإدارة</li>
-            <li>• <strong>تابع الإشعارات</strong> في التطبيق لمعرفة حالة طلبك</li>
-            <li>• يمكنك متابعة <strong>قناة التليغرام الرسمية</strong> للاطلاع على إعلانات قبول طلبات الانضمام للسائقين الجدد</li>
-            <li>• عند الموافقة، ستحتاج لإكمال بيانات السيارة والمستندات</li>
-          </ul>
-        </div>
+      {/* Next Steps */}
+      <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-slate-700/50 space-y-3">
+        <p className="font-bold text-white text-[14px] mb-2">📢 ماذا الآن؟</p>
+        {[
+          'سيتم مراجعة طلبك من قبل فريق الإدارة',
+          'تابع الإشعارات في التطبيق لمعرفة حالة طلبك',
+          'يمكنك متابعة قناة التليغرام الرسمية للاطلاع على إعلانات قبول الطلبات',
+          'عند الموافقة، ستحتاج لإكمال بيانات السيارة والمستندات'
+        ].map((item, i) => (
+          <div key={i} className="flex items-start gap-3">
+            <div className="w-5 h-5 bg-emerald-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="text-emerald-400 text-[10px] font-bold">{i+1}</span>
+            </div>
+            <p className="text-slate-300 text-[13px] leading-relaxed">{item}</p>
+          </div>
+        ))}
+      </div>
 
-        <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-lg">
-          <p className="text-amber-700 dark:text-amber-400 text-sm">
-            💡 <strong>ملاحظة:</strong> لن تتمكن من استلام الطلبات حتى تُكمل جميع البيانات المطلوبة (معلومات السيارة، المستندات، الصورة الشخصية) ويتم الموافقة على طلبك من قبل الإدارة.
-          </p>
-        </div>
+      {/* Warning */}
+      <div className="bg-amber-500/8 border border-amber-500/25 rounded-2xl px-4 py-4">
+        <p className="text-amber-400 text-[12px] leading-relaxed">
+          💡 <strong>ملاحظة:</strong> لن تتمكن من استلام الطلبات حتى تُكمل جميع البيانات المطلوبة ويتم الموافقة على طلبك.
+        </p>
+      </div>
 
-        <div className="flex flex-col gap-3 pt-4">
-          <Button onClick={() => navigate('/driver/complete-registration')} size="lg" className="w-full">
-            إكمال بيانات السيارة والمستندات
-          </Button>
-          <Button variant="outline" onClick={() => navigate('/driver')} className="w-full">
-            الذهاب للصفحة الرئيسية
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      {/* Actions */}
+      <div className="flex flex-col gap-3 mt-2">
+        <button onClick={() => navigate('/driver/complete-registration')} className="w-full h-14 rounded-2xl bg-[#34d399] hover:bg-[#10b981] text-[#064e3b] text-[16px] font-bold shadow-[0_4px_16px_rgba(52,211,153,0.25)] transition-all active:scale-95">
+          إكمال بيانات السيارة والمستندات
+        </button>
+        <button onClick={() => navigate('/driver')} className="w-full h-12 rounded-2xl border border-slate-700 text-slate-200 text-[15px] font-medium hover:bg-slate-800 transition-colors active:scale-95">
+          الذهاب للصفحة الرئيسية
+        </button>
+      </div>
+    </div>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 p-4" dir="rtl">
-      <div className="max-w-md mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-2 pt-4">
-          <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4">
-            <ArrowRight className="w-4 h-4" />
-            العودة للرئيسية
-          </Link>
-          <img src={logo} alt="RAAN" className="w-16 h-16 mx-auto" />
-          <h1 className="text-2xl font-bold">انضم لفريق ران</h1>
-          <p className="text-muted-foreground text-sm">سجّل كسائق وابدأ الربح</p>
+    <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
+      <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex flex-col min-h-full px-5 pt-[6vh] pb-6">
+
+          {/* Header */}
+          <div className="text-center space-y-2 mb-6 relative">
+            <Link to="/" className="absolute right-0 top-0 p-2 text-slate-400 hover:text-white transition-colors">
+               <ArrowRight className="w-5 h-5" />
+            </Link>
+            
+            {currentStep === 1 ? (
+              <div className="pt-2">
+                <img src={logo} alt="RAAN" className="w-[80px] mx-auto mb-6 drop-shadow-[0_0_15px_rgba(52,211,153,0.3)] opacity-90" />
+                <h1 className="text-[22px] font-bold text-white mb-2 leading-tight">انضم لعائلة ران وابدأ رحلتك</h1>
+                <p className="text-[#a4b1cd] text-[13.5px]">استثمر في مستقبلك مع ران</p>
+              </div>
+            ) : (
+              <div className="pt-2">
+                <img src={logo} alt="RAAN" className="w-[60px] mx-auto mb-4 opacity-70" />
+                <h1 className="text-[18px] font-bold text-white">إكمال بيانات السائق</h1>
+              </div>
+            )}
+          </div>
+
+          {/* Step Indicator */}
+          {currentStep <= 4 && (
+            <div className="mb-6 px-4">
+              {renderStepIndicator()}
+            </div>
+          )}
+
+          {/* Steps Content */}
+          <div className="flex-1">
+            {currentStep === 1 && renderTermsStep()}
+            {currentStep === 2 && renderPersonalInfoStep()}
+            {currentStep === 3 && renderOTPStep()}
+            {currentStep === 4 && renderPasswordStep()}
+            {currentStep === 5 && renderSuccessStep()}
+          </div>
+
+          {/* Login Link */}
+          {currentStep <= 4 && (
+            <div className="mt-8 text-center pb-2">
+              <p className="text-[13px] text-slate-400">
+                لديك حساب بالفعل؟{' '}
+                <button onClick={() => navigate('/driver/auth')} className="text-white hover:text-emerald-400 font-medium underline underline-offset-4 decoration-slate-600 hover:decoration-emerald-400 transition-colors">
+                  تسجيل الدخول
+                </button>
+              </p>
+            </div>
+          )}
+
+          {/* Safe Area Bottom */}
+          <div className="h-[env(safe-area-inset-bottom,4px)]" />
         </div>
-
-        {/* Step Indicator */}
-        {currentStep <= 4 && renderStepIndicator()}
-
-        {/* Steps */}
-        {currentStep === 1 && renderTermsStep()}
-        {currentStep === 2 && renderPersonalInfoStep()}
-        {currentStep === 3 && renderOTPStep()}
-        {currentStep === 4 && renderPasswordStep()}
-        {currentStep === 5 && renderSuccessStep()}
-
-        {/* Login Link */}
-        {currentStep <= 4 && (
-          <p className="text-center text-sm text-muted-foreground">
-            لديك حساب بالفعل؟{' '}
-            <Button variant="link" className="p-0 h-auto" onClick={() => navigate('/driver/auth')}>
-              تسجيل الدخول
-            </Button>
-          </p>
-        )}
       </div>
     </div>
   );

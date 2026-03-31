@@ -182,6 +182,7 @@ serve(async (req) => {
     // Default pricing — read from app_settings fare_calculation (NO hardcoded fallbacks)
     let baseFare = fareSettings.default_base_fare ?? fareSettings.base_fare ?? 2000;
     let perKmFare = fareSettings.default_per_km_fare ?? fareSettings.per_km_fare ?? 500;
+    let perMinuteFare = fareSettings.default_per_minute_fare ?? fareSettings.per_minute_fare ?? 0;
     let waitingFarePerMin = fareSettings.default_waiting_fare_per_min ?? fareSettings.waiting_fare_per_min ?? 100;
     let regionName = "الأنبار";
     let regionId = null;
@@ -211,6 +212,7 @@ serve(async (req) => {
 
       baseFare = matchedRegion.base_fare;
       perKmFare = matchedRegion.per_km_fare;
+      perMinuteFare = matchedRegion.per_minute_fare ?? 0;
       waitingFarePerMin = matchedRegion.waiting_fare_per_min;
       regionName = matchedRegion.name_ar;
       regionId = matchedRegion.id;
@@ -218,6 +220,7 @@ serve(async (req) => {
       console.log("Using region:", regionName, {
         baseFare,
         perKmFare,
+        perMinuteFare,
         waitingFarePerMin,
       });
     }
@@ -309,8 +312,11 @@ serve(async (req) => {
 
     // Calculate fare components
     const distanceFare = Math.round(distance_km * perKmFare);
+    // تقدير وقت الرحلة: متوسط 30 كم/ساعة في المدن العراقية
+    const estimatedMinutes = Math.max(1, Math.round((distance_km / 30) * 60));
+    const timeFare = Math.round(estimatedMinutes * perMinuteFare);
     const waitingFare = Math.round(waiting_minutes * waitingFarePerMin);
-    const subtotal = baseFare + distanceFare + waitingFare;
+    const subtotal = baseFare + distanceFare + timeFare + waitingFare;
 
     // Apply vehicle multiplier
     const vehicleAdjustedFare = Math.round(subtotal * vehicleMultiplier);
@@ -337,6 +343,9 @@ serve(async (req) => {
       distance_km: Math.round(distance_km * 100) / 100,
       distance_fare: distanceFare,
       per_km_rate: perKmFare,
+      estimated_minutes: estimatedMinutes,
+      time_fare: timeFare,
+      per_minute_rate: perMinuteFare,
       waiting_minutes: waiting_minutes,
       waiting_fare: waitingFare,
       waiting_rate_per_min: waitingFarePerMin,

@@ -122,6 +122,8 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
   const driverMarkersRef = useRef(new globalThis.Map<string, google.maps.Marker>());
   const prevDriverLocationRef = useRef<{ lat: number; lng: number } | null>(null);
   const driverAnimationRef = useRef<number | null>(null);
+  const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialUserLocationRef = useRef(userLocation);
 
   // State
   const [isLoading, setIsLoading] = useState(true);
@@ -175,18 +177,19 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
   );
 
   /**
-   * Reverse geocode center of map
+   * Reverse geocode center of map (debounced to avoid excessive API calls)
    */
-  const reverseGeocodeCenter = useCallback(async () => {
-    if (!map.current) return;
-
-    const center = map.current.getCenter();
-    const address = await reverseGeocodeCoordinates(center.lat(), center.lng());
-    setCenterAddress(address);
-
-    if (selectingLocation) {
-      checkServiceArea(center.lat(), center.lng());
-    }
+  const reverseGeocodeCenter = useCallback(() => {
+    if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+    geocodeTimerRef.current = setTimeout(async () => {
+      if (!map.current) return;
+      const center = map.current.getCenter();
+      const address = await reverseGeocodeCoordinates(center.lat(), center.lng());
+      setCenterAddress(address);
+      if (selectingLocation) {
+        checkServiceArea(center.lat(), center.lng());
+      }
+    }, 400);
   }, [selectingLocation, checkServiceArea]);
 
   /**
@@ -262,7 +265,11 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
 
   // Initialize Map
   useEffect(() => {
-    if (!mapContainer.current || !apiKey || isApiKeyLoading) return;
+    if (!mapContainer.current || isApiKeyLoading) return;
+    if (!apiKey) {
+      console.warn("⚠️ Google Maps API key is empty — map will not load");
+      return;
+    }
 
     // Load Google Maps via centralized loader
     loadGoogleMaps(apiKey).then(() => {
@@ -280,17 +287,17 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
 
       // Add map listeners
       map.current.addListener("dragstart", () => setIsDragging(true));
-      map.current.addListener("dragend", async () => {
+      map.current.addListener("dragend", () => {
         setIsDragging(false);
-        await reverseGeocodeCenter();
+        reverseGeocodeCenter();
       });
-      map.current.addListener("center_changed", async () => {
-        if (!isDragging) await reverseGeocodeCenter();
+      map.current.addListener("idle", () => {
+        reverseGeocodeCenter();
       });
 
-      // Center on user location if available
-      if (userLocation) {
-        const userLatLng = new google.maps.LatLng(userLocation.lat, userLocation.lng);
+      // Center on user location if available at init time
+      if (initialUserLocationRef.current) {
+        const userLatLng = new google.maps.LatLng(initialUserLocationRef.current.lat, initialUserLocationRef.current.lng);
         map.current.setCenter(userLatLng);
       }
 
@@ -301,8 +308,11 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
       setIsLoading(false);
     });
 
-    return () => {};
-  }, [apiKey, isApiKeyLoading, isDragging, userLocation]);
+    return () => {
+      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey, isApiKeyLoading]);
 
   // Handle user location
   useEffect(() => {
@@ -507,38 +517,51 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
     };
   }, [driverLocation, centerOnDriver]);
 
-  // Handle nearby drivers
+  // Handle nearby drivers — diff markers instead of destroy-recreate
   useEffect(() => {
-    if (!map.current || !nearbyDrivers.length) return;
+    if (!map.current) return;
 
-    // Remove old markers
-    driverMarkersRef.current.forEach((marker) => marker.setMap(null));
-    driverMarkersRef.current.clear();
+    const currentIds = new Set(nearbyDrivers.map((d) => d.id));
 
-    // Add new markers
+    // Remove markers for drivers no longer present
+    driverMarkersRef.current.forEach((marker, id) => {
+      if (!currentIds.has(id)) {
+        marker.setMap(null);
+        driverMarkersRef.current.delete(id);
+      }
+    });
+
+    // Add or update markers
     nearbyDrivers.forEach((driver) => {
-      const marker = new google.maps.Marker({
-        map: map.current,
-        position: new google.maps.LatLng(driver.lat, driver.lng),
-        title: `${driver.vehicle_model || "سيارة"} - ${driver.rating || 0}⭐`,
-        icon: getMarkerIcon("driver"),
-        opacity: 0.7,
-      });
-
-      marker.addListener("click", () => {
-        new google.maps.InfoWindow({
-          content: `
-            <div style="text-align: right; direction: rtl; padding: 10px;">
-              <h3>${driver.vehicle_model}</h3>
-              <p>النوع: ${driver.vehicle_type}</p>
-              <p>التقييم: ${driver.rating}⭐</p>
-            </div>
-          `,
+      const existing = driverMarkersRef.current.get(driver.id);
+      if (existing) {
+        // Update position only
+        existing.setPosition(new google.maps.LatLng(driver.lat, driver.lng));
+      } else {
+        // Create new marker
+        const marker = new google.maps.Marker({
+          map: map.current,
           position: new google.maps.LatLng(driver.lat, driver.lng),
-        }).open(map.current);
-      });
+          title: `${driver.vehicle_model || "سيارة"} - ${driver.rating || 0}⭐`,
+          icon: getMarkerIcon("driver"),
+          opacity: 0.7,
+        });
 
-      driverMarkersRef.current.set(driver.id, marker);
+        marker.addListener("click", () => {
+          new google.maps.InfoWindow({
+            content: `
+              <div style="text-align: right; direction: rtl; padding: 10px;">
+                <h3>${driver.vehicle_model}</h3>
+                <p>النوع: ${driver.vehicle_type}</p>
+                <p>التقييم: ${driver.rating}⭐</p>
+              </div>
+            `,
+            position: new google.maps.LatLng(driver.lat, driver.lng),
+          }).open(map.current);
+        });
+
+        driverMarkersRef.current.set(driver.id, marker);
+      }
     });
   }, [nearbyDrivers]);
 

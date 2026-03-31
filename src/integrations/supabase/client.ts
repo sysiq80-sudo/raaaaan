@@ -2,14 +2,15 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// القيم من متغيرات البيئة (.env) — مع fallback للقيم الافتراضية
-const SUPABASE_URL =
-  import.meta.env.VITE_SUPABASE_URL ||
-  "https://wgolkcztdrwdphwjvqxt.supabase.co";
+// القيم من متغيرات البيئة (.env) فقط — لا تُضمَّن مفاتيح في المستودع
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-const SUPABASE_PUBLISHABLE_KEY =
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo";
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  throw new Error(
+    "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY — set them in .env for local dev and CI.",
+  );
+}
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
@@ -19,7 +20,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     detectSessionInUrl: true,
     // تجاوز navigator.locks الذي قد يعلق إذا بقي قفل قديم من تبويب سابق
     // lockNoOp: ينفذ العملية مباشرة بدون قفل — آمن لتطبيق تبويب واحد
-    lock: async (name: string, acquireTimeout: number, fn: () => Promise<any>) => {
+    lock: async (name: string, acquireTimeout: number, fn: () => Promise<unknown>) => {
       return await fn();
     },
   },

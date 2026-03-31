@@ -1,17 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { NavigationButton } from "./NavigationButton";
+// NavigationButton moved inline to status headers
 import { DriverRideCompleted } from "./DriverRideCompleted";
 import { ChatButton } from "@/components/ride/RideChat";
 import { DriverEmergencyButton } from "./DriverEmergencyButton";
 import { logger } from "@/lib/logger";
 import { useDriverLocationSync } from "@/hooks/useDriverLocationSync";
-import { roundFare } from "@/lib/constants";
-import FareBreakdownCard from "@/components/driver/FareBreakdownCard";
 import {
   playSound,
   vibrate,
@@ -1313,23 +1311,40 @@ export const ActiveRideCard = ({
 
   return (
     <>
-      {/* ═══ بانر رسالة الراكب الواردة — يبقى floating في الأعلى ═══ */}
+      {/* ═══ بانر رسالة الراكب الواردة — Floating Luxury Notification ═══ */}
       {riderIncomingMsg && (
-        <div className="fixed top-0 left-0 right-0 z-[60] pointer-events-auto bg-amber-500 text-white animate-in slide-in-from-top-2 duration-300 shadow-lg" dir="rtl" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-          <div className="px-4 pt-3 pb-2 max-w-lg mx-auto">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-start gap-2 min-w-0 flex-1">
-                <MessageCircle className="w-5 h-5 shrink-0 mt-0.5 animate-bounce" />
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold opacity-90 mb-0.5">💬 {riderIncomingMsg.senderName}</p>
-                  <p className="font-bold text-sm leading-snug break-words">{riderIncomingMsg.text}</p>
+        <div className="fixed top-2 left-2 right-2 z-[70] pointer-events-auto bg-[#1a243b]/95 backdrop-blur-2xl border border-blue-500/30 rounded-3xl animate-in slide-in-from-top-4 duration-500 shadow-[0_10px_40px_rgba(0,0,0,0.6)] overflow-hidden" dir="rtl" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
+          {/* Animated Gradient Accent Line */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-400 animate-[gradient_3s_linear_infinite]" style={{ backgroundSize: '200% 100%' }} />
+
+          <div className="px-4 pt-4 pb-3 max-w-lg mx-auto">
+            <div className="flex items-start justify-between gap-3">
+              {/* Message Content & Icon */}
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="relative shrink-0">
+                  <div className="absolute inset-0 bg-blue-500/40 rounded-full animate-ping" />
+                  <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full p-2 relative z-10 shadow-lg shadow-blue-500/40 text-white">
+                    <MessageCircle className="w-5 h-5" />
+                  </div>
+                </div>
+                
+                <div className="min-w-0 pt-0.5">
+                  <p className="text-xs font-semibold text-blue-300 mb-1 flex items-center gap-1.5">
+                    <span>رسالة جديدة من {riderIncomingMsg.senderName}</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                  </p>
+                  <p className="font-bold text-[15px] leading-snug break-words text-white">{riderIncomingMsg.text}</p>
                 </div>
               </div>
-              <button onClick={dismissRiderMsg} className="shrink-0 hover:bg-amber-600 active:bg-amber-700 rounded-md p-1 touch-manipulation" aria-label="إغلاق">
+              
+              {/* Close Button */}
+              <button onClick={dismissRiderMsg} className="shrink-0 rounded-full p-2 bg-slate-800/40 hover:bg-slate-700/80 active:scale-90 text-slate-400 hover:text-white transition-all touch-manipulation" aria-label="إغلاق">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex gap-2 mt-2 overflow-x-auto pb-1 scrollbar-hide">
+            
+            {/* Quick Replies */}
+            <div className="flex gap-2 mt-4 overflow-x-auto pb-1 scrollbar-hide snap-x">
               {[
                 { label: '🚗 في الطريق', msg: 'أنا في الطريق إليك' },
                 { label: '📍 وصلت', msg: 'وصلت، أين أنت؟' },
@@ -1337,7 +1352,7 @@ export const ActiveRideCard = ({
                 { label: '👍 حسناً', msg: 'حسناً، فهمت' },
               ].map((r) => (
                 <button key={r.label} onClick={() => { sendQuickMessageToRider('driver_reply', r.msg, '✅ تم الرد'); dismissRiderMsg(); }}
-                  className="bg-white/20 hover:bg-white/30 text-white text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap backdrop-blur-sm transition-colors touch-manipulation">
+                  className="bg-[#0b1326] border border-blue-500/20 hover:border-blue-500/50 hover:bg-blue-600/20 active:bg-blue-600/40 text-blue-100 text-[11px] font-bold px-3 py-2.5 rounded-xl whitespace-nowrap transition-all shadow-sm touch-manipulation active:scale-[0.98] snap-start">
                   {r.label}
                 </button>
               ))}
@@ -1346,226 +1361,260 @@ export const ActiveRideCard = ({
         </div>
       )}
 
-      {/* ═══ Bottom Sheet — الرحلة النشطة ═══ */}
+      {/* ═══ Bottom Sheet — Dark Luxury Active Ride ═══ */}
       <div
-        className="absolute bottom-0 left-0 right-0 z-50 pointer-events-auto bg-slate-900/95 backdrop-blur-xl rounded-t-[2rem] shadow-[0_-15px_40px_rgba(0,0,0,0.25)] border-t border-white/10 transition-all duration-300 ease-out"
+        className="absolute bottom-0 left-0 right-0 z-50 pointer-events-auto bg-[#0b1326] rounded-t-[2rem] shadow-[0_-20px_50px_rgba(0,0,0,0.4)] border-t border-slate-700/30 transition-all duration-300 ease-out overflow-hidden"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}
         dir="rtl"
       >
+        {/* Subtle Glow at top */}
+        {activeRide.status === "in_progress" && <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#5bdda6]/40 to-transparent blur-sm animate-pulse" />}
+        {activeRide.status === "accepted" && <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500/40 to-transparent blur-sm animate-pulse" />}
+        {activeRide.status === "arrived" && <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-amber-500/40 to-transparent blur-sm animate-pulse" />}
+
         {/* Drag Handle */}
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-slate-600" />
+          <div className="w-12 h-1 rounded-full bg-slate-700" />
         </div>
 
-        {/* ═══ Status Header Bar ═══ */}
+        {/* ═══ Status Header Bar (Dark Luxury Variants) ═══ */}
         {activeRide.status === "accepted" && (
-          <div className="bg-blue-600 mx-5 rounded-xl px-4 py-2.5 flex items-center justify-between mb-3">
+          <div className="mx-5 rounded-2xl px-4 py-3 flex items-center justify-between mb-4 bg-blue-900/20 border border-blue-500/30">
             <div className="flex items-center gap-2">
               <motion.div animate={{ x: [0, 4, 0] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}>
-                <Navigation className="w-4 h-4 text-white" />
+                <Navigation className="w-4 h-4 text-blue-400" />
               </motion.div>
-              <span className="font-bold text-white text-sm">متجه للعميل</span>
+              {distanceToPickupM !== null && (
+                <span className="bg-[#0b1326]/50 border border-blue-500/20 px-3 py-1.5 rounded-full text-xs font-bold text-blue-300" style={{ fontFamily: "Inter, sans-serif" }}>
+                  {distanceToPickupM >= 1000 ? `${(distanceToPickupM / 1000).toFixed(1)} كم` : `${distanceToPickupM} م`}
+                </span>
+              )}
             </div>
-            {distanceToPickupM !== null && (
-              <span className="bg-white/20 px-2.5 py-1 rounded-full text-xs font-bold text-white">
-                {distanceToPickupM >= 1000 ? `${(distanceToPickupM / 1000).toFixed(1)} كم` : `${distanceToPickupM} م`}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {onNavigationClick && (
+                <button
+                  onClick={() => onNavigationClick(activeRide.pickup_location.lat, activeRide.pickup_location.lng, "موقع العميل")}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/20 border border-blue-500/40 hover:bg-blue-500/30 active:scale-95 transition-all touch-manipulation"
+                  title="ملاحة إلى العميل"
+                >
+                  <span className="text-xs font-bold text-blue-400" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>الطريق إلى العميل</span>
+                  <Navigation className="w-4 h-4 text-blue-400" />
+                </button>
+              )}
+            </div>
           </div>
         )}
 
         {activeRide.status === "arrived" && (
-          <div className="bg-amber-600 mx-5 rounded-xl px-4 py-2.5 flex items-center justify-between mb-3">
+          <div className="mx-5 rounded-2xl px-4 py-3 flex items-center justify-between mb-4 bg-amber-900/20 border border-amber-500/30">
             <div className="flex items-center gap-2">
               <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}>
-                <Clock className="w-4 h-4 text-white" />
+                <Clock className="w-4 h-4 text-amber-400" />
               </motion.div>
-              <span className="font-bold text-white text-sm">في انتظار العميل</span>
+              <span className="font-bold text-amber-400 text-sm" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>في انتظار العميل</span>
             </div>
-            <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${waitingTime >= WAITING_CRITICAL_THRESHOLD ? "bg-red-500/30 text-white" : "bg-white/20 text-white"}`}>
-              {waitingTime >= WAITING_WARNING_THRESHOLD ? <AlertTriangle className="w-3 h-3 animate-pulse" /> : <Timer className="w-3 h-3" />}
-              <span className="font-mono tabular-nums">{formatWaitingTime(waitingTime)}</span>
-              <span className="text-[10px] opacity-75">/ 5:00</span>
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${waitingTime >= WAITING_CRITICAL_THRESHOLD ? "bg-red-500/20 text-red-400 border-red-500/30" : "bg-[#0b1326]/50 text-amber-300 border-amber-500/20"}`}>
+              {waitingTime >= WAITING_WARNING_THRESHOLD ? <AlertTriangle className="w-3.5 h-3.5 animate-pulse" /> : <Timer className="w-3.5 h-3.5" />}
+              <span className="tabular-nums" style={{ fontFamily: "Inter, sans-serif" }}>{formatWaitingTime(waitingTime)}</span>
             </div>
           </div>
         )}
 
         {activeRide.status === "in_progress" && (
-          <div className="bg-primary mx-5 rounded-xl px-4 py-2.5 flex items-center justify-between mb-3">
+          <div className="mx-5 rounded-2xl px-4 py-3 flex items-center justify-between mb-4 bg-[#5bdda6]/10 border border-[#5bdda6]/30">
             <div className="flex items-center gap-2">
               <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}>
-                <Car className="w-4 h-4 text-white" />
+                <Car className="w-4 h-4 text-[#5bdda6]" />
               </motion.div>
-              <span className="font-bold text-white text-sm">الرحلة جارية</span>
+              <span className="font-bold text-[#5bdda6] text-sm" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>الرحلة جارية</span>
             </div>
-            <div className="bg-white/20 px-3 py-1 rounded-full flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-white" />
-              <span className="font-mono font-bold text-white text-sm tabular-nums">{formatTime(elapsedTime)}</span>
+            <div className="flex items-center gap-2">
+              <div className="bg-[#0b1326]/50 border border-[#5bdda6]/20 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-[#5bdda6]" />
+                <span className="font-bold text-[#5bdda6] text-sm tabular-nums" style={{ fontFamily: "Inter, sans-serif" }}>{formatTime(elapsedTime)}</span>
+              </div>
+              {onNavigationClick && (
+                <button
+                  onClick={() => onNavigationClick(activeRide.dropoff_location.lat, activeRide.dropoff_location.lng, "الوجهة")}
+                  className="w-9 h-9 rounded-full bg-[#5bdda6]/20 border border-[#5bdda6]/40 flex items-center justify-center hover:bg-[#5bdda6]/30 active:scale-90 transition-all touch-manipulation"
+                  title="ملاحة"
+                >
+                  <Navigation className="w-4 h-4 text-[#5bdda6]" />
+                </button>
+              )}
             </div>
           </div>
         )}
 
-        {/* ═══ Info Area ═══ */}
-        <div className="px-5 space-y-3 pb-3">
-          {/* Rider Info + Fare */}
-          {(activeRide.status === "accepted" || activeRide.status === "arrived") && (
-            <div className="flex items-center justify-between">
+        {/* ═══ Info Area (Bento Layout) ═══ */}
+        <div className="px-5 space-y-3 pb-4">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* بطاقة العميل والأجرة */}
+            <div className="bg-[#171f33] rounded-2xl p-4 border border-slate-700/30 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center border ${activeRide.status === "accepted" ? "bg-blue-500/20 border-blue-500/30" : "bg-amber-500/20 border-amber-500/30"}`}>
-                  <User className={`w-5 h-5 ${activeRide.status === "accepted" ? "text-blue-400" : "text-amber-400"}`} />
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center border shadow-inner ${activeRide.status === "accepted" ? "bg-blue-500/10 border-blue-500/30" : activeRide.status === "arrived" ? "bg-amber-500/10 border-amber-500/30" : "bg-[#5bdda6]/10 border-[#5bdda6]/30"}`}>
+                  <User className={`w-5 h-5 ${activeRide.status === "accepted" ? "text-blue-400" : activeRide.status === "arrived" ? "text-amber-400" : "text-[#5bdda6]"}`} />
                 </div>
                 <div>
-                  <p className="font-bold text-sm text-white truncate max-w-[140px]">{riderInfo?.full_name || "العميل"}</p>
-                  {activeRide.status === "accepted" && (
-                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                      <span className="flex items-center gap-1 text-amber-400"><Star className="w-3 h-3 fill-amber-400" />{typeof riderInfo?.rating === "number" ? riderInfo.rating.toFixed(1) : "—"}</span>
+                  <p className="font-bold text-sm text-white truncate max-w-[130px]" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>{riderInfo?.full_name || "العميل"}</p>
+                  {(activeRide.status === "accepted" || activeRide.status === "arrived") && (
+                    <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5 font-semibold">
+                      <span className="flex items-center gap-0.5 text-amber-400"><Star className="w-3 h-3 fill-amber-400" />{typeof riderInfo?.rating === "number" ? riderInfo.rating.toFixed(1) : "—"}</span>
+                      <span>|</span>
                       <span>{activeRide.payment_method === "cash" ? "نقداً" : activeRide.payment_method === "wallet" ? "المحفظة" : "نقداً"}</span>
                     </div>
                   )}
                 </div>
               </div>
-              <div className="bg-emerald-950/50 border border-emerald-700/30 rounded-xl px-3 py-2">
-                <div className="flex items-center gap-1.5">
-                  <Wallet className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xl font-black text-emerald-400 tabular-nums">{roundFare(activeRide.estimated_fare || 0).toLocaleString()}</span>
-                  <span className="text-[10px] text-emerald-400/70">د.ع</span>
+
+              {/* الأجرة */}
+              <div className="flex flex-col items-end">
+                <p className="text-[10px] text-slate-400 mb-0.5 font-semibold">الأجرة المقدرة</p>
+                <div className="flex items-baseline gap-1" style={{ fontFamily: "Inter, sans-serif" }}>
+                  <span className={`text-xl font-black tabular-nums tracking-tight ${activeRide.status === "in_progress" ? "text-[#5bdda6]" : activeRide.status === "arrived" ? "text-amber-400" : "text-blue-400"}`}>{roundFare(activeRide.estimated_fare || 0).toLocaleString()}</span>
+                  <span className={`text-[10px] font-bold ${activeRide.status === "in_progress" ? "text-[#5bdda6]/70" : activeRide.status === "arrived" ? "text-amber-400/70" : "text-blue-400/70"}`}>د.ع</span>
                 </div>
               </div>
             </div>
-          )}
 
-          {/* in_progress: Distance + Duration + Fare */}
-          {activeRide.status === "in_progress" && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="text-center"><p className="text-[11px] text-slate-400">المسافة</p><p className="text-sm font-bold text-white">{activeRide.distance_km || "?"} كم</p></div>
-                <div className="w-px h-8 bg-slate-700" />
-                <div className="text-center"><p className="text-[11px] text-slate-400">المدة</p><p className="text-sm font-bold text-white">{activeRide.duration_minutes || "?"} د</p></div>
-              </div>
-              <div className="bg-emerald-950/50 border border-emerald-700/30 rounded-xl px-3 py-2">
-                <div className="flex items-center gap-1.5"><Wallet className="w-4 h-4 text-emerald-400" /><span className="text-xl font-black text-emerald-400 tabular-nums">{roundFare(activeRide.estimated_fare || 0).toLocaleString()}</span><span className="text-[10px] text-emerald-400/70">د.ع</span></div>
-              </div>
-            </div>
-          )}
-
-          {/* Address Info */}
-          {activeRide.status === "accepted" && (
-            <div className="bg-slate-800/60 rounded-xl p-3 border border-slate-700/30">
-              <div className="flex items-start gap-3">
-                <div className="w-3 h-3 mt-1.5 rounded-full bg-emerald-500 border-2 border-emerald-800 animate-pulse shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider mb-0.5">نقطة الاستلام</p>
-                  <p className="text-sm font-medium text-slate-200 line-clamp-2">{activeRide.pickup_address || getLocationString(activeRide.pickup_location)}</p>
+            {/* إحصائيات الرحلة أثناء الحركة */}
+            {activeRide.status === "in_progress" && (
+              <div className="flex gap-2">
+                <div className="flex-1 bg-[#171f33] rounded-2xl border border-slate-700/30 p-3 flex flex-col items-center justify-center">
+                  <span className="text-[10px] font-semibold text-slate-400 mb-1">المسافة</span>
+                  <span className="text-sm font-bold text-white tabular-nums" style={{ fontFamily: "Inter, sans-serif" }}>{activeRide.distance_km || "?"} كم</span>
+                </div>
+                <div className="flex-1 bg-[#171f33] rounded-2xl border border-slate-700/30 p-3 flex flex-col items-center justify-center">
+                  <span className="text-[10px] font-semibold text-slate-400 mb-1">المدة المقدرة</span>
+                  <span className="text-sm font-bold text-white tabular-nums" style={{ fontFamily: "Inter, sans-serif" }}>{activeRide.duration_minutes || "?"} د</span>
                 </div>
               </div>
-            </div>
-          )}
-
-          {activeRide.status === "arrived" && (
-            <div className="bg-slate-800/60 rounded-xl p-3 border border-slate-700/30">
-              <div className="flex gap-3">
-                <div className="flex flex-col items-center pt-1">
-                  <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-emerald-800 shadow-sm" />
-                  <div className="w-0.5 flex-1 bg-gradient-to-b from-emerald-400 to-red-400 my-1 min-h-[16px]" />
-                  <div className="w-3 h-3 rounded-full bg-red-500 border-2 border-red-800 shadow-sm" />
-                </div>
-                <div className="flex-1 flex flex-col justify-between gap-2 min-w-0">
-                  <div><p className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider mb-0.5">نقطة الانطلاق</p><p className="text-sm font-medium text-slate-200 line-clamp-1">{activeRide.pickup_address || getLocationString(activeRide.pickup_location)}</p></div>
-                  <div><p className="text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-0.5">الوجهة</p><p className="text-sm font-medium text-slate-200 line-clamp-1">{activeRide.dropoff_address || getLocationString(activeRide.dropoff_location)}</p></div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeRide.status === "in_progress" && (
-            <div className="bg-slate-800/60 rounded-xl p-3 border border-slate-700/30">
-              <div className="flex items-start gap-3">
-                <div className="w-3 h-3 mt-1.5 rounded-full bg-red-500 border-2 border-red-800 animate-pulse shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-0.5">الوجهة</p>
-                  <p className="text-sm font-medium text-slate-200 line-clamp-2">{activeRide.dropoff_address || getLocationString(activeRide.dropoff_location)}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ═══ Utility Buttons Row ═══ */}
-          <div className="flex gap-2">
-            <DriverEmergencyButton rideId={activeRide.id} currentLocation={driverLocation} />
-            <ChatButton rideId={activeRide.id} userType="driver" />
-            <Button variant="outline" size="icon" className="rounded-full h-10 w-10 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20"
-              onClick={() => { if (riderInfo?.phone) window.location.href = `tel:${riderInfo.phone}`; else toast({ title: "رقم الهاتف غير متوفر", variant: "destructive" }); }} title="اتصال">
-              <Phone className="w-4 h-4 text-blue-400" />
-            </Button>
-            {(activeRide.status === "accepted" || activeRide.status === "arrived") && (
-              <Button variant="outline" size="icon" className="rounded-full h-10 w-10 border-green-500/30 bg-green-500/10 hover:bg-green-500/20"
-                onClick={() => { if (riderInfo?.phone) { const c = riderInfo.phone.replace(/[^0-9]/g, ""); const w = c.startsWith("0") ? "964" + c.slice(1) : c.startsWith("964") ? c : "964" + c; window.open(`https://wa.me/${w}`, "_blank"); } else { toast({ title: "رقم الهاتف غير متوفر", variant: "destructive" }); } }} title="واتساب">
-                <svg className="w-4 h-4 text-green-400" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
-              </Button>
             )}
           </div>
 
-          {/* ═══ Quick Messages ═══ */}
-          {activeRide.status === "accepted" && (
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              <Button variant="outline" size="sm" className="h-8 text-xs px-3 whitespace-nowrap bg-info/10 border-info/20 text-info hover:bg-info/20 rounded-md"
-                onClick={() => sendQuickMessageToRider("driver_approaching_soon", "السائق قريب وفي الطريق إليك", "✅ تم إبلاغ الراكب")}>🚗 قريب منك</Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs px-3 whitespace-nowrap bg-warning/10 border-warning/20 text-warning hover:bg-warning/20 rounded-md"
-                onClick={() => sendQuickMessageToRider("driver_car_info", `السيارة ${activeRide.vehicle_type === "economy" ? "اقتصادية" : activeRide.vehicle_type === "comfort" ? "مريحة" : "فاخرة"}`, "✅ تم إرسال معلومات السيارة")}>🚙 معلومات السيارة</Button>
+          {/* ═══ العناوين والمسار (Timeline) ═══ */}
+          <div className="bg-[#171f33] rounded-2xl p-4 border border-slate-700/30 relative overflow-hidden">
+            <div className="flex gap-4 relative z-10">
+              {/* Timeline Indicator */}
+              <div className="flex flex-col items-center pt-1.5 pb-1">
+                {(activeRide.status === "accepted" || activeRide.status === "arrived") ? (
+                  <>
+                    <div className="w-3.5 h-3.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)] animate-pulse" />
+                    <div className="w-0.5 flex-1 bg-gradient-to-b from-blue-500/50 to-red-500/30 my-1 min-h-[20px]" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-slate-600" />
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2.5 h-2.5 rounded-full bg-slate-600" />
+                    <div className="w-0.5 flex-1 bg-gradient-to-b from-slate-600 to-[#5bdda6]/50 my-1 min-h-[20px]" />
+                    <div className="w-3.5 h-3.5 rounded-full bg-[#5bdda6] shadow-[0_0_10px_rgba(91,221,166,0.6)] animate-pulse" />
+                  </>
+                )}
+              </div>
+              
+              <div className="flex-1 flex flex-col justify-between gap-3 min-w-0">
+                {(activeRide.status === "accepted" || activeRide.status === "arrived") ? (
+                  <>
+                    <div>
+                      <p className="text-[10px] text-blue-400 font-bold tracking-wider mb-0.5" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>الوجهة الحالية (نقطة الاستلام)</p>
+                      <p className="text-sm font-medium text-slate-200 line-clamp-2 leading-snug">{activeRide.pickup_address || getLocationString(activeRide.pickup_location)}</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <p className="text-[10px] text-[#5bdda6] font-bold tracking-wider mb-0.5" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>الوجهة الحالية (نقطة الوصول)</p>
+                      <p className="text-sm font-medium text-slate-200 line-clamp-2 leading-snug">{activeRide.dropoff_address || getLocationString(activeRide.dropoff_location)}</p>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-          )}
+          </div>
 
-          {activeRide.status === "arrived" && (
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              <Button variant="outline" size="sm" className="h-8 text-xs px-3 whitespace-nowrap bg-success/10 border-success/20 text-success hover:bg-success/20 rounded-md" onClick={() => sendQuickMessageToRider("driver_at_location", "وصلت للموقع - أنا بانتظارك", "✅ تم إبلاغ الراكب")}>📍 وصلت للموقع</Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs px-3 whitespace-nowrap bg-info/10 border-info/20 text-info hover:bg-info/20 rounded-md" onClick={() => sendQuickMessageToRider("driver_waiting_outside", "أنتظرك أمام البناية", "✅ تم إبلاغ الراكب")}>🏢 أمام البناية</Button>
-              <Button variant="outline" size="sm" className="h-8 text-xs px-3 whitespace-nowrap bg-warning/10 border-warning/20 text-warning hover:bg-warning/20 rounded-md" onClick={() => { const colorMsg = activeRide.vehicle_type ? `ابحث عن سيارة ${activeRide.vehicle_type === "economy" ? "اقتصادية" : activeRide.vehicle_type === "comfort" ? "مريحة" : "فاخرة"} بالقرب منك` : "السيارة بالقرب منك - ابحث عني!"; sendQuickMessageToRider("driver_car_color", colorMsg, "✅ تم إبلاغ الراكب"); }}>🎨 لون السيارة</Button>
+          {/* ═══ Utility & Quick Messages (Single Scrollable Row) ═══ */}
+          <div className="flex gap-2 overflow-x-auto pb-2 pt-1 scrollbar-hide snap-x" style={{ WebkitOverflowScrolling: 'touch' }}>
+            {/* 1. Chat (Priority First) */}
+            <div className="flex-none snap-start">
+              <div className="relative [&>button]:!bg-[#171f33] [&>button]:!border [&>button]:!border-blue-500/30 [&>button]:!shadow-[0_0_12px_rgba(59,130,246,0.15)] [&>button]:!w-auto [&>button]:!min-w-[100px] [&>button]:!h-[42px] [&>button]:!rounded-xl [&_span]:!text-blue-300 [&_svg]:!text-blue-400 [&>button]:!text-[11px] [&>button]:!font-bold [&>button]:flex [&>button]:items-center [&>button]:justify-center [&>button]:hover:!bg-blue-500/15 active:scale-95 transition-transform">
+                <ChatButton rideId={activeRide.id} userType="driver" />
+              </div>
             </div>
-          )}
+
+            {/* 2. Call */}
+            <button className="flex-none snap-start h-[42px] px-4 rounded-xl bg-[#171f33] border border-emerald-500/30 hover:bg-emerald-500/15 active:scale-95 transition-all flex items-center gap-2 shadow-[0_0_12px_rgba(91,221,166,0.1)]"
+              onClick={() => { if (riderInfo?.phone) window.location.href = `tel:${riderInfo.phone}`; else toast({ title: "رقم الهاتف غير متوفر", variant: "destructive" }); }}>
+              <Phone className="w-4 h-4 text-emerald-400" />
+              <span className="text-[11px] font-bold text-emerald-300">اتصال</span>
+            </button>
+
+            {/* 3. WhatsApp */}
+            {(activeRide.status === "accepted" || activeRide.status === "arrived") && (
+              <button className="flex-none snap-start h-[42px] px-4 rounded-xl bg-[#171f33] border border-[#25D366]/30 hover:bg-[#25D366]/15 active:scale-95 transition-all flex items-center gap-2 shadow-[0_0_12px_rgba(37,211,102,0.1)]"
+                onClick={() => { if (riderInfo?.phone) { const c = riderInfo.phone.replace(/[^0-9]/g, ""); const w = c.startsWith("0") ? "964" + c.slice(1) : c.startsWith("964") ? c : "964" + c; window.open(`https://wa.me/${w}`, "_blank"); } else { toast({ title: "رقم الهاتف غير متوفر", variant: "destructive" }); } }}>
+                <svg className="w-4 h-4 text-[#25D366]" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
+                <span className="text-[11px] font-bold text-[#25D366]">واتساب</span>
+              </button>
+            )}
+
+            {/* 4. Quick Messages (dynamic) */}
+            {activeRide.status === "accepted" && (
+              <>
+                <button className="flex-none snap-start h-[42px] px-3 rounded-xl bg-[#171f33] border border-blue-500/20 text-blue-300 text-[11px] font-bold hover:bg-blue-500/15 active:scale-95 transition-all touch-manipulation whitespace-nowrap"
+                  onClick={() => sendQuickMessageToRider("driver_approaching_soon", "السائق قريب وفي الطريق إليك", "✅ تم إبلاغ الراكب")}>🚗 قريب منك</button>
+                <button className="flex-none snap-start h-[42px] px-3 rounded-xl bg-[#171f33] border border-indigo-500/20 text-indigo-300 text-[11px] font-bold hover:bg-indigo-500/15 active:scale-95 transition-all touch-manipulation whitespace-nowrap"
+                  onClick={() => sendQuickMessageToRider("driver_car_info", `السيارة ${activeRide.vehicle_type === "economy" ? "اقتصادية" : activeRide.vehicle_type === "comfort" ? "مريحة" : "فاخرة"}`, "✅ تم إرسال معلومات السيارة")}>🚙 معلومات السيارة</button>
+              </>
+            )}
+            {activeRide.status === "arrived" && (
+              <>
+                <button className="flex-none snap-start h-[42px] px-3 rounded-xl bg-[#171f33] border border-amber-500/20 text-amber-300 text-[11px] font-bold hover:bg-amber-500/15 active:scale-95 transition-all touch-manipulation whitespace-nowrap" onClick={() => sendQuickMessageToRider("driver_at_location", "وصلت للموقع - أنا بانتظارك", "✅ تم إبلاغ الراكب")}>📍 وصلت للموقع</button>
+                <button className="flex-none snap-start h-[42px] px-3 rounded-xl bg-[#171f33] border border-blue-500/20 text-blue-300 text-[11px] font-bold hover:bg-blue-500/15 active:scale-95 transition-all touch-manipulation whitespace-nowrap" onClick={() => sendQuickMessageToRider("driver_waiting_outside", "أنتظرك أمام البناية", "✅ تم إبلاغ الراكب")}>🏢 أمام البناية</button>
+                <button className="flex-none snap-start h-[42px] px-3 rounded-xl bg-[#171f33] border border-fuchsia-500/20 text-fuchsia-300 text-[11px] font-bold hover:bg-fuchsia-500/15 active:scale-95 transition-all touch-manipulation whitespace-nowrap" onClick={() => { const colorMsg = activeRide.vehicle_type ? `ابحث عن سيارة ${activeRide.vehicle_type === "economy" ? "اقتصادية" : activeRide.vehicle_type === "comfort" ? "مريحة" : "فاخرة"} بالقرب منك` : "السيارة بالقرب منك - ابحث عني!"; sendQuickMessageToRider("driver_car_color", colorMsg, "✅ تم إبلاغ الراكب"); }}>🎨 لون السيارة</button>
+              </>
+            )}
+
+            {/* 5. Emergency */}
+            <div className="flex-none snap-start">
+              <DriverEmergencyButton rideId={activeRide.id} currentLocation={driverLocation} />
+            </div>
+          </div>
         </div>
 
-        {/* ═══ Action Buttons — مدمجة في Bottom Sheet ═══ */}
-        <div className="px-5 pb-3">
+        {/* ═══ Action Buttons ═══ */}
+        <div className="w-full">
           {activeRide.status === "accepted" && (
-            <div className="flex gap-3">
-              <div className="w-1/3">
-                <NavigationButton lat={activeRide.pickup_location.lat} lng={activeRide.pickup_location.lng} label="ملاحة" size="compact"
-                  onOpenModal={onNavigationClick ? (lat, lng) => onNavigationClick(lat, lng, "موقع العميل") : undefined} />
-              </div>
-              <motion.button
-                animate={isNearPickup ? { boxShadow: ["0 0 0 0 rgba(16,185,129,0)", "0 0 20px 6px rgba(16,185,129,0.3)", "0 0 0 0 rgba(16,185,129,0)"] } : {}}
-                transition={isNearPickup ? { duration: 1.8, repeat: Infinity } : {}}
-                className="w-2/3 h-16 rounded-2xl flex items-center justify-center gap-2 font-black text-xl text-white bg-emerald-600 hover:bg-emerald-700 touch-manipulation active:opacity-90 disabled:opacity-60 transition-all shadow-lg shadow-emerald-500/30"
-                onClick={handleArrived} disabled={loading}>
-                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (<><MapPin className="w-5 h-5" /><span>وصلت للعميل</span></>)}
-              </motion.button>
-            </div>
+            <motion.button
+              animate={isNearPickup ? { boxShadow: ["0 0 0px 0px rgba(59,130,246,0)", "0 0 20px 2px rgba(59,130,246,0.4)", "0 0 0px 0px rgba(59,130,246,0)"] } : {}}
+              transition={isNearPickup ? { duration: 1.8, repeat: Infinity } : {}}
+              style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+              className="w-full h-[72px] rounded-none flex items-center justify-center gap-2 font-bold text-lg text-[#0b1326] bg-gradient-to-r from-blue-400 to-blue-500 active:bg-blue-600 disabled:opacity-60 transition-all shadow-[0_4px_20px_rgba(59,130,246,0.3)] touch-manipulation"
+              onClick={handleArrived} disabled={loading}>
+              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (<><MapPin className="w-5 h-5 ml-1" /><span>وصلت للعميل</span></>)}
+            </motion.button>
           )}
 
           {activeRide.status === "arrived" && (
             <motion.button
-              animate={{ boxShadow: ["0 0 0 0 rgba(16,185,129,0)", "0 0 0 10px rgba(16,185,129,0.15)", "0 0 0 0 rgba(16,185,129,0)"] }}
+              animate={{ boxShadow: ["0 0 0px 0px rgba(245,158,11,0)", "0 0 20px 2px rgba(245,158,11,0.4)", "0 0 0px 0px rgba(245,158,11,0)"] }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="w-full h-16 rounded-2xl flex items-center justify-center gap-2 font-black text-xl text-white bg-emerald-500 hover:bg-emerald-600 touch-manipulation active:opacity-90 disabled:opacity-60 transition-all shadow-lg shadow-emerald-500/30"
+              style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+              className="w-full h-[72px] rounded-none flex items-center justify-center gap-2 font-bold text-lg text-[#0b1326] bg-gradient-to-r from-amber-400 to-amber-500 active:bg-amber-600 disabled:opacity-60 transition-all shadow-[0_4px_20px_rgba(245,158,11,0.3)] touch-manipulation"
               onClick={handleStartRide} disabled={loading}>
-              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (<><CheckCircle className="w-6 h-6" /><span>ركب العميل — بدء الرحلة</span></>)}
+              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (<><CheckCircle className="w-6 h-6 ml-1" /><span>ركب العميل — بدء الرحلة</span></>)}
             </motion.button>
           )}
 
           {activeRide.status === "in_progress" && (
-            <div className="flex gap-3">
-              <div className="w-1/4">
-                <NavigationButton lat={activeRide.dropoff_location.lat} lng={activeRide.dropoff_location.lng} label="ملاحة" size="compact"
-                  onOpenModal={onNavigationClick ? (lat, lng) => onNavigationClick(lat, lng, "الوجهة") : undefined} />
-              </div>
-              <motion.button
-                animate={{ boxShadow: ["0 0 0 0 rgba(16,185,129,0)", "0 0 20px 6px rgba(16,185,129,0.3)", "0 0 0 0 rgba(16,185,129,0)"] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="w-3/4 h-16 rounded-2xl flex items-center justify-center gap-2 font-black text-xl text-white bg-emerald-600 hover:bg-emerald-700 touch-manipulation active:opacity-90 disabled:opacity-60 transition-all shadow-lg shadow-emerald-500/30"
-                onClick={handleCompleteRide} disabled={loading}>
-                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>🏁 إنهاء الرحلة</span>}
-              </motion.button>
-            </div>
+            <motion.button
+              animate={{ boxShadow: ["0 0 0px 0px rgba(91,221,166,0)", "0 0 20px 2px rgba(91,221,166,0.4)", "0 0 0px 0px rgba(91,221,166,0)"] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+              className="w-full h-[72px] rounded-none flex items-center justify-center gap-2 font-bold text-lg text-[#0b1326] bg-[#5bdda6] active:bg-[#3eba89] disabled:opacity-60 transition-all shadow-[0_4px_20px_rgba(91,221,166,0.3)] touch-manipulation"
+              onClick={handleCompleteRide} disabled={loading}>
+              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (<><Flag className="w-5 h-5 ml-1" /><span>إنهاء الرحلة</span></>)}
+            </motion.button>
           )}
         </div>
       </div>

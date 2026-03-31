@@ -309,7 +309,7 @@ const DriverProfile = () => {
         <div className="container max-w-lg space-y-6">
           
           {/* Profile Header Card */}
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden driver-geometric-card">
             <div className="bg-gradient-to-br from-primary/20 to-primary/5 p-6">
               <div className="flex items-center gap-4">
                 <img 
@@ -336,7 +336,7 @@ const DriverProfile = () => {
           </Card>
 
           {/* Edit Request Button */}
-          <Card className="border-primary/30 bg-primary/5">
+          <Card className="border-primary/30 bg-primary/5 driver-geometric-card">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-start gap-3">
@@ -361,7 +361,7 @@ const DriverProfile = () => {
 
           {/* Pending Requests */}
           {editRequests.length > 0 && (
-            <Card>
+            <Card className="driver-geometric-card">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Clock className="w-5 h-5 text-primary" />
@@ -394,7 +394,7 @@ const DriverProfile = () => {
           )}
 
           {/* Personal Info */}
-          <Card>
+          <Card className="driver-geometric-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <User className="w-5 h-5 text-primary" />
@@ -420,7 +420,7 @@ const DriverProfile = () => {
           </Card>
 
           {/* Vehicle Info */}
-          <Card>
+          <Card className="driver-geometric-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Car className="w-5 h-5 text-primary" />
@@ -436,7 +436,7 @@ const DriverProfile = () => {
           </Card>
 
           {/* Work Area */}
-          <Card>
+          <Card className="driver-geometric-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-primary" />
@@ -452,7 +452,7 @@ const DriverProfile = () => {
           </Card>
 
           {/* Stats Summary */}
-          <Card>
+          <Card className="driver-geometric-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Star className="w-5 h-5 text-primary" />

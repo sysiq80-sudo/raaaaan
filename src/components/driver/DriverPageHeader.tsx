@@ -6,7 +6,6 @@ import DriverSideMenu from "@/components/driver/DriverSideMenu";
 import { RewardsSidePanel } from "@/components/driver/RewardsSidePanel";
 import { NotificationsBell } from "@/components/driver/NotificationsBell";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { User } from "@supabase/supabase-js";
 
 interface DriverPageHeaderProps {
@@ -16,7 +15,6 @@ interface DriverPageHeaderProps {
 
 const DriverPageHeader = ({ title, backTo = "/driver" }: DriverPageHeaderProps) => {
   const navigate = useNavigate();
-  const { switchToRider } = useAuth();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [rewardsOpen, setRewardsOpen] = useState(false);
@@ -81,7 +79,7 @@ const DriverPageHeader = ({ title, backTo = "/driver" }: DriverPageHeaderProps) 
     <>
       {/* ── الشريط العلوي ── */}
       <header
-        className="fixed top-0 left-0 right-0 z-50 bg-black/60 backdrop-blur-xl border-b border-white/5 pt-[env(safe-area-inset-top)]"
+        className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/60 pt-[env(safe-area-inset-top)]"
       >
         <div className="flex items-center justify-between h-14 px-4">
 
@@ -94,40 +92,39 @@ const DriverPageHeader = ({ title, backTo = "/driver" }: DriverPageHeaderProps) 
             />
             <button
               onClick={() => { setRewardsOpen(!rewardsOpen); setNotificationsOpen(false); setMenuOpen(false); }}
-              className="relative bg-black/40 backdrop-blur-md p-2.5 rounded-full border border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)] active:scale-95 transition-transform"
+              className="driver-geometric-outline relative p-2.5 active:scale-95 transition-transform"
               aria-label="المكافآت"
             >
               <Gift className="w-5 h-5 text-amber-400" />
               {hasAlerts && (
-                <>
-                  <span className="absolute inset-0 rounded-full border-2 border-amber-400/60 animate-ping" />
-                  <span className="absolute -top-1 -left-1 w-[18px] h-[18px] min-w-[18px] bg-amber-500 text-black font-bold rounded-full text-[10px] flex items-center justify-center border-2 border-black">!</span>
-                </>
+                <span className="absolute -top-1 -left-1 w-[18px] h-[18px] min-w-[18px] bg-amber-500 text-black font-bold rounded-full text-[10px] flex items-center justify-center border-2 border-black">!</span>
               )}
             </button>
           </div>
 
-          {/* وسط: سهم رجوع + عنوان + شعار */}
+          {/* وسط: عنوان + شعار */}
+          <div className="flex items-center gap-2">
+            <img src={logo} alt="RAAN" className="w-6 h-6 rounded-md" />
+            <span className="font-bold text-foreground text-sm">{title}</span>
+          </div>
+
+          {/* يمين: زر الرجوع + زر القائمة */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate(backTo)}
-              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 active:scale-90 transition-all"
+              className="driver-geometric-outline p-1.5 hover:bg-accent/20 active:scale-90 transition-all"
               aria-label="رجوع"
             >
               <ArrowRight className="w-5 h-5 text-white" />
             </button>
-            <img src={logo} alt="RAAN" className="w-6 h-6 rounded-md" />
-            <span className="font-bold text-white text-sm">{title}</span>
+            <button
+              onClick={() => { setMenuOpen(!menuOpen); setNotificationsOpen(false); setRewardsOpen(false); }}
+              className="driver-geometric-outline p-2.5 active:scale-95 transition-transform"
+              aria-label="القائمة"
+            >
+              {menuOpen ? <X className="w-5 h-5 text-white" /> : <Menu className="w-5 h-5 text-white" />}
+            </button>
           </div>
-
-          {/* يمين: زر القائمة */}
-          <button
-            onClick={() => { setMenuOpen(!menuOpen); setNotificationsOpen(false); setRewardsOpen(false); }}
-            className="bg-white/10 backdrop-blur-md p-2.5 rounded-full border border-white/10 active:scale-95 transition-transform"
-            aria-label="القائمة"
-          >
-            {menuOpen ? <X className="w-5 h-5 text-white" /> : <Menu className="w-5 h-5 text-white" />}
-          </button>
         </div>
       </header>
 

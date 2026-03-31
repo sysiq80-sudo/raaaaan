@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -23,11 +25,25 @@ import {
   User,
   CreditCard,
   Download,
-  ExternalLink
+  ExternalLink,
+  XCircle,
+  Clock
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type Driver = Database["public"]["Tables"]["drivers"]["Row"];
+
+// أنواع الوثائق للمراجعة
+type DocType = 'profile_image' | 'id_front' | 'id_back' | 'license_front' | 'license_back' | 'vehicle_image';
+type ReviewStatus = 'pending' | 'approved' | 'rejected';
+
+interface DocumentReview {
+  document_type: DocType;
+  status: ReviewStatus;
+  rejection_reason: string | null;
+  reviewed_at: string | null;
+  expiry_date: string | null;
+}
 
 interface DriverDocumentsViewerProps {
   open: boolean;
@@ -38,10 +54,21 @@ interface DriverDocumentsViewerProps {
 
 interface DocumentItem {
   key: string;
+  docType: DocType;
   label: string;
   url: string | null;
   icon: React.ReactNode;
 }
+
+// ربط أعمدة URL بأنواع الوثائق
+const DOC_TYPE_MAP: Record<string, DocType> = {
+  profile_image_url: 'profile_image',
+  id_image_url: 'id_front',
+  id_image_back_url: 'id_back',
+  license_image_url: 'license_front',
+  license_image_back_url: 'license_back',
+  vehicle_image_url: 'vehicle_image',
+};
 
 export const DriverDocumentsViewer = ({
   open,
@@ -52,40 +79,73 @@ export const DriverDocumentsViewer = ({
   const { toast } = useToast();
   const [uploading, setUploading] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<Record<DocType, DocumentReview>>({} as any);
+  const [rejectingDoc, setRejectingDoc] = useState<DocType | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [reviewLoading, setReviewLoading] = useState<DocType | null>(null);
+
+  // جلب حالات المراجعة
+  const fetchReviews = useCallback(async () => {
+    if (!driver) return;
+    const { data } = await supabase
+      .from("driver_document_reviews" as any)
+      .select("document_type, status, rejection_reason, reviewed_at, expiry_date")
+      .eq("driver_id", driver.id);
+    
+    if (data) {
+      const map: Record<string, DocumentReview> = {};
+      for (const r of data as any[]) {
+        map[r.document_type] = r;
+      }
+      setReviews(map as any);
+    }
+  }, [driver]);
+
+  useEffect(() => {
+    if (open && driver) {
+      fetchReviews();
+    }
+  }, [open, driver, fetchReviews]);
 
   const documents: DocumentItem[] = [
     {
       key: "profile_image_url",
+      docType: "profile_image",
       label: "الصورة الشخصية",
       url: driver?.profile_image_url || null,
       icon: <User className="w-4 h-4" />
     },
     {
       key: "id_image_url",
+      docType: "id_front",
       label: "البطاقة الموحدة (أمام)",
       url: driver?.id_image_url || null,
       icon: <CreditCard className="w-4 h-4" />
     },
     {
       key: "id_image_back_url",
+      docType: "id_back",
       label: "البطاقة الموحدة (خلف)",
       url: driver?.id_image_back_url || null,
       icon: <CreditCard className="w-4 h-4" />
     },
     {
       key: "license_image_url",
+      docType: "license_front",
       label: "إجازة السوق (أمام)",
       url: driver?.license_image_url || null,
       icon: <FileText className="w-4 h-4" />
     },
     {
       key: "license_image_back_url",
+      docType: "license_back",
       label: "إجازة السوق (خلف)",
       url: driver?.license_image_back_url || null,
       icon: <FileText className="w-4 h-4" />
     },
     {
       key: "vehicle_image_url",
+      docType: "vehicle_image",
       label: "صورة السيارة",
       url: driver?.vehicle_image_url || null,
       icon: <Car className="w-4 h-4" />
@@ -95,6 +155,71 @@ export const DriverDocumentsViewer = ({
   const uploadedCount = documents.filter(d => d.url).length;
   const totalCount = documents.length;
   const isComplete = uploadedCount === totalCount;
+
+  const approvedCount = Object.values(reviews).filter(r => r.status === 'approved').length;
+  const rejectedCount = Object.values(reviews).filter(r => r.status === 'rejected').length;
+  const pendingCount = Object.values(reviews).filter(r => r.status === 'pending').length;
+
+  // مراجعة وثيقة (اعتماد أو رفض)
+  const handleReviewDocument = async (docType: DocType, status: ReviewStatus, reason?: string) => {
+    if (!driver) return;
+    setReviewLoading(docType);
+    try {
+      const { data, error } = await supabase.rpc("review_driver_document" as any, {
+        p_driver_id: driver.id,
+        p_document_type: docType,
+        p_status: status,
+        p_rejection_reason: reason || null,
+        p_expiry_date: null,
+      });
+
+      if (error) throw error;
+
+      const result = data as any;
+      if (!result?.success) throw new Error(result?.error || 'فشل المراجعة');
+
+      toast({
+        title: status === 'approved' ? "✅ تم الاعتماد" : "❌ تم الرفض",
+        description: status === 'approved' 
+          ? `تم اعتماد الوثيقة بنجاح` 
+          : `تم رفض الوثيقة: ${reason}`,
+      });
+
+      if (result.all_approved) {
+        toast({
+          title: "🎉 موافقة تلقائية",
+          description: "تم اعتماد جميع الوثائق — تمت الموافقة على السائق تلقائياً",
+        });
+        onSuccess();
+      }
+
+      fetchReviews();
+      setRejectingDoc(null);
+      setRejectionReason("");
+    } catch (error: any) {
+      toast({
+        title: "خطأ",
+        description: error.message || "فشل في مراجعة الوثيقة",
+        variant: "destructive",
+      });
+    } finally {
+      setReviewLoading(null);
+    }
+  };
+
+  const getReviewBadge = (docType: DocType) => {
+    const review = reviews[docType];
+    if (!review) return null;
+
+    switch (review.status) {
+      case 'approved':
+        return <Badge className="bg-green-100 text-green-800 text-xs"><CheckCircle className="w-3 h-3 ml-1" />معتمد</Badge>;
+      case 'rejected':
+        return <Badge variant="destructive" className="text-xs"><XCircle className="w-3 h-3 ml-1" />مرفوض</Badge>;
+      case 'pending':
+        return <Badge variant="secondary" className="text-xs"><Clock className="w-3 h-3 ml-1" />بانتظار المراجعة</Badge>;
+    }
+  };
 
   const uploadDocument = async (file: File, key: string) => {
     if (!driver) return;
@@ -178,7 +303,7 @@ export const DriverDocumentsViewer = ({
                   {isComplete ? (
                     <>
                       <CheckCircle className="w-5 h-5 text-green-600" />
-                      <span className="text-green-700 font-medium">جميع الوثائق مكتملة ({uploadedCount}/{totalCount})</span>
+                      <span className="text-green-700 font-medium">جميع الوثائق مرفوعة ({uploadedCount}/{totalCount})</span>
                     </>
                   ) : (
                     <>
@@ -187,6 +312,13 @@ export const DriverDocumentsViewer = ({
                     </>
                   )}
                 </div>
+                {Object.keys(reviews).length > 0 && (
+                  <div className="flex gap-2 text-xs">
+                    {approvedCount > 0 && <Badge className="bg-green-100 text-green-800">معتمد: {approvedCount}</Badge>}
+                    {pendingCount > 0 && <Badge variant="secondary">بانتظار: {pendingCount}</Badge>}
+                    {rejectedCount > 0 && <Badge variant="destructive">مرفوض: {rejectedCount}</Badge>}
+                  </div>
+                )}
               </div>
 
               {/* Driver Info Summary */}
@@ -224,17 +356,22 @@ export const DriverDocumentsViewer = ({
 
               {/* Documents Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {documents.map((doc) => (
-                  <div key={doc.key} className="border rounded-lg overflow-hidden">
+                {documents.map((doc) => {
+                  const review = reviews[doc.docType];
+                  const isRejected = review?.status === 'rejected';
+                  const isApproved = review?.status === 'approved';
+
+                  return (
+                  <div key={doc.key} className={`border rounded-lg overflow-hidden ${isRejected ? 'border-red-300' : isApproved ? 'border-green-300' : ''}`}>
                     <div className="flex items-center justify-between p-3 bg-muted/30">
                       <div className="flex items-center gap-2">
                         {doc.icon}
                         <span className="font-medium text-sm">{doc.label}</span>
-                        {doc.url ? (
+                        {getReviewBadge(doc.docType) || (doc.url ? (
                           <CheckCircle className="w-4 h-4 text-green-600" />
                         ) : (
                           <AlertCircle className="w-4 h-4 text-amber-500" />
-                        )}
+                        ))}
                       </div>
                       <div className="flex gap-1">
                         {doc.url && (
@@ -311,8 +448,70 @@ export const DriverDocumentsViewer = ({
                         </div>
                       </div>
                     )}
+
+                    {/* أزرار مراجعة الوثيقة */}
+                    {doc.url && (
+                      <div className="p-2 border-t bg-muted/10">
+                        {isRejected && review?.rejection_reason && (
+                          <p className="text-xs text-red-600 mb-2 px-1">سبب الرفض: {review.rejection_reason}</p>
+                        )}
+                        {rejectingDoc === doc.docType ? (
+                          <div className="space-y-2">
+                            <Textarea
+                              placeholder="سبب الرفض (مطلوب)..."
+                              value={rejectionReason}
+                              onChange={(e) => setRejectionReason(e.target.value)}
+                              className="text-sm h-16"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                disabled={!rejectionReason.trim() || reviewLoading === doc.docType}
+                                onClick={() => handleReviewDocument(doc.docType, 'rejected', rejectionReason)}
+                                className="h-7 text-xs"
+                              >
+                                {reviewLoading === doc.docType ? <Loader2 className="w-3 h-3 animate-spin" /> : 'تأكيد الرفض'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => { setRejectingDoc(null); setRejectionReason(""); }}
+                                className="h-7 text-xs"
+                              >
+                                إلغاء
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={reviewLoading === doc.docType || isApproved}
+                              onClick={() => handleReviewDocument(doc.docType, 'approved')}
+                              className={`h-7 text-xs flex-1 ${isApproved ? 'bg-green-50 text-green-700 border-green-300' : ''}`}
+                            >
+                              {reviewLoading === doc.docType ? <Loader2 className="w-3 h-3 animate-spin" /> : (
+                                <><CheckCircle className="w-3 h-3 ml-1" />{isApproved ? 'معتمد' : 'اعتماد'}</>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={reviewLoading === doc.docType}
+                              onClick={() => setRejectingDoc(doc.docType)}
+                              className={`h-7 text-xs flex-1 ${isRejected ? 'bg-red-50 text-red-700 border-red-300' : ''}`}
+                            >
+                              <XCircle className="w-3 h-3 ml-1" />{isRejected ? 'مرفوض' : 'رفض'}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </ScrollArea>

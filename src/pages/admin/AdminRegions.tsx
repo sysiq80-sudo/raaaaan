@@ -34,6 +34,7 @@ interface Region {
   name_en: string | null;
   base_fare: number;
   per_km_fare: number;
+  per_minute_fare: number;
   waiting_fare_per_min: number;
   wait_timeout_minutes: number;
   weekend_wait_timeout_minutes: number;
@@ -56,6 +57,7 @@ const AdminRegions = () => {
     name_en: "",
     base_fare: 2000,
     per_km_fare: 500,
+    per_minute_fare: 150,
     waiting_fare_per_min: 100,
     wait_timeout_minutes: 10,
     weekend_wait_timeout_minutes: 15,
@@ -135,6 +137,7 @@ const AdminRegions = () => {
       name_en: region.name_en || "",
       base_fare: region.base_fare,
       per_km_fare: region.per_km_fare,
+      per_minute_fare: region.per_minute_fare || 0,
       waiting_fare_per_min: region.waiting_fare_per_min,
       wait_timeout_minutes: region.wait_timeout_minutes || 10,
       weekend_wait_timeout_minutes: region.weekend_wait_timeout_minutes || 15,
@@ -182,6 +185,7 @@ const AdminRegions = () => {
       name_en: "",
       base_fare: 2000,
       per_km_fare: 500,
+      per_minute_fare: 150,
       waiting_fare_per_min: 100,
       wait_timeout_minutes: 10,
       weekend_wait_timeout_minutes: 15,
@@ -336,6 +340,20 @@ const AdminRegions = () => {
               />
             </div>
             <p className="text-xs text-muted-foreground">دينار عراقي / كم</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>سعر الدقيقة (وقت الرحلة)</Label>
+            <div className="relative">
+              <Timer className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="number"
+                value={formData.per_minute_fare}
+                onChange={(e) => setFormData({ ...formData, per_minute_fare: parseInt(e.target.value) || 0 })}
+                className="pr-10"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">دينار عراقي / دقيقة — 0 لتعطيل</p>
           </div>
 
           <div className="space-y-2">
@@ -591,7 +609,7 @@ const AdminRegions = () => {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-5 gap-2 mb-4">
+                    <div className="grid grid-cols-6 gap-2 mb-4">
                       <div className="text-center p-2 bg-muted/50 rounded-lg">
                         <p className="text-xs text-muted-foreground mb-1">البداية</p>
                         <p className="font-bold text-sm">{region.base_fare.toLocaleString()}</p>
@@ -599,6 +617,10 @@ const AdminRegions = () => {
                       <div className="text-center p-2 bg-muted/50 rounded-lg">
                         <p className="text-xs text-muted-foreground mb-1">الكيلومتر</p>
                         <p className="font-bold text-sm">{region.per_km_fare.toLocaleString()}</p>
+                      </div>
+                      <div className="text-center p-2 bg-muted/50 rounded-lg">
+                        <p className="text-xs text-muted-foreground mb-1">الدقيقة</p>
+                        <p className="font-bold text-sm">{(region.per_minute_fare || 0).toLocaleString()}</p>
                       </div>
                       <div className="text-center p-2 bg-muted/50 rounded-lg">
                         <p className="text-xs text-muted-foreground mb-1">الانتظار</p>

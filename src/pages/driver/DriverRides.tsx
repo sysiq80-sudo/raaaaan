@@ -140,21 +140,21 @@ const DriverRides = () => {
         <div className="container max-w-lg">
           {/* Summary Cards */}
           <div className="grid grid-cols-3 gap-4 mb-6">
-            <Card className="text-center">
+            <Card className="text-center driver-geometric-card">
               <CardContent className="p-4">
                 <CheckCircle className="w-5 h-5 mx-auto mb-2 text-primary" />
                 <p className="text-lg font-bold">{completedRides.length}</p>
                 <p className="text-xs text-muted-foreground">مكتملة</p>
               </CardContent>
             </Card>
-            <Card className="text-center">
+            <Card className="text-center driver-geometric-card">
               <CardContent className="p-4">
                 <Navigation className="w-5 h-5 mx-auto mb-2 text-info" />
                 <p className="text-lg font-bold">{activeRides.length}</p>
                 <p className="text-xs text-muted-foreground">نشطة</p>
               </CardContent>
             </Card>
-            <Card className="text-center">
+            <Card className="text-center driver-geometric-card">
               <CardContent className="p-4">
                 <XCircle className="w-5 h-5 mx-auto mb-2 text-destructive" />
                 <p className="text-lg font-bold">{cancelledRides.length}</p>
@@ -173,7 +173,7 @@ const DriverRides = () => {
 
             <TabsContent value="all" className="space-y-3">
               {rides.length === 0 ? (
-                <Card>
+                <Card className="driver-geometric-card">
                   <CardContent className="p-8 text-center">
                     <Car className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                     <p className="text-muted-foreground">لا توجد رحلات بعد</p>
@@ -186,7 +186,7 @@ const DriverRides = () => {
 
             <TabsContent value="completed" className="space-y-3">
               {completedRides.length === 0 ? (
-                <Card>
+                <Card className="driver-geometric-card">
                   <CardContent className="p-8 text-center">
                     <CheckCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                     <p className="text-muted-foreground">لا توجد رحلات مكتملة</p>
@@ -199,7 +199,7 @@ const DriverRides = () => {
 
             <TabsContent value="cancelled" className="space-y-3">
               {cancelledRides.length === 0 ? (
-                <Card>
+                <Card className="driver-geometric-card">
                   <CardContent className="p-8 text-center">
                     <XCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                     <p className="text-muted-foreground">لا توجد رحلات ملغاة</p>
@@ -225,7 +225,7 @@ const RideCard = ({
   getStatusBadge: (status: string | null) => React.ReactNode;
   getPaymentLabel: (method: string | null) => string;
 }) => (
-  <Card className="card-hover">
+  <Card className="card-hover driver-geometric-card">
     <CardContent className="p-4">
       <div className="flex items-start justify-between mb-3">
         <div className="text-sm text-muted-foreground">

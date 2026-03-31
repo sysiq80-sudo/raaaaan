@@ -23,9 +23,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-
-// Sentry integration (disabled - not installed)
-const Sentry: any = null;
+import { Sentry } from "@/lib/sentry";
 
 interface Props {
   children: ReactNode;

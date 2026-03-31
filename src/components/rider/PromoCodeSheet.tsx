@@ -66,65 +66,49 @@ const PromoCodeSheet: React.FC<PromoCodeSheetProps> = ({
     setValidationResult(null);
 
     try {
-      // محاولة التحقق من الكود عبر Supabase
-      const { data, error } = await supabase
-        .from("promo_codes" as any)
-        .select("*")
-        .eq("code", code.toUpperCase().trim())
-        .eq("is_active", true)
-        .maybeSingle();
+      // التحقق من الكود عبر دالة validate_promo_code في Supabase
+      const { data, error } = await supabase.rpc("validate_promo_code" as any, {
+        p_code: code.toUpperCase().trim(),
+        p_user_id: userId || "",
+      });
 
-      if (error || !data) {
-        // إذا الجدول غير موجود أو لا يوجد كود
+      if (error) {
+        console.error("Promo RPC error:", error);
         setValidationResult({
           valid: false,
           code: code.toUpperCase(),
           discount_type: "percentage",
           discount_value: 0,
-          message: "كود الخصم غير صالح أو منتهي الصلاحية",
+          message: "حدث خطأ في التحقق من الكود",
         });
         playSound("error");
         return;
       }
 
-      // التحقق من تاريخ الصلاحية
-      if ((data as any).expires_at && new Date((data as any).expires_at) < new Date()) {
+      const result = data as { valid: boolean; code?: string; discount_type?: string; discount_value?: number; max_discount?: number; discount_amount?: number; message?: string };
+
+      if (!result?.valid) {
         setValidationResult({
           valid: false,
           code: code.toUpperCase(),
           discount_type: "percentage",
           discount_value: 0,
-          message: "كود الخصم منتهي الصلاحية",
+          message: result?.message || "كود الخصم غير صالح",
         });
         playSound("error");
         return;
       }
 
-      // التحقق من عدد الاستخدامات
-      if ((data as any).max_uses && (data as any).used_count >= (data as any).max_uses) {
-        setValidationResult({
-          valid: false,
-          code: code.toUpperCase(),
-          discount_type: "percentage",
-          discount_value: 0,
-          message: "تم استنفاد كود الخصم",
-        });
-        playSound("error");
-        return;
-      }
-
-      const d = data as any;
-      const result: PromoResult = {
+      const promoResult: PromoResult = {
         valid: true,
-        code: d.code,
-        discount_type: d.discount_type || "percentage",
-        discount_value: d.discount_value || 0,
-        max_discount: d.max_discount,
-        message: `خصم ${d.discount_type === "percentage" ? `${d.discount_value}%` : `${d.discount_value.toLocaleString()} د.ع`}`,
-        expires_at: d.expires_at,
+        code: result.code || code.toUpperCase(),
+        discount_type: (result.discount_type as "percentage" | "fixed") || "percentage",
+        discount_value: result.discount_value || 0,
+        max_discount: result.max_discount,
+        message: `خصم ${result.discount_type === "percentage" ? `${result.discount_value}%` : `${(result.discount_value || 0).toLocaleString()} د.ع`}`,
       };
 
-      setValidationResult(result);
+      setValidationResult(promoResult);
       playSound("success");
     } catch (err) {
       console.error("Promo validation error:", err);

@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-rider
+dist-driver
+dist-admin
 *.local
 
 # Environment variables — NEVER commit secrets
@@ -39,3 +42,11 @@ android/build/
 android/local.properties
 *.apk
 *.aab
+
+# Signing — NEVER commit
+*.keystore
+*.jks
+keystore.properties
+
+# Local Netlify folder
+.netlify

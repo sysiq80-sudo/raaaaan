@@ -240,16 +240,16 @@ const Index = () => {
           </div>
           <nav className="hidden lg:flex items-center gap-8">
             {[
-              { label: "الرئيسية", id: "hero" },
-              { label: "الذكاء الاصطناعي", id: "ai-section" },
-              { label: "المميزات", id: "features" },
-              { label: "كن كابتن", id: "driver-cta" },
-              { label: "من نحن", id: "about-us" },
-              { label: "تواصل معنا", id: "contact" },
+              { label: "الرئيسية", to: "/" },
+              { label: "الذكاء الاصطناعي", to: "/ai" },
+              { label: "المميزات", to: "/features" },
+              { label: "كن كابتن", to: "/drive" },
+              { label: "من نحن", to: "/about" },
+              { label: "تواصل معنا", to: "/contact" },
             ].map((n) => (
-              <button key={n.id} onClick={() => scrollTo(n.id)} className="text-muted-foreground hover:text-primary transition-colors font-medium">
+              <Link key={n.to} to={n.to} className="text-muted-foreground hover:text-primary transition-colors font-medium">
                 {n.label}
-              </button>
+              </Link>
             ))}
           </nav>
           <div className="flex items-center gap-3">
@@ -269,14 +269,18 @@ const Index = () => {
         </div>
         {mobileMenu && (
           <div className="lg:hidden absolute top-full left-0 right-0 bg-background/95 backdrop-blur-xl border-b border-border/30 p-4 space-y-2">
-            {["hero:الرئيسية", "ai-section:الذكاء الاصطناعي", "features:المميزات", "driver-cta:كن كابتن", "about-us:من نحن", "contact:تواصل معنا"].map((s) => {
-              const [id, label] = s.split(":");
-              return (
-                <button key={id} onClick={() => scrollTo(id)} className="block w-full text-right px-4 py-3 rounded-xl text-foreground hover:bg-primary/10 transition-colors">
-                  {label}
-                </button>
-              );
-            })}
+            {[
+              { to: "/", label: "الرئيسية" },
+              { to: "/ai", label: "الذكاء الاصطناعي" },
+              { to: "/features", label: "المميزات" },
+              { to: "/drive", label: "كن كابتن" },
+              { to: "/about", label: "من نحن" },
+              { to: "/contact", label: "تواصل معنا" },
+            ].map((s) => (
+              <Link key={s.to} to={s.to} onClick={() => setMobileMenu(false)} className="block w-full text-right px-4 py-3 rounded-xl text-foreground hover:bg-primary/10 transition-colors">
+                {s.label}
+              </Link>
+            ))}
           </div>
         )}
       </header>

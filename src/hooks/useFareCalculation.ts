@@ -47,10 +47,14 @@ export const useFareCalculation = (
     // القيم من DB — إذا لم تتوفر تستخدم الـ fallback الموجود في useRegionFares
     const baseFare = defaultFare.base_fare;
     const perKmRate = defaultFare.per_km_fare;
+    const perMinuteRate = defaultFare.per_minute_fare || 0;
     // استخدام المعامل من DB (مع fallback تلقائي في الهوك)
     const vehicleMultiplier = getMultiplier(vehicle);
     const distanceFare = distanceKm * perKmRate;
-    const subtotal = Math.max(baseFare, baseFare + distanceFare);
+    // تقدير وقت الرحلة: متوسط 30 كم/ساعة في المدن العراقية
+    const estimatedMinutes = Math.max(1, Math.round((distanceKm / 30) * 60));
+    const timeFare = estimatedMinutes * perMinuteRate;
+    const subtotal = Math.max(baseFare, baseFare + distanceFare + timeFare);
     const totalFare = Math.round(subtotal * vehicleMultiplier);
 
     return {

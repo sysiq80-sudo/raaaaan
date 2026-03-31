@@ -525,7 +525,7 @@ export default function DriverFinance() {
 
       <div className="max-w-lg mx-auto px-4 -mt-4">
         {/* Daily Goal */}
-        <Card className="border-border/50 shadow-sm mb-4">
+        <Card className="border-border/50 shadow-sm mb-4 driver-geometric-card">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -548,7 +548,7 @@ export default function DriverFinance() {
 
         {/* Commission Tier Info */}
         {tierName && (
-          <Card className="border-border/50 shadow-sm mb-4">
+          <Card className="border-border/50 shadow-sm mb-4 driver-geometric-card">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -602,7 +602,7 @@ export default function DriverFinance() {
               {paymentMethods.map((method) => {
                 const percentage = totalEarnings > 0 ? (method.earnings / totalEarnings) * 100 : 0;
                 return (
-                  <Card key={method.id} className="overflow-hidden border-border/50">
+                  <Card key={method.id} className="overflow-hidden border-border/50 driver-geometric-card">
                     <CardContent className="p-0">
                       <div className="flex items-center">
                         <div className={`w-16 bg-gradient-to-br ${method.gradient} flex items-center justify-center py-4 text-white`}>
@@ -646,7 +646,7 @@ export default function DriverFinance() {
 
           {/* Transactions Tab */}
           <TabsContent value="transactions" className="space-y-4">
-            <Card>
+            <Card className="driver-geometric-card">
               <CardContent className="p-0">
                 {transactions.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground">
@@ -679,7 +679,7 @@ export default function DriverFinance() {
 
           {/* Withdrawal Tab */}
           <TabsContent value="withdraw" className="space-y-4">
-            <Card>
+            <Card className="driver-geometric-card">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <ArrowDown className="w-5 h-5 text-primary" />

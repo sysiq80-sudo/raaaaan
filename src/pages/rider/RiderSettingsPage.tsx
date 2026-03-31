@@ -1,18 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   User,
   Phone,
   Mail,
   Bell,
-  Lock,
+
   LogOut,
   Trash2,
   Loader2,
@@ -20,6 +17,7 @@ import {
   Moon,
   Sun,
   Shield,
+
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import RiderPageHeader from "@/components/rider/RiderPageHeader";
@@ -64,8 +62,6 @@ const RiderSettingsPage: React.FC = () => {
       setUserId(data.user.id);
     };
     checkAuth();
-
-    // Check dark mode
     setDarkMode(document.documentElement.classList.contains("dark"));
   }, [navigate]);
 
@@ -78,13 +74,11 @@ const RiderSettingsPage: React.FC = () => {
   const fetchProfile = async () => {
     if (!userId) return;
     setLoading(true);
-
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("user_id", userId)
       .single();
-
     if (!error && data) {
       setProfile(data);
       setFullName(data.full_name || "");
@@ -95,20 +89,14 @@ const RiderSettingsPage: React.FC = () => {
   const handleSave = async () => {
     if (!userId || !fullName.trim()) return;
     setSaving(true);
-
     const { error } = await supabase
       .from("profiles")
       .update({ full_name: fullName.trim() })
       .eq("user_id", userId);
-
     if (error) {
-      toast({
-        title: "خطأ",
-        description: "فشل في حفظ التغييرات",
-        variant: "destructive",
-      });
+      toast({ title: "خطأ", description: "فشل في حفظ التغييرات", variant: "destructive" });
     } else {
-      toast({ title: "تم حفظ التغييرات بنجاح" });
+      toast({ title: "تم حفظ التغييرات بنجاح ✅" });
       fetchProfile();
     }
     setSaving(false);
@@ -134,77 +122,151 @@ const RiderSettingsPage: React.FC = () => {
   const getInitials = (name: string | null) => {
     if (!name) return "؟";
     const parts = name.split(" ");
-    return parts.length > 1
-      ? parts[0][0] + parts[1][0]
-      : name.substring(0, 2);
+    return parts.length > 1 ? parts[0][0] + parts[1][0] : name.substring(0, 2);
   };
+
+  /* ── مكون عنصر إعداد ── */
+  const SettingRow = ({
+    icon: Icon,
+    iconColor,
+    title,
+    subtitle,
+    trailing,
+  }: {
+    icon: React.ElementType;
+    iconColor: string;
+    title: string;
+    subtitle: string;
+    trailing: React.ReactNode;
+  }) => (
+    <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#1a2536] border border-slate-700/30">
+      <div className="flex items-center gap-3">
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${iconColor}`}>
+          <Icon className="w-[18px] h-[18px]" />
+        </div>
+        <div>
+          <p className="text-[13px] font-semibold text-white">{title}</p>
+          <p className="text-[11px] text-slate-400">{subtitle}</p>
+        </div>
+      </div>
+      {trailing}
+    </div>
+  );
+
+  /* ── مكون Toggle ── */
+  const Toggle = ({
+    checked,
+    onChange,
+  }: {
+    checked: boolean;
+    onChange: () => void;
+  }) => (
+    <button
+      onClick={onChange}
+      className={`relative w-11 h-6 rounded-full transition-colors duration-300 flex-shrink-0 ${
+        checked ? "bg-emerald-500" : "bg-slate-700"
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${
+          checked ? "right-0.5" : "left-0.5"
+        }`}
+      />
+    </button>
+  );
 
   return (
     <div className="flex flex-col bg-background h-full">
       <RiderPageHeader title="الإعدادات" />
 
-      {/* Content */}
-      <div className="pt-16 p-4 pb-6 space-y-6">
+      <div className="pt-16 p-4 pb-8 space-y-5">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="relative w-16 h-16">
+              <div className="absolute inset-0 rounded-full border-2 border-emerald-500/20" />
+              <div className="absolute inset-0 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <User className="w-6 h-6 text-emerald-400" />
+              </div>
+            </div>
+            <p className="text-sm text-slate-400">جاري تحميل الإعدادات...</p>
           </div>
         ) : (
           <>
-            {/* Profile Section */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <User className="w-5 h-5" />
-                  معلومات الحساب
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Avatar */}
-                <div className="flex justify-center mb-4">
-                  <Avatar className="w-20 h-20">
-                    <AvatarImage src={profile?.avatar_url || ""} />
-                    <AvatarFallback className="text-xl bg-primary/20 text-primary">
-                      {getInitials(profile?.full_name)}
-                    </AvatarFallback>
-                  </Avatar>
+            {/* ── معلومات الحساب ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="bg-[#151f30] rounded-2xl border border-slate-700/50 overflow-hidden"
+            >
+              <div className="px-5 py-4 border-b border-slate-700/30">
+                <div className="flex items-center gap-2">
+                  <User className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-[15px] font-bold text-white">معلومات الحساب</h3>
+                </div>
+              </div>
+              <div className="p-5 space-y-5">
+                {/* الصورة الشخصية */}
+                <div className="flex justify-center">
+                  <div className="relative">
+                    <Avatar className="w-20 h-20 border-2 border-emerald-500/30">
+                      <AvatarImage src={profile?.avatar_url || ""} />
+                      <AvatarFallback className="text-xl bg-emerald-500/15 text-emerald-400 font-bold">
+                        {getInitials(profile?.full_name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center border-2 border-[#151f30]">
+                      <User className="w-3 h-3 text-white" />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Name */}
+                {/* الاسم */}
                 <div className="space-y-2">
-                  <Label htmlFor="fullName">الاسم الكامل</Label>
-                  <Input
-                    id="fullName"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="أدخل اسمك"
-                  />
+                  <label className="text-slate-300 text-[13px] font-medium">الاسم الكامل</label>
+                  <div className="relative">
+                    <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
+                      <User className="w-[18px] h-[18px] text-emerald-400" />
+                    </div>
+                    <Input
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="أدخل اسمك"
+                      className="h-12 bg-[#1a2536] border-slate-700/30 text-white placeholder:text-slate-500 rounded-xl pr-11 text-[14px] focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
+                    />
+                  </div>
                 </div>
 
-                {/* Phone (read-only) */}
+                {/* الهاتف */}
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Phone className="w-4 h-4" />
+                  <label className="text-slate-300 text-[13px] font-medium flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-emerald-400" />
                     رقم الهاتف
-                  </Label>
-                  <Input value={profile?.phone || ""} disabled />
+                  </label>
+                  <div className="h-12 bg-[#1a2536] border border-slate-700/30 rounded-xl flex items-center px-4 text-[14px] text-slate-400" dir="ltr">
+                    {profile?.phone || "—"}
+                  </div>
                 </div>
 
-                {/* Email (read-only) */}
+                {/* البريد */}
                 {profile?.email && (
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
+                    <label className="text-slate-300 text-[13px] font-medium flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-slate-400" />
                       البريد الإلكتروني
-                    </Label>
-                    <Input value={profile.email} disabled />
+                    </label>
+                    <div className="h-12 bg-[#1a2536] border border-slate-700/30 rounded-xl flex items-center px-4 text-[14px] text-slate-400" dir="ltr">
+                      {profile.email}
+                    </div>
                   </div>
                 )}
 
-                <Button
+                {/* زر الحفظ */}
+                <button
                   onClick={handleSave}
                   disabled={saving || !fullName.trim()}
-                  className="w-full gap-2"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-bold text-[14px] shadow-lg shadow-emerald-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {saving ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -212,88 +274,74 @@ const RiderSettingsPage: React.FC = () => {
                     <Save className="w-4 h-4" />
                   )}
                   حفظ التغييرات
-                </Button>
-              </CardContent>
-            </Card>
+                </button>
+              </div>
+            </motion.div>
 
-            {/* Settings Section */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Shield className="w-5 h-5" />
-                  الإعدادات العامة
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Dark Mode */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/50">
-                  <div className="flex items-center gap-3">
-                    {darkMode ? (
-                      <Moon className="w-5 h-5 text-primary" />
-                    ) : (
-                      <Sun className="w-5 h-5 text-amber-500" />
-                    )}
-                    <div>
-                      <p className="font-medium">الوضع الليلي</p>
-                      <p className="text-xs text-muted-foreground">
-                        تغيير مظهر التطبيق
-                      </p>
-                    </div>
-                  </div>
-                  <Switch checked={darkMode} onCheckedChange={toggleDarkMode} />
+            {/* ── الإعدادات العامة ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, duration: 0.4 }}
+              className="bg-[#151f30] rounded-2xl border border-slate-700/50 overflow-hidden"
+            >
+              <div className="px-5 py-4 border-b border-slate-700/30">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-[15px] font-bold text-white">الإعدادات العامة</h3>
                 </div>
+              </div>
+              <div className="p-4 space-y-3">
+                <SettingRow
+                  icon={darkMode ? Moon : Sun}
+                  iconColor={darkMode ? "bg-indigo-500/15 text-indigo-400" : "bg-amber-500/15 text-amber-400"}
+                  title="الوضع الليلي"
+                  subtitle="تغيير مظهر التطبيق"
+                  trailing={<Toggle checked={darkMode} onChange={toggleDarkMode} />}
+                />
+                <SettingRow
+                  icon={Bell}
+                  iconColor="bg-emerald-500/15 text-emerald-400"
+                  title="الإشعارات"
+                  subtitle="استلام إشعارات الرحلات"
+                  trailing={<Toggle checked={notificationsEnabled} onChange={() => setNotificationsEnabled(!notificationsEnabled)} />}
+                />
+              </div>
+            </motion.div>
 
-                {/* Notifications */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/50">
-                  <div className="flex items-center gap-3">
-                    <Bell className="w-5 h-5 text-primary" />
-                    <div>
-                      <p className="font-medium">الإشعارات</p>
-                      <p className="text-xs text-muted-foreground">
-                        استلام إشعارات الرحلات
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={notificationsEnabled}
-                    onCheckedChange={setNotificationsEnabled}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Logout & Delete */}
-            <div className="space-y-3">
-              <Button
-                variant="outline"
-                className="w-full gap-2 text-destructive hover:text-destructive"
+            {/* ── تسجيل الخروج وحذف الحساب ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+              className="space-y-3"
+            >
+              <button
                 onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 font-semibold text-[14px] hover:bg-red-500/20 active:bg-red-500/30 transition-all"
               >
                 <LogOut className="w-4 h-4" />
                 تسجيل الخروج
-              </Button>
+              </button>
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="w-full gap-2 text-muted-foreground hover:text-destructive"
-                  >
+                  <button className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-slate-500 hover:text-red-400 text-[13px] transition-colors">
                     <Trash2 className="w-4 h-4" />
                     حذف الحساب
-                  </Button>
+                  </button>
                 </AlertDialogTrigger>
-                <AlertDialogContent>
+                <AlertDialogContent className="bg-[#151f30] border-slate-700/50">
                   <AlertDialogHeader>
-                    <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
-                    <AlertDialogDescription>
+                    <AlertDialogTitle className="text-white">هل أنت متأكد؟</AlertDialogTitle>
+                    <AlertDialogDescription className="text-slate-400">
                       سيتم حذف حسابك وجميع بياناتك بشكل نهائي. هذا الإجراء لا يمكن التراجع عنه.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                    <AlertDialogCancel className="bg-[#1a2536] border-slate-700/50 text-white hover:bg-[#1f2d44]">إلغاء</AlertDialogCancel>
                     <AlertDialogAction
-                      className="bg-destructive hover:bg-destructive/90"
+                      className="bg-red-500 hover:bg-red-600 text-white"
                       onClick={async () => {
                         if (!userId) return;
                         try {
@@ -321,7 +369,7 @@ const RiderSettingsPage: React.FC = () => {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            </div>
+            </motion.div>
           </>
         )}
       </div>

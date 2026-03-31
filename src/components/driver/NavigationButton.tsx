@@ -13,7 +13,7 @@ interface NavigationButtonProps {
   lng: number;
   label?: string;
   className?: string;
-  size?: "default" | "compact";
+  size?: "default" | "compact" | "icon";
   onOpenModal?: (lat: number, lng: number) => void;
 }
 
@@ -81,23 +81,25 @@ export const NavigationButton = ({
     <div className={`flex h-full ${className ?? ""}`}>
       {/* Main navigation button */}
       <button
-        className={`flex-1 flex flex-col items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-none touch-manipulation transition-colors ${
-          size === "compact" ? "text-xs" : "text-sm"
-        }`}
+        className={`flex-1 flex ${size === "icon" ? "items-center justify-center p-0" : "flex-col items-center justify-center gap-1"} bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white transition-colors touch-manipulation ${
+          size === "compact" ? "text-xs" : size === "icon" ? "" : "text-sm"
+        } ${size === "icon" ? "rounded-full shadow-lg" : "rounded-none"}`}
         onClick={handleQuickNav}
+        title={label}
       >
-        <Navigation className={size === "compact" ? "w-5 h-5" : "w-6 h-6"} />
-        <span className="font-bold">{label}</span>
+        <Navigation className={size === "compact" ? "w-5 h-5" : size === "icon" ? "w-5 h-5 text-white" : "w-6 h-6"} />
+        {size !== "icon" && <span className="font-bold">{label}</span>}
       </button>
 
       {/* Dropdown for app selection — only when no modal */}
-      {!onOpenModal && (
+      {!onOpenModal && size !== "icon" && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               className={`flex items-center justify-center bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white border-r-0 border-l border-blue-500/50 rounded-none touch-manipulation transition-colors ${
                 size === "compact" ? "w-9" : "w-12"
               }`}
+              title="اختيار تطبيق الملاحة"
             >
               <ChevronDown className={size === "compact" ? "w-4 h-4" : "w-5 h-5"} />
             </button>

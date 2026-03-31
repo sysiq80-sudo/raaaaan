@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import SplashScreen from "@/components/common/SplashScreen";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import { useDriverNotifications } from "@/hooks/useDriverNotifications";
 import { RideRequestCard } from "@/components/driver/RideRequestCard";
 import { ActiveRideCard } from "@/components/driver/ActiveRideCard";
 import { DriverMap } from "@/components/driver/DriverMap";
-import { DriverStats } from "@/components/driver/DriverStats";
+import DriverQuickStats from "@/components/driver/DriverQuickStats";
 import { RecentRides } from "@/components/driver/RecentRides";
 import { NotificationSetup } from "@/components/driver/NotificationSetup";
 import { NotificationsBell } from "@/components/driver/NotificationsBell";
@@ -35,6 +35,7 @@ import { initAudioContext, cleanupAudioContext } from "@/lib/audioContext";
 import { useDriverStore } from "@/stores/driverStore";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
+import { acceptRideFromNotification } from "@/services/driverNotificationService";
 import logo from "@/assets/logo.png";
 import {
   Menu,
@@ -49,6 +50,7 @@ import {
 
 const DriverHome = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -91,6 +93,7 @@ const DriverHome = () => {
   const [rideAcceptedTrigger, setRideAcceptedTrigger] = useState(0);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancellingRide, setIsCancellingRide] = useState(false);
+  const [highlightRideId, setHighlightRideId] = useState<string | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const locationUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
@@ -176,6 +179,120 @@ const DriverHome = () => {
   // إيقاف الإشعارات عند وضع الإيقاف المؤقت
   const { notificationPermission, requestNotificationPermission } =
     useDriverNotifications(isOnline && !isPaused ? driverId : null, vehicleType);
+
+  const clearDriverNotificationParams = useCallback(() => {
+    const params = new URLSearchParams(location.search);
+    const hadNotificationParams = params.has("ride_id") || params.has("accept_ride") || params.has("action");
+    if (!hadNotificationParams) return;
+
+    params.delete("ride_id");
+    params.delete("accept_ride");
+    params.delete("action");
+
+    const nextSearch = params.toString();
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : "",
+      },
+      { replace: true }
+    );
+  }, [location.pathname, location.search, navigate]);
+
+  const handleDeepLinkResolved = useCallback((rideId: string, found: boolean) => {
+    if (highlightRideId !== rideId) return;
+
+    if (!found) {
+      toast({
+        title: "⚠️ الطلب لم يعد متاحاً",
+        description: "ربما تم قبوله من سائق آخر",
+        variant: "destructive",
+      });
+    }
+
+    setHighlightRideId(null);
+  }, [highlightRideId, toast]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const rideId = params.get("ride_id") || params.get("accept_ride");
+    const actionParam = params.get("action");
+
+    if (!rideId || !driverId) return;
+
+    let isCancelled = false;
+    const action = actionParam || (params.get("accept_ride") ? "accept" : "open_request");
+
+    const run = async () => {
+      if (action === "accept") {
+        const accepted = await acceptRideFromNotification(rideId, driverId);
+        if (isCancelled) return;
+
+        if (accepted) {
+          try {
+            stopRideAlert();
+          } catch {
+            // noop
+          }
+
+          toast({
+            title: "✅ تم قبول الرحلة",
+            description: "تم تحويل الطلب إليك بنجاح",
+          });
+          setRideAcceptedTrigger((prev) => prev + 1);
+          setIsPaused(false);
+        } else {
+          toast({
+            title: "⚠️ الطلب لم يعد متاحاً",
+            description: "ربما تم قبوله من سائق آخر",
+            variant: "destructive",
+          });
+        }
+
+        clearDriverNotificationParams();
+        setHighlightRideId(null);
+        return;
+      }
+
+      const { data: ride, error } = await supabase
+        .from("rides")
+        .select("id, status")
+        .eq("id", rideId)
+        .maybeSingle();
+
+      if (isCancelled) return;
+
+      if (!error && ride?.status === "pending") {
+        setHighlightRideId(rideId);
+      } else {
+        toast({
+          title: "⚠️ الطلب لم يعد متاحاً",
+          description: "تم إغلاق الطلب أو قبوله من سائق آخر",
+          variant: "destructive",
+        });
+        setHighlightRideId(null);
+      }
+
+      clearDriverNotificationParams();
+    };
+
+    run().catch((error) => {
+      console.error("Driver deep link handling error:", error);
+      if (!isCancelled) {
+        toast({
+          title: "خطأ في فتح الطلب",
+          description: "تعذر معالجة رابط الإشعار",
+          variant: "destructive",
+        });
+        clearDriverNotificationParams();
+        setHighlightRideId(null);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [location.search, driverId, clearDriverNotificationParams, toast]);
 
   // Auto-request notification permission on first load for approved drivers
   useEffect(() => {
@@ -643,6 +760,26 @@ const DriverHome = () => {
       if (online) {
         initAudioContext();
         requestWakeLock();
+        // ✅ طلب إذن الإشعارات المحلية عند الاتصال (تفاعل المستخدم يضمن القبول)
+        import("@/lib/capacitorBridge").then(({ isNativePlatform }) => {
+          if (isNativePlatform) {
+            import("@capacitor/local-notifications").then(({ LocalNotifications }) => {
+              LocalNotifications.requestPermissions().then(perm => {
+                if (perm.display === 'granted') {
+                  console.log('✅ إذن الإشعارات ممنوح عند الاتصال');
+                } else {
+                  console.warn('⚠️ إذن الإشعارات مرفوض:', perm.display);
+                  toast({
+                    title: "تحذير: الإشعارات محظورة",
+                    description: "فعّل إشعارات التطبيق من إعدادات الهاتف لاستقبال طلبات الرحلات",
+                    variant: "destructive",
+                    duration: 8000,
+                  });
+                }
+              }).catch(() => {});
+            }).catch(() => {});
+          }
+        }).catch(() => {});
       } else {
         releaseWakeLock();
       }
@@ -738,51 +875,34 @@ const DriverHome = () => {
     return types[type || ""] || "اقتصادي";
   };
 
-  const getStatusBadge = () => {
-    switch (driverStatus) {
-      case "approved":
-        return { label: "✅ معتمد", color: "bg-green-500" };
-      case "pending":
-        return { label: "⏳ قيد المراجعة", color: "bg-amber-500" };
-      case "rejected":
-        return { label: "❌ مرفوض", color: "bg-destructive" };
-      case "suspended":
-        return { label: "⛔ موقوف", color: "bg-destructive" };
-      default:
-        return { label: "❓ غير معروف", color: "bg-muted" };
-    }
-  };
-
   if (loading) {
     return <SplashScreen />;
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md text-center">
-          <CardContent className="pt-8 pb-8">
-            <img
-              src={logo}
-              alt="RAAN"
-              className="w-16 h-16 mx-auto rounded-2xl mb-4"
-            />
-            <h2 className="text-2xl font-bold mb-2">مرحباً كابتن!</h2>
-            <p className="text-muted-foreground mb-6">
-              سجل دخولك للوصول للوحة التحكم
-            </p>
-            <div className="space-y-3">
-              <Link to="/auth">
-                <Button className="w-full">تسجيل الدخول</Button>
-              </Link>
-              <Link to="/driver/register">
-                <Button variant="outline" className="w-full">
-                  التسجيل كسائق جديد
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col items-center justify-center font-sans" dir="rtl">
+        <div className="flex flex-col items-center gap-6 px-8 w-full max-w-sm">
+          <div className="w-20 h-20 bg-[#111827] rounded-2xl flex items-center justify-center border border-slate-800/80 shadow-lg">
+            <img src={logo} alt="RAAN" className="w-12 h-12" />
+          </div>
+          <div className="text-center">
+            <h2 className="text-[24px] font-bold text-white mb-2">مرحباً كابتن!</h2>
+            <p className="text-[14px] text-slate-400">سجل دخولك للوصول للوحة التحكم</p>
+          </div>
+          <div className="flex flex-col gap-3 w-full">
+            <Link to="/auth">
+              <button className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] text-[#064e3b] text-[16px] font-bold rounded-full shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all">
+                تسجيل الدخول
+              </button>
+            </Link>
+            <Link to="/driver/register">
+              <button className="w-full h-12 rounded-full border border-slate-700 text-slate-200 text-[15px] font-medium hover:bg-slate-800 transition-colors">
+                التسجيل كسائق جديد
+              </button>
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -790,91 +910,86 @@ const DriverHome = () => {
   // Show registration prompt if user is not registered as driver
   if (user && isDriverRegistered === false) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md text-center">
-          <CardContent className="pt-8 pb-8">
-            <img
-              src={logo}
-              alt="RAAN"
-              className="w-20 h-20 mx-auto rounded-2xl mb-6"
-            />
-            <h2 className="text-2xl font-bold mb-2">انضم لفريق ران! 🚗</h2>
-            <p className="text-muted-foreground mb-6">
-              أنت مسجل الدخول لكنك لست سائقاً بعد.
-              <br />
-              أكمل تسجيلك للبدء في استقبال الطلبات والربح معنا.
+      <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col items-center justify-center font-sans" dir="rtl">
+        <div className="flex flex-col items-center gap-6 px-8 w-full max-w-sm">
+          {/* Icon */}
+          <div className="w-24 h-24 bg-[#111827] rounded-3xl flex items-center justify-center border border-emerald-500/20 shadow-[0_0_30px_rgba(52,211,153,0.1)]">
+            <img src={logo} alt="RAAN" className="w-14 h-14" />
+          </div>
+
+          {/* Text */}
+          <div className="text-center">
+            <h2 className="text-[24px] font-bold text-white mb-2">انضم لفريق ران! 🚗</h2>
+            <p className="text-[14px] text-slate-400 leading-relaxed">
+              أنت مسجل الدخول لكنك لست سائقاً بعد.<br />أكمل تسجيلك للبدء في استقبال الطلبات والربح معنا.
             </p>
-            <Link to="/driver/complete-registration">
-              <Button className="w-full" size="lg">
+          </div>
+
+          {/* Benefits */}
+          <div className="w-full bg-[#151f30] rounded-2xl px-5 py-4 border border-slate-700/50 space-y-3">
+            {['استقبل طلبات يومية واربح بشكل ثابت', 'جدول عمل مرن حسب وقتك', 'دعم على مدار الساعة'].map((item, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="w-5 h-5 bg-emerald-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-emerald-400 text-[10px] font-bold">✓</span>
+                </div>
+                <p className="text-slate-300 text-[13px]">{item}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col gap-3 w-full">
+            <Link to="/driver/complete-registration" className="w-full">
+              <button className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] text-[#064e3b] text-[16px] font-bold rounded-full shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all">
                 أكمل التسجيل كسائق
-              </Button>
-            </Link>
-            <div className="mt-4 pt-4 border-t border-border">
-              <button
-                onClick={handleLogout}
-                className="text-sm text-muted-foreground hover:text-destructive transition-colors"
-              >
-                تسجيل الخروج
               </button>
-            </div>
-          </CardContent>
-        </Card>
+            </Link>
+            <button onClick={handleLogout} className="w-full h-12 rounded-full border border-slate-700 text-slate-400 text-[14px] hover:bg-slate-800 transition-colors">
+              تسجيل الخروج
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
-  const statusBadge = getStatusBadge();
+  const driverFlowSteps = ["اتصال", "استقبال", "انطلاق", "إكمال"];
+  const driverFlowStepIndex = hasActiveRide
+    ? 2
+    : (rideAcceptedTrigger > 0 && !isSearching && !hasRideRequest)
+      ? 3
+      : (isOnline && !isPaused)
+        ? 1
+        : isOnline
+          ? 0
+          : -1;
 
   return (
-    <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
-      {/* ═══ Header — Glassmorphism floating bar + Safe Area for Capacitor ═══ */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-black/60 backdrop-blur-xl border-b border-white/5" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        <div className="container flex items-center justify-between h-14">
+    <div className="h-[100dvh] bg-[#0b1326] flex flex-col overflow-hidden font-sans" dir="rtl">
+      {/* ═══ Header — Dark Luxury with emerald glow ═══ */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-[#0b1326] border-b border-[#5bdda6]/10 shadow-[0_4px_30px_rgba(91,221,166,0.05)]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        <div className="container relative flex items-center justify-between h-16">
           {/* ═══ Left: Notification Icons ═══ */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3 z-10">
             {/* Icon 1: General Notifications — Bell */}
             <NotificationsBell driverId={driverId} isOpen={notificationsOpen} onToggle={() => { setNotificationsOpen(!notificationsOpen); setRewardsOpen(false); setMenuOpen(false); }} />
-
-            {/* Icon 2: Rewards & Company Alerts — Golden Gift */}
-            <button
-              onClick={() => { setRewardsOpen(!rewardsOpen); setNotificationsOpen(false); setMenuOpen(false); }}
-              className="relative bg-black/40 backdrop-blur-md p-2.5 rounded-full border border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)] active:scale-95 transition-transform"
-            >
-              <Gift className="w-5 h-5 text-amber-400" />
-              {/* Pulse ring when there are alerts */}
-              {(!isProfileComplete || !adminActivated || driverStatus === 'pending') && (
-                <span className="absolute inset-0 rounded-full border-2 border-amber-400/60 animate-ping" />
-              )}
-              {/* Orange count badge */}
-              {(!isProfileComplete || !adminActivated || driverStatus === 'pending') && (
-                <span className="absolute -top-1 -left-1 w-4.5 h-4.5 min-w-[18px] bg-amber-500 text-black font-bold rounded-full text-[10px] flex items-center justify-center border-2 border-black">
-                  !
-                </span>
-              )}
-            </button>
           </div>
 
-          {/* Logo + Wake Lock indicator */}
-          <div className="flex items-center gap-2">
-            <img src={logo} alt="RAAN" className="w-8 h-8 rounded-lg" />
-            <span className="font-bold text-white">ران</span>
-            {/* مؤشر قفل الشاشة */}
-            {isOnline && (
-              <span className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full ${isWakeLockActive ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                {isWakeLockActive ? <Lock className="w-2.5 h-2.5" /> : <LockOpen className="w-2.5 h-2.5" />}
-              </span>
-            )}
+          {/* Logo - Absolute Center */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center z-0">
+            <img src={logo} alt="RAAN" className="w-14 h-14 rounded-xl" />
           </div>
 
           {/* Menu Button — Right side */}
           <button
             onClick={() => { setMenuOpen(!menuOpen); setNotificationsOpen(false); setRewardsOpen(false); }}
-            className="relative bg-white/10 backdrop-blur-md p-2.5 rounded-full border border-white/10 active:scale-95 transition-transform"
+            className="relative bg-slate-800/40 border border-slate-700/50 hover:bg-slate-700/50 p-3 rounded-xl active:scale-90 transition-all z-10 outline-none focus:outline-none select-none tap-highlight-transparent"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             {menuOpen ? (
-              <X className="w-5 h-5 text-white" />
+              <X className="w-6 h-6 text-slate-300" />
             ) : (
-              <Menu className="w-5 h-5 text-white" />
+              <Menu className="w-6 h-6 text-slate-300" />
             )}
           </button>
         </div>
@@ -904,38 +1019,80 @@ const DriverHome = () => {
 
       {/* Main Content - Full Screen Map Layout */}
       <main className="flex-1 flex flex-col relative overflow-hidden" style={{ paddingTop: 'calc(56px + env(safe-area-inset-top, 0px))' }}>
+        <div className="driver-stepper-shell">
+          <div className="driver-stepper" dir="ltr" role="list" aria-label="مراحل تشغيل السائق">
+            {driverFlowSteps.map((step, index) => (
+              <div key={step} className="flex items-center gap-2" role="listitem">
+                <div
+                  className={`driver-stepper-node ${index <= driverFlowStepIndex ? "driver-stepper-node-active" : ""}`}
+                  aria-hidden="true"
+                >
+                  {index + 1}
+                </div>
+                <span className={`text-[11px] font-bold ${index <= driverFlowStepIndex ? "text-[#5bdda6]" : "text-slate-500"}`}>
+                  {step}
+                </span>
+                {index < driverFlowSteps.length - 1 ? <span className="driver-stepper-link" aria-hidden="true" /> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+
         {driverId && adminActivated && driverStatus === "approved" && (
           <>
-            {/* Dashboard — Map + Controls (always visible) */}
-            {/* Full Screen Map - Absolute background — top accounts for header + safe area */}
+            {/* Dashboard — Map only during active ride, dark ambient background when waiting */}
             <div className="flex-1 relative min-h-0">
-              <DriverMap
-                driverLocation={currentLocation}
-                isOnline={isOnline}
-              />
+              {hasActiveRide ? (
+                <>
+                  <DriverMap
+                    driverLocation={currentLocation}
+                    isOnline={isOnline}
+                  />
+                  {/* تأثير التدرج فوق الخريطة */}
+                  <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at center, transparent 0%, rgba(11,19,38,0.7) 85%)' }} />
+                </>
+              ) : (
+                /* خلفية داكنة فاخرة مع تأثير محيطي عند الانتظار */
+                <div className="absolute inset-0 bg-[#0b1326]">
+                  {/* نقطة نبض — موقع السائق (مثل المرجع) */}
+                  {isOnline && currentLocation && (
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                      <div className="relative flex items-center justify-center">
+                        <div className="absolute w-32 h-32 bg-[#5bdda6]/15 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
+                        <div className="absolute w-16 h-16 bg-[#5bdda6]/20 rounded-full animate-pulse" />
+                        <div className="w-5 h-5 bg-[#5bdda6] rounded-full border-4 border-[#0b1326] shadow-[0_0_20px_rgba(91,221,166,0.6)] z-10" />
+                      </div>
+                    </div>
+                  )}
+                  {/* ديكور محيطي */}
+                  <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-[#5bdda6]/5 blur-[120px] pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-[#5bdda6]/3 blur-[100px] pointer-events-none" />
+                </div>
+              )}
             </div>
 
             {/* ═══ Driver Control Center — Centered DutyToggle ═══ */}
-            <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
-              <div className="relative flex flex-col items-center gap-3 w-full max-w-sm px-4">
-                <div className="pointer-events-auto">
-                  <DutyToggle
-                    isOnline={isOnline}
-                    isPaused={isPaused}
-                    isLoading={onlineToggleLoading}
-                    isSearching={isSearching}
-                    driverStatus={driverStatus}
-                    locationTracking={locationTracking}
-                    onToggle={handleOnlineToggle}
-                    onPauseToggle={handlePauseToggle}
-                    hasRideRequest={hasRideRequest}
-                    showPowerButton={hasRideRequest}
-                    driverLocation={currentLocation}
-                    maxPickupRadius={maxPickupRadius}
-                  />
+            {!hasRideRequest && !hasActiveRide && (
+              <div className="absolute inset-x-0 bottom-[12vh] z-20 pointer-events-none flex justify-center">
+                <div className="relative flex flex-col items-center gap-3 w-full max-w-2xl px-4">
+                  <div className="pointer-events-auto w-full">
+                    <DutyToggle
+                      isOnline={isOnline}
+                      isPaused={isPaused}
+                      isLoading={onlineToggleLoading}
+                      isSearching={isSearching}
+                      driverStatus={driverStatus}
+                      locationTracking={locationTracking}
+                      onToggle={handleOnlineToggle}
+                      onPauseToggle={handlePauseToggle}
+                      hasRideRequest={hasRideRequest}
+                      driverLocation={currentLocation}
+                      maxPickupRadius={maxPickupRadius}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* ═══ Bottom Sheet Cards — positioned absolutely within map area ═══ */}
             {!isMinimized && (
@@ -959,18 +1116,26 @@ const DriverHome = () => {
                 isPaused={isPaused}
                 driverLocation={currentLocation}
                 maxPickupRadius={maxPickupRadius}
+                highlightRideId={highlightRideId}
+                onDeepLinkResolved={handleDeepLinkResolved}
                 onRideRequestVisible={setHasRideRequest}
                 onRideAccepted={() => {
                   console.log(
                     "[DriverHome] Ride accepted — triggering ActiveRideCard refresh"
                   );
                   setIsPaused(false);
+                  setHasActiveRide(true); // إخفاء DutyToggle فوراً
                   setRideAcceptedTrigger(prev => prev + 1);
                 }}
               />
             )}
 
-
+            {/* ═══ Dashboard Stats Summary — Floating top cards (just below header) ═══ */}
+            {!hasRideRequest && !hasActiveRide && isOnline && driverId && (
+              <div className="absolute top-[calc(3.5rem+env(safe-area-inset-top))] left-0 right-0 z-30 pointer-events-auto transition-all duration-300 ease-in-out">
+                <DriverQuickStats driverId={driverId} />
+              </div>
+            )}
 
             {/* Navigation Modal */}
             <ExternalNavigationModal

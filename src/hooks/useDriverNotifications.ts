@@ -41,6 +41,26 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
   const notifiedRides = useRef<Set<string>>(new Set());
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
 
+  const openRideRequestFromNotification = useCallback((rideId: string) => {
+    if (!rideId) return;
+
+    try {
+      localStorage.setItem('raan_pending_open_ride', rideId);
+    } catch {
+      // ignore localStorage failures
+    }
+
+    const targetUrl = `/driver?ride_id=${rideId}&action=open_request`;
+
+    if (window.location.pathname === '/driver') {
+      window.history.replaceState({}, '', targetUrl);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      return;
+    }
+
+    window.location.assign(targetUrl);
+  }, []);
+
   // Request notification permission with user feedback
   const requestNotificationPermission = useCallback(async () => {
     if (!('Notification' in window)) {
@@ -97,6 +117,7 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     const pickupAddress = (ride.pickup_address as string) || 'موقع غير محدد';
     const dropoffAddress = (ride.dropoff_address as string) || '';
     const distance = (ride.distance_km as number) || 0;
+    const rideId = ride.id as string;
 
     // ═══ التحقق من إعدادات الصوت والاهتزاز من المخزن المركزي ═══
     const storeState = useDriverStore.getState();
@@ -127,7 +148,7 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
       duration: 20000,
     });
 
-    // إشعار أصلي عبر Capacitor (يعمل حتى لو التطبيق في الخلفية)
+    // إشعار أصلي عبر Capacitor مع أزرار (قبول/رفض)
     if (isNativePlatform) {
       const notifBody = [
         `💰 الأجرة: ${estimatedFare.toLocaleString()} د.ع`,
@@ -139,7 +160,16 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
       showNativeNotification(
         '🚗 طلب رحلة جديد!',
         notifBody,
-        Math.floor(Date.now() / 1000)
+        undefined,
+        {
+          channelId: 'raan-rides',
+          priority: 'high',
+          data: { rideId, action: 'open_request' },
+          actionButtons: [
+            { id: 'accept', title: '✅ قبول' },
+            { id: 'reject', title: '❌ رفض' },
+          ],
+        }
       );
     }
 
@@ -156,21 +186,26 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
         body: notificationBody,
         icon: '/favicon.ico',
         badge: '/favicon.ico',
-        tag: `new-ride-${ride.id}`,
+        tag: `new-ride-${rideId}`,
         requireInteraction: true,
         silent: false,
-        vibrate: [300, 100, 300, 100, 400]
+        vibrate: [300, 100, 300, 100, 400],
+        data: {
+          rideId,
+          url: `/driver?ride_id=${rideId}&action=open_request`
+        }
       } as NotificationOptions);
 
       notification.onclick = () => {
         window.focus();
+        openRideRequestFromNotification(rideId);
         notification.close();
       };
 
       // Auto close after 20 seconds
       setTimeout(() => notification.close(), 20000);
     }
-  }, [toast]);
+  }, [toast, openRideRequestFromNotification]);
 
   // دالة للتحقق من مطابقة نوع السيارة
   // السائق يمكنه خدمة رحلات من نفس نوعه أو أقل
@@ -245,6 +280,29 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     syncNotificationPreferences(driverId).catch(() => {});
     if (isNativePlatform) {
       registerFCMToken(driverId).catch(() => {});
+      
+      // ═══ مستمع أزرار الإشعارات المحلية (قبول/رفض) ═══
+      import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
+        LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+          const rideId = action.notification.extra?.rideId;
+          if (!rideId) return;
+          
+          if (action.actionId === 'accept') {
+            acceptRideFromNotification(rideId, driverId)
+              .then((success) => {
+                if (success) {
+                  toast({ title: "✅ تم قبول الرحلة", description: "جارٍ توجيهك إلى موقع الراكب" });
+                  stopRideAlert();
+                } else {
+                  toast({ title: "⚠️ الرحلة لم تعد متاحة", description: "ربما تم قبولها من سائق آخر", variant: "destructive" });
+                }
+              }).catch(() => {});
+          } else if (action.actionId !== 'reject') {
+            openRideRequestFromNotification(rideId);
+          }
+          // reject = مجرد إغلاق الإشعار
+        });
+      }).catch(() => {});
     }
     
     // ═══ مستمع رسائل SW — قبول الرحلة من الإشعار ═══
@@ -270,6 +328,8 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
               }
             })
             .catch(() => {});
+        } else if (event.data?.type === 'OPEN_RIDE_REQUEST_FROM_NOTIFICATION' && event.data?.rideId) {
+          openRideRequestFromNotification(event.data.rideId);
         }
       };
       navigator.serviceWorker.addEventListener('message', swMessageHandler);
@@ -281,6 +341,12 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
       if (pendingAcceptRide) {
         localStorage.removeItem('raan_pending_accept_ride');
         acceptRideFromNotification(pendingAcceptRide, driverId).catch(() => {});
+      }
+
+      const pendingOpenRide = localStorage.getItem('raan_pending_open_ride');
+      if (pendingOpenRide) {
+        localStorage.removeItem('raan_pending_open_ride');
+        openRideRequestFromNotification(pendingOpenRide);
       }
     } catch {
       // صامت
@@ -403,7 +469,10 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
         navigator.serviceWorker.removeEventListener('message', swMessageHandler);
       }
     };
-  }, [driverId, handleNewRide]);
+    // ⚠️ مهم: toast مُستبعد من الـ deps عمداً — إدراجه يُعيد إنشاء الـ channel
+    // عند كل إشعار toast مما يفقد الأحداث الواردة
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driverId, handleNewRide, openRideRequestFromNotification]);
 
   // Request notification permission on mount
   useEffect(() => {

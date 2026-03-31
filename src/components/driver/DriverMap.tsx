@@ -49,7 +49,7 @@ const FallbackMapView = ({ location, isOnline }: { location: { lat: number; lng:
       {/* شريط التحذير */}
       <div className="absolute bottom-0 left-0 right-0 bg-amber-500/10 border-t border-amber-500/30 px-3 py-2">
         <p className="text-amber-400/80 text-[10px] text-center">
-          ⚠️ الخريطة التفاعلية غير متاحة حالياً — الموقع والرحلات تعمل بشكل طبيعي
+          ⚠️ خريطة Google Maps غير متاحة — تحقق من مفتاح API وإعدادات Google Cloud Console
         </p>
       </div>
     </div>
@@ -60,6 +60,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
   const driverMarker = useRef<google.maps.Marker | null>(null);
+  const hasLoadedTilesOnceRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [authFailed, setAuthFailed] = useState(false);
@@ -69,9 +70,27 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
 
   // Initialize map
   useEffect(() => {
-    if (!mapContainer.current || !apiKey || isApiKeyLoading) return;
+    if (!mapContainer.current || isApiKeyLoading) return;
+    // لا يوجد مفتاح API — نعرض الخريطة البديلة مباشرة
+    if (!apiKey) {
+      console.warn("⚠️ Google Maps API key is empty. Check app_settings table or VITE_GOOGLE_MAPS_API_KEY env var.");
+      console.warn("💡 For Capacitor apps, ensure the API key is stored in Supabase app_settings table (key: google_maps_api_key)");
+      setAuthFailed(true);
+      setLoading(false);
+      return;
+    }
     // إذا فشل المصادقة سابقاً، لا نعيد المحاولة (نعرض الخريطة البديلة)
     if (authFailed) return;
+
+    // If map already exists, avoid reinitialization churn (e.g., frequent re-renders)
+    if (map.current) {
+      setLoading(false);
+      setIsMapReady(true);
+      return;
+    }
+
+    let isActive = true;
+    let tileTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const initMap = () => {
       try {
@@ -83,6 +102,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
           const currentUrl = window.location.href;
           console.error(`❌ Google Maps auth failure — URL rejected: ${currentUrl}`);
           console.error(`💡 Fix: Go to Google Cloud Console → Credentials → API Key → Add "${window.location.hostname}/*" to allowed HTTP referrers`);
+          console.error(`💡 For Capacitor (mobile), also add: https://localhost/* and capacitor://localhost/*`);
           setAuthFailed(true);
           setLoading(false);
         };
@@ -103,8 +123,57 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
             gestureHandling: "greedy",
           });
 
-          setLoading(false);
-          setIsMapReady(true);
+          // Detect silent tile failure with timeout
+          let tilesLoaded = false;
+          google.maps.event.addListenerOnce(map.current, 'tilesloaded', () => {
+            if (!isActive) return;
+            tilesLoaded = true;
+            hasLoadedTilesOnceRef.current = true;
+            if (tileTimeout) {
+              clearTimeout(tileTimeout);
+              tileTimeout = null;
+            }
+            setAuthFailed(false);
+            setLoading(false);
+            setIsMapReady(true);
+            console.log('✅ DriverMap: Tiles loaded successfully');
+          });
+
+          // If tiles don't load within 15s, show fallback
+          tileTimeout = setTimeout(() => {
+            if (!isActive) return;
+            if (!tilesLoaded && map.current) {
+              const isHidden = typeof document !== 'undefined' && document.hidden;
+              const containerVisible = !!mapContainer.current && mapContainer.current.clientWidth > 0 && mapContainer.current.clientHeight > 0;
+
+              // Ignore timeout if app is backgrounded or map container is not visible yet.
+              if (isHidden || !containerVisible) {
+                setLoading(false);
+                return;
+              }
+
+              // If tiles loaded successfully before, don't downgrade to fallback on transient network hiccups.
+              if (hasLoadedTilesOnceRef.current) {
+                console.warn('⚠️ DriverMap: Tiles timeout ignored (map had loaded before)');
+                setLoading(false);
+                return;
+              }
+
+              console.warn('⚠️ DriverMap: Tiles did not load within 15s — showing fallback');
+              setAuthFailed(true);
+              setLoading(false);
+            }
+          }, 15000);
+
+          console.log('✅ DriverMap: Map created successfully');
+
+          // تأخير بسيط ثم تفعيل resize لضمان ظهور البلاطات
+          setTimeout(() => {
+            if (map.current && window.google?.maps?.event) {
+              google.maps.event.trigger(map.current, 'resize');
+              map.current.setCenter(new google.maps.LatLng(center.lat, center.lng));
+            }
+          }, 300);
 
           // Add driver marker
           if (driverLocation) {
@@ -137,6 +206,10 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
     initMap();
 
     return () => {
+      isActive = false;
+      if (tileTimeout) {
+        clearTimeout(tileTimeout);
+      }
       if (map.current) {
         map.current = null;
         setIsMapReady(false);
@@ -192,7 +265,28 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
 
   // عند فشل مصادقة Google Maps — عرض خريطة بديلة تعمل بشكل كامل
   if (authFailed) {
-    return <FallbackMapView location={driverLocation} isOnline={isOnline} />;
+    console.warn('⚠️ DriverMap: Showing fallback — authFailed=true');
+    return (
+      <div className="relative h-full">
+        <FallbackMapView location={driverLocation} isOnline={isOnline} />
+        <div className="absolute top-3 left-3 z-10">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="shadow-lg"
+            onClick={() => {
+              setAuthFailed(false);
+              setLoading(true);
+              setIsMapReady(false);
+              map.current = null;
+            }}
+          >
+            <RefreshCw className="w-4 h-4 ml-1" />
+            إعادة المحاولة
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
@@ -221,14 +315,14 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
   }
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden">
       {loading && (
         <div className="absolute inset-0 z-10 bg-secondary/80 flex items-center justify-center">
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
       )}
       
-      <div ref={mapContainer} className="absolute inset-0" />
+      <div ref={mapContainer} className="absolute inset-0 bg-gray-100 dark:bg-gray-800" />
       
       {/* Controls */}
       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">

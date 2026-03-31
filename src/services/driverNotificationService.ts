@@ -197,10 +197,19 @@ export const registerFCMToken = async (driverId: string): Promise<boolean> => {
       PushNotifications.addListener('registration', async (token) => {
         console.log('📱 FCM Token:', token.value);
         
-        // حفظ الرمز في Supabase
+        // حفظ في localStorage للاستخدام السريع
+        try { localStorage.setItem('raan_fcm_token', token.value); } catch {}
+        
+        // حذف السجلات القديمة ثم إدراج الجديد
+        await supabase
+          .from('push_subscriptions')
+          .delete()
+          .eq('driver_id', driverId)
+          .not('fcm_token', 'is', null);
+
         const { error } = await supabase
           .from('push_subscriptions')
-          .upsert({
+          .insert({
             driver_id: driverId,
             endpoint: `fcm://${token.value}`,
             p256dh_key: '',
@@ -208,15 +217,13 @@ export const registerFCMToken = async (driverId: string): Promise<boolean> => {
             platform: 'android',
             fcm_token: token.value,
             updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'driver_id,endpoint'
           });
 
         if (error) {
           console.error('فشل حفظ رمز FCM:', error);
           resolve(false);
         } else {
-          console.log('✅ تم حفظ رمز FCM');
+          console.log('✅ تم حفظ رمز FCM للسائق:', driverId);
           resolve(true);
         }
       });

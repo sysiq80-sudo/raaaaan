@@ -5,6 +5,10 @@ import { registerServiceWorker } from "./utils/serviceWorker";
 import { supabase } from "./integrations/supabase/client";
 import { initCapacitorPlugins, isNativePlatform } from "./lib/capacitorBridge";
 import { initUserGestureTracking } from "./lib/userGestureTracker";
+import { initSentry } from "./lib/sentry";
+
+// ⚡ تهيئة Sentry لتتبع الأخطاء (قبل أي شيء آخر)
+initSentry();
 
 // تهيئة إضافات Capacitor (إذا كنا داخل التطبيق الأصلي)
 initCapacitorPlugins();
@@ -35,27 +39,6 @@ console.warn = (...args: any[]) => {
   if (SUPPRESSED_WARNINGS.some((s) => msg.includes(s))) return;
   _origWarn.apply(console, args);
 };
-
-// ═══════════════════════════════════════════════════════════════
-// ⚡ إزالة Service Worker القديم فوراً لمنع الشاشة البيضاء/السوداء
-// يجب تنفيذه قبل أي شيء آخر — يمسح الكاش التالف
-// ═══════════════════════════════════════════════════════════════
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(async (registrations) => {
-    for (const registration of registrations) {
-      await registration.unregister();
-      console.log('🧹 Unregistered old Service Worker');
-    }
-    // امسح جميع الكاشات القديمة
-    if ('caches' in window) {
-      const cacheNames = await caches.keys();
-      for (const name of cacheNames) {
-        await caches.delete(name);
-        console.log('🧹 Deleted cache:', name);
-      }
-    }
-  }).catch((err) => console.error('SW cleanup error:', err));
-}
 
 // Google Maps API will be loaded by @react-google-maps/api wrapper
 // RTL support is natively handled by Google Maps for Arabic text

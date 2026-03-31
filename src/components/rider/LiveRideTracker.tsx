@@ -1012,7 +1012,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
       {/* Map */}
       <div className="flex-1 relative">
-        <div ref={mapContainer} className="absolute inset-0" />
+        <div ref={mapContainer} className="absolute inset-0 bg-gray-100 dark:bg-gray-800" />
         {isLoading && (
           <div className="absolute inset-0 bg-card/80 flex items-center justify-center">
             <Loader2 className="w-8 h-8 text-primary animate-spin" />

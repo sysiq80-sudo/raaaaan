@@ -21,7 +21,19 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
   const updateLocation = useCallback(async (position: GeolocationPosition) => {
     const now = Date.now();
     
-    // Throttle updates to avoid too many database writes
+    const locationData = {
+      lat: position.coords.latitude,
+      lng: position.coords.longitude,
+    };
+
+    // Always update local state (cheap) but throttle DB writes
+    setLocation(prev => {
+      if (prev && prev.lat === locationData.lat && prev.lng === locationData.lng) return prev;
+      return locationData;
+    });
+    setError(null);
+
+    // Throttle database updates
     if (now - lastUpdateRef.current < updateInterval) {
       return;
     }
@@ -30,15 +42,6 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
     
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
-    const locationData = {
-      lat: position.coords.latitude,
-      lng: position.coords.longitude,
-    };
-
-    // Update state
-    setLocation(locationData);
-    setError(null);
 
     const { error: updateError } = await supabase
       .from('profiles')
@@ -50,8 +53,6 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
 
     if (updateError) {
       console.error('Error updating rider location:', updateError);
-    } else {
-      console.log('Rider location updated:', locationData);
     }
   }, [updateInterval]);
 

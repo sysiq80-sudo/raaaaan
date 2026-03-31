@@ -113,6 +113,8 @@ export const showNativeNotification = async (
     channelId?: string; 
     priority?: 'high' | 'default';
     ongoing?: boolean;
+    data?: Record<string, string | undefined>;
+    actionButtons?: Array<{ id: string; title: string }>;
   }
 ): Promise<void> => {
   if (!isNativePlatform) return; // على الويب نستخدم Web Notifications
@@ -120,27 +122,79 @@ export const showNativeNotification = async (
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
     
-    // طلب الإذن
-    const perm = await LocalNotifications.requestPermissions();
-    if (perm.display !== 'granted') return;
+    // التحقق من الإذن أولاً (بدون طلبه مجدداً — يُطلب مبكراً في initCapacitorPlugins)
+    let permGranted = false;
+    try {
+      const perm = await LocalNotifications.checkPermissions();
+      permGranted = perm.display === 'granted';
+      if (!permGranted) {
+        // محاولة أخيرة لطلب الإذن
+        const reqPerm = await LocalNotifications.requestPermissions();
+        permGranted = reqPerm.display === 'granted';
+      }
+    } catch {
+      // افتراض الإذن ممنوح إذا فشل الفحص
+      permGranted = true;
+    }
+    if (!permGranted) {
+      console.warn('⚠️ LocalNotifications permission denied — cannot show notification');
+      return;
+    }
 
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          id: id || Date.now(),
-          title,
-          body,
-          sound: undefined, // يمكن إضافة صوت مخصص لاحقاً
-          smallIcon: 'ic_stat_icon_config_sample',
-          largeIcon: 'ic_launcher',
-          channelId: options?.channelId || 'raan-rides',
-          schedule: { at: new Date(Date.now()) },
-          extra: {
-            priority: options?.priority || 'high'
-          }
-        },
-      ],
-    });
+    // إنشاء القناة إذا لم تكن موجودة (ضمان دائم)
+    const targetChannelId = options?.channelId || 'raan-rides';
+    try {
+      const existingChannels = await LocalNotifications.listChannels();
+      const channelExists = existingChannels.channels?.some(ch => ch.id === targetChannelId);
+      if (!channelExists) {
+        await LocalNotifications.createChannel({
+          id: targetChannelId,
+          name: targetChannelId === 'raan-rides' ? 'طلبات الرحلات' : 'إشعارات ران',
+          importance: 5,
+          visibility: 1,
+          vibration: true,
+          lights: true,
+        });
+        console.log(`📢 أُنشئت قناة الإشعار: ${targetChannelId}`);
+      }
+    } catch { /* تجاهل خطأ فحص القناة */ }
+
+    const notifId = id || (Date.now() % 2147483647);
+
+    const notification: Parameters<typeof LocalNotifications.schedule>[0]['notifications'][0] = {
+      id: notifId,
+      title,
+      body,
+      sound: undefined,
+      // ic_transparent موجود دائماً في مكتبة @capacitor/local-notifications
+      // ic_stat_icon_config_sample غير موجود مما يُسبب صمتاً تاماً في بعض النسخ
+      smallIcon: 'ic_transparent',
+      largeIcon: 'ic_launcher',
+      channelId: options?.channelId || 'raan-rides',
+      // ⚠️ مهم: لا تضع schedule.at بالوقت الحالي!
+      // Capacitor يتحقق: if (at.getTime() < new Date().getTime()) return; ← يُلغي الإشعار صامتاً!
+      // حذف schedule يعني الإشعار يظهر فورياً عبر notificationManager.notify() دون الحاجة لـ AlarmManager
+      extra: {
+        priority: options?.priority || 'high',
+        ...options?.data
+      },
+      actionTypeId: options?.actionButtons?.length ? `raan-actions-${notifId}` : undefined,
+    };
+
+    // تسجيل أزرار الإجراء (مثل قبول/رفض)
+    if (options?.actionButtons?.length) {
+      await LocalNotifications.registerActionTypes({
+        types: [{
+          id: `raan-actions-${notifId}`,
+          actions: options.actionButtons.map(btn => ({
+            id: btn.id,
+            title: btn.title,
+          })),
+        }],
+      });
+    }
+
+    await LocalNotifications.schedule({ notifications: [notification] });
   } catch (error) {
     console.error('فشل عرض الإشعار المحلي:', error);
   }
@@ -240,9 +294,22 @@ export const initCapacitorPlugins = async (): Promise<void> => {
   // تخصيص شريط الحالة
   await configureStatusBar();
 
-  // إنشاء قنوات إشعارات لـ Android
+  // إنشاء قنوات إشعارات لـ Android + طلب الإذن مبكراً
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
+
+    // ⚠️ طلب إذن LocalNotifications مبكراً (قبل أول إشعار)
+    // على Android 13+، يجب منح POST_NOTIFICATIONS قبل schedule()
+    try {
+      const permResult = await LocalNotifications.requestPermissions();
+      if (permResult.display === 'granted') {
+        console.log('✅ LocalNotifications permission granted');
+      } else {
+        console.warn('⚠️ LocalNotifications permission:', permResult.display);
+      }
+    } catch (permErr) {
+      console.warn('فشل طلب إذن LocalNotifications:', permErr);
+    }
     
     // قناة طلبات الرحلات — أولوية قصوى
     await LocalNotifications.createChannel({
@@ -257,6 +324,19 @@ export const initCapacitorPlugins = async (): Promise<void> => {
       lightColor: '#10b981',
     });
     
+    // قناة تحديثات الرحلة للراكب — أولوية عالية
+    await LocalNotifications.createChannel({
+      id: 'raan-rider',
+      name: 'تحديثات الرحلة',
+      description: 'إشعارات حالة الرحلة للراكب (قبول، وصول، إلخ)',
+      importance: 4, // HIGH
+      visibility: 1, // PUBLIC
+      vibration: true,
+      sound: undefined,
+      lights: true,
+      lightColor: '#f59e0b',
+    });
+
     // قناة الإشعارات العامة — أولوية متوسطة
     await LocalNotifications.createChannel({
       id: 'raan-general',
@@ -270,7 +350,7 @@ export const initCapacitorPlugins = async (): Promise<void> => {
       lightColor: '#3b82f6',
     });
     
-    console.log('📢 قنوات الإشعارات مُنشأة');
+    console.log('📢 قنوات الإشعارات مُنشأة (rides + rider + general)');
   } catch (err) {
     console.log('لم يتم إنشاء قناة الإشعارات:', err);
   }
@@ -322,10 +402,27 @@ export const initNativePushNotifications = async (): Promise<void> => {
       console.error('❌ FCM Registration error:', error);
     });
     
-    // إشعار وصل والتطبيق في المقدمة
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+    // إشعار وصل والتطبيق في المقدمة — عرض إشعار محلي + إبلاغ التطبيق
+    PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 FCM Push in foreground:', notification.title);
-      // التطبيق مفتوح — الإشعار يُعالج عبر Realtime
+      
+      const rideId = notification.data?.ride_id || notification.data?.rideId;
+      const notifType = notification.data?.type;
+      
+      // عرض إشعار محلي أصلي حتى لو التطبيق مفتوح (السائق قد لا يكون على صفحة الطلبات)
+      const channelId = notifType === 'new_ride' || notifType === 'NEW_RIDE_REQUEST' 
+        ? 'raan-rides' : 'raan-rider';
+      
+      await showNativeNotification(
+        notification.title || '🚗 ران',
+        notification.body || '',
+        undefined,
+        { 
+          channelId,
+          priority: 'high',
+          data: rideId ? { rideId, type: notifType } : undefined
+        }
+      );
     });
     
     // النقر على إشعار FCM
@@ -333,10 +430,19 @@ export const initNativePushNotifications = async (): Promise<void> => {
       console.log('👆 FCM notification tapped:', action.actionId);
       const rideId = action.notification.data?.ride_id || action.notification.data?.rideId;
       
-      if (rideId && action.actionId === 'accept') {
+      if (!rideId) return;
+
+      if (action.actionId === 'accept') {
         // قبول الرحلة — يُعالج عند فتح الصفحة
         try {
           localStorage.setItem('raan_pending_accept_ride', rideId);
+        } catch {
+          // صامت
+        }
+      } else {
+        // فتح الطلب من الإشعار
+        try {
+          localStorage.setItem('raan_pending_open_ride', rideId);
         } catch {
           // صامت
         }

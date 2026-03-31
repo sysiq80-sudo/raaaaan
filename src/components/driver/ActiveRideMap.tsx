@@ -37,7 +37,13 @@ export const ActiveRideMap = ({
 
   // Initialize map
   useEffect(() => {
-    if (!mapContainer.current || !apiKey || isApiKeyLoading) return;
+    if (!mapContainer.current || isApiKeyLoading) return;
+    if (!apiKey) {
+      console.warn("⚠️ Google Maps API key is empty — map will not load");
+      setLoading(false);
+      setError("مفتاح Google Maps غير متوفر");
+      return;
+    }
 
     const initMap = async () => {
       try {
@@ -213,7 +219,7 @@ export const ActiveRideMap = ({
         </div>
       )}
 
-      <div ref={mapContainer} className="absolute inset-0" />
+      <div ref={mapContainer} className="absolute inset-0 bg-gray-100 dark:bg-gray-800" />
 
       {/* Route Info Overlay */}
       {routeInfo && (

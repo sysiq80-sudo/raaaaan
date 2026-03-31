@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
-  CheckCircle, Route, Wallet, Clock, MapPin,
+  CheckCircle, Route, Wallet, Clock,
+  Star, Loader2, Send, Sparkles,
 } from "lucide-react";
-import SmartRatingFlow from "./SmartRatingFlow";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -22,13 +25,40 @@ interface RideCompletedScreenProps {
   onClose: () => void;
 }
 
+const BADGES = [
+  { id: "clean",    emoji: "🧹", label: "سيارة نظيفة"  },
+  { id: "ontime",   emoji: "⏱️", label: "دقيق في المواعيد" },
+  { id: "roads",    emoji: "🛣️", label: "خبير بالطرق"  },
+  { id: "polite",   emoji: "💬", label: "أسلوب مهذب"   },
+  { id: "ac",       emoji: "❄️", label: "مكيف ممتاز"   },
+  { id: "safe",     emoji: "🚗", label: "قيادة آمنة"   },
+];
+
+const RATING_CONFIG = {
+  5: { text: "ممتاز!",        emoji: "🌟", color: "text-emerald-400" },
+  4: { text: "جيد جداً",      emoji: "👍", color: "text-green-400"   },
+  3: { text: "متوسط",         emoji: "😐", color: "text-amber-400"  },
+  2: { text: "يحتاج تحسين",  emoji: "😕", color: "text-orange-400" },
+  1: { text: "سيء",           emoji: "😞", color: "text-red-400"    },
+};
+
 export const RideCompletedScreen = ({
   ride, driverName, onClose,
 }: RideCompletedScreenProps) => {
-  const [showRating, setShowRating] = useState(false);
+  const { toast } = useToast();
+  const [rating, setRating]     = useState(5);
+  const [hovered, setHovered]   = useState(0);
+  const [badges, setBadges]     = useState<string[]>([]);
+  const [loading, setLoading]   = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const display   = hovered || rating;
+  const cfg       = RATING_CONFIG[display as keyof typeof RATING_CONFIG];
+  const driverInitials = driverName?.slice(0, 2) || "أ";
+  const fare = ride.final_fare || ride.estimated_fare || 0;
+  const paymentLabel = ride.payment_method === "wallet" ? "محفظة" : ride.payment_method === "card" ? "بطاقة" : "نقداً";
 
   useEffect(() => {
-    // كونفيتي احتفالي عند ظهور الشاشة
     const duration = 2800;
     const end = Date.now() + duration;
     const frame = () => {
@@ -37,135 +67,214 @@ export const RideCompletedScreen = ({
       if (Date.now() < end) requestAnimationFrame(frame);
     };
     frame();
-
-    // فتح التقييم تلقائياً بعد 1.5 ثانية
-    const t = setTimeout(() => setShowRating(true), 1500);
-    return () => clearTimeout(t);
   }, []);
 
-  const fare = ride.final_fare || ride.estimated_fare || 0;
-  const paymentLabel =
-    ride.payment_method === "wallet" ? "محفظة" :
-    ride.payment_method === "card"   ? "بطاقة" : "نقداً";
+  const toggleBadge = (id: string) => {
+    try { navigator.vibrate?.(20); } catch { /* ignore */ }
+    setBadges(prev => prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id]);
+  };
 
-  return (
-    <>
-      {/* ═══ شاشة ملخص الرحلة ═══ */}
-      <div
-        className="fixed inset-0 z-50 bg-slate-950 flex flex-col overflow-hidden min-h-dvh"
-        dir="rtl"
-      >
-        {/* الخلفية */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/60 via-slate-950/90 to-slate-950" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-emerald-500/8 rounded-full blur-3xl" />
-        </div>
+  const handleSubmit = async () => {
+    if (!ride.driver_id) { onClose(); return; }
+    setLoading(true);
+    try {
+      const badgeComment = badges.length > 0 ? `[بادجات: ${badges.join(",")}]` : null;
 
-        {/* ── هيدر ── */}
-        <div className="relative shrink-0 pt-10 pb-5 px-6 text-center">
-          <motion.div
-            initial={{ scale: 0, rotate: -180 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 220, damping: 18 }}
-            className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-[0_0_50px_rgba(16,185,129,0.4)] mb-4"
-          >
-            <CheckCircle className="w-8 h-8 text-white" strokeWidth={2.5} />
-          </motion.div>
+      const { error: rideErr } = await supabase
+        .from("rides")
+        .update({ driver_rating: rating })
+        .eq("id", ride.id);
 
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-            <h1 className="text-xl font-black text-white tracking-tight">الحمد لله على السلامة! 🤲</h1>
-            <p className="text-slate-400 text-sm mt-1">شكراً لاستخدامك ران</p>
-          </motion.div>
-        </div>
+      if (rideErr) console.warn("[Rating] rides update err:", rideErr);
 
-        {/* ── كارد الرحلة ── */}
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          const { data: rProfile } = await supabase.from("profiles").select("id").eq("user_id", authData.user.id).maybeSingle();
+          await supabase.from("ride_ratings").insert({
+            ride_id: ride.id,
+            rating,
+            comment: badgeComment,
+            driver_id: ride.driver_id,
+            rider_id: rProfile?.id ?? null,
+          });
+        }
+      } catch (innerErr) { /* ignore */ }
+
+      try {
+        const { data: ridesData } = await supabase.from("rides").select("driver_rating").eq("driver_id", ride.driver_id).eq("status", "completed").not("driver_rating", "is", null);
+        if (ridesData?.length) {
+          const avg = Math.round((ridesData.reduce((s, r) => s + (r.driver_rating ?? 0), 0) / ridesData.length) * 10) / 10;
+          await supabase.from("drivers").update({ rating: avg }).eq("id", ride.driver_id);
+        }
+      } catch { /* ignore */ }
+
+      try { confetti({ particleCount: 100, spread: 90, origin: { y: 0.5 }, colors: ["#10b981","#fbbf24","#06b6d4","#8b5cf6"] }); } catch { /* ignore */ }
+      setSubmitted(true);
+      toast({ title: "شكراً لتقييمك! ⭐", description: "تقييمك يجعل الخدمة أفضل" });
+      setTimeout(() => onClose(), 2000);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "حدث خطأ";
+      toast({ title: "خطأ", description: message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ─── شاشة النجاح ─── */
+  if (submitted) {
+    return createPortal(
+      <div className="fixed inset-0 z-[9999] bg-slate-950 flex flex-col items-center justify-center" dir="rtl">
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/60 to-slate-950 pointer-events-none" />
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.55 }}
-          className="relative mx-4"
+           initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: "spring", stiffness: 180 }}
+           className="relative flex flex-col items-center gap-5 px-8 text-center"
         >
-          <div className="bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-700/40 overflow-hidden">
-
-            {/* السعر */}
-            <div className="px-5 pt-5 pb-4 text-center border-b border-slate-700/30">
-              <p className="text-xs text-slate-500 mb-1">المبلغ الإجمالي</p>
-              <p className="text-4xl font-black text-emerald-400 tabular-nums tracking-tight">
-                {fare.toLocaleString()}
-                <span className="text-base font-semibold text-emerald-500/70 mr-2">د.ع</span>
-              </p>
-            </div>
-
-            {/* الإحصائيات */}
-            <div className="flex items-center divide-x divide-x-reverse divide-slate-700/30">
-              <div className="flex-1 flex items-center justify-center gap-1.5 py-3.5">
-                <Route className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="text-xs font-bold text-slate-300">{(ride.distance_km || 0).toFixed(1)} كم</span>
-              </div>
-              <div className="flex-1 flex items-center justify-center gap-1.5 py-3.5">
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-xs font-bold text-slate-300">{ride.duration_minutes || 0} دقيقة</span>
-              </div>
-              <div className="flex-1 flex items-center justify-center gap-1.5 py-3.5">
-                <Wallet className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-xs font-bold text-slate-300">{paymentLabel}</span>
-              </div>
-            </div>
-
-            {/* العناوين */}
-            <div className="px-4 pb-4 pt-3 border-t border-slate-700/30">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex flex-col items-center gap-1 shrink-0">
-                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
-                  <div className="w-px h-4 bg-gradient-to-b from-cyan-400/50 to-red-400/50" />
-                  <MapPin className="w-2.5 h-2.5 text-red-400" />
-                </div>
-                <div className="flex-1 min-w-0 space-y-2.5">
-                  <p className="text-xs text-slate-300 truncate">{ride.pickup_address  || "نقطة الانطلاق"}</p>
-                  <p className="text-xs text-slate-300 truncate">{ride.dropoff_address || "الوجهة"}</p>
-                </div>
-              </div>
-            </div>
+          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-400 flex items-center justify-center shadow-[0_0_60px_rgba(16,185,129,0.5)]">
+             <Sparkles className="w-12 h-12 text-white" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-black text-white mb-2 tracking-tight">شكراً لك! ✨</h2>
+            <p className="text-slate-400 text-sm font-medium">تقييمك يساعدنا على تحسين الخدمة</p>
+          </div>
+          <div className="flex gap-1.5 mt-2">
+            {[1,2,3,4,5].map(s => (
+              <Star key={s} className={`w-8 h-8 ${s <= rating ? "text-amber-400 fill-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" : "text-slate-700/50"}`} />
+            ))}
           </div>
         </motion.div>
+      </div>,
+      document.body
+    );
+  }
 
-        {/* ── زر التقييم ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.85 }}
-          className="relative mt-auto shrink-0 px-4 pb-8 pt-4"
-        >
-          <button
-            type="button"
-            onClick={() => setShowRating(true)}
-            className="w-full h-14 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98] transition-all text-white font-black text-base shadow-[0_8px_30px_rgba(16,185,129,0.35)]"
-          >
-            ⭐ قيّم تجربتك مع {driverName}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full mt-3 h-11 flex items-center justify-center text-sm font-medium text-slate-500 hover:text-slate-300 transition-colors"
-          >
-            تخطي التقييم
-          </button>
-        </motion.div>
+  /* ─── الشاشة الرئيسية ─── */
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] bg-slate-950 flex flex-col font-sans"
+      style={{ height: "100dvh" }}
+      dir="rtl"
+    >
+      {/* ── الخلفية ── */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/60 via-slate-950/90 to-slate-950" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-emerald-500/8 rounded-full blur-3xl" />
       </div>
 
-      {/* ═══ Portal التقييم ═══ */}
-      <AnimatePresence>
-        {showRating && (
-          <SmartRatingFlow
-            rideId={ride.id}
-            driverId={ride.driver_id}
-            driverName={driverName}
-            onComplete={onClose}
-            onSkip={onClose}
-          />
-        )}
-      </AnimatePresence>
-    </>
+      {/* ── هيدر ── */}
+      <div className="relative shrink-0 pt-[calc(env(safe-area-inset-top)+2rem)] pb-3 px-6 text-center">
+        <h1 className="text-xl font-black text-white tracking-tight">الحمد لله على السلامة!</h1>
+      </div>
+
+      {/* ── كارد الرحلة ── */}
+      <div className="relative shrink-0 mx-5 mb-3">
+        <div className="bg-slate-900/70 backdrop-blur-md rounded-3xl border border-slate-700/40 overflow-hidden shadow-xl">
+          <div className="px-5 pt-4 pb-3 text-center border-b border-slate-700/50">
+            <p className="text-[11px] text-slate-500 mb-1 font-bold uppercase tracking-widest">المبلغ الإجمالي</p>
+            <div className="flex items-center justify-center gap-1.5" style={{ fontFamily: "Inter, sans-serif" }}>
+              <span className="text-4xl font-black text-emerald-400 tabular-nums tracking-tighter">
+                {fare.toLocaleString()}
+              </span>
+              <span className="text-base font-bold text-emerald-500/70 self-end mb-1">د.ع</span>
+            </div>
+          </div>
+          <div className="flex items-center divide-x divide-x-reverse divide-slate-700/50 bg-slate-900/40">
+            <div className="flex-1 flex flex-col items-center justify-center py-2.5">
+              <Route className="w-3.5 h-3.5 text-cyan-400 mb-1" />
+              <span className="text-xs font-bold text-slate-300" style={{ fontFamily: "Inter, sans-serif" }}>{(ride.distance_km || 0).toFixed(1)} كم</span>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center py-2.5">
+              <Clock className="w-3.5 h-3.5 text-amber-400 mb-1" />
+              <span className="text-xs font-bold text-slate-300" style={{ fontFamily: "Inter, sans-serif" }}>{ride.duration_minutes || 0} د</span>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center py-2.5">
+              <Wallet className="w-3.5 h-3.5 text-emerald-400 mb-1" />
+              <span className="text-xs font-bold text-slate-300">{paymentLabel}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── كارد التقييم ── */}
+      <div className="relative flex-1 min-h-0 flex flex-col bg-slate-900/50 backdrop-blur-sm mx-5 rounded-3xl border border-slate-700/30 overflow-hidden mb-[100px]">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 py-4 gap-3 overflow-y-auto">
+
+          <div className="flex flex-col items-center gap-2 shrink-0">
+            <div className="w-14 h-14 rounded-full bg-slate-800 border border-slate-600/50 flex items-center justify-center shadow-lg relative">
+               <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full w-5 h-5 flex items-center justify-center border-2 border-slate-900">
+                  <Star className="w-3 h-3 text-white fill-white" />
+               </div>
+               <span className="text-xl font-black text-slate-200">{driverInitials}</span>
+            </div>
+            <p className="text-sm font-bold text-slate-300 text-center">كيف كانت تجربتك مع {driverName}؟</p>
+          </div>
+
+          <div className="flex gap-1.5 shrink-0" style={{ direction: "ltr" }}>
+            {[1, 2, 3, 4, 5].map((star) => {
+              const isActive = star <= display;
+              return (
+                <button
+                  key={star} type="button" 
+                  onClick={() => { setRating(star); try { navigator.vibrate?.(30); } catch { /* ok */ } }}
+                  onMouseEnter={() => setHovered(star)} onMouseLeave={() => setHovered(0)}
+                  className="relative focus:outline-none p-1 transition-transform active:scale-95"
+                >
+                  <Star className={"w-10 h-10 transition-colors duration-200 " + (isActive ? "text-amber-400 fill-amber-400 drop-shadow-[0_0_12px_rgba(251,191,36,0.6)]" : "text-slate-700/40")} />
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="h-8 flex items-center justify-center shrink-0">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={display} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}
+                className="flex items-center gap-1.5 bg-slate-800 border border-slate-700/50 rounded-full px-4 py-1.5 shadow-sm"
+              >
+                <span className="text-lg">{cfg.emoji}</span>
+                <span className={`text-sm font-bold ${cfg.color}`}>{cfg.text}</span>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          <div className="w-full shrink-0 pt-2 pb-2">
+            <div className="flex flex-wrap gap-2 justify-center">
+              {BADGES.map((badge) => {
+                const active = badges.includes(badge.id);
+                return (
+                  <button
+                    key={badge.id} type="button" onClick={() => toggleBadge(badge.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all duration-200 active:scale-95 ${
+                      active ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:border-slate-600"
+                    }`}
+                  >
+                    <span>{badge.emoji}</span>
+                    <span>{badge.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── أزرار التقييم — ثابتة أسفل الشاشة ── */}
+      <div className="absolute bottom-0 left-0 right-0 flex z-50 bg-[#163d30]" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0px)" }}>
+        <button
+          type="button" onClick={onClose} disabled={loading}
+          className="flex-1 h-[72px] flex items-center justify-center text-sm font-bold text-emerald-300 bg-[#0f2922] hover:bg-[#163d30] transition-colors disabled:opacity-50 touch-manipulation border-t border-l border-emerald-500/20"
+        >
+          تخطي
+        </button>
+        <button
+           type="button" onClick={handleSubmit} disabled={loading} style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+           className="flex-[2] h-[72px] flex items-center justify-center gap-2 text-lg font-black text-[#064e3b] bg-[#34d399] shadow-[0_-5px_30px_rgba(52,211,153,0.25)] hover:bg-[#2dd392] active:bg-[#10b981] transition-colors disabled:opacity-50 touch-manipulation border-t border-[#34d399]"
+        >
+          {loading ? <Loader2 className="w-6 h-6 animate-spin text-white" /> : <><Send className="w-5 h-5 ml-1" />تأكيد التقييم</>}
+        </button>
+      </div>
+    </div>,
+    document.body
   );
 };
 

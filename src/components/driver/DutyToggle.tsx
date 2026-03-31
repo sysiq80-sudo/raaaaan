@@ -43,7 +43,6 @@ const DutyToggle = ({
   onPauseToggle,
   hasRideRequest = false,
   hasActiveRide = false,
-  showPowerButton = false,
   driverLocation = null,
   maxPickupRadius = 10,
 }: DutyToggleProps) => {
@@ -114,10 +113,8 @@ const DutyToggle = ({
         borderColor: "border-yellow-500/30",
       };
 
-  const StatusIcon = stateConfig.icon;
-
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-row items-center justify-center gap-4 w-full max-w-md mx-auto px-2">
 
       {/* ═══ الزر الرئيسي — يختفي عند وجود رحلة نشطة ═══ */}
       {!hasActiveRide && (
@@ -214,60 +211,60 @@ const DutyToggle = ({
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="w-full max-w-sm"
           >
-            <Card className="border border-border/30 shadow-md rounded-2xl overflow-hidden">
+            <Card className="bg-[#171f33] border border-slate-700/30 shadow-xl shadow-black/30 rounded-[24px] overflow-hidden font-sans">
               <CardContent className="p-0">
 
                 {/* ── حالة البحث الفعّال ── */}
                 {isOnline && !isPaused && isSearching && !isDisabled ? (
-                  <div className="px-4 py-3 bg-emerald-950/30">
-                    <div className="flex items-center gap-3">
+                  <div className="px-5 py-4 bg-[#171f33]/50">
+                    <div className="flex items-center gap-3.5">
                       <motion.div
                         animate={{ rotate: 360 }}
                         transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                        className="w-9 h-9 rounded-full bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0"
+                        className="w-12 h-12 rounded-[16px] bg-[#5bdda6]/10 border border-[#5bdda6]/30 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(91,221,166,0.15)]"
                       >
-                        <Navigation className="w-4 h-4 text-emerald-400" />
+                        <Navigation className="w-5 h-5 text-[#5bdda6]" />
                       </motion.div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-emerald-300 leading-tight">جاري البحث عن طلبات</p>
-                        <p className="text-xs text-emerald-400/60 mt-0.5">
-                          {driverLocation ? `نطاق ${maxPickupRadius} كم` : "جاري تحديد الموقع..."}
+                        <p className="text-base font-black text-white leading-tight tracking-tight whitespace-nowrap" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>جاري البحث عن طلبات</p>
+                        <p className="text-xs text-[#5bdda6]/80 mt-1.5 font-bold whitespace-nowrap" style={{ fontFamily: "Inter, sans-serif" }}>
+                          {driverLocation ? `أنت ضمن نطاق ${maxPickupRadius} كم` : "جاري تحديد الموقع..."}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         {[0, 0.25, 0.5].map((delay, i) => (
                           <motion.div
                             key={i}
                             animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
                             transition={{ duration: 1.2, repeat: Infinity, delay }}
-                            className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                            className="w-2.5 h-2.5 rounded-full bg-[#5bdda6] shadow-[0_0_8px_rgba(91,221,166,0.6)]"
                           />
                         ))}
                       </div>
                     </div>
-                    <div className="mt-2.5 h-px bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent" />
                   </div>
 
                 /* ── متصل لكن لم يبدأ البحث بعد ── */
                 ) : isOnline && !isPaused ? (
-                  <div className="px-4 py-3 bg-emerald-950/20">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0">
-                        <Wifi className="w-4 h-4 text-emerald-400" />
+                  <div className="px-5 py-4 bg-[#171f33]/50 relative">
+                    <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-[#5bdda6]/30 to-transparent" />
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-[16px] bg-[#5bdda6]/10 border border-[#5bdda6]/30 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(91,221,166,0.1)]">
+                        <Wifi className="w-5 h-5 text-[#5bdda6]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-emerald-300 leading-tight">متصل</p>
-                        <p className="text-xs text-emerald-400/60 mt-0.5">
-                          {locationTracking ? "جاهز لاستقبال الطلبات" : "جاري تفعيل الموقع..."}
+                        <p className="text-base font-black text-white leading-tight tracking-tight whitespace-nowrap" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>متصل</p>
+                        <p className="text-xs text-slate-300 mt-1.5 font-bold whitespace-nowrap">
+                          {locationTracking ? "مستعد لاستقبال الطلبات القريبة" : "جاري تفعيل إحداثيات الموقع..."}
                         </p>
                       </div>
                       <button
                         onClick={handlePausePress}
                         disabled={isDisabled}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/25 text-amber-400 text-xs font-semibold hover:bg-amber-500/25 active:scale-95 transition-all shrink-0"
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-500 text-sm font-bold hover:bg-amber-500/20 active:scale-95 transition-all shrink-0"
                         aria-label="إيقاف مؤقت"
                       >
-                        <PauseCircle className="w-3.5 h-3.5" />
+                        <PauseCircle className="w-4 h-4" />
                         إيقاف
                       </button>
                     </div>
@@ -275,39 +272,39 @@ const DutyToggle = ({
 
                 /* ── إيقاف مؤقت ── */
                 ) : isOnline && isPaused ? (
-                  <div className="px-4 py-3 bg-amber-950/25">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-amber-500/15 border border-amber-500/25 flex items-center justify-center shrink-0">
-                        <Coffee className="w-4 h-4 text-amber-400" />
+                  <div className="px-5 py-4 bg-[#171f33]/50 relative">
+                    <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-amber-500/30 to-transparent" />
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-[16px] bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+                        <Coffee className="w-5 h-5 text-amber-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-amber-300 leading-tight">إيقاف مؤقت</p>
-                        <p className="text-xs text-amber-400/60 mt-0.5">لن تصلك طلبات جديدة</p>
+                        <p className="text-base font-black text-white leading-tight tracking-tight whitespace-nowrap" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>إيقاف مؤقت</p>
+                        <p className="text-xs text-amber-500/80 mt-1.5 font-bold whitespace-nowrap">لن تصلك أي طلبات جديدة</p>
                       </div>
                       <button
                         onClick={handlePausePress}
                         disabled={isDisabled}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/25 active:scale-95 transition-all shrink-0"
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#5bdda6]/10 border border-[#5bdda6]/30 text-[#5bdda6] text-sm font-bold hover:bg-[#5bdda6]/20 active:scale-95 transition-all shrink-0"
                         aria-label="استئناف"
                       >
-                        <Wifi className="w-3.5 h-3.5" />
+                        <Wifi className="w-4 h-4" />
                         استئناف
                       </button>
                     </div>
-                    <div className="mt-2.5 h-px bg-gradient-to-r from-transparent via-amber-500/35 to-transparent" />
                   </div>
 
                 /* ── غير متصل ── */
                 ) : (
-                  <div className="px-4 py-3 bg-slate-800/25">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-slate-500/15 border border-slate-500/20 flex items-center justify-center shrink-0">
-                        <WifiOff className="w-4 h-4 text-slate-400" />
+                  <div className="px-5 py-4 bg-[#171f33]/30">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-[16px] bg-slate-800/50 border border-slate-700/50 flex items-center justify-center shrink-0">
+                        <WifiOff className="w-5 h-5 text-slate-400" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-slate-300 leading-tight">غير متصل</p>
-                        <p className="text-xs text-slate-400/60 mt-0.5">
-                          {isApproved ? "اضغط الزر للاتصال" : "حسابك غير معتمد بعد"}
+                        <p className="text-base font-black text-slate-200 leading-tight tracking-tight whitespace-nowrap" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>غير متصل</p>
+                        <p className="text-xs text-slate-500 mt-1.5 font-medium whitespace-nowrap">
+                          {isApproved ? "انقر للعمل واستقبال الطلبات" : "حسابك غير معتمد - في انتظار الموافقة"}
                         </p>
                       </div>
                     </div>

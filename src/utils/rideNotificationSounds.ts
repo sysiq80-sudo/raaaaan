@@ -265,7 +265,7 @@ export const playSound = (type: keyof typeof SoundTypes) => {
   }
 };
 
-// Show browser notification
+// Show notification — native on Capacitor, browser on web
 export const showNotification = async (
   title: string,
   body: string,
@@ -273,8 +273,20 @@ export const showNotification = async (
     tag?: string;
     requireInteraction?: boolean;
     duration?: number;
+    channelId?: string;
   },
 ) => {
+  // Capacitor native — إشعار محلي أصلي
+  const { isNativePlatform, showNativeNotification } = await import("@/lib/capacitorBridge");
+  if (isNativePlatform) {
+    await showNativeNotification(title, body, undefined, {
+      channelId: options?.channelId || 'raan-rider',
+      priority: options?.requireInteraction ? 'high' : 'default',
+    });
+    return null;
+  }
+
+  // Web — browser notification
   if ("Notification" in window && Notification.permission === "granted") {
     const notification = new Notification(title, {
       body,

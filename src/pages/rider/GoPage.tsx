@@ -917,75 +917,19 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     // Reset to pickup mode to allow user to start fresh
     setCurrentMode("pickup");
 
-    // Force map reinitialization to avoid black screen
+    // Force map reinitialization — mapReloadKey increment triggers useLocationPicker to recreate the map
     setIsLoading(true);
     setMapReloadKey((prev) => prev + 1);
-    if (map.current) {
-      map.current = null;
-    }
+
+    // إظهار toast بعد تأخير قصير
+    setTimeout(() => {
+      toast({
+        title: "جاهز لرحلة جديدة",
+        description: "يمكنك الآن طلب رحلة جديدة",
+      });
+    }, 300);
     
-    // ✅ إعادة كتابة منطق إعادة تعيين الخريطة بطريقة async
-    const resetMap = async () => {
-      if (!map.current) return;
-
-      try {
-        logger.debug("GoPage", "resetBooking: map reset start");
-
-        // ✅ Step 1: إظهار container الخريطة أولاً
-        if (mapContainer.current) {
-          mapContainer.current.style.display = "block";
-          mapContainer.current.style.visibility = "visible";
-          mapContainer.current.style.opacity = "1";
-        }
-
-        // ✅ Step 2: إخفاء overlay التحميل
-        setIsLoading(false);
-
-        // ✅ Step 3: الانتظار حتى repaint التالي
-        await new Promise(resolve => requestAnimationFrame(resolve));
-
-        // ✅ Step 4: إعادة تحجيم الخريطة (Google Maps)
-        if (window.google?.maps?.event) {
-          window.google.maps.event.trigger(map.current, "resize");
-        }
-        logger.debug("GoPage", "resetBooking: map resized");
-
-        // ✅ Step 5: إعادة توسيط الخريطة
-        if (userLocation) {
-          map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
-          map.current.setZoom(15);
-
-          // تحديث العنوان بعد التحريك
-          setTimeout(() => {
-            if (map.current) {
-              const center = map.current.getCenter();
-              if (center) {
-                reverseGeocode(center.lat(), center.lng());
-              }
-            }
-          }, 400);
-        }
-
-        logger.debug("GoPage", "resetBooking: map reset complete");
-
-        toast({
-          title: "جاهز لرحلة جديدة",
-          description: "يمكنك الآن طلب رحلة جديدة",
-        });
-      } catch (error) {
-        logger.error("GoPage", "resetBooking: map reset failed", error);
-        toast({
-          title: "خطأ في إعادة تعيين الخريطة",
-          description: "حاول تحديث الصفحة",
-          variant: "destructive",
-        });
-      }
-    };
-    
-    // ✅ بدء reset بعد تأخير قصير
-    setTimeout(() => resetMap(), 200);
-    
-  }, [userLocation, map, reverseGeocode, toast, setIsLoading, setMapReloadKey]);
+  }, [toast, setIsLoading, setMapReloadKey]);
 
   // الانتقال لتعديل نقطة الانطلاق/الوجهة من شاشة الحجز بدون إعادة العملية من الصفر
   const startLocationEdit = useCallback((mode: "pickup" | "dropoff") => {
@@ -1098,11 +1042,39 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
       console.log('✅ handleBookRide: locations OK, checking service area...');
       try {
-        const pickupServiceCheck = await withTimeout(
-          checkServiceArea(pickupLocation.lat, pickupLocation.lng),
-          3000,
+        const checkServiceAreaWithRetry = async (
+          lat: number,
+          lng: number,
+          timeoutLabel: string
+        ) => {
+          const firstCheck = await withTimeout(
+            checkServiceArea(lat, lng),
+            3000,
+            timeoutLabel
+          );
+
+          // بعض الاستجابات تكون متذبذبة لحظياً (network jitter),
+          // لذا نعيد الفحص مرة واحدة قبل الرفض النهائي.
+          if (firstCheck && !firstCheck.in_service) {
+            await new Promise((r) => setTimeout(r, 350));
+            const secondCheck = await withTimeout(
+              checkServiceArea(lat, lng),
+              3000,
+              `${timeoutLabel} (إعادة محاولة)`
+            );
+            return secondCheck || firstCheck;
+          }
+
+          return firstCheck;
+        };
+
+        const pickupServiceCheck = await checkServiceAreaWithRetry(
+          pickupLocation.lat,
+          pickupLocation.lng,
           "التحقق من منطقة خدمة موقع الانطلاق"
         );
+        setLocalServiceAreaStatus(pickupServiceCheck);
+
         if (pickupServiceCheck && !pickupServiceCheck.in_service) {
           console.warn('🚫 handleBookRide: pickup outside service area');
           toast({
@@ -1112,14 +1084,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               : "الرجاء اختيار موقع داخل مناطق الخدمة المتاحة",
             variant: "destructive"
           });
-          // تأخير 2 ثانية لمنع الضغط المتكرر على الزر
-          await new Promise(r => setTimeout(r, 2000));
           return;
         }
 
-        const dropoffServiceCheck = await withTimeout(
-          checkServiceArea(dropoffLocation.lat, dropoffLocation.lng),
-          3000,
+        const dropoffServiceCheck = await checkServiceAreaWithRetry(
+          dropoffLocation.lat,
+          dropoffLocation.lng,
           "التحقق من منطقة خدمة الوجهة"
         );
         if (dropoffServiceCheck && !dropoffServiceCheck.in_service) {
@@ -1131,8 +1101,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               : "الرجاء اختيار وجهة داخل مناطق الخدمة المتاحة",
             variant: "destructive"
           });
-          // تأخير 2 ثانية لمنع الضغط المتكرر على الزر
-          await new Promise(r => setTimeout(r, 2000));
           return;
         }
       } catch (error) {
@@ -1517,8 +1485,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
           </div>
 
-          {/* Content — no scroll, fills available space */}
-          <div className="flex-1 flex flex-col px-3 gap-2 min-h-0 pb-1 shrink-0" style={{overflow:'hidden'}}>
+          {/* Content — scrollable to fit small screens */}
+          <div className="flex-1 flex flex-col px-3 gap-2 min-h-0 pb-1 overflow-y-auto">
             {/* Route summary - Modern vertical timeline */}
             <motion.div initial={{
             y: 20,

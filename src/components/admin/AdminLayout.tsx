@@ -40,12 +40,14 @@ import {
   MessageSquareWarning,
   CircleStop,
   ShieldAlert,
+  Building2,
   Shield,
   BookOpen,
   Bot,
   GitBranch,
   TrendingUp,
   Menu,
+  Bell,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdminNotificationsBell } from "./AdminNotificationsBell";
@@ -165,6 +167,7 @@ const AdminLayout = ({
       label: "المستخدمون",
       items: [
         { icon: Car, label: "السائقين", href: "/admin/drivers" },
+        { icon: Building2, label: "الأساطيل", href: "/admin/fleets" },
         { icon: FileText, label: "إعدادات تسجيل السائقين", href: "/admin/driver-registration-settings" },
         { icon: UserCheck, label: "الركاب", href: "/admin/riders" },
         { icon: Clock, label: "إعدادات انتظار الراكب", href: "/admin/rider-wait-settings" },
@@ -218,10 +221,13 @@ const AdminLayout = ({
       icon: Megaphone,
       label: "التسويق والمحتوى",
       items: [
+        { icon: Bell, label: "إدارة الإشعارات", href: "/admin/notifications" },
+        { icon: Users, label: "مجموعات الإشعارات", href: "/admin/notification-groups" },
         { icon: Gift, label: "المكافآت والحوافز", href: "/admin/incentives" },
         { icon: Ban, label: "الأسماء المحظورة", href: "/admin/banned-names" },
         { icon: Megaphone, label: "العروض الترويجية", href: "/admin/promo-banners" },
         { icon: Layers, label: "صفحات الراكب", href: "/admin/rider-pages" },
+        { icon: BookOpen, label: "دليل عائلة ران", href: "/driver/guide" },
       ],
     },
     {
@@ -252,6 +258,7 @@ const AdminLayout = ({
         { icon: Shield, label: "الأمان والحدود", href: "/admin/security-settings" },
         { icon: BookOpen, label: "التوثيق", href: "/admin/documentation" },
         { icon: Code, label: "ران المطور", href: "/admin/developer-settings" },
+        { icon: Code, label: "خريطة المكونات", href: "/settings/devInspector" },
         { icon: Settings, label: "الإعدادات", href: "/admin/settings" },
       ],
     },

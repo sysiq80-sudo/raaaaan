@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bell, Check, X, Clock, Car, Gift, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,7 +33,13 @@ interface RiderNotificationsBellProps {
 
 const typeIcons: Record<string, React.ElementType> = {
   ride_update: Car,
+  ride_accepted: Car,
+  driver_arrived: Clock,
   driver_arrival: Clock,
+  ride_started: Car,
+  ride_completed: Check,
+  ride_cancelled: AlertCircle,
+  ride_requested: Clock,
   promo: Gift,
   scheduled_reminder: Clock,
   general: Bell,
@@ -40,13 +47,20 @@ const typeIcons: Record<string, React.ElementType> = {
 
 const typeColors: Record<string, string> = {
   ride_update: "bg-primary/10 text-primary",
+  ride_accepted: "bg-green-500/10 text-green-600",
+  driver_arrived: "bg-blue-500/10 text-blue-600",
   driver_arrival: "bg-accent/10 text-accent-foreground",
+  ride_started: "bg-primary/10 text-primary",
+  ride_completed: "bg-green-500/10 text-green-600",
+  ride_cancelled: "bg-red-500/10 text-red-600",
+  ride_requested: "bg-yellow-500/10 text-yellow-600",
   promo: "bg-chart-4/10 text-chart-4",
   scheduled_reminder: "bg-chart-2/10 text-chart-2",
   general: "bg-muted text-muted-foreground",
 };
 
 const RiderNotificationsBell = ({ userId }: RiderNotificationsBellProps) => {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<RiderNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -277,6 +291,20 @@ const RiderNotificationsBell = ({ userId }: RiderNotificationsBellProps) => {
             </div>
           )}
         </ScrollArea>
+
+        {/* Footer — عرض الكل */}
+        {notifications.length > 0 && (
+          <div className="p-2 border-t">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-xs h-8 text-primary"
+              onClick={() => { setIsOpen(false); navigate("/rider/notifications"); }}
+            >
+              عرض جميع الإشعارات
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

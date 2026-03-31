@@ -29,8 +29,12 @@ const getNotificationIcon = (type: string) => {
     case 'bonus':
       return <Gift className="h-4 w-4 text-yellow-500" />;
     case 'ride':
+    case 'ride_completed':
       return <Car className="h-4 w-4 text-blue-500" />;
+    case 'ride_cancelled':
+      return <AlertCircle className="h-4 w-4 text-red-500" />;
     case 'alert':
+    case 'application_rejected':
       return <AlertCircle className="h-4 w-4 text-red-500" />;
     default:
       return <Info className="h-4 w-4 text-muted-foreground" />;
@@ -270,11 +274,12 @@ export function NotificationsBell({ driverId, isOpen: externalOpen, onToggle }: 
       {/* Trigger Button */}
       <button
         onClick={handleToggle}
-        className="relative bg-black/40 backdrop-blur-md p-2.5 rounded-full border border-white/10 active:scale-95 transition-transform"
+        className="relative bg-slate-800/40 border border-slate-700/50 hover:bg-slate-700/50 p-3 rounded-xl active:scale-90 transition-all outline-none focus:outline-none select-none tap-highlight-transparent"
+        style={{ WebkitTapHighlightColor: 'transparent' }}
       >
-        <Bell className="w-5 h-5 text-white" />
+        <Bell className="w-6 h-6 text-slate-300" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -left-1 min-w-[18px] h-[18px] bg-red-500 text-white font-bold rounded-full text-[10px] flex items-center justify-center border-2 border-black px-0.5">
+          <span className="absolute -top-1 -right-1 min-w-[20px] h-[20px] bg-red-500 text-white font-bold rounded-full text-[11px] flex items-center justify-center border-2 border-[#0b1326] px-0.5">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}

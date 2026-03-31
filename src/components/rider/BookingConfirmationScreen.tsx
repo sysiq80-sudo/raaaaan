@@ -177,7 +177,7 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
 
       {/* ═══ الخريطة (40% من الشاشة) ═══ */}
       <div className="relative shrink-0" style={{ height: '40%' }}>
-        <div ref={bookingMapContainer} className="absolute inset-0" />
+        <div ref={bookingMapContainer} className="absolute inset-0 bg-gray-100 dark:bg-gray-800" />
 
         {/* رأس شفاف فوق الخريطة */}
         <div className="absolute top-3 left-0 right-0 px-3 flex items-center justify-between z-20 pointer-events-auto">

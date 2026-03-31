@@ -356,7 +356,7 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
 
       {/* Map Container - Takes remaining space */}
       <div className="flex-1 relative">
-        <div ref={mapContainer} className="absolute inset-0" />
+        <div ref={mapContainer} className="absolute inset-0 bg-gray-100 dark:bg-gray-800" />
 
         {/* Floating manual geolocate button - top-left (brought forward for mobile overlays) */}
         <div className="absolute top-14 sm:top-4 left-4 z-50 safe-area-top">

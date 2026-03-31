@@ -42,6 +42,7 @@ export const useLocationPicker = (
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
   const skipNextReverseGeocodeRef = useRef(false); // ✨ Flag لمنع reverseGeocode بعد البحث
+  const lastHandledReloadKeyRef = useRef<number | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -56,6 +57,17 @@ export const useLocationPicker = (
   // Force reinitialization when requested (e.g., after ride end/cancel)
   useEffect(() => {
     if (reloadKey === undefined) return;
+
+    // Skip duplicate effect runs for same key (common in React 18 StrictMode dev behavior)
+    if (lastHandledReloadKeyRef.current === reloadKey) return;
+
+    // Ignore the initial key value and only react to explicit increments
+    if (lastHandledReloadKeyRef.current === null) {
+      lastHandledReloadKeyRef.current = reloadKey;
+      return;
+    }
+
+    lastHandledReloadKeyRef.current = reloadKey;
 
     if (map.current) {
       console.warn("🔄 Forcing map reinitialization");

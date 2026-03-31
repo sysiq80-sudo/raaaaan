@@ -16,14 +16,17 @@ interface RegionFare {
   name_en: string | null;
   base_fare: number;
   per_km_fare: number;
+  per_minute_fare: number;
   waiting_fare_per_min: number;
 }
 
 interface FareEstimate {
   baseFare: number;
   distanceFare: number;
+  timeFare: number;
   totalFare: number;
   distance: number; // in km
+  estimatedMinutes: number;
 }
 
 export function useRegionFares() {
@@ -35,7 +38,7 @@ export function useRegionFares() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('regions')
-        .select('id, name_ar, name_en, base_fare, per_km_fare, waiting_fare_per_min')
+        .select('id, name_ar, name_en, base_fare, per_km_fare, per_minute_fare, waiting_fare_per_min')
         .eq('is_active', true);
 
       if (error) throw error;
@@ -57,6 +60,7 @@ export function useRegionFares() {
       name_en: 'Default',
       base_fare: 2000,
       per_km_fare: 500,
+      per_minute_fare: 150,
       waiting_fare_per_min: 200
     };
   }, [regionFares]);
@@ -72,13 +76,18 @@ export function useRegionFares() {
     const fare = regionId ? getRegionFare(regionId) : defaultFare;
     const baseFare = fare?.base_fare || 2000;
     const perKmFare = fare?.per_km_fare || 500;
+    const perMinuteFare = fare?.per_minute_fare || 0;
 
     // Calculate distance locally using Turf.js
     const distance = calculateLocalDistance(pickup, dropoff);
 
+    // تقدير وقت الرحلة: متوسط 30 كم/ساعة في المدن العراقية
+    const estimatedMinutes = Math.max(1, Math.round((distance / 30) * 60));
+
     // Calculate fares
     const distanceFare = Math.round(distance * perKmFare);
-    const subtotal = baseFare + distanceFare;
+    const timeFare = Math.round(estimatedMinutes * perMinuteFare);
+    const subtotal = baseFare + distanceFare + timeFare;
 
     // Apply vehicle type multiplier
     const multiplier = getMultiplier(vehicleType);
@@ -87,8 +96,10 @@ export function useRegionFares() {
     return {
       baseFare,
       distanceFare,
+      timeFare,
       totalFare,
-      distance: Math.round(distance * 10) / 10 // Round to 1 decimal
+      distance: Math.round(distance * 10) / 10, // Round to 1 decimal
+      estimatedMinutes,
     };
   }, [getRegionFare, defaultFare, getMultiplier]);
 

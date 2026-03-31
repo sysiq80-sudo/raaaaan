@@ -2,10 +2,55 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { haversineDistance, calculateETA, corsHeaders, getAuthUser, jsonResponse, errorResponse, corsPreflightResponse } from "../_shared/utils.ts";
 
-// ═══ Constants ═══
-const MAX_RETRY_ROUNDS = 5;
-const RETRY_DELAY_MS = 30_000; // 30s between retry rounds
-const RADIUS_EXPANSION_KM = 3; // expand search radius by 3km per round
+// ═══ Defaults (overridden by app_settings.matching_settings) ═══
+const DEFAULT_MAX_RETRY_ROUNDS = 5;
+const DEFAULT_RETRY_DELAY_MS = 30_000;
+const DEFAULT_RADIUS_EXPANSION_KM = 3;
+const DEFAULT_MATCHING_MODE = "hybrid"; // "sequential" | "broadcast" | "hybrid"
+const DEFAULT_MAX_DRIVERS_NOTIFY = 5;
+const DEFAULT_SEQUENTIAL_DELAY_MS = 8000;
+const DEFAULT_FAIRNESS_WEIGHT = 0.1; // وزن التوزيع العادل في المعادلة
+
+// إعدادات المطابقة - تُقرأ من app_settings
+interface MatchingConfig {
+  matching_mode: "sequential" | "broadcast" | "hybrid";
+  max_retry_rounds: number;
+  retry_delay_ms: number;
+  radius_expansion_km: number;
+  max_drivers_notify: number;
+  sequential_delay_ms: number;
+  fairness_weight: number;
+}
+
+async function getMatchingConfig(supabase: any): Promise<MatchingConfig> {
+  try {
+    const { data } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "matching_settings")
+      .maybeSingle();
+    const v = data?.value || {};
+    return {
+      matching_mode: v.matching_mode || DEFAULT_MATCHING_MODE,
+      max_retry_rounds: v.max_retry_rounds ?? DEFAULT_MAX_RETRY_ROUNDS,
+      retry_delay_ms: v.retry_delay_ms ?? DEFAULT_RETRY_DELAY_MS,
+      radius_expansion_km: v.radius_expansion_km ?? DEFAULT_RADIUS_EXPANSION_KM,
+      max_drivers_notify: v.max_drivers_notify ?? DEFAULT_MAX_DRIVERS_NOTIFY,
+      sequential_delay_ms: v.sequential_delay_ms ?? DEFAULT_SEQUENTIAL_DELAY_MS,
+      fairness_weight: v.fairness_weight ?? DEFAULT_FAIRNESS_WEIGHT,
+    };
+  } catch {
+    return {
+      matching_mode: DEFAULT_MATCHING_MODE,
+      max_retry_rounds: DEFAULT_MAX_RETRY_ROUNDS,
+      retry_delay_ms: DEFAULT_RETRY_DELAY_MS,
+      radius_expansion_km: DEFAULT_RADIUS_EXPANSION_KM,
+      max_drivers_notify: DEFAULT_MAX_DRIVERS_NOTIFY,
+      sequential_delay_ms: DEFAULT_SEQUENTIAL_DELAY_MS,
+      fairness_weight: DEFAULT_FAIRNESS_WEIGHT,
+    };
+  }
+}
 
 // Vehicle type compatibility - which drivers can serve which rides
 function isVehicleTypeCompatible(
@@ -140,7 +185,11 @@ serve(async (req) => {
       );
     }
 
-    // 2. البحث عن السائقين المتاحين - Optimized query
+    // 2. تحميل إعدادات المطابقة
+    const matchConfig = await getMatchingConfig(supabase);
+    console.log(`⚙️ Matching mode: ${matchConfig.matching_mode}, max notify: ${matchConfig.max_drivers_notify}`);
+
+    // 3. البحث عن السائقين المتاحين - Optimized query
     const { data: drivers, error: driversError } = await supabase
       .from("drivers")
       .select(
@@ -170,9 +219,9 @@ serve(async (req) => {
 
       // ═══ جدولة إعادة محاولة حتى مع عدم وجود سائقين ═══
       // ربما يتصل سائقون جدد قريباً
-      if (noDriverAttempt < MAX_RETRY_ROUNDS) {
+      if (noDriverAttempt < matchConfig.max_retry_rounds) {
         const retryEmpty = async () => {
-          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+          await new Promise((resolve) => setTimeout(resolve, matchConfig.retry_delay_ms));
           const { data: currentRide } = await supabase
             .from("rides")
             .select("status")
@@ -180,7 +229,7 @@ serve(async (req) => {
             .single();
           if (currentRide?.status !== "pending") return;
 
-          console.log(`[match-ride] 🔄 Retry (no online drivers) round ${noDriverAttempt + 1}/${MAX_RETRY_ROUNDS}`);
+          console.log(`[match-ride] 🔄 Retry (no online drivers) round ${noDriverAttempt + 1}/${matchConfig.max_retry_rounds}`);
           try {
             await supabase.functions.invoke("match-ride", {
               body: { rideId },
@@ -198,7 +247,7 @@ serve(async (req) => {
           success: false,
           message: "لا يوجد سائقين متاحين حالياً — سيتم إعادة المحاولة",
           drivers_count: 0,
-          retry_scheduled: noDriverAttempt < MAX_RETRY_ROUNDS,
+          retry_scheduled: noDriverAttempt < matchConfig.max_retry_rounds,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -239,6 +288,33 @@ serve(async (req) => {
       }
     }
 
+    // ═══ التوزيع العادل: جلب عدد رحلات اليوم لكل سائق ═══
+    const todayRideCounts: Record<string, number> = {};
+    if (matchConfig.fairness_weight > 0) {
+      try {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const eligibleIds = drivers
+          .filter((d) => !alreadyNotified.has(d.id))
+          .map((d) => d.id);
+        if (eligibleIds.length > 0) {
+          const { data: rideCounts } = await supabase
+            .from("rides")
+            .select("driver_id")
+            .in("driver_id", eligibleIds)
+            .eq("status", "completed")
+            .gte("created_at", todayStart.toISOString());
+          if (rideCounts) {
+            for (const r of rideCounts) {
+              todayRideCounts[r.driver_id] = (todayRideCounts[r.driver_id] || 0) + 1;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[match-ride] ⚠️ Failed to fetch fairness data:", e);
+      }
+    }
+
     const driversWithDistance = drivers
       .filter((driver) => {
         // Filter by vehicle type compatibility + تفضيل السائقة
@@ -269,18 +345,23 @@ serve(async (req) => {
         const maxRadius =
           (driver.max_pickup_radius || 10) + (ride.high_priority ? 5 : 0) + radiusBonus;
 
-        // Weighted dispatch: distance + rating (primary) with a small experience tie-breaker
+        // Weighted dispatch: distance + rating + fairness + experience tie-breaker
         const normalizedDistance = Math.max(0, 1 - distance / maxRadius);
         const normalizedRating = Math.min(5, driver.rating || 5.0) / 5;
-        const distanceWeight = 0.7;
-        const ratingWeight = 0.3;
+        const fw = matchConfig.fairness_weight;
+        const distanceWeight = 0.7 * (1 - fw);
+        const ratingWeight = 0.3 * (1 - fw);
         const experienceBonus = Math.min(
           0.05,
           (driver.total_rides || 0) / 1000,
         );
+        // التوزيع العادل: تقليل أولوية السائقين الذين أكملوا رحلات كثيرة اليوم
+        const driverTodayRides = todayRideCounts[driver.id] || 0;
+        const fairnessScore = Math.max(0, 1 - driverTodayRides / 20); // 20 رحلة = صفر عدالة
         const weightedScore =
           normalizedDistance * distanceWeight +
           normalizedRating * ratingWeight +
+          fairnessScore * fw +
           experienceBonus;
         const priorityScore = Math.round(weightedScore * 100);
 
@@ -311,9 +392,9 @@ serve(async (req) => {
 
       // ═══ جدولة إعادة محاولة حتى مع 0 سائقين جدد ═══
       // الرحلة تبقى pending — ربما يتصل سائقون جدد قريباً
-      if (currentAttemptZero < MAX_RETRY_ROUNDS) {
+      if (currentAttemptZero < matchConfig.max_retry_rounds) {
         const retryNoDrivers = async () => {
-          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+          await new Promise((resolve) => setTimeout(resolve, matchConfig.retry_delay_ms));
           const { data: currentRide } = await supabase
             .from("rides")
             .select("status")
@@ -321,13 +402,13 @@ serve(async (req) => {
             .single();
           if (currentRide?.status !== "pending") return;
 
-          console.log(`[match-ride] 🔄 Retry (no compatible drivers) round ${currentAttemptZero + 1}/${MAX_RETRY_ROUNDS}`);
+          console.log(`[match-ride] 🔄 Retry (no compatible drivers) round ${currentAttemptZero + 1}/${matchConfig.max_retry_rounds}`);
           await supabase
             .from("rides")
             .update({
               metadata: {
                 ...(ride.metadata || {}),
-                radius_bonus_km: RADIUS_EXPANSION_KM * currentAttemptZero,
+                radius_bonus_km: matchConfig.radius_expansion_km * currentAttemptZero,
               },
             })
             .eq("id", rideId);
@@ -350,14 +431,16 @@ serve(async (req) => {
           message: "لا يوجد سائقين قريبين متوافقين — سيتم إعادة المحاولة",
           drivers_count: 0,
           already_notified: alreadyNotified.size,
-          retry_scheduled: currentAttemptZero < MAX_RETRY_ROUNDS,
+          retry_scheduled: currentAttemptZero < matchConfig.max_retry_rounds,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     // 4. اختيار أفضل السائقين لإرسال الإشعارات
-    const maxDrivers = ride.high_priority ? 10 : 5;
+    const maxDrivers = ride.high_priority
+      ? Math.max(matchConfig.max_drivers_notify, 10)
+      : matchConfig.max_drivers_notify;
     const topDrivers = driversWithDistance.slice(0, maxDrivers);
 
     console.log(
@@ -398,12 +481,28 @@ serve(async (req) => {
       })
       .eq("id", rideId);
 
-    // 7. إرسال الإشعارات للسائقين بالتوازي مع تأخير تدريجي
+    // 7. إرسال الإشعارات للسائقين حسب وضع المطابقة
     const notificationPromises = topDrivers.map(async (driver, index) => {
       try {
-        // تأخير تدريجي: السائق الأول فوراً، ثم بفواصل أسرع للطلبات العاجلة
-        const baseDelay = ride.high_priority ? 4000 : 8000;
-        const delay = index * baseDelay;
+        // حساب التأخير حسب وضع المطابقة
+        let delay = 0;
+        if (matchConfig.matching_mode === "sequential") {
+          // تتابعي: كل سائق بعد فترة
+          const baseDelay = ride.high_priority
+            ? Math.round(matchConfig.sequential_delay_ms / 2)
+            : matchConfig.sequential_delay_ms;
+          delay = index * baseDelay;
+        } else if (matchConfig.matching_mode === "hybrid") {
+          // هجين: أول 3 فوراً، الباقي تتابعي
+          const instantBatch = Math.min(3, topDrivers.length);
+          if (index >= instantBatch) {
+            const baseDelay = ride.high_priority
+              ? Math.round(matchConfig.sequential_delay_ms / 2)
+              : matchConfig.sequential_delay_ms;
+            delay = (index - instantBatch) * baseDelay;
+          }
+        }
+        // broadcast: delay = 0 (الكل فوراً)
 
         if (delay > 0) {
           await new Promise((resolve) => setTimeout(resolve, delay));
@@ -421,12 +520,17 @@ serve(async (req) => {
           return { success: false, reason: "ride_accepted" };
         }
 
-        // إرسال الإشعار مع نوع محدد للإشعارات الذكية
+        // إرسال الإشعار — notify_driver + service role / internal secret
+        const edgeSecret = Deno.env.get("INTERNAL_EDGE_SECRET");
         const { error: notifError } = await supabase.functions.invoke(
           "send-push-notification",
           {
+            headers: edgeSecret
+              ? { "x-internal-secret": edgeSecret }
+              : undefined,
             body: {
-              user_id: driver.user_id,
+              action: "notify_driver",
+              driver_id: driver.id,
               title: "🚗 طلب رحلة جديد!",
               body: `على بعد ${driver.distance_km} كم • ${
                 ride.estimated_fare?.toLocaleString() || 0
@@ -474,10 +578,10 @@ serve(async (req) => {
     const currentAttempt = (ride.matching_attempts || 0) + 1;
     let retryScheduled = false;
 
-    if (currentAttempt < MAX_RETRY_ROUNDS) {
+    if (currentAttempt < matchConfig.max_retry_rounds) {
       // Schedule a delayed retry invocation to expand search
       const retryFn = async () => {
-        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+        await new Promise((resolve) => setTimeout(resolve, matchConfig.retry_delay_ms));
 
         // Re-check ride is still pending
         const { data: currentRide } = await supabase
@@ -492,7 +596,7 @@ serve(async (req) => {
         }
 
         // Invoke self for next round (with expanded radius bonus)
-        console.log(`[match-ride] 🔄 Retry round ${currentAttempt + 1}/${MAX_RETRY_ROUNDS} for ride ${rideId} (+${RADIUS_EXPANSION_KM * currentAttempt}km radius)`);
+        console.log(`[match-ride] 🔄 Retry round ${currentAttempt + 1}/${matchConfig.max_retry_rounds} for ride ${rideId} (+${matchConfig.radius_expansion_km * currentAttempt}km radius)`);
 
         // Update ride with radius expansion hint
         await supabase
@@ -500,7 +604,7 @@ serve(async (req) => {
           .update({
             metadata: {
               ...(ride.metadata || {}),
-              radius_bonus_km: RADIUS_EXPANSION_KM * currentAttempt,
+              radius_bonus_km: matchConfig.radius_expansion_km * currentAttempt,
             },
           })
           .eq("id", rideId);

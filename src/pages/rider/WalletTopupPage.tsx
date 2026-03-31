@@ -10,9 +10,12 @@ import {
   CreditCard,
   Loader2,
   CheckCircle2,
+  Smartphone,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+
+type TopupPaymentMethod = "nass" | "zain_cash";
 
 const PRESET_AMOUNTS = [5000, 10000, 25000, 50000, 100000];
 
@@ -25,6 +28,7 @@ const WalletTopupPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<TopupPaymentMethod>("zain_cash");
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -114,13 +118,14 @@ const WalletTopupPage: React.FC = () => {
         return;
       }
 
-      // Call NASS init payment edge function
-      const { data, error } = await supabase.functions.invoke('nass-init-payment', {
-        body: {
-          amount: amount,
-          orderDesc: 'شحن محفظة رعان',
-          backRef: `${window.location.origin}/payment/result`
-        }
+      // Call payment gateway edge function based on selected method
+      const edgeFunctionName = paymentMethod === "zain_cash" ? "zaincash-init" : "nass-init-payment";
+      const bodyPayload = paymentMethod === "zain_cash"
+        ? { amount, serviceType: "شحن محفظة رعان" }
+        : { amount, orderDesc: "شحن محفظة رعان", backRef: `${window.location.origin}/payment/result` };
+
+      const { data, error } = await supabase.functions.invoke(edgeFunctionName, {
+        body: bodyPayload,
       });
 
       if (error) {
@@ -145,7 +150,7 @@ const WalletTopupPage: React.FC = () => {
       // Store order ID for status check
       localStorage.setItem('pending_payment_order', data.data.orderId);
 
-      // Redirect to NASS payment page
+      // Redirect to payment page
       window.location.href = data.data.paymentUrl;
 
     } catch (error) {
@@ -255,7 +260,42 @@ const WalletTopupPage: React.FC = () => {
             <div className="space-y-4">
               <h2 className="text-lg font-semibold">طريقة الدفع</h2>
               
-              <Card className="border-2 border-primary bg-primary/5">
+              <Card
+                className={cn(
+                  "border-2 cursor-pointer transition-all",
+                  paymentMethod === "zain_cash"
+                    ? "border-green-500 bg-green-500/5"
+                    : "border-muted hover:border-green-500/50"
+                )}
+                onClick={() => setPaymentMethod("zain_cash")}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                      <Smartphone className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold">زين كاش</p>
+                      <p className="text-sm text-muted-foreground">
+                        الدفع عبر محفظة زين كاش
+                      </p>
+                    </div>
+                    {paymentMethod === "zain_cash" && (
+                      <CheckCircle2 className="w-6 h-6 text-green-500" />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card
+                className={cn(
+                  "border-2 cursor-pointer transition-all",
+                  paymentMethod === "nass"
+                    ? "border-primary bg-primary/5"
+                    : "border-muted hover:border-primary/50"
+                )}
+                onClick={() => setPaymentMethod("nass")}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
@@ -267,7 +307,9 @@ const WalletTopupPage: React.FC = () => {
                         الدفع الآمن عبر NASS Gateway
                       </p>
                     </div>
-                    <CheckCircle2 className="w-6 h-6 text-primary" />
+                    {paymentMethod === "nass" && (
+                      <CheckCircle2 className="w-6 h-6 text-primary" />
+                    )}
                   </div>
                 </CardContent>
               </Card>

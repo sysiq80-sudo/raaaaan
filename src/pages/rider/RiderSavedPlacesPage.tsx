@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -409,21 +408,21 @@ const RiderSavedPlacesPage: React.FC = () => {
   const getColorForLabel = (label: string) => {
     switch (label) {
       case "home":
-        return "bg-blue-500/20 text-blue-600";
+        return "bg-blue-500/15 text-blue-400";
       case "work":
-        return "bg-amber-500/20 text-amber-600";
+        return "bg-amber-500/15 text-amber-400";
       case "school":
-        return "bg-purple-500/20 text-purple-600";
+        return "bg-purple-500/15 text-purple-400";
       case "gym":
-        return "bg-red-500/20 text-red-600";
+        return "bg-red-500/15 text-red-400";
       case "restaurant":
-        return "bg-orange-500/20 text-orange-600";
+        return "bg-orange-500/15 text-orange-400";
       case "hospital":
-        return "bg-pink-500/20 text-pink-600";
+        return "bg-pink-500/15 text-pink-400";
       case "shopping":
-        return "bg-cyan-500/20 text-cyan-600";
+        return "bg-cyan-500/15 text-cyan-400";
       default:
-        return "bg-primary/20 text-primary";
+        return "bg-emerald-500/15 text-emerald-400";
     }
   };
 
@@ -441,32 +440,44 @@ const RiderSavedPlacesPage: React.FC = () => {
       <RiderPageHeader title="الأماكن المحفوظة" />
 
       {/* زر إضافة مكان — ثابت */}
-      <div className="pt-16 px-4 py-3 flex-shrink-0 bg-background/95 backdrop-blur-md border-b flex items-center justify-end">
-        <Button size="sm" onClick={openAddDialog} className="gap-2">
+      <div className="pt-16 px-4 py-3 flex-shrink-0 bg-background/95 backdrop-blur-xl border-b border-slate-700/30 flex items-center justify-end">
+        <button
+          onClick={openAddDialog}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-semibold text-[13px] shadow-lg shadow-emerald-500/20 transition-all"
+        >
           <Plus className="w-4 h-4" />
           إضافة مكان
-        </Button>
+        </button>
       </div>
 
       {/* Content */}
-      <div className="p-4 pb-28 space-y-4 max-w-lg mx-auto">
+      <div className="p-4 pb-8 space-y-4 max-w-lg mx-auto">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="relative w-16 h-16">
+              <div className="absolute inset-0 rounded-full border-2 border-emerald-500/20" />
+              <div className="absolute inset-0 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <MapPin className="w-6 h-6 text-emerald-400" />
+              </div>
+            </div>
+            <p className="text-sm text-slate-400">جاري تحميل الأماكن...</p>
           </div>
         ) : places.length === 0 ? (
-          <div className="text-center py-20 space-y-4">
-            <div className="w-20 h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-              <MapPin className="w-10 h-10 text-primary" />
+          <div className="text-center py-20 space-y-5">
+            <div className="w-20 h-20 mx-auto rounded-2xl bg-[#151f30] border border-slate-700/50 flex items-center justify-center">
+              <MapPin className="w-10 h-10 text-slate-500" />
             </div>
-            <h2 className="text-lg font-bold">لا توجد أماكن محفوظة</h2>
-            <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              احفظ أماكنك المفضلة مثل المنزل والعمل للوصول السريع إليها
-            </p>
-            <Button
+            <div className="space-y-2">
+              <h2 className="text-lg font-bold text-white">لا توجد أماكن محفوظة</h2>
+              <p className="text-sm text-slate-400 max-w-xs mx-auto">
+                احفظ أماكنك المفضلة مثل المنزل والعمل للوصول السريع إليها
+              </p>
+            </div>
+            <button
               onClick={getCurrentLocation}
               disabled={gettingLocation}
-              className="gap-2"
+              className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-bold text-sm rounded-full shadow-lg shadow-emerald-500/25 transition-all disabled:opacity-50"
             >
               {gettingLocation ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -474,16 +485,15 @@ const RiderSavedPlacesPage: React.FC = () => {
                 <Locate className="w-4 h-4" />
               )}
               حفظ موقعي الحالي
-            </Button>
+            </button>
           </div>
         ) : (
           <>
             {/* Quick add buttons for home/work if not set */}
             <div className="grid grid-cols-2 gap-3">
               {!places.find((p) => p.label === "home") && (
-                <Button
-                  variant="outline"
-                  className="h-auto py-4 flex-col gap-2 hover:bg-blue-500/10 hover:border-blue-500/30"
+                <button
+                  className="h-auto py-4 flex flex-col items-center gap-2 rounded-xl bg-[#151f30] border border-slate-700/50 hover:bg-blue-500/10 hover:border-blue-500/30 text-white transition-all disabled:opacity-50"
                   onClick={() => {
                     setSelectedLabel("home");
                     setSelectedIcon("🏠");
@@ -491,14 +501,13 @@ const RiderSavedPlacesPage: React.FC = () => {
                   }}
                   disabled={gettingLocation}
                 >
-                  <Home className="w-6 h-6 text-blue-500" />
-                  <span>أضف المنزل</span>
-                </Button>
+                  <Home className="w-6 h-6 text-blue-400" />
+                  <span className="text-[13px] font-medium">أضف المنزل</span>
+                </button>
               )}
               {!places.find((p) => p.label === "work") && (
-                <Button
-                  variant="outline"
-                  className="h-auto py-4 flex-col gap-2 hover:bg-amber-500/10 hover:border-amber-500/30"
+                <button
+                  className="h-auto py-4 flex flex-col items-center gap-2 rounded-xl bg-[#151f30] border border-slate-700/50 hover:bg-amber-500/10 hover:border-amber-500/30 text-white transition-all disabled:opacity-50"
                   onClick={() => {
                     setSelectedLabel("work");
                     setSelectedIcon("💼");
@@ -506,53 +515,49 @@ const RiderSavedPlacesPage: React.FC = () => {
                   }}
                   disabled={gettingLocation}
                 >
-                  <Briefcase className="w-6 h-6 text-amber-500" />
-                  <span>أضف العمل</span>
-                </Button>
+                  <Briefcase className="w-6 h-6 text-amber-400" />
+                  <span className="text-[13px] font-medium">أضف العمل</span>
+                </button>
               )}
             </div>
 
             {/* Places list */}
             <div className="space-y-3">
               {places.map((place) => (
-                <Card key={place.id} className="overflow-hidden">
-                  <CardContent className="p-4">
+                <div key={place.id} className="bg-[#151f30] rounded-2xl border border-slate-700/50 overflow-hidden">
+                  <div className="p-4">
                     <div className="flex items-start gap-4">
                       <div
-                        className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${getColorForLabel(
+                        className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border border-slate-700/30 ${getColorForLabel(
                           place.label,
                         )}`}
                       >
                         {getIconComponent(place.label, place.icon)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium">{place.name}</p>
-                        <p className="text-sm text-muted-foreground truncate">
+                        <p className="font-semibold text-white text-[14px]">{place.name}</p>
+                        <p className="text-[12px] text-slate-400 truncate">
                           {place.address}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-4">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="flex-1 gap-2"
+                      <button
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[13px] font-semibold hover:bg-emerald-500/20 active:bg-emerald-500/30 transition-all"
                         onClick={() => handleNavigateTo(place)}
                       >
                         <Navigation className="w-4 h-4" />
                         اذهب إلى هنا
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="shrink-0 text-destructive hover:bg-destructive/10"
+                      </button>
+                      <button
+                        className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all"
                         onClick={() => handleDelete(place.id)}
                       >
                         <Trash2 className="w-4 h-4" />
-                      </Button>
+                      </button>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               ))}
             </div>
           </>
@@ -561,7 +566,7 @@ const RiderSavedPlacesPage: React.FC = () => {
 
       {/* Add Place Dialog */}
       <Dialog open={showAddDialog} onOpenChange={handleCloseDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-[#151f30] border-slate-700/50">
           <DialogHeader>
             <DialogTitle>حفظ مكان جديد</DialogTitle>
           </DialogHeader>

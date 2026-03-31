@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="viewport-fit=cover, width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, minimal-ui"
+    />
+
+    <title>ران — لوحة التحكم</title>
+    <meta
+      name="description"
+      content="لوحة تحكم ران - إدارة الرحلات والسائقين والمستخدمين."
+    />
+    <meta name="author" content="ران RAAN" />
+    <meta name="robots" content="noindex, nofollow" />
+
+    <!-- Theme -->
+    <meta name="supported-color-schemes" content="light dark" />
+    <meta name="theme-color" content="#10b981" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#064e3b" media="(prefers-color-scheme: dark)" />
+
+    <!-- Icons -->
+    <link rel="icon" type="image/png" href="/logo.png" sizes="192x192" />
+    <link rel="shortcut icon" href="/logo.png" type="image/png" />
+
+    <!-- Preconnect -->
+    <link rel="preconnect" href="https://wgolkcztdrwdphwjvqxt.supabase.co" crossorigin />
+    <link rel="preconnect" href="https://maps.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://maps.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Font -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@100;200;300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- CSP -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com https://us.i.posthog.com https://cdn.tailwindcss.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: https: blob: https://api.mapbox.com https://*.mapbox.com;
+      media-src 'self' data: blob:;
+      worker-src 'self' blob:;
+      connect-src 'self'
+        https://wgolkcztdrwdphwjvqxt.supabase.co
+        wss://wgolkcztdrwdphwjvqxt.supabase.co
+        https://*.supabase.co
+        https://*.googleapis.com
+        https://*.gstatic.com
+        https://maps.googleapis.com
+        https://maps.gstatic.com
+        https://places.googleapis.com
+        https://fcm.googleapis.com
+        https://storage.googleapis.com
+        https://fonts.googleapis.com
+        https://www.google-analytics.com
+        https://www.googletagmanager.com
+        https://us.i.posthog.com
+        https://www.facebook.com
+        https://api.mapbox.com
+        https://*.mapbox.com;
+      frame-src 'self' https://*.loom.com https://*.lovable.app https://*.lovableproject.com https://*.vimeo.com https://*.youtube.com https://app.chatwoot.com https://app.hubspot.com https://auth.lovable.dev https://forms.hsforms.com https://js.stripe.com https://meetings.hubspot.com https://player.vimeo.com https://share.hsforms.com https://www.google.com https://www.youtube.com https://www.facebook.com;
+      form-action 'self' https://*.hsforms.com https://forms.hubspot.com https://www.google.com;
+      object-src 'none';
+      base-uri 'self';
+    "
+    />
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/apps/admin/main.tsx"></script>
+  </body>
+</html>

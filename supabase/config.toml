@@ -32,6 +32,10 @@ verify_jwt = false
 [functions.nass-payment-callback]
 verify_jwt = false
 
+# ZainCash callback — يستقبل redirect من ZainCash بدون مصادقة
+[functions.zaincash-callback]
+verify_jwt = false
+
 # Cron Jobs — تُستدعى من Supabase scheduler
 [functions.cleanup-stale-rides]
 verify_jwt = false
@@ -62,7 +66,7 @@ verify_jwt = false
 # ════════════════════════════════════════════════════════════
 
 [functions.send-push-notification]
-verify_jwt = true
+verify_jwt = false
 
 [functions.reset-password]
 verify_jwt = true
@@ -77,6 +81,9 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.nass-check-status]
+verify_jwt = true
+
+[functions.zaincash-init]
 verify_jwt = true
 
 [functions.process-wallet-topup]

@@ -520,7 +520,8 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  const urlToOpen = notificationData.url || '/driver';
+  const rideIdFromNotification = notificationData.rideId;
+  const urlToOpen = notificationData.url || (rideIdFromNotification ? `/driver?ride_id=${rideIdFromNotification}&action=open_request` : '/driver');
 
   // Handle accept action — قبول الرحلة مباشرة من الإشعار
   if (event.action === 'accept' && notificationData.rideId) {
@@ -545,7 +546,31 @@ self.addEventListener('notificationclick', (event) => {
         
         // إذا لم يكن التطبيق مفتوحاً، فتح نافذة جديدة مع معلمات القبول
         if (!clientFound && clients.openWindow) {
-          return clients.openWindow(`/driver?accept_ride=${notificationData.rideId}`);
+          return clients.openWindow(`/driver?ride_id=${notificationData.rideId}&action=accept&accept_ride=${notificationData.rideId}`);
+        }
+      })
+    );
+    return;
+  }
+
+  if ((event.action === 'open' || event.action === '') && notificationData.rideId) {
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
+        let clientFound = false;
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin)) {
+            client.postMessage({
+              type: 'OPEN_RIDE_REQUEST_FROM_NOTIFICATION',
+              rideId: notificationData.rideId,
+            });
+            await client.navigate(`/driver?ride_id=${notificationData.rideId}&action=open_request`);
+            clientFound = true;
+            return client.focus();
+          }
+        }
+
+        if (!clientFound && clients.openWindow) {
+          return clients.openWindow(`/driver?ride_id=${notificationData.rideId}&action=open_request`);
         }
       })
     );

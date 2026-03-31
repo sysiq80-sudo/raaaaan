@@ -49,6 +49,7 @@ import OTPVerification from "@/components/OTPVerification";
 import PasswordResetDialog from "@/components/PasswordResetDialog";
 import { phoneSignupSchema } from "@/lib/validations";
 import { normalizeIraqiPhoneToE164 } from "@/lib/phoneUtils";
+import { saveRememberMe, clearRememberMe, getRememberMe } from "@/services/rememberMeService";
 
 type AuthStep = "phone" | "login" | "register" | "otp" | "ghost-otp" | "ghost-password";
 
@@ -103,6 +104,16 @@ const Auth = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate, redirectTo]);
+
+  // ── تحميل بيانات "تذكرني" من Capacitor Preferences عند فتح الصفحة ──
+  useEffect(() => {
+    getRememberMe().then(({ enabled, phone }) => {
+      if (enabled && phone) {
+        setPhoneInput(phone);
+        setRememberMe(true);
+      }
+    });
+  }, []);
 
   // Format phone for database lookup
   const formatPhoneForLookup = (phone: string) => {
@@ -243,13 +254,11 @@ const Auth = () => {
       }
 
       if (loginSuccess) {
-        // حفظ تفضيل تذكر الجلسة
+        // حفظ تفضيل تذكر الجلسة عبر Capacitor Preferences (آمن ولا ينمسح)
         if (rememberMe) {
-          localStorage.setItem("raan_remember_me", "true");
-          sessionStorage.removeItem("raan_session_alive");
+          saveRememberMe(phoneInput, "rider");
         } else {
-          localStorage.setItem("raan_remember_me", "false");
-          sessionStorage.setItem("raan_session_alive", "1");
+          clearRememberMe();
         }
       } else if (lastError) {
         if (lastError.message === "Invalid login credentials") {
@@ -486,25 +495,25 @@ const Auth = () => {
   // Render OTP verification step
   if (step === "otp") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <img src={logo} alt="RAAN" className="w-20 h-20 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold text-foreground">
-              ران <span className="text-primary">RAAN</span>
-            </h1>
+      <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
+        <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-6 pt-[8vh] pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 bg-[#111827] rounded-2xl flex items-center justify-center border border-slate-800/80">
+              <img src={logo} alt="RAAN" className="w-10 h-10" />
+            </div>
           </div>
-
-          <Card className="border-0 shadow-xl">
-            <CardContent className="pt-6">
-              <OTPVerification
-                phone={phoneInput}
-                purpose="rider_registration"
-                onVerified={handleOTPVerified}
-                onBack={() => setStep("register")}
-              />
-            </CardContent>
-          </Card>
+          <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-slate-700/50 mb-4">
+            <h2 className="text-white font-bold text-[17px] mb-1">التحقق من رقم الهاتف</h2>
+            <p className="text-slate-400 text-[12px]">سيتم إرسال رمز تحقق إلى رقم واتساب الخاص بك</p>
+          </div>
+          <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-slate-700/50">
+            <OTPVerification
+              phone={phoneInput}
+              purpose="rider_registration"
+              onVerified={handleOTPVerified}
+              onBack={() => setStep("register")}
+            />
+          </div>
         </div>
       </div>
     );
@@ -513,31 +522,25 @@ const Auth = () => {
   // Render ghost account OTP verification step
   if (step === "ghost-otp") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <img src={logo} alt="RAAN" className="w-20 h-20 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold text-foreground">
-              ران <span className="text-primary">RAAN</span>
-            </h1>
+      <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
+        <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-6 pt-[8vh] pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 bg-[#111827] rounded-2xl flex items-center justify-center border border-slate-800/80">
+              <img src={logo} alt="RAAN" className="w-10 h-10" />
+            </div>
           </div>
-
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="text-center pb-2">
-              <CardTitle className="text-lg">وجدنا حسابك من واتساب/تلغرام!</CardTitle>
-              <CardDescription>
-                تحقق من رقمك لتفعيل حسابك في التطبيق
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <OTPVerification
-                phone={phoneInput}
-                purpose="password_reset"
-                onVerified={() => setStep("ghost-password")}
-                onBack={resetToPhoneStep}
-              />
-            </CardContent>
-          </Card>
+          <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-emerald-500/30 mb-4">
+            <h2 className="text-emerald-400 font-bold text-[17px] mb-1">وجدنا حسابك من واتساب/تلغرام! 🎉</h2>
+            <p className="text-slate-400 text-[12px]">تحقق من رقمك لتفعيل حسابك في التطبيق</p>
+          </div>
+          <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-slate-700/50">
+            <OTPVerification
+              phone={phoneInput}
+              purpose="password_reset"
+              onVerified={() => setStep("ghost-password")}
+              onBack={resetToPhoneStep}
+            />
+          </div>
         </div>
       </div>
     );
@@ -546,411 +549,273 @@ const Auth = () => {
   // Render ghost account password setup step
   if (step === "ghost-password") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <img src={logo} alt="RAAN" className="w-20 h-20 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold text-foreground">
-              ران <span className="text-primary">RAAN</span>
-            </h1>
+      <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
+        <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-6 pt-[8vh] pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 bg-[#111827] rounded-2xl flex items-center justify-center border border-slate-800/80">
+              <img src={logo} alt="RAAN" className="w-10 h-10" />
+            </div>
           </div>
+          <div className="text-center mb-8">
+            <h1 className="text-[24px] font-bold text-white mb-2">تعيين كلمة مرور</h1>
+            <p className="text-[13px] text-slate-400">اختر كلمة مرور لتسجيل الدخول من التطبيق</p>
+          </div>
+          <form onSubmit={handleGhostPasswordSet} className="flex flex-col gap-4">
+            {/* Phone Display */}
+            <div className="bg-[#1a2333] rounded-xl px-4 py-3 flex items-center justify-center gap-2 border border-slate-700/50">
+              <Phone className="h-4 w-4 text-emerald-400" />
+              <span className="text-white font-medium" dir="ltr">{formatPhoneDisplay(phoneInput)}</span>
+            </div>
 
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="text-center pb-2">
-              <CardTitle className="text-lg">تعيين كلمة مرور للتطبيق</CardTitle>
-              <CardDescription>
-                اختر كلمة مرور لتسجيل الدخول من التطبيق. رصيدك ورحلاتك السابقة ستكون بانتظارك!
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleGhostPasswordSet} className="space-y-4">
-                {/* عرض رقم الهاتف */}
-                <div className="bg-muted/50 rounded-lg p-3 flex items-center justify-center gap-2">
-                  <Phone className="h-4 w-4 text-primary" />
-                  <span className="font-medium" dir="ltr">
-                    {formatPhoneDisplay(phoneInput)}
-                  </span>
+            {/* Password */}
+            <div className="space-y-1.5">
+              <label className="text-slate-300 text-[13px] font-medium">كلمة المرور الجديدة</label>
+              <div className="relative">
+                <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
+                  <Lock className="w-4 h-4 text-slate-500" />
                 </div>
+                <Input
+                  type="password" placeholder="••••••••"
+                  value={ghostPassword}
+                  onChange={(e) => setGhostPassword(e.target.value)}
+                  className={`h-12 bg-[#1a2333] border-slate-700/50 text-white placeholder:text-slate-500 rounded-xl pr-11 text-[14px] focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 ${errors.ghostPassword ? 'border-red-500/60' : ''}`}
+                  required minLength={6} dir="ltr" autoFocus
+                />
+              </div>
+              {errors.ghostPassword && <p className="text-[11px] text-red-400">{errors.ghostPassword}</p>}
+            </div>
 
-                <div className="space-y-2">
-                  <Label>كلمة المرور الجديدة</Label>
-                  <div className="relative">
-                    <Lock className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      value={ghostPassword}
-                      onChange={(e) => setGhostPassword(e.target.value)}
-                      className={`pr-10 ${errors.ghostPassword ? "border-destructive" : ""}`}
-                      required
-                      minLength={6}
-                      dir="ltr"
-                      autoFocus
-                    />
-                  </div>
-                  {errors.ghostPassword && (
-                    <p className="text-xs text-destructive">{errors.ghostPassword}</p>
-                  )}
+            {/* Confirm Password */}
+            <div className="space-y-1.5">
+              <label className="text-slate-300 text-[13px] font-medium">تأكيد كلمة المرور</label>
+              <div className="relative">
+                <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
+                  <Lock className="w-4 h-4 text-slate-500" />
                 </div>
+                <Input
+                  type="password" placeholder="••••••••"
+                  value={ghostConfirmPassword}
+                  onChange={(e) => setGhostConfirmPassword(e.target.value)}
+                  className={`h-12 bg-[#1a2333] border-slate-700/50 text-white placeholder:text-slate-500 rounded-xl pr-11 text-[14px] focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 ${errors.ghostConfirmPassword ? 'border-red-500/60' : ''}`}
+                  required minLength={6} dir="ltr"
+                />
+              </div>
+              {errors.ghostConfirmPassword && <p className="text-[11px] text-red-400">{errors.ghostConfirmPassword}</p>}
+            </div>
 
-                <div className="space-y-2">
-                  <Label>تأكيد كلمة المرور</Label>
-                  <div className="relative">
-                    <Lock className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      value={ghostConfirmPassword}
-                      onChange={(e) => setGhostConfirmPassword(e.target.value)}
-                      className={`pr-10 ${errors.ghostConfirmPassword ? "border-destructive" : ""}`}
-                      required
-                      minLength={6}
-                      dir="ltr"
-                    />
-                  </div>
-                  {errors.ghostConfirmPassword && (
-                    <p className="text-xs text-destructive">{errors.ghostConfirmPassword}</p>
-                  )}
-                </div>
-
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                      جاري تفعيل الحساب...
-                    </>
-                  ) : (
-                    "تفعيل الحساب"
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+            <button type="submit" disabled={loading} className="w-full h-[54px] bg-[#34d399] hover:bg-[#10b981] text-[#064e3b] text-[16px] font-bold rounded-2xl shadow-[0_4px_20px_rgba(52,211,153,0.25)] transition-all mt-2 disabled:opacity-60">
+              {loading ? 'جاري تفعيل الحساب...' : 'تفعيل الحساب'}
+            </button>
+          </form>
         </div>
       </div>
     );
   }
 
+  // ── Main Return (Phone / Login / Register steps) ──
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <img src={logo} alt="RAAN" className="w-20 h-20 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-foreground">
-            ران <span className="text-primary">RAAN</span>
-          </h1>
-        </div>
+    <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
+      <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex flex-col min-h-full px-6 pt-[7vh] pb-8">
 
-        {/* Cards Grid */}
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Rider Card */}
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="text-center pb-2">
-              <CardTitle className="text-xl font-bold text-primary mb-2">
-                تسجيل دخول الراكب
-              </CardTitle>
-              <CardTitle className="text-lg">أهلاً بك</CardTitle>
-              <CardDescription>أدخل رقم هاتفك للمتابعة</CardDescription>
-            </CardHeader>
+          {/* Logo */}
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 bg-[#111827] rounded-2xl flex items-center justify-center border border-slate-800/80 shadow-lg">
+              <img src={logo} alt="RAAN" className="w-10 h-10" />
+            </div>
+          </div>
 
-            <CardContent>
-              {/* Step 1: Phone Input */}
-              {step === "phone" && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>رقم الهاتف (WhatsApp)</Label>
-                    <div className="relative">
-                      <Phone className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="tel"
-                        placeholder="07xxxxxxxxx"
-                        value={phoneInput}
-                        onChange={(e) => setPhoneInput(e.target.value)}
-                        className={`pr-10 ${errors.phone ? "border-destructive" : ""}`}
-                        dir="ltr"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            checkPhoneNumber();
-                          }
-                        }}
-                      />
-                    </div>
-                    {errors.phone && (
-                      <p className="text-xs text-destructive">{errors.phone}</p>
-                    )}
+          {/* Title */}
+          <div className="text-center mb-8">
+            <h1 className="text-[26px] font-bold text-white mb-2 leading-tight">
+              {step === 'phone' ? <>مرحباً بك في <span className="text-emerald-400 font-extrabold">raan</span></> :
+               step === 'login' ? 'تسجيل الدخول' : 'إنشاء حساب جديد'}
+            </h1>
+          </div>
+
+          {/* ── Step: Phone ── */}
+          {step === 'phone' && (
+            <div className="flex flex-col gap-4">
+              <div className="space-y-1.5">
+                <label className="text-slate-300 text-[13px] font-medium">رقم الهاتف (WhatsApp)</label>
+                <div className="relative flex items-center bg-[#1a2333] rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-emerald-500/50 transition-shadow">
+                  <div className="absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-r border-slate-700/50 pointer-events-none z-10 shadow-[2px_0_10px_rgba(0,0,0,0.2)]">
+                    <Phone className="w-[18px] h-[18px] text-emerald-400" />
                   </div>
-
-                  <Button
-                    className="w-full"
-                    onClick={checkPhoneNumber}
-                    disabled={checkingPhone}
-                  >
-                    {checkingPhone ? (
-                      <>
-                        <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                        جاري التحقق...
-                      </>
-                    ) : (
-                      "متابعة"
-                    )}
-                  </Button>
+                  <Input
+                    type="tel" placeholder="07xxxxxxxxx"
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value)}
+                    className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 rounded-none pl-16 pr-4 text-[16px] font-medium tracking-wide focus-visible:ring-0 w-full ${errors.phone ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
+                    dir="ltr"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); checkPhoneNumber(); } }}
+                  />
                 </div>
-              )}
+                {errors.phone && <p className="text-[11px] text-red-400">{errors.phone}</p>}
+                <p className="text-[11px] text-slate-500">تأكد أن الرقم مفعل عليه واتساب</p>
+              </div>
 
-              {/* Step 2a: Login (Phone exists) */}
-              {step === "login" && (
-                <form onSubmit={handleLogin} className="space-y-4">
-                  {/* Show phone number with change option */}
-                  <div className="bg-muted/50 rounded-lg p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-primary" />
-                      <span className="font-medium" dir="ltr">
-                        {formatPhoneDisplay(phoneInput)}
-                      </span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={resetToPhoneStep}
-                      className="text-xs"
-                    >
-                      تغيير
-                    </Button>
-                  </div>
+              <button
+                onClick={checkPhoneNumber}
+                disabled={checkingPhone}
+                className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-[#064e3b] text-[16px] font-bold rounded-full mt-2 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60"
+              >
+                {checkingPhone ? 'جاري التحقق...' : 'متابعة'}
+              </button>
+            </div>
+          )}
 
-                  <div className="space-y-2">
-                    <Label>كلمة المرور</Label>
-                    <div className="relative">
-                      <Lock className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        className={`pr-10 ${errors.password ? "border-destructive" : ""}`}
-                        required
-                        minLength={6}
-                        dir="ltr"
-                        autoFocus
-                      />
-                    </div>
-                    {errors.password && (
-                      <p className="text-xs text-destructive">
-                        {errors.password}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Remember Me Toggle */}
-                  <button
-                    type="button"
-                    onClick={() => setRememberMe(!rememberMe)}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all duration-200 ${
-                      rememberMe
-                        ? "border-primary/60 bg-primary/8 text-primary"
-                        : "border-border bg-muted/30 text-muted-foreground"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-1.5 rounded-lg transition-colors ${
-                        rememberMe ? "bg-primary/15" : "bg-muted"
-                      }`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${
-                          rememberMe ? "text-primary" : "text-muted-foreground"
-                        }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                        </svg>
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-sm font-medium ${
-                          rememberMe ? "text-primary" : "text-foreground"
-                        }`}>ابقَني مسجلاً دخولي</p>
-                        <p className="text-xs text-muted-foreground">
-                          {rememberMe ? "لن تحتاج لتسجيل دخول مجدداً" : "ستُطلب كلمة المرور عند إعادة الفتح"}
-                        </p>
-                      </div>
-                    </div>
-                    {/* Toggle switch */}
-                    <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-                      rememberMe ? "bg-primary" : "bg-muted-foreground/30"
-                    }`}>
-                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${
-                        rememberMe ? "right-0.5" : "left-0.5"
-                      }`} />
-                    </div>
-                  </button>
-
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? (
-                      <>
-                        <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                        جاري تسجيل الدخول...
-                      </>
-                    ) : (
-                      "تسجيل الدخول"
-                    )}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="link"
-                    className="w-full text-muted-foreground"
-                    onClick={() => setShowPasswordReset(true)}
-                  >
-                    نسيت كلمة المرور؟
-                  </Button>
-                </form>
-              )}
-
-              {/* Step 2b: Register (New phone) */}
-              {step === "register" && (
-                <div className="space-y-4">
-                  {/* Show phone number with change option */}
-                  <div className="bg-muted/50 rounded-lg p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-primary" />
-                      <span className="font-medium" dir="ltr">
-                        {formatPhoneDisplay(phoneInput)}
-                      </span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={resetToPhoneStep}
-                      className="text-xs"
-                    >
-                      تغيير
-                    </Button>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>الاسم الكامل</Label>
-                    <div className="relative">
-                      <User className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder="أحمد محمد"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className={`pr-10 ${errors.fullName ? "border-destructive" : ""}`}
-                        required
-                        autoFocus
-                      />
-                    </div>
-                    {errors.fullName && (
-                      <p className="text-xs text-destructive">
-                        {errors.fullName}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>كلمة المرور</Label>
-                    <div className="relative">
-                      <Lock className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        value={registerPassword}
-                        onChange={(e) => setRegisterPassword(e.target.value)}
-                        className={`pr-10 ${errors.password ? "border-destructive" : ""}`}
-                        required
-                        minLength={6}
-                        dir="ltr"
-                      />
-                    </div>
-                    {errors.password && (
-                      <p className="text-xs text-destructive">
-                        {errors.password}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <span>البريد الإلكتروني</span>
-                      <span className="text-xs text-muted-foreground">
-                        (اختياري)
-                      </span>
-                    </Label>
-                    <div className="relative">
-                      <Mail className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="email"
-                        placeholder="example@email.com"
-                        value={optionalEmail}
-                        onChange={(e) => setOptionalEmail(e.target.value)}
-                        className={`pr-10 ${errors.email ? "border-destructive" : ""}`}
-                        dir="ltr"
-                      />
-                    </div>
-                    {errors.email && (
-                      <p className="text-xs text-destructive">{errors.email}</p>
-                    )}
-                  </div>
-
-                  <Button
-                    type="button"
-                    className="w-full"
-                    disabled={loading}
-                    onClick={handleRegisterSubmit}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                        جاري إنشاء الحساب...
-                      </>
-                    ) : (
-                      <>
-                        إنشاء الحساب
-                        <ArrowLeft className="ml-2 h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
+          {/* ── Step: Login ── */}
+          {step === 'login' && (
+            <form onSubmit={handleLogin} className="flex flex-col gap-4">
+              {/* Phone badge */}
+              <div className="bg-[#1a2333] rounded-xl px-4 py-3 flex items-center justify-between border border-slate-700/50">
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-emerald-400" />
+                  <span className="text-white font-medium text-[14px]" dir="ltr">{formatPhoneDisplay(phoneInput)}</span>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <button type="button" onClick={resetToPhoneStep} className="text-[12px] text-slate-400 hover:text-emerald-400 transition-colors">تغيير</button>
+              </div>
 
-          {/* Driver Card */}
-          <Card className="border-0 shadow-xl border-gray-700 bg-gray-900">
-            <CardHeader className="text-center pb-2">
-              <CardTitle className="text-white">هل أنت سائق؟</CardTitle>
-              <CardDescription className="text-gray-300">
-                انضم إلى شبكة السائقين لدينا
-              </CardDescription>
-            </CardHeader>
+              {/* Password */}
+              <div className="space-y-1.5">
+                <label className="text-slate-300 text-[13px] font-medium">كلمة المرور</label>
+                <div className="relative">
+                  <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
+                    <Lock className="w-[18px] h-[18px] text-emerald-400" />
+                  </div>
+                  <Input
+                    type="password" placeholder="••••••••"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className={`h-14 bg-[#1a2333] border-0 text-white placeholder:text-slate-400 rounded-xl pr-12 pl-4 text-[15px] focus-visible:ring-1 focus-visible:ring-emerald-500/50 ${errors.password ? 'ring-1 ring-red-500/50' : ''}`}
+                    required minLength={6} dir="ltr" autoFocus
+                  />
+                </div>
+                {errors.password && <p className="text-[11px] text-red-400">{errors.password}</p>}
+              </div>
 
-            <CardContent className="flex items-center justify-center min-h-[200px]">
-              <Link to="/driver/auth" className="w-full">
-                <Button
-                  variant="outline"
-                  className="w-full text-white border-white hover:bg-white hover:text-gray-900 h-12 text-lg font-medium"
-                >
-                  تسجيل دخول السائقين
-                  <ArrowLeft className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
+              {/* Remember Me */}
+              <button
+                type="button"
+                onClick={() => setRememberMe(!rememberMe)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all duration-200 ${
+                  rememberMe ? 'border-emerald-500/40 bg-emerald-500/8 text-emerald-400' : 'border-slate-700/50 bg-[#1a2333] text-slate-400'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`p-1.5 rounded-lg transition-colors ${rememberMe ? 'bg-emerald-500/15' : 'bg-slate-800'}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${rememberMe ? 'text-emerald-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium">ابقَني مسجلاً دخولي</p>
+                    <p className="text-xs text-slate-500">{rememberMe ? 'لن تحتاج لتسجيل دخول مجدداً' : 'ستُطلب كلمة المرور عند إعادة الفتح'}</p>
+                  </div>
+                </div>
+                <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${rememberMe ? 'bg-emerald-500' : 'bg-slate-700'}`}>
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${rememberMe ? 'right-0.5' : 'left-0.5'}`} />
+                </div>
+              </button>
 
-        {/* Back to home link */}
-        <div className="text-center mt-6">
-          <Link
-            to="/"
-            className="text-sm text-muted-foreground hover:text-primary transition-colors"
-          >
-            العودة للصفحة الرئيسية
-          </Link>
+              {/* Forgot password */}
+              <button type="button" onClick={() => setShowPasswordReset(true)} className="text-start text-[13px] text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
+                نسيت كلمة المرور؟
+              </button>
+
+              <button type="submit" disabled={loading} className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-[#064e3b] text-[16px] font-bold rounded-full mt-1 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60">
+                {loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
+              </button>
+            </form>
+          )}
+
+          {/* ── Step: Register ── */}
+          {step === 'register' && (
+            <div className="flex flex-col gap-4">
+              {/* Phone badge */}
+              <div className="bg-[#1a2333] rounded-xl px-4 py-3 flex items-center justify-between border border-slate-700/50">
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-emerald-400" />
+                  <span className="text-white font-medium text-[14px]" dir="ltr">{formatPhoneDisplay(phoneInput)}</span>
+                </div>
+                <button type="button" onClick={resetToPhoneStep} className="text-[12px] text-slate-400 hover:text-emerald-400 transition-colors">تغيير</button>
+              </div>
+
+              {/* Full Name */}
+              <div className="space-y-1.5">
+                <label className="text-slate-300 text-[13px] font-medium">الاسم الكامل</label>
+                <div className="relative">
+                  <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
+                    <User className="w-[18px] h-[18px] text-emerald-400" />
+                  </div>
+                  <Input
+                    type="text" placeholder="أحمد محمد"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className={`h-14 bg-[#1a2333] border-0 text-white placeholder:text-slate-400 rounded-xl pr-12 pl-4 text-[15px] focus-visible:ring-1 focus-visible:ring-emerald-500/50 ${errors.fullName ? 'ring-1 ring-red-500/50' : ''}`}
+                    required autoFocus
+                  />
+                </div>
+                {errors.fullName && <p className="text-[11px] text-red-400">{errors.fullName}</p>}
+              </div>
+
+              {/* Password */}
+              <div className="space-y-1.5">
+                <label className="text-slate-300 text-[13px] font-medium">كلمة المرور</label>
+                <div className="relative">
+                  <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
+                    <Lock className="w-[18px] h-[18px] text-emerald-400" />
+                  </div>
+                  <Input
+                    type="password" placeholder="••••••••"
+                    value={registerPassword}
+                    onChange={(e) => setRegisterPassword(e.target.value)}
+                    className={`h-14 bg-[#1a2333] border-0 text-white placeholder:text-slate-400 rounded-xl pr-12 pl-4 text-[15px] focus-visible:ring-1 focus-visible:ring-emerald-500/50 ${errors.password ? 'ring-1 ring-red-500/50' : ''}`}
+                    required minLength={6} dir="ltr"
+                  />
+                </div>
+                {errors.password && <p className="text-[11px] text-red-400">{errors.password}</p>}
+              </div>
+
+              {/* Optional Email */}
+              <div className="space-y-1.5">
+                <label className="text-slate-300 text-[13px] font-medium">البريد الإلكتروني <span className="text-slate-500 font-normal">(اختياري)</span></label>
+                <div className="relative">
+                  <div className="absolute left-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
+                    <Mail className="w-[18px] h-[18px] text-slate-500" />
+                  </div>
+                  <Input
+                    type="email" placeholder="example@email.com"
+                    value={optionalEmail}
+                    onChange={(e) => setOptionalEmail(e.target.value)}
+                    className={`h-14 bg-[#1a2333] border-0 text-white placeholder:text-slate-400 rounded-xl pr-4 pl-12 text-[14px] focus-visible:ring-1 focus-visible:ring-emerald-500/50 ${errors.email ? 'ring-1 ring-red-500/50' : ''}`}
+                    dir="ltr"
+                  />
+                </div>
+                {errors.email && <p className="text-[11px] text-red-400">{errors.email}</p>}
+              </div>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleRegisterSubmit}
+                className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-[#064e3b] text-[16px] font-bold rounded-full mt-2 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60"
+              >
+                {loading ? 'جاري إنشاء الحساب...' : 'إنشاء الحساب'}
+              </button>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="mt-auto pt-8 pb-2 text-center">
+            <p className="text-slate-500 text-[11px]">
+              بالمتابعة، أنت توافق على <span className="border-b border-slate-600 pb-0.5">شروط الخدمة</span> و<span className="border-b border-slate-600 pb-0.5">سياسة الخصوصية</span>
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Password Reset Dialog */}
       <PasswordResetDialog
         open={showPasswordReset}
         onOpenChange={setShowPasswordReset}

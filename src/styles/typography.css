@@ -1,9 +1,9 @@
 /* ران RAAN - Arabic Typography */
-/* Primary font: IBM Plex Sans Arabic (loaded in index.html + index.css) */
+/* Primary font: Graphik Arabic (with IBM Plex Sans Arabic fallback) */
 
 /* Body typography */
 body {
-  font-family: "IBM Plex Sans Arabic", sans-serif;
+  font-family: "Graphik Arabic", "IBM Plex Sans Arabic", sans-serif;
   font-size: 16px;
   line-height: 1.6;
   letter-spacing: 0.3px;
@@ -16,7 +16,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: "IBM Plex Sans Arabic", sans-serif;
+  font-family: "Graphik Arabic", "IBM Plex Sans Arabic", sans-serif;
   font-weight: 700;
   line-height: 1.4;
   margin-bottom: 1rem;
@@ -80,17 +80,17 @@ p {
 }
 
 .text-arabic {
-  font-family: "IBM Plex Sans Arabic", sans-serif;
+  font-family: "Graphik Arabic", "IBM Plex Sans Arabic", sans-serif;
   line-height: 1.8;
 }
 
 .text-english {
-  font-family: "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
+  font-family: "Graphik Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
   line-height: 1.6;
 }
 
 .text-kurdi {
-  font-family: "IBM Plex Sans Arabic", sans-serif;
+  font-family: "Graphik Arabic", "IBM Plex Sans Arabic", sans-serif;
   line-height: 1.8;
 }
 

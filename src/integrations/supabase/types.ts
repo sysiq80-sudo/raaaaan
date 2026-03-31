@@ -944,6 +944,9 @@ export type Database = {
       driver_notifications: {
         Row: {
           body: string
+          campaign_id: string | null
+          action_url: string | null
+          image_url: string | null
           created_at: string | null
           data: Json | null
           driver_id: string
@@ -954,6 +957,9 @@ export type Database = {
         }
         Insert: {
           body: string
+          campaign_id?: string | null
+          action_url?: string | null
+          image_url?: string | null
           created_at?: string | null
           data?: Json | null
           driver_id: string
@@ -964,6 +970,9 @@ export type Database = {
         }
         Update: {
           body?: string
+          campaign_id?: string | null
+          action_url?: string | null
+          image_url?: string | null
           created_at?: string | null
           data?: Json | null
           driver_id?: string
@@ -1002,6 +1011,171 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_campaigns: {
+        Row: {
+          id: string
+          title: string
+          body: string
+          image_url: string | null
+          target_type: string
+          target_user_id: string | null
+          target_group_id: string | null
+          target_filters: Json | null
+          notification_type: string
+          priority: string
+          scheduled_at: string | null
+          sent_at: string | null
+          status: string
+          total_recipients: number | null
+          sent_count: number | null
+          failed_count: number | null
+          read_count: number | null
+          action_url: string | null
+          extra_data: Json | null
+          created_by: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          title: string
+          body: string
+          image_url?: string | null
+          target_type: string
+          target_user_id?: string | null
+          target_group_id?: string | null
+          target_filters?: Json | null
+          notification_type?: string
+          priority?: string
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: string
+          total_recipients?: number | null
+          sent_count?: number | null
+          failed_count?: number | null
+          read_count?: number | null
+          action_url?: string | null
+          extra_data?: Json | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          title?: string
+          body?: string
+          image_url?: string | null
+          target_type?: string
+          target_user_id?: string | null
+          target_group_id?: string | null
+          target_filters?: Json | null
+          notification_type?: string
+          priority?: string
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: string
+          total_recipients?: number | null
+          sent_count?: number | null
+          failed_count?: number | null
+          read_count?: number | null
+          action_url?: string | null
+          extra_data?: Json | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      notification_groups: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          group_type: string
+          is_dynamic: boolean | null
+          filters: Json | null
+          member_count: number | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          group_type?: string
+          is_dynamic?: boolean | null
+          filters?: Json | null
+          member_count?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          group_type?: string
+          is_dynamic?: boolean | null
+          filters?: Json | null
+          member_count?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      notification_group_members: {
+        Row: {
+          id: string
+          group_id: string
+          user_id: string
+          added_at: string | null
+        }
+        Insert: {
+          id?: string
+          group_id: string
+          user_id: string
+          added_at?: string | null
+        }
+        Update: {
+          id?: string
+          group_id?: string
+          user_id?: string
+          added_at?: string | null
+        }
+        Relationships: []
+      }
+      notification_auto_settings: {
+        Row: {
+          id: string
+          event_key: string
+          title_template: string
+          body_template: string
+          is_enabled: boolean | null
+          target_role: string
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          event_key: string
+          title_template: string
+          body_template: string
+          is_enabled?: boolean | null
+          target_role?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          event_key?: string
+          title_template?: string
+          body_template?: string
+          is_enabled?: boolean | null
+          target_role?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       driver_registration_settings: {
         Row: {
@@ -3516,6 +3690,9 @@ export type Database = {
       rider_notifications: {
         Row: {
           body: string
+          campaign_id: string | null
+          action_url: string | null
+          image_url: string | null
           created_at: string | null
           data: Json | null
           id: string
@@ -3527,6 +3704,9 @@ export type Database = {
         }
         Insert: {
           body: string
+          campaign_id?: string | null
+          action_url?: string | null
+          image_url?: string | null
           created_at?: string | null
           data?: Json | null
           id?: string
@@ -3538,6 +3718,9 @@ export type Database = {
         }
         Update: {
           body?: string
+          campaign_id?: string | null
+          action_url?: string | null
+          image_url?: string | null
           created_at?: string | null
           data?: Json | null
           id?: string

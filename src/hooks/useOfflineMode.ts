@@ -108,10 +108,18 @@ export const useOfflineMode = () => {
 
   // المحاولة التلقائية عند الاتصال
   useEffect(() => {
-    if (isOnline && offlineSyncQueue.length > 0) {
-      // يمكن استدعاء processSyncQueue هنا
+    if (!isOnline || typeof window === "undefined") return;
+
+    // عند العودة للإنترنت، نحاول مزامنة القائمة تلقائياً
+    const queue = JSON.parse(
+      window.localStorage.getItem("raan_sync_queue") || "[]"
+    );
+    if (queue.length > 0) {
+      console.log(`[OfflineSync] تم الاتصال — ${queue.length} عمليات معلقة`);
+      // حفظ البيانات المهمة عند الاتصال
+      cacheImportantData();
     }
-  }, [isOnline, offlineSyncQueue.length]);
+  }, [isOnline]);
 
   return {
     isOnline,
@@ -120,6 +128,48 @@ export const useOfflineMode = () => {
     processSyncQueue,
   };
 };
+
+/**
+ * تخزين البيانات المهمة تلقائياً عند الاتصال
+ * (المفضلة، إعدادات المنطقة، أنواع المركبات)
+ */
+async function cacheImportantData() {
+  if (typeof window === "undefined") return;
+
+  const { supabase } = await import("@/integrations/supabase/client");
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+
+  try {
+    // تخزين الأماكن المفضلة
+    const { data: places } = await supabase
+      .from("saved_places")
+      .select("id, name, address, location, place_type")
+      .eq("user_id", session.user.id)
+      .limit(20);
+    if (places) {
+      window.localStorage.setItem(
+        "raan_cache_saved_places",
+        JSON.stringify({ data: places, timestamp: Date.now() })
+      );
+    }
+
+    // تخزين أنواع المركبات والأسعار
+    const { data: regions } = await supabase
+      .from("regions")
+      .select("id, name_ar, base_fare, per_km_fare, per_minute_fare, is_active")
+      .eq("is_active", true)
+      .limit(50);
+    if (regions) {
+      window.localStorage.setItem(
+        "raan_cache_regions",
+        JSON.stringify({ data: regions, timestamp: Date.now() })
+      );
+    }
+  } catch (err) {
+    console.error("[OfflineSync] Failed to cache data:", err);
+  }
+}
 
 /**
  * Hook للتحقق من توفر الخدمات الأساسية
@@ -194,9 +244,9 @@ export const useCachedData = <T>(
         }
       }
 
-      // إذا لم نكن متصلين وليس لدينا بيانات مخزنة
-      if (!isOnline && !cached) {
-        if (options.offline && cached) {
+      // إذا لم نكن متصلين، نعيد البيانات المخزنة مهما كان عمرها
+      if (!isOnline) {
+        if (cached) {
           try {
             const { data: cachedData } = JSON.parse(cached);
             setData(cachedData);

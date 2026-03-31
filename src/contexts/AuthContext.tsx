@@ -7,6 +7,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { User, AuthChangeEvent } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { setSentryUser, clearSentryUser } from "@/lib/sentry";
+import { isNativePlatform } from "@/lib/capacitorBridge";
 
 export type UserRole = "rider" | "driver" | "admin" | null;
 export type UserType = "rider" | "driver" | "admin";
@@ -73,10 +75,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ✅ تم نقل قراءة حالة onboarding إلى useState initializer لمنع الوميض
 
-  // Check location permission
+  // Check location permission — ✅ تخطي فحص الموقع في لوحة تحكم الأدمن
   useEffect(() => {
     const checkLocation = async () => {
       if (!user) return;
+      
+      // ✅ الأدمن لا يحتاج صلاحية الموقع الجغرافي
+      const isAdminPanel = window.location.pathname.startsWith("/admin");
+      if (isAdminPanel) {
+        console.log("[AuthContext] Skipping geolocation check for admin panel");
+        return;
+      }
       
       try {
         const permission = await navigator.permissions.query({ name: "geolocation" });
@@ -186,19 +195,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!isMounted) return;
 
       if (session?.user) {
-        // تحقق من خيار "ابقَني مسجلاً"
-        const rememberMe = localStorage.getItem("raan_remember_me");
-        const sessionAlive = sessionStorage.getItem("raan_session_alive");
-        if (
-          rememberMe === "false" &&
-          sessionAlive !== "1" &&
-          (source === "INITIAL_SESSION" || source === "getSession")
-        ) {
-          // المستخدم لم يختر التذكر والجلسة الحالية من تشغيل سابق — تسجيل خروج تلقائي
-          console.log("[AuthContext] Session expired (remember-me=false, browser restarted) — signing out");
-          await supabase.auth.signOut();
-          if (isMounted) setIsLoading(false);
-          return;
+        // تحقق من خيار "ابقَني مسجلاً" — فقط على الويب
+        // على Capacitor يتم الاحتفاظ بالجلسة دائماً لأن sessionStorage يُمسح عند إعادة تشغيل التطبيق
+        if (!isNativePlatform) {
+          const rememberMe = localStorage.getItem("raan_remember_me");
+          const sessionAlive = sessionStorage.getItem("raan_session_alive");
+          if (
+            rememberMe === "false" &&
+            sessionAlive !== "1" &&
+            (source === "INITIAL_SESSION" || source === "getSession")
+          ) {
+            console.log("[AuthContext] Session expired (remember-me=false, browser restarted) — signing out");
+            await supabase.auth.signOut();
+            if (isMounted) setIsLoading(false);
+            return;
+          }
         }
 
         console.log(`[AuthContext] Session found via ${source}:`, session.user.id);
@@ -209,21 +220,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // 1. ابحث عن الدور المخزن (cache أو raan_current_role)
         const cacheKey = `raan_role_${session.user.id}`;
         const cachedRole = (localStorage.getItem(cacheKey) || localStorage.getItem("raan_current_role")) as UserRole;
-        const immediateRole: UserRole = cachedRole || "rider";
+
+        // ✅ في التطبيقات المستقلة — فرض الدور حسب نوع التطبيق فوراً
+        const appMode = typeof __APP_MODE__ !== 'undefined' ? __APP_MODE__ : null;
+        const immediateRole: UserRole = appMode === 'rider' ? 'rider' : appMode === 'driver' ? 'driver' : (cachedRole || "rider");
 
         if (isMounted) {
           console.log(`[AuthContext] Immediate role (cache): ${immediateRole}`);
           setUserRole(immediateRole);
+          setSentryUser({ id: session.user.id, email: session.user.email, role: immediateRole });
           setIsLoading(false); // أوقف التحميل فوراً — بدون انتظار الشبكة
         }
 
         // 2. تحقق من الدور الحقيقي في الخلفية (non-blocking)
         detectUserRole(session.user.id).then((freshRole) => {
           if (!isMounted || !freshRole) return;
-          localStorage.setItem(cacheKey, freshRole);
-          if (freshRole !== immediateRole) {
-            console.log(`[AuthContext] Role corrected in background: ${immediateRole} → ${freshRole}`);
-            setUserRole(freshRole);
+
+          // ✅ في التطبيقات المستقلة (APK) — فرض الدور حسب نوع التطبيق
+          const appMode = typeof __APP_MODE__ !== 'undefined' ? __APP_MODE__ : null;
+          const effectiveRole = appMode === 'rider' ? 'rider' : appMode === 'driver' ? 'driver' : freshRole;
+
+          localStorage.setItem(cacheKey, effectiveRole);
+          if (effectiveRole !== immediateRole) {
+            console.log(`[AuthContext] Role corrected in background: ${immediateRole} → ${effectiveRole}`);
+            setUserRole(effectiveRole);
+            setSentryUser({ id: session.user.id, email: session.user.email, role: effectiveRole });
           }
         }).catch((err) => {
           console.error("[AuthContext] Background role detection error:", err);
@@ -237,6 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log("[AuthContext] User signed out, clearing state");
           setUser(null);
           setUserRole(null);
+          clearSentryUser();
           // حذف role cache للمستخدم الحالي
           const uid = userRef.current?.id;
           if (uid) localStorage.removeItem(`raan_role_${uid}`);
