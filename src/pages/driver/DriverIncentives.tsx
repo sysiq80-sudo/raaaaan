@@ -1,13 +1,9 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Gift, Trophy, Target, Clock, CheckCircle2, Star } from "lucide-react";
+import { Gift, Trophy, Target, Clock, CheckCircle2, Star, Zap, Loader2 } from "lucide-react";
 import DriverPageHeader from "@/components/driver/DriverPageHeader";
+import SplashScreen from "@/components/common/SplashScreen";
+import { useDriverSession } from "@/hooks/useDriverSession";
 
 interface IncentiveProgress {
   incentive_id: string;
@@ -23,266 +19,221 @@ interface IncentiveProgress {
 }
 
 const DriverIncentives = () => {
-  const navigate = useNavigate();
+  const { driver, loading: authLoading } = useDriverSession();
   const [loading, setLoading] = useState(true);
-  const [driverId, setDriverId] = useState<string | null>(null);
   const [incentives, setIncentives] = useState<IncentiveProgress[]>([]);
   const [totalEarned, setTotalEarned] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
 
+  // إزالة driver-mode لتفعيل السكرول
   useEffect(() => {
-    fetchDriverId();
+    const had = document.body.classList.contains('driver-mode');
+    document.body.classList.remove('driver-mode');
+    document.body.style.overflow = 'auto';
+    document.body.style.position = 'static';
+    return () => {
+      if (had) document.body.classList.add('driver-mode');
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+    };
   }, []);
 
-  useEffect(() => {
-    if (driverId) {
-      fetchIncentives();
-    }
-  }, [driverId]);
-
-  const fetchDriverId = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      navigate("/driver/auth");
-      return;
-    }
-
-    const { data: driver } = await supabase
-      .from("drivers")
-      .select("id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (driver) {
-      setDriverId(driver.id);
-    }
-  };
-
-  const fetchIncentives = async () => {
-    if (!driverId) return;
-
+  const fetchIncentives = useCallback(async () => {
+    if (!driver) return;
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
     try {
-      // جلب تقدم الحوافز
-      const { data: progressData, error: progressError } = await supabase
-        .rpc("get_driver_incentive_progress", { p_driver_id: driverId });
-
-      if (progressError) throw progressError;
-      setIncentives(progressData || []);
-
-      // جلب إجمالي المكافآت المكتسبة
-      const { data: claimsData } = await supabase
-        .from("driver_incentive_claims")
-        .select("bonus_earned")
-        .eq("driver_id", driverId);
-
-      const total = (claimsData || []).reduce((sum, c) => sum + c.bonus_earned, 0);
+      const [progressRes, claimsRes] = await Promise.all([
+        supabase.rpc("get_driver_incentive_progress", { p_driver_id: driver.driverId }),
+        supabase.from("driver_incentive_claims").select("bonus_earned").eq("driver_id" as any, driver.driverId),
+      ]);
+      if (progressRes.data) setIncentives(progressRes.data as any);
+      const total = ((claimsRes.data ?? []) as any[]).reduce((s: number, c: any) => s + (c.bonus_earned ?? 0), 0);
       setTotalEarned(total);
-    } catch (error) {
-      console.error("Error fetching incentives:", error);
+    } catch (err) {
+      console.error("[DriverIncentives]", err);
     } finally {
       setLoading(false);
     }
+  }, [driver]);
+
+  useEffect(() => {
+    if (driver) fetchIncentives();
+    return () => { abortRef.current?.abort(); };
+  }, [driver, fetchIncentives]);
+
+  const periodConfig: Record<string, { label: string; icon: React.ReactNode; color: string; glow: string }> = {
+    daily:   { label: "يومي",    icon: <Clock className="w-4 h-4" />,  color: "text-blue-400",   glow: "bg-blue-500/10 border-blue-500/20" },
+    weekly:  { label: "أسبوعي", icon: <Target className="w-4 h-4" />, color: "text-purple-400", glow: "bg-purple-500/10 border-purple-500/20" },
+    monthly: { label: "شهري",   icon: <Trophy className="w-4 h-4" />, color: "text-amber-400",  glow: "bg-amber-500/10 border-amber-500/20" },
   };
 
-  const getPeriodLabel = (period: string) => {
-    switch (period) {
-      case "daily": return "يومي";
-      case "weekly": return "أسبوعي";
-      case "monthly": return "شهري";
-      default: return period;
-    }
+  const periodBar: Record<string, string> = {
+    daily:   "bg-blue-500",
+    weekly:  "bg-purple-500",
+    monthly: "bg-amber-500",
   };
 
-  const getPeriodIcon = (period: string) => {
-    switch (period) {
-      case "daily": return <Clock className="h-4 w-4" />;
-      case "weekly": return <Target className="h-4 w-4" />;
-      case "monthly": return <Trophy className="h-4 w-4" />;
-      default: return <Gift className="h-4 w-4" />;
-    }
-  };
-
-  const getPeriodColor = (period: string) => {
-    switch (period) {
-      case "daily": return "bg-blue-500";
-      case "weekly": return "bg-purple-500";
-      case "monthly": return "bg-amber-500";
-      default: return "bg-primary";
-    }
-  };
-
-  const getProgressPercent = (completed: number, required: number) => {
-    return Math.min((completed / required) * 100, 100);
-  };
-
-  if (loading) {
+  if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="bg-primary text-primary-foreground p-4">
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-10 w-10 rounded-full bg-primary-foreground/20" />
-            <Skeleton className="h-6 w-32 bg-primary-foreground/20" />
-          </div>
-        </div>
-        <div className="p-4 space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-32 w-full" />
+      <div className="min-h-screen bg-[#0b1326]" dir="rtl">
+        <DriverPageHeader title="المكافآت والحوافز" />
+        <div className="pt-20 px-5 space-y-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="bg-[#171f33] rounded-2xl h-32 animate-pulse border border-slate-700/30" />
           ))}
         </div>
       </div>
     );
   }
 
-  const dailyIncentives = incentives.filter(i => i.period === "daily");
-  const weeklyIncentives = incentives.filter(i => i.period === "weekly");
+  const dailyIncentives   = incentives.filter(i => i.period === "daily");
+  const weeklyIncentives  = incentives.filter(i => i.period === "weekly");
   const monthlyIncentives = incentives.filter(i => i.period === "monthly");
+  const groups = [
+    { key: "daily",   list: dailyIncentives,   label: "الحوافز اليومية",   icon: <Clock className="w-5 h-5 text-blue-400" /> },
+    { key: "weekly",  list: weeklyIncentives,  label: "الحوافز الأسبوعية", icon: <Target className="w-5 h-5 text-purple-400" /> },
+    { key: "monthly", list: monthlyIncentives, label: "الحوافز الشهرية",   icon: <Trophy className="w-5 h-5 text-amber-400" /> },
+  ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#0b1326] pb-8 overflow-y-auto" dir="rtl">
       <DriverPageHeader title="المكافآت والحوافز" />
 
-      {/* Hero Card */}
-      <div className="pt-20 px-4 pb-2">
-        <div className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground p-6 rounded-2xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm opacity-80">إجمالي المكافآت المكتسبة</p>
-              <p className="text-3xl font-bold">{totalEarned.toLocaleString()} د.ع</p>
-            </div>
-            <div className="p-3 rounded-full bg-primary-foreground/20">
-              <Trophy className="h-8 w-8" />
-            </div>
-          </div>
-        </div>
+      {/* خلفية ديكورية */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-amber-500/5 blur-[120px]" />
+        <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-[#5bdda6]/3 blur-[100px]" />
       </div>
 
-      <div className="p-4 space-y-6">
-        {/* الحوافز اليومية */}
-        {dailyIncentives.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Clock className="h-5 w-5 text-blue-500" />
-              <h2 className="font-bold text-lg">الحوافز اليومية</h2>
-            </div>
-            <div className="space-y-3">
-              {dailyIncentives.map((incentive) => (
-                <IncentiveCard key={incentive.incentive_id} incentive={incentive} />
-              ))}
-            </div>
-          </div>
-        )}
+      <div className="relative z-10 pt-[calc(3.5rem+env(safe-area-inset-top)+1rem)] px-5 space-y-4">
+        <div className="max-w-lg mx-auto space-y-4">
 
-        {/* الحوافز الأسبوعية */}
-        {weeklyIncentives.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Target className="h-5 w-5 text-purple-500" />
-              <h2 className="font-bold text-lg">الحوافز الأسبوعية</h2>
-            </div>
-            <div className="space-y-3">
-              {weeklyIncentives.map((incentive) => (
-                <IncentiveCard key={incentive.incentive_id} incentive={incentive} />
-              ))}
+          {/* Hero Card — إجمالي المكافآت */}
+          <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+            <div className="h-1 bg-gradient-to-r from-transparent via-amber-400/50 to-transparent" />
+            <div className="p-5">
+              <div className="flex items-center justify-between">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.15)] flex-shrink-0">
+                  <Trophy className="w-7 h-7 text-amber-400" />
+                </div>
+                <div className="text-right">
+                  <p className="text-slate-500 text-xs font-medium mb-1">إجمالي المكافآت المكتسبة</p>
+                  <div className="flex items-baseline gap-1.5 justify-end">
+                    <p className="text-4xl font-black text-white tracking-tight tabular-nums">
+                      {totalEarned.toLocaleString()}
+                    </p>
+                    <p className="text-amber-400 text-sm font-semibold">د.ع</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        )}
 
-        {/* الحوافز الشهرية */}
-        {monthlyIncentives.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Trophy className="h-5 w-5 text-amber-500" />
-              <h2 className="font-bold text-lg">الحوافز الشهرية</h2>
-            </div>
-            <div className="space-y-3">
-              {monthlyIncentives.map((incentive) => (
-                <IncentiveCard key={incentive.incentive_id} incentive={incentive} />
-              ))}
-            </div>
-          </div>
-        )}
+          {/* مجموعات الحوافز */}
+          {groups.map(group => group.list.length > 0 && (
+            <div key={group.key} className="space-y-3">
+              {/* عنوان القسم */}
+              <div className="flex items-center gap-2.5">
+                {group.icon}
+                <h2 className="font-bold text-white text-sm">{group.label}</h2>
+                <div className="flex-1 h-px bg-slate-700/50" />
+              </div>
 
-        {incentives.length === 0 && (
-          <div className="text-center py-12">
-            <Gift className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground">لا توجد حوافز متاحة حالياً</p>
-          </div>
-        )}
+              {/* كاردات الحوافز */}
+              {group.list.map(incentive => {
+                const progress = Math.min((incentive.rides_completed / incentive.rides_required) * 100, 100);
+                const remaining = Math.max(incentive.rides_required - incentive.rides_completed, 0);
+                const cfg = periodConfig[incentive.period] || periodConfig.daily;
+                const bar = periodBar[incentive.period] || "bg-[#5bdda6]";
+
+                return (
+                  <div
+                    key={incentive.incentive_id}
+                    className={`bg-[#171f33] rounded-2xl border p-5 shadow-[0_4px_20px_rgba(0,0,0,0.2)] ${
+                      incentive.is_claimed ? "border-emerald-500/30" : "border-slate-700/30"
+                    }`}
+                  >
+                    {/* رأس الكارد */}
+                    <div className="flex items-start justify-between mb-4">
+                      {/* القيمة + الوحدة */}
+                      <div className="text-left">
+                        <span className="text-xl font-black text-white tabular-nums">{incentive.bonus_amount.toLocaleString()}</span>
+                        <span className="text-slate-500 text-xs font-medium mr-1">د.ع</span>
+                      </div>
+
+                      {/* الاسم + الشارة */}
+                      <div className="text-right flex-1 mr-3">
+                        <div className="flex items-center gap-2 justify-end mb-1">
+                          {incentive.is_claimed && (
+                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                              ✓ تم الحصول عليها
+                            </span>
+                          )}
+                          <h3 className="font-bold text-white text-sm">{incentive.name}</h3>
+                        </div>
+                        {incentive.description && (
+                          <p className="text-xs text-slate-500">{incentive.description}</p>
+                        )}
+                      </div>
+
+                      {/* أيقونة النوع */}
+                      <div className={`w-9 h-9 rounded-xl border flex items-center justify-center flex-shrink-0 ${cfg.glow}`}>
+                        <span className={cfg.color}>{cfg.icon}</span>
+                      </div>
+                    </div>
+
+                    {/* شريط التقدم */}
+                    {!incentive.is_claimed && (
+                      <>
+                        <div className="h-2 bg-[#0b1326] rounded-full overflow-hidden border border-slate-800/50 mb-2">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${bar}`}
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          {remaining > 0 ? (
+                            <span className="text-slate-500">متبقي <span className="text-white font-bold">{remaining}</span> رحلات</span>
+                          ) : (
+                            <span className="text-[#5bdda6] font-bold flex items-center gap-1">
+                              <Star className="w-3.5 h-3.5" /> مكتمل!
+                            </span>
+                          )}
+                          <span className="text-slate-500 tabular-nums">
+                            {incentive.rides_completed} / {incentive.rides_required} رحلة
+                          </span>
+                        </div>
+                      </>
+                    )}
+
+                    {/* حالة مكتمل */}
+                    {incentive.is_claimed && (
+                      <div className="flex items-center gap-2 text-emerald-400 text-xs">
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                        <span>تمت إضافة المكافأة لمحفظتك</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+
+          {/* حالة فراغ */}
+          {incentives.length === 0 && (
+            <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 p-10 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-[#0b1326] border border-slate-700/50 flex items-center justify-center mx-auto mb-4">
+                <Gift className="w-8 h-8 text-slate-600" />
+              </div>
+              <p className="text-slate-500 font-medium text-sm">لا توجد حوافز متاحة حالياً</p>
+              <p className="text-slate-600 text-xs mt-1">تابع التحديثات لعروض جديدة</p>
+            </div>
+          )}
+
+        </div>
       </div>
     </div>
-  );
-};
-
-const IncentiveCard = ({ incentive }: { incentive: IncentiveProgress }) => {
-  const progress = Math.min((incentive.rides_completed / incentive.rides_required) * 100, 100);
-  const remaining = Math.max(incentive.rides_required - incentive.rides_completed, 0);
-
-  const getPeriodColor = (period: string) => {
-    switch (period) {
-      case "daily": return "bg-blue-500";
-      case "weekly": return "bg-purple-500";
-      case "monthly": return "bg-amber-500";
-      default: return "bg-primary";
-    }
-  };
-
-  return (
-    <Card className={`overflow-hidden ${incentive.is_claimed ? "border-green-500/50 bg-green-50/50 dark:bg-green-950/20" : ""}`}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-bold">{incentive.name}</h3>
-              {incentive.is_claimed && (
-                <Badge className="bg-green-500 text-white">
-                  <CheckCircle2 className="h-3 w-3 ml-1" />
-                  تم الحصول عليها
-                </Badge>
-              )}
-            </div>
-            {incentive.description && (
-              <p className="text-sm text-muted-foreground">{incentive.description}</p>
-            )}
-          </div>
-          <div className="text-left">
-            <p className="text-lg font-bold text-green-600">{incentive.bonus_amount.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">د.ع</p>
-          </div>
-        </div>
-
-        {!incentive.is_claimed && (
-          <>
-            <div className="mb-2">
-              <Progress 
-                value={progress} 
-                className="h-3"
-              />
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
-                {incentive.rides_completed} / {incentive.rides_required} رحلة
-              </span>
-              {remaining > 0 ? (
-                <span className="text-primary font-medium">
-                  متبقي {remaining} رحلات
-                </span>
-              ) : (
-                <span className="text-green-600 font-medium flex items-center gap-1">
-                  <Star className="h-4 w-4" />
-                  مكتمل!
-                </span>
-              )}
-            </div>
-          </>
-        )}
-
-        {incentive.is_claimed && (
-          <div className="flex items-center gap-2 text-green-600 text-sm">
-            <CheckCircle2 className="h-4 w-4" />
-            <span>تمت إضافة المكافأة لمحفظتك</span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 };
 

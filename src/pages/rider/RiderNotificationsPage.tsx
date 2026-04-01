@@ -208,27 +208,27 @@ const RiderNotificationsPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground" dir="rtl">
+    <div className="min-h-screen transition-colors duration-300" style={{ background: 'var(--raan-bg)', color: 'var(--raan-text)' }} dir="rtl">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-black/60 backdrop-blur-xl border-b border-white/5 pt-[env(safe-area-inset-top)]">
+      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl pt-[env(safe-area-inset-top)] transition-colors duration-300" style={{ background: 'var(--raan-bg)', borderBottom: '1px solid var(--raan-border)' }}>
         <div className="flex items-center justify-between h-14 px-4">
           <div />
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate("/rider")}
-              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 active:scale-90 transition-all"
+              className="p-1.5 rounded-xl bg-[#5bdda6]/10 border border-[#5bdda6]/20 hover:bg-[#5bdda6]/20 active:scale-90 transition-all"
               aria-label="رجوع"
             >
-              <ArrowRight className="w-5 h-5 text-white" />
+              <ArrowRight className="w-4 h-4 text-[#5bdda6]" />
             </button>
-            <img src={logo} alt="RAAN" className="w-6 h-6 rounded-md" />
+            <img src={logo} alt="RAAN" className="w-8 h-8 rounded-xl shadow-[0_0_10px_rgba(91,221,166,0.25)]" />
             <span className="font-bold text-white text-sm">الإشعارات</span>
           </div>
           {unreadCount > 0 ? (
             <Button
               variant="ghost"
               size="sm"
-              className="text-white/70 text-xs h-8"
+              className="text-[#5bdda6] text-xs h-8 hover:bg-[#5bdda6]/10"
               onClick={markAllAsRead}
               disabled={actionLoading === "all-read"}
             >
@@ -251,8 +251,8 @@ const RiderNotificationsPage = () => {
               className={cn(
                 "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all",
                 filter === f.key
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  ? "bg-[#5bdda6] text-[#0b1326] font-bold"
+                  : "bg-[#171f33] text-slate-400 border border-slate-700/40 hover:text-white"
               )}
             >
               {f.label}
@@ -273,7 +273,7 @@ const RiderNotificationsPage = () => {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-slate-700/30">
             <AnimatePresence mode="popLayout">
               {filteredNotifications.map((notification) => {
                 const Icon = typeIcons[notification.type] || Bell;
@@ -287,8 +287,8 @@ const RiderNotificationsPage = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: -100, height: 0 }}
                     className={cn(
-                      "px-4 py-3 transition-colors relative group",
-                      !notification.is_read && "bg-primary/5 border-r-2 border-r-primary",
+                      "px-4 py-3.5 transition-colors relative group hover:bg-[#171f33]/50",
+                      !notification.is_read && "bg-[#5bdda6]/5 border-r-2 border-r-[#5bdda6]",
                       actionLoading === notification.id && "opacity-50"
                     )}
                     onClick={() => !notification.is_read && markAsRead(notification.id)}

@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import DevInspector from "@/components/DevInspector";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { RaanThemeProvider } from "@/contexts/RaanThemeContext";
 import SplashScreen from "@/components/SplashScreen";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
@@ -139,25 +140,27 @@ const LoadingFallback = () => <RouteTransitionFallback />;
 
 const App = () => {
   return (
-    <ErrorBoundary>
-      <TooltipProvider>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <Sonner />
-            <ConnectionStatus />
-            <PWAInstallPrompt />
-            <DevInspector />
-            <BrowserRouter
-              future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-            >
-              <Suspense fallback={<LoadingFallback />}>
-                <AppRoutes />
-              </Suspense>
-            </BrowserRouter>
-          </AuthProvider>
-        </QueryClientProvider>
-      </TooltipProvider>
-    </ErrorBoundary>
+    <RaanThemeProvider>
+      <ErrorBoundary>
+        <TooltipProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <Sonner />
+              <ConnectionStatus />
+              <PWAInstallPrompt />
+              <DevInspector />
+              <BrowserRouter
+                future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+              >
+                <Suspense fallback={<LoadingFallback />}>
+                  <AppRoutes />
+                </Suspense>
+              </BrowserRouter>
+            </AuthProvider>
+          </QueryClientProvider>
+        </TooltipProvider>
+      </ErrorBoundary>
+    </RaanThemeProvider>
   );
 };
 

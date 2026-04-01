@@ -9,18 +9,24 @@ import {
   Phone,
   Mail,
   Bell,
-
   LogOut,
   Trash2,
   Loader2,
   Save,
-  Moon,
-  Sun,
+  Palette,
   Shield,
-
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "@/hooks/useTheme";
+import ThemeToggle from "@/components/ThemeToggle";
 import RiderPageHeader from "@/components/rider/RiderPageHeader";
+import {
+  requestNotificationPermission,
+  subscribeToPushNotifications,
+  unsubscribeFromPushNotifications,
+  isPushNotificationEnabled,
+  registerServiceWorker,
+} from "@/utils/serviceWorker";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,13 +50,56 @@ interface UserProfile {
 const RiderSettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isDark } = useTheme();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [fullName, setFullName] = useState("");
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notifLoading, setNotifLoading] = useState(false);
+
+  // Check actual push notification status
+  useEffect(() => {
+    const checkNotifStatus = async () => {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const subscribed = await isPushNotificationEnabled();
+        setNotificationsEnabled(subscribed);
+      }
+    };
+    checkNotifStatus();
+  }, []);
+
+  const handleToggleNotifications = async () => {
+    if (!userId) return;
+    setNotifLoading(true);
+    try {
+      if (notificationsEnabled) {
+        await unsubscribeFromPushNotifications(userId, 'rider');
+        setNotificationsEnabled(false);
+        toast({ title: "تم إيقاف الإشعارات", description: "لن تصلك تنبيهات تحديثات الرحلات" });
+      } else {
+        await registerServiceWorker();
+        const perm = await requestNotificationPermission();
+        if (perm === 'granted') {
+          const sub = await subscribeToPushNotifications(userId, 'rider');
+          if (sub) {
+            setNotificationsEnabled(true);
+            toast({ title: "تم تفعيل الإشعارات ✅", description: "ستصلك تنبيهات تحديثات رحلاتك" });
+          } else {
+            toast({ title: "خطأ", description: "فشل تفعيل الإشعارات، حاول مرة أخرى", variant: "destructive" });
+          }
+        } else if (perm === 'denied') {
+          toast({ title: "الإشعارات محظورة", description: "افتح إعدادات المتصفح وامنح الصلاحية لهذا الموقع", variant: "destructive" });
+        }
+      }
+    } catch (err) {
+      console.error('Notification toggle error:', err);
+      toast({ title: "خطأ", description: "حدث خطأ غير متوقع", variant: "destructive" });
+    } finally {
+      setNotifLoading(false);
+    }
+  };
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -62,7 +111,6 @@ const RiderSettingsPage: React.FC = () => {
       setUserId(data.user.id);
     };
     checkAuth();
-    setDarkMode(document.documentElement.classList.contains("dark"));
   }, [navigate]);
 
   useEffect(() => {
@@ -107,18 +155,6 @@ const RiderSettingsPage: React.FC = () => {
     navigate("/auth", { replace: true });
   };
 
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    if (newMode) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  };
-
   const getInitials = (name: string | null) => {
     if (!name) return "؟";
     const parts = name.split(" ");
@@ -139,14 +175,17 @@ const RiderSettingsPage: React.FC = () => {
     subtitle: string;
     trailing: React.ReactNode;
   }) => (
-    <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#1a2536] border border-slate-700/30">
+    <div
+      className="flex items-center justify-between p-3.5 rounded-xl"
+      style={{ background: 'var(--raan-surface-alt)', border: '1px solid var(--raan-border)' }}
+    >
       <div className="flex items-center gap-3">
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${iconColor}`}>
           <Icon className="w-[18px] h-[18px]" />
         </div>
         <div>
-          <p className="text-[13px] font-semibold text-white">{title}</p>
-          <p className="text-[11px] text-slate-400">{subtitle}</p>
+          <p className="text-[13px] font-semibold" style={{ color: 'var(--raan-text)' }}>{title}</p>
+          <p className="text-[11px]" style={{ color: 'var(--raan-text-sub)' }}>{subtitle}</p>
         </div>
       </div>
       {trailing}
@@ -176,7 +215,11 @@ const RiderSettingsPage: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col bg-background h-full">
+    <div
+      className="flex flex-col min-h-full transition-colors duration-300"
+      style={{ background: 'var(--raan-bg)' }}
+      dir="rtl"
+    >
       <RiderPageHeader title="الإعدادات" />
 
       <div className="pt-16 p-4 pb-8 space-y-5">
@@ -198,7 +241,7 @@ const RiderSettingsPage: React.FC = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
-              className="bg-[#151f30] rounded-2xl border border-slate-700/50 overflow-hidden"
+              className="bg-[#171f33] rounded-2xl border border-slate-700/40 overflow-hidden"
             >
               <div className="px-5 py-4 border-b border-slate-700/30">
                 <div className="flex items-center gap-2">
@@ -233,7 +276,7 @@ const RiderSettingsPage: React.FC = () => {
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="أدخل اسمك"
-                      className="h-12 bg-[#1a2536] border-slate-700/30 text-white placeholder:text-slate-500 rounded-xl pr-11 text-[14px] focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20"
+                      className="h-12 bg-[#0f1726] border border-slate-700/40 text-white placeholder:text-slate-500 rounded-xl pr-11 text-[14px] focus:border-[#5bdda6]/50 focus:ring-1 focus:ring-[#5bdda6]/20"
                     />
                   </div>
                 </div>
@@ -266,7 +309,7 @@ const RiderSettingsPage: React.FC = () => {
                 <button
                   onClick={handleSave}
                   disabled={saving || !fullName.trim()}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-bold text-[14px] shadow-lg shadow-emerald-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#5bdda6] hover:bg-[#4ecf99] text-[#0b1326] font-bold text-[14px] shadow-lg shadow-[#5bdda6]/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {saving ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -278,33 +321,50 @@ const RiderSettingsPage: React.FC = () => {
               </div>
             </motion.div>
 
-            {/* ── الإعدادات العامة ── */}
+            {/* ── المظهر ── */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1, duration: 0.4 }}
-              className="bg-[#151f30] rounded-2xl border border-slate-700/50 overflow-hidden"
+              className="rounded-2xl overflow-hidden"
+              style={{ background: 'var(--raan-surface)', border: '1px solid var(--raan-border)' }}
             >
-              <div className="px-5 py-4 border-b border-slate-700/30">
+              <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--raan-divider)' }}>
                 <div className="flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-[15px] font-bold text-white">الإعدادات العامة</h3>
+                  <Palette className="w-5 h-5" style={{ color: 'var(--raan-accent)' }} />
+                  <h3 className="text-[15px] font-bold" style={{ color: 'var(--raan-text)' }}>مظهر التطبيق</h3>
+                </div>
+              </div>
+              <div className="p-4">
+                <ThemeToggle />
+              </div>
+            </motion.div>
+
+            {/* ── الإعدادات العامة ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15, duration: 0.4 }}
+              className="rounded-2xl overflow-hidden"
+              style={{ background: 'var(--raan-surface)', border: '1px solid var(--raan-border)' }}
+            >
+              <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--raan-divider)' }}>
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5" style={{ color: 'var(--raan-accent)' }} />
+                  <h3 className="text-[15px] font-bold" style={{ color: 'var(--raan-text)' }}>الإعدادات العامة</h3>
                 </div>
               </div>
               <div className="p-4 space-y-3">
                 <SettingRow
-                  icon={darkMode ? Moon : Sun}
-                  iconColor={darkMode ? "bg-indigo-500/15 text-indigo-400" : "bg-amber-500/15 text-amber-400"}
-                  title="الوضع الليلي"
-                  subtitle="تغيير مظهر التطبيق"
-                  trailing={<Toggle checked={darkMode} onChange={toggleDarkMode} />}
-                />
-                <SettingRow
                   icon={Bell}
                   iconColor="bg-emerald-500/15 text-emerald-400"
                   title="الإشعارات"
-                  subtitle="استلام إشعارات الرحلات"
-                  trailing={<Toggle checked={notificationsEnabled} onChange={() => setNotificationsEnabled(!notificationsEnabled)} />}
+                  subtitle={notificationsEnabled ? "الإشعارات مفعّلة" : "فعّل لاستلام تحديثات الرحلات"}
+                  trailing={
+                    notifLoading
+                      ? <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--raan-text-sub)' }} />
+                      : <Toggle checked={notificationsEnabled} onChange={handleToggleNotifications} />
+                  }
                 />
               </div>
             </motion.div>

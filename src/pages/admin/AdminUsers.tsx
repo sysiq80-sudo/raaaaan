@@ -29,21 +29,27 @@ import {
   User,
   Phone,
   Shield,
-  ShieldPlus,
   ShieldMinus,
   Eye,
-  Users
+  Users,
+  AlertCircle
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import type { Database } from "@/integrations/supabase/types";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-type UserRole = Database["public"]["Tables"]["user_roles"]["Row"];
 type AppRole = Database["public"]["Enums"]["app_role"];
 
-interface UserWithRoles extends Profile {
+interface UserWithRoles {
+  id: string;
+  user_id: string;
+  full_name: string;
+  phone: string | null;
+  created_at: string;
+  updated_at: string;
   roles: AppRole[];
+  [key: string]: unknown;
 }
 
 const AdminUsers = () => {
@@ -51,18 +57,34 @@ const AdminUsers = () => {
   const { loading: authLoading, isAdmin } = useAdminAuth();
   const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [addingRole, setAddingRole] = useState(false);
 
   useEffect(() => {
+    // ✅ FIX: نبدأ الجلب فور توفر الدور أو بعد timeout قصير
     if (isAdmin) {
       fetchUsers();
+      return;
     }
-  }, [isAdmin]);
+
+    // Fallback: ابدأ الجلب بعد 2 ثانية حتى لو لم يتأكد isAdmin بعد
+    if (!authLoading) {
+      setLoading(false);
+      return;
+    }
+
+    const fallbackTimer = setTimeout(() => {
+      fetchUsers();
+    }, 2000);
+
+    return () => clearTimeout(fallbackTimer);
+  }, [isAdmin, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchUsers = async () => {
     setLoading(true);
+    setFetchError(null);
     
     // Fetch profiles
     const { data: profiles, error: profilesError } = await supabase
@@ -71,31 +93,44 @@ const AdminUsers = () => {
       .order("created_at", { ascending: false });
 
     if (profilesError) {
+      console.error("[AdminUsers] Profiles fetch error:", profilesError);
+      setFetchError(`فشل جلب بيانات المستخدمين: ${profilesError.message}`);
       toast({
         title: "خطأ",
-        description: "فشل في جلب بيانات المستخدمين",
+        description: "فشل في جلب بيانات المستخدمين — تحقق من صلاحيات قاعدة البيانات",
         variant: "destructive",
       });
       setLoading(false);
       return;
     }
 
-    // Fetch all user roles
-    const { data: roles, error: rolesError } = await supabase
-      .from("user_roles")
-      .select("*");
+    // Fetch all user roles — نستخدم as any لتجاوز TypeScript types القديمة
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rolesTable = supabase.from("user_roles") as any;
+    const { data: rolesRaw, error: rolesError } = await rolesTable.select("user_id, role");
 
     if (rolesError) {
-      console.error("Error fetching roles:", rolesError);
+      console.error("[AdminUsers] Error fetching roles:", rolesError);
     }
 
+    const roles = (rolesRaw || []) as Array<{ user_id: string; role: AppRole }>;
+
     // Combine profiles with their roles
-    const usersWithRoles: UserWithRoles[] = (profiles || []).map((profile) => ({
-      ...profile,
-      roles: (roles || [])
-        .filter((role) => role.user_id === profile.user_id)
-        .map((role) => role.role),
-    }));
+    const usersWithRoles: UserWithRoles[] = (profiles || []).map((profile) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const p = profile as any;
+      return {
+        id: p.id,
+        user_id: p.user_id,
+        full_name: p.full_name,
+        phone: p.phone,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+        roles: roles
+          .filter((role) => role.user_id === p.user_id)
+          .map((role) => role.role),
+      };
+    });
 
     setUsers(usersWithRoles);
     setLoading(false);
@@ -104,9 +139,9 @@ const AdminUsers = () => {
   const handleAddRole = async (userId: string, role: AppRole) => {
     setAddingRole(true);
     
-    const { error } = await supabase
-      .from("user_roles")
-      .insert({ user_id: userId, role });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const roleTable = supabase.from("user_roles") as any;
+    const { error } = await roleTable.insert({ user_id: userId, role });
 
     if (error) {
       if (error.code === "23505") {
@@ -139,8 +174,9 @@ const AdminUsers = () => {
   };
 
   const handleRemoveRole = async (userId: string, role: AppRole) => {
-    const { error } = await supabase
-      .from("user_roles")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const query = supabase.from("user_roles") as any;
+    const { error } = await query
       .delete()
       .eq("user_id", userId)
       .eq("role", role);
@@ -187,9 +223,10 @@ const AdminUsers = () => {
   const moderatorsCount = users.filter(u => u.roles.includes("moderator")).length;
   const usersCount = users.filter(u => u.roles.includes("user")).length;
 
-  if (authLoading) {
+  if (authLoading && loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3">
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
         <p className="text-muted-foreground">جاري التحميل...</p>
       </div>
     );
@@ -200,9 +237,19 @@ const AdminUsers = () => {
       title="إدارة المستخدمين" 
       subtitle={`${users.length} مستخدم • ${adminsCount} مدير • ${moderatorsCount} مشرف • ${usersCount} مستخدم عادي`}
     >
-      {loading ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">جاري التحميل...</p>
+      {fetchError ? (
+        <Card className="text-center py-12">
+          <CardContent>
+            <AlertCircle className="w-12 h-12 mx-auto text-destructive mb-4" />
+            <h3 className="text-lg font-bold mb-2">خطأ في جلب البيانات</h3>
+            <p className="text-muted-foreground mb-4">{fetchError}</p>
+            <Button onClick={() => fetchUsers()}>إعادة المحاولة</Button>
+          </CardContent>
+        </Card>
+      ) : loading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">جاري جلب بيانات المستخدمين...</p>
         </div>
       ) : users.length === 0 ? (
         <Card className="text-center py-12">

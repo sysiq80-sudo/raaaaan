@@ -92,7 +92,7 @@ const RiderPaymentsPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col bg-background h-full">
+    <div className="flex flex-col min-h-full transition-colors duration-300" style={{ background: 'var(--raan-bg)' }} dir="rtl">
       <RiderPageHeader title="المحفظة والمدفوعات" />
 
       <div className="pt-16 p-4 pb-8 space-y-5">
@@ -138,7 +138,7 @@ const RiderPaymentsPage: React.FC = () => {
                 </div>
                 <button
                   onClick={() => navigate("/rider/wallet-topup")}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-bold text-[15px] shadow-lg shadow-emerald-500/25 transition-all"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#5bdda6] hover:bg-[#4ecf99] text-[#0b1326] font-bold text-[15px] shadow-lg shadow-[#5bdda6]/25 transition-all"
                 >
                   <Plus className="w-5 h-5" />
                   شحن المحفظة
@@ -199,7 +199,7 @@ const RiderPaymentsPage: React.FC = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.4 }}
-              className="bg-[#151f30] rounded-2xl border border-slate-700/50 overflow-hidden"
+              className="bg-[#171f33] rounded-2xl border border-slate-700/40 overflow-hidden"
             >
               <div className="px-5 py-4 border-b border-slate-700/30">
                 <h3 className="text-[15px] font-bold text-white">سجل المعاملات</h3>

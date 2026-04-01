@@ -38,7 +38,10 @@ const vibrateDevice = () => {
 
 export const useDriverNotifications = (driverId: string | null, vehicleType: string | null) => {
   const { toast } = useToast();
-  const notifiedRides = useRef<Set<string>>(new Set());
+  const DRIVER_NOTIFICATION_DEDUPE_TTL_MS = 90_000;
+  const CHANNEL_STALE_MS = 45_000;
+  const dedupeMapRef = useRef<Map<string, number>>(new Map());
+  const lastRealtimeEventAtRef = useRef<number>(Date.now());
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
 
   const openRideRequestFromNotification = useCallback((rideId: string) => {
@@ -258,9 +261,20 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
       return;
     }
     
-    // Prevent duplicate notifications
-    if (notifiedRides.current.has(rideId)) return;
-    notifiedRides.current.add(rideId);
+    // Prevent duplicate notifications with TTL window
+    const now = Date.now();
+    const lastShownAt = dedupeMapRef.current.get(rideId);
+    if (typeof lastShownAt === 'number' && now - lastShownAt < DRIVER_NOTIFICATION_DEDUPE_TTL_MS) {
+      return;
+    }
+    dedupeMapRef.current.set(rideId, now);
+
+    // Cleanup expired dedupe entries
+    for (const [id, timestamp] of dedupeMapRef.current.entries()) {
+      if (now - timestamp > DRIVER_NOTIFICATION_DEDUPE_TTL_MS) {
+        dedupeMapRef.current.delete(id);
+      }
+    }
 
     console.log('New ride notification:', ride);
     showPushNotification(ride);
@@ -273,6 +287,8 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     console.log('🔴 Setting up INSTANT ride notifications for driver:', driverId);
     let cleanupAppState: (() => void) | null = null;
     let swMessageHandler: ((event: MessageEvent) => void) | null = null;
+    let visibilityHandler: (() => void) | null = null;
+    let healthCheckTimer: ReturnType<typeof setInterval> | null = null;
 
     const channelName = `driver-new-rides-${driverId}`;
     
@@ -379,6 +395,7 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
           (payload) => {
             console.log('⚡ INSTANT INSERT: New ride detected:', payload.new?.id);
             retryCount = 0; // إعادة تعيين عداد المحاولات عند نجاح الاتصال
+            lastRealtimeEventAtRef.current = Date.now();
             handleNewRide(payload as { new: Record<string, unknown> });
           }
         )
@@ -395,6 +412,7 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
             const oldStatus = (payload.old as Record<string, unknown>)?.status;
             if (newStatus === 'pending' && oldStatus !== 'pending') {
               console.log('⚡ INSTANT UPDATE: Ride became pending:', payload.new?.id, `(${oldStatus} → ${newStatus})`);
+              lastRealtimeEventAtRef.current = Date.now();
               handleNewRide(payload as { new: Record<string, unknown> });
             }
           }
@@ -426,6 +444,23 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
       
       return ch;
     };
+
+    const recreateChannel = (reason: string) => {
+      console.log(`🔄 إعادة إنشاء قناة Realtime: ${reason}`);
+      retryCount = 0;
+      isRetrying = false;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      try {
+        supabase.removeChannel(channel);
+      } catch {
+        // تجاهل خطأ إزالة القناة القديمة
+      }
+      lastRealtimeEventAtRef.current = Date.now();
+      channel = createChannel();
+    };
     
     let channel = createChannel();
 
@@ -434,21 +469,7 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
       cleanupAppState = await onAppStateChange((isActive) => {
         if (isActive) {
           console.log('📱 التطبيق عاد للمقدمة');
-          
-          // إعادة إنشاء القناة فقط إذا كانت مقطوعة فعلاً
-          const channelState = (channel as unknown as { state?: string })?.state;
-          if (!channelState || channelState === 'closed' || channelState === 'errored') {
-            console.log('🔄 إعادة إنشاء قناة Realtime (كانت مقطوعة)');
-            retryCount = 0; // إعادة تعيين عداد المحاولات عند عودة التطبيق
-            isRetrying = false;
-            if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-            try {
-              supabase.removeChannel(channel);
-            } catch {
-              // تجاهل خطأ إزالة القناة القديمة
-            }
-            channel = createChannel();
-          }
+          recreateChannel('app_active');
           
           // استئناف AudioContext المشترك المعلق
           resumeAudioContext();
@@ -460,11 +481,31 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     
     setupAppStateListener();
 
+    // Web/Hybrid visibility recovery
+    visibilityHandler = () => {
+      if (document.visibilityState === 'visible') {
+        recreateChannel('visibility_visible');
+      }
+    };
+    document.addEventListener('visibilitychange', visibilityHandler);
+
+    // Realtime health watchdog
+    healthCheckTimer = setInterval(() => {
+      const staleForMs = Date.now() - lastRealtimeEventAtRef.current;
+      if (staleForMs > CHANNEL_STALE_MS) {
+        recreateChannel('stale_channel');
+      }
+    }, 15_000);
+
     return () => {
       console.log('Cleaning up ride notification subscription');
       if (retryTimer) clearTimeout(retryTimer);
+      if (healthCheckTimer) clearInterval(healthCheckTimer);
       supabase.removeChannel(channel);
       if (cleanupAppState) cleanupAppState();
+      if (visibilityHandler) {
+        document.removeEventListener('visibilitychange', visibilityHandler);
+      }
       if (swMessageHandler && 'serviceWorker' in navigator) {
         navigator.serviceWorker.removeEventListener('message', swMessageHandler);
       }

@@ -80,7 +80,10 @@ export const requestNotificationPermission = async (): Promise<NotificationPermi
 };
 
 // Subscribe to push notifications and save to server
-export const subscribeToPushNotifications = async (driverId: string): Promise<PushSubscription | null> => {
+export const subscribeToPushNotifications = async (
+  ownerId: string,
+  ownerType: 'driver' | 'rider' = 'driver'
+): Promise<PushSubscription | null> => {
   const registration = await getServiceWorkerRegistration();
   if (!registration) return null;
 
@@ -102,11 +105,12 @@ export const subscribeToPushNotifications = async (driverId: string): Promise<Pu
 
     // Save subscription to server
     const json = subscription.toJSON();
+    const ownerKey = ownerType === 'rider' ? 'user_id' : 'driver_id';
     const { error } = await supabase.functions.invoke('send-push-notification', {
       body: {
         action: 'subscribe',
         subscription: {
-          driver_id: driverId,
+          [ownerKey]: ownerId,
           endpoint: json.endpoint,
           p256dh_key: json.keys?.p256dh || '',
           auth_key: json.keys?.auth || ''
@@ -128,7 +132,10 @@ export const subscribeToPushNotifications = async (driverId: string): Promise<Pu
 };
 
 // Unsubscribe from push notifications
-export const unsubscribeFromPushNotifications = async (driverId: string): Promise<boolean> => {
+export const unsubscribeFromPushNotifications = async (
+  ownerId: string,
+  ownerType: 'driver' | 'rider' = 'driver'
+): Promise<boolean> => {
   const registration = await getServiceWorkerRegistration();
   if (!registration) return false;
 
@@ -137,11 +144,12 @@ export const unsubscribeFromPushNotifications = async (driverId: string): Promis
     if (subscription) {
       // Remove from server
       const json = subscription.toJSON();
+      const ownerKey = ownerType === 'rider' ? 'user_id' : 'driver_id';
       await supabase.functions.invoke('send-push-notification', {
         body: {
           action: 'unsubscribe',
           subscription: {
-            driver_id: driverId,
+            [ownerKey]: ownerId,
             endpoint: json.endpoint
           }
         }

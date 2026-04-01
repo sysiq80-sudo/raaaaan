@@ -28,5 +28,14 @@ if "%TARGET%"=="driver" (
     exit /b 0
 )
 
-echo [ERROR] Usage: patch-android.bat [rider^|driver]
+if "%TARGET%"=="car" (
+    echo [PATCH] Patching Android for CAR ^(com.raan.car^) ...
+    copy /Y "scripts\strings-car.xml" "%STRINGS%" >nul
+    if exist "%GSERVICES%" del /Q "%GSERVICES%"
+    powershell -NoProfile -Command "$f='%GRADLE%'; $c=Get-Content $f -Raw -Encoding UTF8; if(-not $c){Write-Error 'Empty file'; exit 1}; $c=$c -replace 'applicationId\s*\"com\.raan\.\w+\"','applicationId \"com.raan.car\"'; [System.IO.File]::WriteAllText($f, $c)"
+    echo [PATCH] Done: com.raan.car
+    exit /b 0
+)
+
+echo [ERROR] Usage: patch-android.bat [rider^|driver^|car]
 exit /b 1

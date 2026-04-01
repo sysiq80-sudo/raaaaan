@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,8 +54,12 @@ const AdminMap = () => {
   const { loading: authLoading, isAdmin } = useAdminAuth();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
-  const driverMarkers = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
-  const rideMarkers = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
+  // ✅ FIX: استخدام Marker العادي بدلاً من AdvancedMarkerElement
+  // AdvancedMarkerElement تحتاج mapId حقيقي من Google Cloud Console
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const driverMarkers = useRef<Map<string, any>>(new Map());
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rideMarkers = useRef<Map<string, any>>(new Map());
   
   const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
   const [isLoading, setIsLoading] = useState(true);
@@ -65,18 +69,19 @@ const AdminMap = () => {
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<string>("all");
 
-  // Ramadi center (Anbar)
-  const ramadiCenter = { lat: 33.4233, lng: 43.2974 };
+  // useMemo لتثبيت reference وتجنب تحذير missing dependency
+  const ramadiCenter = useMemo(() => ({ lat: 33.4233, lng: 43.2974 }), []);
 
   // Fetch regions
   useEffect(() => {
     if (!isAdmin) return;
     const fetchRegions = async () => {
-      const { data } = await supabase
-        .from('regions')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const regionsTable = supabase.from('regions') as any;
+      const { data } = await regionsTable
         .select('id, name_ar, name_en')
         .eq('is_active', true);
-      if (data) setRegions(data);
+      if (data) setRegions(data as Region[]);
     };
     fetchRegions();
   }, [isAdmin]);
@@ -84,32 +89,55 @@ const AdminMap = () => {
   // Fetch drivers and rides
   const fetchData = async () => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const driversTable = supabase.from('drivers') as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ridesTable = supabase.from('rides') as any;
+
       const [driversResult, ridesResult] = await Promise.all([
-        supabase
-          .from('drivers')
+        driversTable
           .select('id, full_name, phone, vehicle_type, vehicle_plate, is_online, is_available, current_location, working_region_id')
           .eq('status', 'approved'),
-        supabase
-          .from('rides')
+        ridesTable
           .select('id, status, pickup_location, dropoff_location, pickup_address, dropoff_address, driver_id, region_id, vehicle_type, created_at')
           .in('status', ['pending', 'accepted', 'arrived', 'in_progress'])
           .order('created_at', { ascending: false })
       ]);
 
       if (driversResult.data) {
-        const parsedDrivers = driversResult.data.map(d => ({
-          ...d,
-          current_location: d.current_location as { lat: number; lng: number } | null
-        }));
+        const parsedDrivers = (driversResult.data as unknown[]).map((d: unknown) => {
+          const driver = d as Record<string, unknown>;
+          return {
+            id: driver.id as string,
+            full_name: driver.full_name as string,
+            phone: driver.phone as string,
+            vehicle_type: driver.vehicle_type as string | null,
+            vehicle_plate: driver.vehicle_plate as string | null,
+            is_online: driver.is_online as boolean | null,
+            is_available: driver.is_available as boolean | null,
+            current_location: driver.current_location as { lat: number; lng: number } | null,
+            working_region_id: driver.working_region_id as string | null,
+          } as Driver;
+        });
         setDrivers(parsedDrivers);
       }
       
       if (ridesResult.data) {
-        const parsedRides = ridesResult.data.map(r => ({
-          ...r,
-          pickup_location: r.pickup_location as { lat: number; lng: number },
-          dropoff_location: r.dropoff_location as { lat: number; lng: number }
-        }));
+        const parsedRides = (ridesResult.data as unknown[]).map((r: unknown) => {
+          const ride = r as Record<string, unknown>;
+          return {
+            id: ride.id as string,
+            status: ride.status as string | null,
+            pickup_location: ride.pickup_location as { lat: number; lng: number },
+            dropoff_location: ride.dropoff_location as { lat: number; lng: number },
+            pickup_address: ride.pickup_address as string | null,
+            dropoff_address: ride.dropoff_address as string | null,
+            driver_id: ride.driver_id as string | null,
+            region_id: ride.region_id as string | null,
+            vehicle_type: ride.vehicle_type as string | null,
+            created_at: ride.created_at as string,
+          } as ActiveRide;
+        });
         setActiveRides(parsedRides);
       }
     } catch (error) {
@@ -184,12 +212,14 @@ const AdminMap = () => {
       { featureType: "poi", elementType: "geometry", stylers: [{ color: "#283d6a" }] },
     ];
 
+    // ✅ FIX: لا يمكن استخدام styles و mapId معاً — نختار أحدهما
+    // mapId يتحكم بالستايل من Cloud Console — نستخدم styles بدون mapId
     map.current = new google.maps.Map(mapContainer.current, {
       center: ramadiCenter,
       zoom: 11,
       tilt: 30,
-      styles: darkStyle,
-      mapId: 'admin-live-map',
+      styles: darkStyle, // ✅ يعمل بدون mapId
+      // mapId مُعطَّل: AdvancedMarkerElement تحتاج mapId من Cloud Console الحقيقي
       disableDefaultUI: false,
       zoomControl: true,
       mapTypeControl: false,
@@ -240,42 +270,27 @@ const AdminMap = () => {
       
       const hasLocation = !!driver.current_location;
       const bgColor = !hasLocation ? '#94a3b8' : (driver.is_online ? (driver.is_available ? '#00d9a5' : '#f59e0b') : '#6b7280');
-      const glowColor = !hasLocation ? 'rgba(148, 163, 184, 0.3)' : (driver.is_online ? (driver.is_available ? 'rgba(0, 217, 165, 0.5)' : 'rgba(245, 158, 11, 0.5)') : 'rgba(107, 114, 128, 0.3)');
-      
+
       if (existingMarker) {
-        existingMarker.position = new google.maps.LatLng(location.lat, location.lng);
-        const el = existingMarker.content as HTMLElement;
-        const innerDiv = el?.querySelector('.driver-inner') as HTMLElement;
-        if (innerDiv) {
-          innerDiv.style.background = bgColor;
-          innerDiv.style.boxShadow = `0 0 15px ${glowColor}`;
-        }
+        existingMarker.setPosition(new google.maps.LatLng(location.lat, location.lng));
       } else {
-        const el = document.createElement('div');
-        el.className = 'driver-marker';
-        el.innerHTML = `
-          <div class="relative cursor-pointer" style="transform: translate(-50%, -50%);">
-            <div class="driver-inner" style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${bgColor};box-shadow:0 0 15px ${glowColor};transition:transform 0.2s;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>
-                <circle cx="7" cy="17" r="2"/>
-                <path d="M9 17h6"/>
-                <circle cx="17" cy="17" r="2"/>
-              </svg>
-            </div>
-            ${!hasLocation ? '<div style="position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;border:2px solid #1a1a2e;background:#94a3b8;animation:pulse 2s infinite;"></div>' : ''}
-            ${hasLocation && driver.is_online ? `<div style="position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;border:2px solid #1a1a2e;background:${driver.is_available ? '#22c55e' : '#f59e0b'};"></div>` : ''}
-          </div>
-        `;
-
-        el.addEventListener('click', () => setSelectedDriver(driver));
-
-        const marker = new google.maps.marker.AdvancedMarkerElement({
+        // ✅ FIX: استخدام google.maps.Marker العادي بدلاً من AdvancedMarkerElement
+        // AdvancedMarkerElement تتطلب mapId حقيقي من Google Cloud Console + مكتبة marker
+        const marker = new google.maps.Marker({
           map: map.current!,
           position: new google.maps.LatLng(location.lat, location.lng),
-          content: el,
+          title: driver.full_name,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 12,
+            fillColor: bgColor,
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2,
+          },
         });
 
+        marker.addListener('click', () => setSelectedDriver(driver));
         driverMarkers.current.set(driver.id, marker);
       }
     });
@@ -301,24 +316,20 @@ const AdminMap = () => {
     displayRides.forEach(ride => {
       if (rideMarkers.current.has(ride.id)) return;
 
-      const el = document.createElement('div');
-      el.className = 'ride-marker';
-      el.innerHTML = `
-        <div class="relative cursor-pointer" style="animation:pulse 2s infinite;transform:translate(-50%,-100%);">
-          <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#ef4444;box-shadow:0 0 20px rgba(239,68,68,0.6);">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
-              <circle cx="12" cy="10" r="3"/>
-            </svg>
-          </div>
-          <div style="position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:4px solid #ef4444;"></div>
-        </div>
-      `;
-
-      const marker = new google.maps.marker.AdvancedMarkerElement({
+      // ✅ FIX: استخدام Marker العادي بدلاً من AdvancedMarkerElement
+      const marker = new google.maps.Marker({
         map: map.current!,
         position: new google.maps.LatLng(ride.pickup_location.lat, ride.pickup_location.lng),
-        content: el,
+        title: ride.pickup_address || 'طلب معلق',
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#ef4444',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+        },
+        animation: google.maps.Animation.BOUNCE,
       });
 
       rideMarkers.current.set(ride.id, marker);

@@ -43,10 +43,10 @@ const MenuCard = ({
   <Link
     to={href}
     onClick={onClick}
-    className={`flex flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 ${color} active:scale-95 transition-all duration-200 shadow-sm`}
+    className={`flex flex-col items-center justify-center gap-2.5 rounded-2xl border border-slate-700/40 ${color} hover:border-[#5bdda6]/30 active:scale-95 transition-all duration-200 shadow-sm`}
   >
-    <span className="[&>svg]:w-9 [&>svg]:h-9">{icon}</span>
-    <span className="text-sm font-bold text-center leading-tight px-1">{label}</span>
+    <span className="[&>svg]:w-8 [&>svg]:h-8">{icon}</span>
+    <span className="text-[13px] font-bold text-center leading-tight px-1 text-white">{label}</span>
   </Link>
 );
 
@@ -82,53 +82,54 @@ const RiderSideMenu = ({
 
   return (
     <div
-      className="fixed inset-0 z-[60] bg-card flex flex-col overflow-hidden"
+      className="fixed inset-0 z-[60] bg-[#0b1326] flex flex-col overflow-hidden"
       dir="rtl"
     >
-      {/* ── هيدر: شعار + اسم في سطر واحد بالوسط ── */}
-      <div className="flex-shrink-0 relative flex flex-col items-center pt-[max(2.5rem,calc(env(safe-area-inset-top)+2rem))] pb-4 border-b border-border bg-card">
-
-        {/* زر إغلاق — أقصى اليسار */}
+      {/* هيدر */}
+      <div className="flex-shrink-0 relative flex flex-col items-center pt-[max(2.5rem,calc(env(safe-area-inset-top)+2rem))] pb-5 border-b border-[#5bdda6]/10 bg-[#0b1326]">
+        {/* زر إغلاق */}
         <button
           onClick={handleClose}
           aria-label="إغلاق القائمة"
-          className="absolute top-3 left-3 w-9 h-9 rounded-full bg-secondary flex items-center justify-center active:scale-90 transition-all z-10"
+          className="absolute top-3 left-3 w-9 h-9 rounded-xl bg-[#5bdda6]/10 border border-[#5bdda6]/20 flex items-center justify-center active:scale-90 transition-all z-10"
         >
-          <X className="w-5 h-5 text-muted-foreground" />
+          <X className="w-5 h-5 text-[#5bdda6]" />
         </button>
 
-        {/* شعار ران + الاسم والرقم — سطر واحد بالوسط */}
+        {/* شعار + معلومات المستخدم */}
         {user ? (
           <div className="flex items-center gap-3">
-            <img src={logo} alt="RAAN" className="w-10 h-10 rounded-xl opacity-90 flex-shrink-0" />
+            <div className="relative">
+              <img src={logo} alt="RAAN" className="w-12 h-12 rounded-2xl shadow-[0_0_16px_rgba(91,221,166,0.3)] flex-shrink-0" />
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#5bdda6] border-2 border-[#0b1326]" />
+            </div>
             <div className="text-right">
-              <p className="font-bold text-foreground text-base leading-tight">
-                {user.user_metadata?.full_name || "مستخدم ران"}
+              <p className="font-bold text-white text-base leading-tight">
+                {(user as {user_metadata?: {full_name?: string}}).user_metadata?.full_name || "مستخدم ران"}
               </p>
-              <p className="text-xs text-muted-foreground mt-0.5" dir="ltr">
-                {formatEmailToPhone(user.email) || user.phone || ""}
+              <p className="text-xs text-[#5bdda6]/60 mt-0.5" dir="ltr">
+                {formatEmailToPhone((user as {email?: string}).email) || (user as {phone?: string}).phone || ""}
               </p>
             </div>
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            <img src={logo} alt="RAAN" className="w-10 h-10 rounded-xl opacity-90 flex-shrink-0" />
+            <img src={logo} alt="RAAN" className="w-12 h-12 rounded-2xl shadow-[0_0_16px_rgba(91,221,166,0.3)] flex-shrink-0" />
             <Link
               to="/auth"
               onClick={handleClose}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 border border-primary/20"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#5bdda6]/10 border border-[#5bdda6]/20 hover:bg-[#5bdda6]/20 transition-colors"
             >
-              <LogIn className="w-4 h-4 text-primary flex-shrink-0" />
-              <span className="text-primary font-semibold text-sm">تسجيل الدخول</span>
+              <LogIn className="w-4 h-4 text-[#5bdda6] flex-shrink-0" />
+              <span className="text-[#5bdda6] font-semibold text-sm">تسجيل الدخول</span>
             </Link>
           </div>
         )}
       </div>
 
 
-      {/* ── شبكة الكاردات — بدون سكرول، ملء المساحة المتاحة ── */}
-      <div className="flex-1 flex flex-col px-3 py-3 gap-3 min-h-0">
-        {/* 6 كاردات 3×2 */}
+      {/* شبكة الكاردات */}
+      <div className="flex-1 flex flex-col px-3 py-4 gap-3 min-h-0 bg-[#0b1326]">
         <div className="flex-1 grid grid-cols-3 grid-rows-2 gap-3 min-h-0">
           {menuItems.map((item) => (
             <MenuCard
@@ -143,8 +144,8 @@ const RiderSideMenu = ({
         </div>
       </div>
 
-      {/* ── زر تسجيل الخروج فقط ── */}
-      <div className="flex-shrink-0 border-t border-border">
+      {/* زر تسجيل الخروج */}
+      <div className="flex-shrink-0 border-t border-[#5bdda6]/10 bg-[#0b1326]">
         {user && (
           <button
             onClick={async () => {
@@ -156,7 +157,7 @@ const RiderSideMenu = ({
                 navigate("/auth");
               }
             }}
-            className="flex items-center justify-center gap-2 w-full py-3.5 rounded-none text-white bg-destructive hover:bg-destructive/90 active:bg-destructive/80 transition-colors font-semibold text-base pb-[max(0.875rem,env(safe-area-inset-bottom))]"
+            className="flex items-center justify-center gap-2 w-full py-4 text-red-400 bg-red-500/10 hover:bg-red-500/15 active:bg-red-500/20 transition-colors font-semibold text-base border-none pb-[max(1rem,env(safe-area-inset-bottom))]"
           >
             <LogOut className="w-5 h-5" />
             <span>تسجيل الخروج</span>

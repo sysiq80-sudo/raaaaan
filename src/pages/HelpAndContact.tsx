@@ -1,13 +1,12 @@
 /**
  * ران - صفحة الاتصال و المساعدة الموحدة
- * تجمع بين صفحة المساعدة و التواصل معنا
+ * Dark Luxury — مطابق لتنسيق صفحة المالية
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-    ArrowRight,
     Phone,
     MessageCircle,
     Mail,
@@ -25,20 +24,34 @@ import {
     Ambulance,
     AlertCircle,
     ChevronDown,
+    ArrowRight,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { APP_INFO } from "@/lib/constants";
 import logo from "@/assets/logo.png";
+import DriverPageHeader from "@/components/driver/DriverPageHeader";
 
 type TabType = "help" | "contact";
 
 const HelpAndContact = () => {
     const [activeTab, setActiveTab] = useState<TabType>("help");
+
+    // إزالة driver-mode لتفعيل السكرول
+    useEffect(() => {
+        const hadDriverMode = document.body.classList.contains('driver-mode');
+        document.body.classList.remove('driver-mode');
+        document.body.style.overflow = 'auto';
+        document.body.style.position = 'static';
+        return () => {
+            if (hadDriverMode) document.body.classList.add('driver-mode');
+            document.body.style.overflow = '';
+            document.body.style.position = '';
+        };
+    }, []);
+
     const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
     const [formData, setFormData] = useState({
         name: "",
@@ -50,102 +63,39 @@ const HelpAndContact = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
 
-    // FAQs Data
     const faqs = [
-        {
-            icon: HelpCircle,
-            title: "كيف أحجز رحلة؟",
-            answer: "افتح التطبيق، أدخل موقعك الحالي والوجهة، اختر نوع المركبة، وأكد الحجز. سيظهر السائق المتاح قريباً."
-        },
-        {
-            icon: Clock,
-            title: "كم المتوسط لانتظار السائق؟",
-            answer: "عادة ما يصل السائق خلال 3-7 دقائق حسب توفر السائقين في منطقتك والطلب الحالي."
-        },
-        {
-            icon: Mail,
-            title: "كيف أتواصل بالمشاكل التقنية؟",
-            answer: "استخدم قسم التواصل معنا أو أرسل بريد إلى support@raan.app مع وصف المشكلة."
-        },
-        {
-            icon: AlertTriangle,
-            title: "ماذا لو لم أجد سائق؟",
-            answer: "جرب مرة أخرى خلال لحظات، أو غير نوع المركبة، أو تحقق من اتصالك بالإنترنت."
-        },
-        {
-            icon: Phone,
-            title: "هل يمكن الاتصال بالسائق قبل الوصول؟",
-            answer: "نعم، يمكنك الاتصال به مباشرة عند قبوله للرحلة. رقمه سيظهر في تطبيقك."
-        },
-        {
-            icon: Mail,
-            title: "كيف أسترجع أموالي؟",
-            answer: "في حالة الإلغاء قبل وصول السائق، يتم استرجاع المبلغ كاملاً. للمزيد، تواصل معنا."
-        },
-        {
-            icon: AlertCircle,
-            title: "ماذا لو حدثت مشكلة أثناء الرحلة؟",
-            answer: "اضغط على زر المساعدة أو الطوارئ في الحي الصفحة، سيتم الاتصال بفريق الدعم فوراً."
-        }
+        { icon: HelpCircle,    title: "كيف أحجز رحلة؟",                     answer: "افتح التطبيق، أدخل موقعك الحالي والوجهة، اختر نوع المركبة، وأكد الحجز. سيظهر السائق المتاح قريباً." },
+        { icon: Clock,         title: "كم المتوسط لانتظار السائق؟",          answer: "عادة ما يصل السائق خلال 3-7 دقائق حسب توفر السائقين في منطقتك والطلب الحالي." },
+        { icon: Mail,          title: "كيف أتواصل بالمشاكل التقنية؟",       answer: "استخدم قسم التواصل معنا أو أرسل بريد إلى support@raan.app مع وصف المشكلة." },
+        { icon: AlertTriangle, title: "ماذا لو لم أجد سائق؟",              answer: "جرب مرة أخرى خلال لحظات، أو غير نوع المركبة، أو تحقق من اتصالك بالإنترنت." },
+        { icon: Phone,         title: "هل يمكن الاتصال بالسائق قبل الوصول؟", answer: "نعم، يمكنك الاتصال به مباشرة عند قبوله للرحلة. رقمه سيظهر في تطبيقك." },
+        { icon: Mail,          title: "كيف أسترجع أموالي؟",               answer: "في حالة الإلغاء قبل وصول السائق، يتم استرجاع المبلغ كاملاً. للمزيد، تواصل معنا." },
+        { icon: AlertCircle,   title: "ماذا لو حدثت مشكلة أثناء الرحلة؟",  answer: "اضغط على زر المساعدة أو الطوارئ في صفحة الرحلة، سيتم الاتصال بفريق الدعم فوراً." },
     ];
 
     const contactMethods = [
-        {
-            icon: Phone,
-            title: "اتصل بنا",
-            subtitle: "متاح 24/7",
-            value: APP_INFO.phone,
-            href: `tel:${APP_INFO.phone}`,
-            color: "from-primary/20 to-primary/5",
-            iconColor: "text-primary",
-            borderColor: "border-primary/20 hover:border-primary/40"
-        },
-        {
-            icon: MessageCircle,
-            title: "واتساب",
-            subtitle: "رد خلال دقائق",
-            value: "راسلنا الآن",
-            href: `https://wa.me/${APP_INFO.phone.replace(/\D/g, '')}`,
-            color: "from-green-500/20 to-green-500/5",
-            iconColor: "text-green-500",
-            borderColor: "border-green-500/20 hover:border-green-500/40"
-        },
-        {
-            icon: Mail,
-            title: "البريد الإلكتروني",
-            subtitle: "للاستفسارات",
-            value: APP_INFO.email,
-            href: `mailto:${APP_INFO.email}`,
-            color: "from-blue-500/20 to-blue-500/5",
-            iconColor: "text-blue-500",
-            borderColor: "border-blue-500/20 hover:border-blue-500/40"
-        }
+        { icon: Phone,         title: "اتصل بنا",          subtitle: "متاح 24/7",        value: APP_INFO.phone,       href: `tel:${APP_INFO.phone}`,                                   color: "text-[#5bdda6]",  glow: "bg-[#5bdda6]/10 border-[#5bdda6]/20" },
+        { icon: MessageCircle, title: "واتساب",             subtitle: "رد خلال دقائق",    value: "راسلنا الآن",        href: `https://wa.me/${APP_INFO.phone.replace(/\D/g, '')}`,       color: "text-green-400",  glow: "bg-green-500/10 border-green-500/20" },
+        { icon: Mail,          title: "البريد الإلكتروني",  subtitle: "للاستفسارات",      value: APP_INFO.email,       href: `mailto:${APP_INFO.email}`,                                color: "text-blue-400",   glow: "bg-blue-500/10 border-blue-500/20" },
     ];
 
     const socialLinks = [
-        { icon: Facebook, href: "https://facebook.com/raan.app", label: "فيسبوك", color: "bg-blue-600" },
-        { icon: Instagram, href: "https://instagram.com/raan.app", label: "انستغرام", color: "bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500" },
-        { icon: MessageSquare, href: "https://t.me/raan_1_bot", label: "تيليجرام", color: "bg-sky-500" }
+        { icon: Facebook,       href: "https://facebook.com/raan.app",     label: "فيسبوك",   color: "bg-blue-600/20 border-blue-600/30 text-blue-400" },
+        { icon: Instagram,      href: "https://instagram.com/raan.app",    label: "انستغرام", color: "bg-pink-600/20 border-pink-600/30 text-pink-400" },
+        { icon: MessageSquare,  href: "https://t.me/raan_1_bot",           label: "تيليجرام", color: "bg-sky-600/20 border-sky-600/30 text-sky-400" },
     ];
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
         if (!formData.name || !formData.phone || !formData.message) {
             toast.error("يرجى ملء الحقول المطلوبة");
             return;
         }
-
         setIsSubmitting(true);
-
-        // Simulate sending message
         await new Promise(resolve => setTimeout(resolve, 1500));
-
         setIsSubmitting(false);
         setIsSubmitted(true);
         toast.success("تم إرسال رسالتك بنجاح! سنتواصل معك قريباً");
-
-        // Reset form after 3 seconds
         setTimeout(() => {
             setFormData({ name: "", phone: "", email: "", subject: "", message: "" });
             setIsSubmitted(false);
@@ -153,423 +103,313 @@ const HelpAndContact = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background">
-            {/* Header */}
-            <header className="bg-gradient-to-br from-primary via-primary/90 to-emerald-600 p-4 pt-8 pb-24 relative overflow-hidden">
-                {/* Background Pattern */}
-                <div className="absolute inset-0 opacity-10">
-                    <div className="absolute inset-0 bg-gradient-to-b from-blue-500 via-blue-400 to-blue-300" style={{
-                        backgroundImage: `radial-gradient(circle at 2px 2px, white 1px, transparent 0)`,
-                        backgroundSize: '30px 30px'
-                    }} />
-                </div>
+        <div className="min-h-screen bg-[#0b1326] pb-8 overflow-y-auto" dir="rtl">
+            <DriverPageHeader title="المساعدة والتواصل" />
 
-                <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-8">
-                        <Link to="/rider">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-10 w-10 rounded-full bg-white/10 text-white hover:bg-white/20"
-                            >
-                                <ArrowRight className="w-5 h-5" />
-                            </Button>
-                        </Link>
-                        <h1 className="text-xl font-bold text-white">الاتصال و المساعدة</h1>
-                    </div>
-
-                    <div className="text-center">
-                        <motion.div
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ duration: 0.5 }}
-                            className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-white/10 backdrop-blur-lg flex items-center justify-center"
-                        >
-                            <Headphones className="w-10 h-10 text-white" />
-                        </motion.div>
-                        <h2 className="text-2xl font-bold text-white mb-2">نحن هنا لمساعدتك</h2>
-                        <p className="text-white/80 text-sm">فريق دعم ران متاح على مدار الساعة</p>
-                    </div>
-                </div>
-            </header>
-
-            {/* Tab Navigation */}
-            <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b px-4 py-3 -mt-12">
-                <div className="flex gap-2 justify-center max-w-md mx-auto">
-                    <motion.button
-                        onClick={() => setActiveTab("help")}
-                        className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${
-                            activeTab === "help"
-                                ? "bg-primary text-white shadow-md"
-                                : "bg-muted text-muted-foreground hover:bg-muted/80"
-                        }`}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                    >
-                        <div className="flex items-center justify-center gap-2">
-                            <HelpCircle className="w-4 h-4" />
-                            المساعدة
-                        </div>
-                    </motion.button>
-                    <motion.button
-                        onClick={() => setActiveTab("contact")}
-                        className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${
-                            activeTab === "contact"
-                                ? "bg-primary text-white shadow-md"
-                                : "bg-muted text-muted-foreground hover:bg-muted/80"
-                        }`}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                    >
-                        <div className="flex items-center justify-center gap-2">
-                            <Phone className="w-4 h-4" />
-                            تواصل معنا
-                        </div>
-                    </motion.button>
-                </div>
+            {/* خلفية ديكورية */}
+            <div className="fixed inset-0 pointer-events-none z-0">
+                <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-[#5bdda6]/5 blur-[120px]" />
+                <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-blue-500/3 blur-[100px]" />
             </div>
 
-            {/* Main Content */}
-            <main className="px-4 pb-8">
-                {/* Help Tab */}
-                {activeTab === "help" && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="space-y-4 mt-6"
-                    >
-                        {/* Contact Methods in Help */}
-                        <div className="space-y-3 mb-6">
-                            <h3 className="text-lg font-bold px-2">طرق التواصل السريعة</h3>
-                            {contactMethods.map((method, index) => (
-                                <motion.a
-                                    key={index}
-                                    href={method.href}
-                                    target={method.href.startsWith('http') ? '_blank' : undefined}
-                                    rel={method.href.startsWith('http') ? 'noopener noreferrer' : undefined}
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: index * 0.05 }}
-                                    className={`flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br ${method.color} border ${method.borderColor} transition-all`}
-                                >
-                                    <div className={`w-10 h-10 rounded-lg bg-white/80 dark:bg-card flex items-center justify-center`}>
-                                        <method.icon className={`w-5 h-5 ${method.iconColor}`} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-sm text-foreground">{method.title}</p>
-                                        <p className="text-xs text-muted-foreground">{method.subtitle}</p>
-                                    </div>
-                                </motion.a>
-                            ))}
-                        </div>
+            <div className="relative z-10 pt-[calc(3.5rem+env(safe-area-inset-top)+1rem)] px-5 space-y-4">
+                <div className="max-w-lg mx-auto space-y-4">
 
-                        {/* FAQs */}
-                        <div className="space-y-2">
-                            <h3 className="text-lg font-bold px-2">الأسئلة الشائعة</h3>
-                            {faqs.map((faq, index) => (
-                                <motion.div
-                                    key={index}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: index * 0.05 }}
-                                >
-                                    <Card
-                                        className="cursor-pointer hover:border-primary/40 transition-all"
+                    {/* Hero Card */}
+                    <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+                        <div className="h-1 bg-gradient-to-r from-transparent via-[#5bdda6]/50 to-transparent" />
+                        <div className="p-5">
+                            <div className="flex items-center justify-between">
+                                <div className="w-14 h-14 rounded-2xl bg-[#5bdda6]/10 border border-[#5bdda6]/20 flex items-center justify-center shadow-[0_0_20px_rgba(91,221,166,0.15)] flex-shrink-0">
+                                    <Headphones className="w-7 h-7 text-[#5bdda6]" />
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-slate-500 text-xs font-medium mb-1">فريق الدعم</p>
+                                    <p className="text-xl font-black text-white">نحن هنا لمساعدتك</p>
+                                    <p className="text-slate-500 text-xs mt-0.5">متاح 24/7 طوال الأسبوع</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* تبويبات */}
+                    <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 p-1.5 flex gap-1.5">
+                        <button
+                            onClick={() => setActiveTab("help")}
+                            className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                                activeTab === "help"
+                                    ? "bg-[#5bdda6] text-[#0b1326] shadow-md"
+                                    : "text-slate-400 hover:text-white"
+                            }`}
+                        >
+                            <HelpCircle className="w-4 h-4" />
+                            المساعدة
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("contact")}
+                            className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                                activeTab === "contact"
+                                    ? "bg-[#5bdda6] text-[#0b1326] shadow-md"
+                                    : "text-slate-400 hover:text-white"
+                            }`}
+                        >
+                            <Phone className="w-4 h-4" />
+                            تواصل معنا
+                        </button>
+                    </div>
+
+                    {/* ── تبويب المساعدة ── */}
+                    {activeTab === "help" && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.25 }}
+                            className="space-y-4"
+                        >
+                            {/* طرق التواصل السريعة */}
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2.5">
+                                    <Phone className="w-4 h-4 text-[#5bdda6]" />
+                                    <h2 className="font-bold text-white text-sm">طرق التواصل السريعة</h2>
+                                    <div className="flex-1 h-px bg-slate-700/50" />
+                                </div>
+                                {contactMethods.map((method, index) => (
+                                    <a
+                                        key={index}
+                                        href={method.href}
+                                        target={method.href.startsWith('http') ? '_blank' : undefined}
+                                        rel={method.href.startsWith('http') ? 'noopener noreferrer' : undefined}
+                                        className={`flex items-center gap-3 p-4 rounded-2xl bg-[#171f33] border border-slate-700/30 hover:border-slate-600/50 active:scale-[0.97] transition-all`}
+                                    >
+                                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${method.glow}`}>
+                                            <method.icon className={`w-5 h-5 ${method.color}`} />
+                                        </div>
+                                        <div className="flex-1 text-right">
+                                            <p className="font-bold text-white text-sm">{method.title}</p>
+                                            <p className="text-xs text-slate-500">{method.subtitle}</p>
+                                        </div>
+                                        <ArrowRight className="w-4 h-4 text-slate-600 rotate-180" />
+                                    </a>
+                                ))}
+                            </div>
+
+                            {/* الأسئلة الشائعة */}
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2.5">
+                                    <HelpCircle className="w-4 h-4 text-amber-400" />
+                                    <h2 className="font-bold text-white text-sm">الأسئلة الشائعة</h2>
+                                    <div className="flex-1 h-px bg-slate-700/50" />
+                                </div>
+                                {faqs.map((faq, index) => (
+                                    <div
+                                        key={index}
+                                        className="bg-[#171f33] rounded-2xl border border-slate-700/30 overflow-hidden cursor-pointer"
                                         onClick={() => setExpandedFAQ(expandedFAQ === index ? null : index)}
                                     >
-                                        <CardContent className="p-4">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                                    <faq.icon className="w-5 h-5 text-primary" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <p className="font-bold text-foreground">{faq.title}</p>
-                                                        <motion.div
-                                                            animate={{ rotate: expandedFAQ === index ? 180 : 0 }}
-                                                            transition={{ duration: 0.3 }}
-                                                        >
-                                                            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-                                                        </motion.div>
-                                                    </div>
-                                                    {expandedFAQ === index && (
-                                                        <motion.p
-                                                            initial={{ opacity: 0, height: 0 }}
-                                                            animate={{ opacity: 1, height: "auto" }}
-                                                            exit={{ opacity: 0, height: 0 }}
-                                                            transition={{ duration: 0.2 }}
-                                                            className="text-sm text-muted-foreground mt-3"
-                                                        >
-                                                            {faq.answer}
-                                                        </motion.p>
-                                                    )}
-                                                </div>
+                                        <div className="p-4 flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+                                                <faq.icon className="w-4 h-4 text-amber-400" />
                                             </div>
-                                        </CardContent>
-                                    </Card>
-                                </motion.div>
-                            ))}
-                        </div>
+                                            <p className="font-bold text-white text-sm flex-1 text-right">{faq.title}</p>
+                                            <motion.div animate={{ rotate: expandedFAQ === index ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                                                <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                                            </motion.div>
+                                        </div>
+                                        {expandedFAQ === index && (
+                                            <div className="px-4 pb-4 border-t border-slate-700/30 pt-3">
+                                                <p className="text-sm text-slate-400 text-right leading-relaxed">{faq.answer}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
 
-                        {/* Emergency Section */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.5 }}
-                            className="mt-8 mb-6"
-                        >
-                            <h3 className="text-lg font-bold mb-3 px-2 text-red-600">حالات الطوارئ</h3>
-                            <div className="grid grid-cols-2 gap-3">
-                                <motion.a
-                                    href="tel:112"
-                                    className="bg-gradient-to-br from-red-500/20 to-red-500/5 border border-red-500/20 rounded-2xl p-4 text-center hover:border-red-500/40 transition-all"
-                                    whileHover={{ y: -5 }}
-                                >
-                                    <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-2" />
-                                    <p className="font-bold text-red-600">شرطة</p>
-                                    <p className="text-xs text-muted-foreground mt-1">112</p>
-                                </motion.a>
-                                <motion.a
-                                    href="tel:113"
-                                    className="bg-gradient-to-br from-red-500/20 to-red-500/5 border border-red-500/20 rounded-2xl p-4 text-center hover:border-red-500/40 transition-all"
-                                    whileHover={{ y: -5 }}
-                                >
-                                    <Ambulance className="w-8 h-8 text-red-600 mx-auto mb-2" />
-                                    <p className="font-bold text-red-600">إسعاف</p>
-                                    <p className="text-xs text-muted-foreground mt-1">113</p>
-                                </motion.a>
+                            {/* الطوارئ */}
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2.5">
+                                    <AlertTriangle className="w-4 h-4 text-red-400" />
+                                    <h2 className="font-bold text-red-400 text-sm">حالات الطوارئ</h2>
+                                    <div className="flex-1 h-px bg-slate-700/50" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <a href="tel:112" className="bg-[#171f33] rounded-2xl border border-red-500/20 p-4 text-center hover:border-red-500/40 active:scale-[0.97] transition-all">
+                                        <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                                        <p className="font-bold text-red-400 text-sm">شرطة</p>
+                                        <p className="text-xs text-slate-500 mt-1">112</p>
+                                    </a>
+                                    <a href="tel:113" className="bg-[#171f33] rounded-2xl border border-red-500/20 p-4 text-center hover:border-red-500/40 active:scale-[0.97] transition-all">
+                                        <Ambulance className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                                        <p className="font-bold text-red-400 text-sm">إسعاف</p>
+                                        <p className="text-xs text-slate-500 mt-1">113</p>
+                                    </a>
+                                </div>
                             </div>
                         </motion.div>
-                    </motion.div>
-                )}
+                    )}
 
-                {/* Contact Tab */}
-                {activeTab === "contact" && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="space-y-6 mt-6"
-                    >
-                        {/* Contact Methods */}
+                    {/* ── تبويب التواصل ── */}
+                    {activeTab === "contact" && (
                         <motion.div
-                            initial={{ opacity: 0, y: 20 }}
+                            initial={{ opacity: 0, y: 8 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.1 }}
-                            className="space-y-3"
+                            transition={{ duration: 0.25 }}
+                            className="space-y-4"
                         >
-                            {contactMethods.map((method, index) => (
-                                <motion.a
-                                    key={index}
-                                    href={method.href}
-                                    target={method.href.startsWith('http') ? '_blank' : undefined}
-                                    rel={method.href.startsWith('http') ? 'noopener noreferrer' : undefined}
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: index * 0.1 }}
-                                    className={`flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-br ${method.color} border ${method.borderColor} transition-all shadow-sm hover:shadow-md`}
-                                >
-                                    <div className={`w-12 h-12 rounded-xl bg-white/80 dark:bg-card flex items-center justify-center shadow-sm`}>
-                                        <method.icon className={`w-6 h-6 ${method.iconColor}`} />
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="font-bold text-foreground">{method.title}</p>
-                                        <p className="text-sm text-muted-foreground">{method.subtitle}</p>
-                                    </div>
-                                    <div className="text-left">
-                                        <p className={`font-medium text-sm ${method.title === 'واتساب' ? 'text-white dark:text-foreground' : method.iconColor}`} dir="ltr">{method.value}</p>
-                                    </div>
-                                </motion.a>
-                            ))}
-                        </motion.div>
-
-                        {/* Working Hours */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                        >
-                            <Card className="border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-amber-500/5">
-                                <CardContent className="p-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                                            <Clock className="w-5 h-5 text-amber-600" />
+                            {/* طرق التواصل */}
+                            <div className="space-y-2">
+                                {contactMethods.map((method, index) => (
+                                    <a
+                                        key={index}
+                                        href={method.href}
+                                        target={method.href.startsWith('http') ? '_blank' : undefined}
+                                        rel={method.href.startsWith('http') ? 'noopener noreferrer' : undefined}
+                                        className="flex items-center gap-3 p-4 rounded-2xl bg-[#171f33] border border-slate-700/30 hover:border-slate-600/50 active:scale-[0.97] transition-all"
+                                    >
+                                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${method.glow}`}>
+                                            <method.icon className={`w-5 h-5 ${method.color}`} />
                                         </div>
-                                        <div>
-                                            <p className="font-bold text-foreground">ساعات العمل</p>
-                                            <p className="text-sm text-muted-foreground">الدعم الفني متاح <span className="text-amber-600 font-bold">24/7</span></p>
+                                        <div className="flex-1 text-right">
+                                            <p className="font-bold text-white text-sm">{method.title}</p>
+                                            <p className="text-xs text-slate-500">{method.subtitle}</p>
                                         </div>
+                                        <span className={`text-xs font-medium ${method.color}`} dir="ltr">{method.value}</span>
+                                    </a>
+                                ))}
+                            </div>
+
+                            {/* ساعات العمل */}
+                            <div className="bg-[#171f33] rounded-2xl border border-amber-500/20 p-4 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+                                    <Clock className="w-5 h-5 text-amber-400" />
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold text-white text-sm">ساعات العمل</p>
+                                    <p className="text-xs text-slate-500">الدعم الفني متاح <span className="text-amber-400 font-bold">24/7</span></p>
+                                </div>
+                            </div>
+
+                            {/* نموذج الاتصال */}
+                            <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 overflow-hidden">
+                                <div className="h-1 bg-gradient-to-r from-transparent via-[#5bdda6]/50 to-transparent" />
+                                <div className="p-5">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <Send className="w-4 h-4 text-[#5bdda6]" />
+                                        <h3 className="font-bold text-white text-sm">أرسل لنا رسالة</h3>
                                     </div>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
 
-                        {/* Contact Form */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                        >
-                            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                <Send className="w-5 h-5 text-primary" />
-                                أرسل لنا رسالة
-                            </h3>
-
-                            <Card>
-                                <CardContent className="p-5">
                                     {isSubmitted ? (
-                                        <motion.div
-                                            initial={{ scale: 0.8, opacity: 0 }}
-                                            animate={{ scale: 1, opacity: 1 }}
-                                            className="py-8 text-center"
-                                        >
-                                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
-                                                <CheckCircle2 className="w-8 h-8 text-green-500" />
+                                        <div className="py-8 text-center">
+                                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#5bdda6]/10 border border-[#5bdda6]/20 flex items-center justify-center">
+                                                <CheckCircle2 className="w-8 h-8 text-[#5bdda6]" />
                                             </div>
-                                            <h4 className="text-lg font-bold mb-2">تم إرسال رسالتك!</h4>
-                                            <p className="text-muted-foreground">سنتواصل معك في أقرب وقت ممكن</p>
-                                        </motion.div>
+                                            <h4 className="text-lg font-bold text-white mb-2">تم إرسال رسالتك!</h4>
+                                            <p className="text-slate-500 text-sm">سنتواصل معك في أقرب وقت ممكن</p>
+                                        </div>
                                     ) : (
-                                        <form onSubmit={handleSubmit} className="space-y-4">
+                                        <form onSubmit={handleSubmit} className="space-y-3">
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="name" className="text-sm">الاسم *</Label>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs text-slate-400">الاسم *</Label>
                                                     <Input
-                                                        id="name"
                                                         value={formData.name}
                                                         onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                                                         placeholder="اسمك الكريم"
+                                                        className="bg-[#0b1326] border-slate-700/50 text-white placeholder:text-slate-600 text-sm"
                                                         required
                                                     />
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="phone" className="text-sm">رقم الهاتف *</Label>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs text-slate-400">رقم الهاتف *</Label>
                                                     <Input
-                                                        id="phone"
                                                         type="tel"
                                                         dir="ltr"
                                                         value={formData.phone}
                                                         onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                                                         placeholder="07XXXXXXXX"
+                                                        className="bg-[#0b1326] border-slate-700/50 text-white placeholder:text-slate-600 text-sm"
                                                         required
                                                     />
                                                 </div>
                                             </div>
-
-                                            <div className="space-y-2">
-                                                <Label htmlFor="email" className="text-sm">البريد الإلكتروني (اختياري)</Label>
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs text-slate-400">الموضوع</Label>
                                                 <Input
-                                                    id="email"
-                                                    type="email"
-                                                    dir="ltr"
-                                                    value={formData.email}
-                                                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                                                    placeholder="example@email.com"
-                                                />
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <Label htmlFor="subject" className="text-sm">الموضوع</Label>
-                                                <Input
-                                                    id="subject"
                                                     value={formData.subject}
                                                     onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
                                                     placeholder="استفسار عن..."
+                                                    className="bg-[#0b1326] border-slate-700/50 text-white placeholder:text-slate-600 text-sm"
                                                 />
                                             </div>
-
-                                            <div className="space-y-2">
-                                                <Label htmlFor="message" className="text-sm">الرسالة *</Label>
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs text-slate-400">الرسالة *</Label>
                                                 <Textarea
-                                                    id="message"
                                                     value={formData.message}
                                                     onChange={(e) => setFormData(prev => ({ ...prev, message: e.target.value }))}
                                                     placeholder="اكتب رسالتك هنا..."
                                                     rows={4}
+                                                    className="bg-[#0b1326] border-slate-700/50 text-white placeholder:text-slate-600 text-sm resize-none"
                                                     required
                                                 />
                                             </div>
-
-                                            <Button
+                                            <button
                                                 type="submit"
-                                                className="w-full h-12 text-lg font-bold"
                                                 disabled={isSubmitting}
+                                                className="w-full py-3 rounded-xl bg-[#5bdda6] text-[#0b1326] font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#4dc99a] active:scale-[0.97] transition-all disabled:opacity-60"
                                             >
                                                 {isSubmitting ? (
-                                                    <>
-                                                        <Loader2 className="w-5 h-5 animate-spin ml-2" />
-                                                        جاري الإرسال...
-                                                    </>
+                                                    <><Loader2 className="w-4 h-4 animate-spin" /> جاري الإرسال...</>
                                                 ) : (
-                                                    <>
-                                                        <Send className="w-5 h-5 ml-2" />
-                                                        إرسال الرسالة
-                                                    </>
+                                                    <><Send className="w-4 h-4" /> إرسال الرسالة</>
                                                 )}
-                                            </Button>
+                                            </button>
                                         </form>
                                     )}
-                                </CardContent>
-                            </Card>
-                        </motion.div>
+                                </div>
+                            </div>
 
-                        {/* Social Media */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.5 }}
-                        >
-                            <h3 className="text-lg font-bold mb-4 text-center">تابعنا على</h3>
-                            <div className="flex justify-center gap-4">
-                                {socialLinks.map((social, index) => (
-                                    <motion.a
-                                        key={index}
-                                        href={social.href}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        whileHover={{ scale: 1.1, y: -5 }}
-                                        whileTap={{ scale: 0.95 }}
-                                        className={`w-14 h-14 rounded-2xl ${social.color} flex items-center justify-center shadow-lg text-white`}
-                                    >
-                                        <social.icon className="w-6 h-6" />
-                                    </motion.a>
-                                ))}
+                            {/* سوشيال ميديا */}
+                            <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 p-5">
+                                <p className="font-bold text-white text-sm text-center mb-4">تابعنا على</p>
+                                <div className="flex justify-center gap-3">
+                                    {socialLinks.map((social, index) => (
+                                        <a
+                                            key={index}
+                                            href={social.href}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={`w-12 h-12 rounded-2xl border flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${social.color}`}
+                                            aria-label={social.label}
+                                        >
+                                            <social.icon className="w-5 h-5" />
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* الموقع */}
+                            <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 p-4 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-[#5bdda6]/10 border border-[#5bdda6]/20 flex items-center justify-center flex-shrink-0">
+                                    <MapPin className="w-5 h-5 text-[#5bdda6]" />
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold text-white text-sm">المكتب الرئيسي</p>
+                                    <p className="text-xs text-slate-500">الرمادي، محافظة الأنبار، العراق</p>
+                                </div>
                             </div>
                         </motion.div>
+                    )}
 
-                        {/* Office Location */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.6 }}
-                        >
-                            <Card className="border-border/30">
-                                <CardContent className="p-4">
-                                    <div className="flex items-start gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                                            <MapPin className="w-5 h-5 text-primary" />
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-foreground">المكتب الرئيسي</p>
-                                            <p className="text-sm text-muted-foreground">الرمادي، محافظة الأنبار، العراق</p>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-                    </motion.div>
-                )}
-
-                {/* Footer */}
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                        <img src={logo} alt="RAAN" className="w-6 h-6" />
-                        <span className="font-bold">ران RAAN</span>
+                    {/* Footer */}
+                    <div className="text-center py-4 text-xs text-slate-600">
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                            <img src={logo} alt="RAAN" className="w-5 h-5 rounded" />
+                            <span className="font-bold text-slate-500">ران RAAN</span>
+                        </div>
+                        <p>نسعى دائماً لخدمتكم بأفضل طريقة 💚</p>
                     </div>
-                    <p>نسعى دائماً لخدمتكم بأفضل طريقة 💚</p>
+
                 </div>
-            </main>
+            </div>
         </div>
     );
 };

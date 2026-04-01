@@ -23,14 +23,359 @@
    تصميم عالمي أنيق وعصري
 */
 
+/* ═══════════════════════════════════════════════════════════
+   RAAN — متغيرات الثيم الليلي (افتراضي)
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --raan-bg:           #0b1326;
+  --raan-bg-elevated:  #0d1a2e;
+  --raan-surface:      #171f33;
+  --raan-surface-alt:  #1a2536;
+  --raan-border:       rgba(255,255,255,0.06);
+  --raan-border-soft:  rgba(255,255,255,0.04);
+  --raan-text:         #ffffff;
+  --raan-text-sub:     #94a3b8;
+  --raan-text-muted:   #475569;
+  --raan-accent:       #5bdda6;
+  --raan-accent-dim:   rgba(91,221,166,0.12);
+  --raan-accent-glow:  rgba(91,221,166,0.25);
+  --raan-divider:      rgba(255,255,255,0.05);
+  --raan-overlay:      rgba(11,19,38,0.92);
+  --raan-body-bg:      #0b1326;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RAAN — متغيرات الثيم النهاري
+   ═══════════════════════════════════════════════════════════ */
+html.light-rider {
+  --raan-bg:           #f0f4ff;
+  --raan-bg-elevated:  #e8eef8;
+  --raan-surface:      #ffffff;
+  --raan-surface-alt:  #f8fafc;
+  --raan-border:       rgba(0,0,0,0.07);
+  --raan-border-soft:  rgba(0,0,0,0.04);
+  --raan-text:         #0f172a;
+  --raan-text-sub:     #475569;
+  --raan-text-muted:   #94a3b8;
+  --raan-accent:       #059669;
+  --raan-accent-dim:   rgba(5,150,105,0.10);
+  --raan-accent-glow:  rgba(5,150,105,0.20);
+  --raan-divider:      rgba(0,0,0,0.05);
+  --raan-overlay:      rgba(240,244,255,0.92);
+  --raan-body-bg:      #f0f4ff;
+}
+
 html, body {
   /* منع تداخل محتوى التطبيق مع شريط الحالة وشريط التنقل السفلي في الاجهزة المحمولة */
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  background-color: #0b1326; /* خلفية داكنة متجانسة للحواف */
+  background-color: var(--raan-body-bg);
   overflow: hidden; /* لمنع التمرير المزدوج في الحواف */
   height: 100vh;
   width: 100vw;
+  transition: background-color 0.3s ease;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RAAN Light Mode — Overrides شاملة لألوان Tailwind الداكنة
+   تؤثر على كل الصفحات (الراكب + السائق) تلقائياً
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 1. خلفيات داكنة ثابتة → فاتحة ── */
+html.light-rider .bg-\[\#0b1326\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#0a0f1c\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#0a0e1a\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#0d1a2e\]  { background-color: #e8eef8 !important; }
+html.light-rider .bg-\[\#0f1726\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#0f1f14\]  { background-color: #f0fbf6 !important; }
+html.light-rider .bg-\[\#111d2c\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#111827\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#151f30\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#171f33\]  { background-color: #ffffff !important; }
+html.light-rider .bg-\[\#1a2333\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#1a2536\]  { background-color: #f8fafc !important; }
+/* دفعة 2: ألوان داكنة إضافية */
+html.light-rider .bg-\[\#0c1220\]  { background-color: #eef2ff !important; }
+html.light-rider .bg-\[\#0e1528\]  { background-color: #eef2ff !important; }
+html.light-rider .bg-\[\#0d1321\]  { background-color: #e8eef8 !important; }
+html.light-rider .bg-\[\#101421\]  { background-color: #eef2ff !important; }
+html.light-rider .bg-\[\#111b30\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#131b2c\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#131b2e\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#151c2b\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#1d2740\]  { background-color: #e2e8f0 !important; }
+html.light-rider .bg-\[\#1e293b\]  { background-color: #e2e8f0 !important; }
+html.light-rider .bg-\[\#1a243b\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#1a253c\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#1f2d44\]  { background-color: #e2e8f0 !important; }
+html.light-rider .bg-\[\#212d42\]  { background-color: #e2e8f0 !important; }
+html.light-rider .bg-\[\#222a3d\]  { background-color: #e2e8f0 !important; }
+html.light-rider .bg-\[\#283a52\]  { background-color: #cbd5e1 !important; }
+html.light-rider .bg-\[\#2d3449\]  { background-color: #cbd5e1 !important; }
+html.light-rider .bg-\[\#3d4a5d\]  { background-color: #94a3b8 !important; }
+html.light-rider .bg-\[\#3e495d\]  { background-color: #94a3b8 !important; }
+html.light-rider .bg-\[\#060e20\]  { background-color: rgba(0,0,0,0.5) !important; }
+/* ألوان داكنة خضراء / حمراء */
+html.light-rider .bg-\[\#0f2922\]  { background-color: #dcfce7 !important; }
+html.light-rider .bg-\[\#0c261e\]  { background-color: #dcfce7 !important; }
+html.light-rider .bg-\[\#163d30\]  { background-color: #bbf7d0 !important; }
+html.light-rider .bg-\[\#2a1e1d\]  { background-color: #fee2e2 !important; }
+
+/* Tailwind bg-slate / bg-gray utilities */
+html.light-rider .bg-slate-700  { background-color: #e2e8f0 !important; }
+html.light-rider .bg-slate-800  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-slate-900  { background-color: #f0f4ff !important; }
+html.light-rider .bg-gray-800   { background-color: #f1f5f9 !important; }
+html.light-rider .bg-gray-900   { background-color: #f0f4ff !important; }
+
+/* خلفيات داكنة بشفافية */
+html.light-rider .bg-\[\#0a0f1c\]\/80  { background-color: rgba(240,244,255,0.85) !important; }
+html.light-rider .bg-\[\#0b1326\]\/80  { background-color: rgba(240,244,255,0.85) !important; }
+html.light-rider .bg-\[\#0b1326\]\/90  { background-color: rgba(240,244,255,0.92) !important; }
+html.light-rider .bg-black\/25         { background-color: rgba(255,255,255,0.20) !important; }
+html.light-rider .bg-black\/40         { background-color: rgba(255,255,255,0.30) !important; }
+html.light-rider .bg-black\/50         { background-color: rgba(0,0,0,0.04) !important; }
+html.light-rider .bg-white\/10         { background-color: rgba(0,0,0,0.05) !important; }
+html.light-rider .bg-white\/5          { background-color: rgba(0,0,0,0.03) !important; }
+
+/* ── 2. لون الأكسنت الأخضر — ساطع → ناضج ── */
+html.light-rider .bg-\[\#5bdda6\]     { background-color: #059669 !important; }
+html.light-rider .bg-\[\#5bdda6\]\/10 { background-color: rgba(5,150,105,0.10) !important; }
+html.light-rider .bg-\[\#5bdda6\]\/15 { background-color: rgba(5,150,105,0.12) !important; }
+html.light-rider .bg-\[\#5bdda6\]\/20 { background-color: rgba(5,150,105,0.15) !important; }
+html.light-rider .bg-\[\#34d399\]     { background-color: #059669 !important; }
+html.light-rider .text-\[\#5bdda6\]   { color: #059669 !important; }
+html.light-rider .text-\[\#34d399\]   { color: #059669 !important; }
+html.light-rider .border-\[\#5bdda6\]          { border-color: #059669 !important; }
+html.light-rider .border-\[\#5bdda6\]\/20      { border-color: rgba(5,150,105,0.20) !important; }
+html.light-rider .border-\[\#5bdda6\]\/30      { border-color: rgba(5,150,105,0.25) !important; }
+
+/* Tailwind emerald — تحسين تباين في النهاري */
+html.light-rider .bg-emerald-400     { background-color: #059669 !important; }
+html.light-rider .bg-emerald-500     { background-color: #047857 !important; }
+html.light-rider .text-emerald-400   { color: #059669 !important; }
+html.light-rider .text-emerald-300   { color: #047857 !important; }
+
+/* ── 3. نصوص — أبيض → داكن ── */
+html.light-rider .text-white         { color: #0f172a !important; }
+html.light-rider .text-white\/90     { color: rgba(15,23,42,0.88) !important; }
+html.light-rider .text-white\/85     { color: rgba(15,23,42,0.82) !important; }
+html.light-rider .text-white\/80     { color: rgba(15,23,42,0.75) !important; }
+html.light-rider .text-white\/70     { color: rgba(15,23,42,0.65) !important; }
+html.light-rider .text-white\/60     { color: rgba(15,23,42,0.55) !important; }
+html.light-rider .text-white\/50     { color: rgba(15,23,42,0.45) !important; }
+html.light-rider .text-white\/40     { color: rgba(15,23,42,0.35) !important; }
+
+html.light-rider .text-slate-300     { color: #334155 !important; }
+html.light-rider .text-slate-400     { color: #64748b !important; }
+html.light-rider .text-slate-500     { color: #94a3b8 !important; }
+html.light-rider .text-slate-200     { color: #1e293b !important; }
+html.light-rider .text-slate-100     { color: #0f172a !important; }
+html.light-rider .text-gray-300      { color: #374151 !important; }
+html.light-rider .text-gray-400      { color: #6b7280 !important; }
+/* نصوص hex ثابتة — تحسين تباين */
+html.light-rider .text-\[\#a4b1cd\]  { color: #64748b !important; }
+html.light-rider .text-\[\#ffdad6\]  { color: #fcdcdc !important; }
+html.light-rider .text-\[\#00E676\]  { color: #047857 !important; }
+html.light-rider .text-\[\#25D366\]  { color: #15803d !important; }
+
+/* placeholder في الحقول */
+html.light-rider .placeholder\:text-slate-400::placeholder { color: #94a3b8 !important; }
+html.light-rider .placeholder\:text-slate-500::placeholder { color: #94a3b8 !important; }
+
+/* ── 4. حدود — فاتحة ── */
+html.light-rider .border-slate-700\/30,
+html.light-rider .border-slate-700\/40,
+html.light-rider .border-slate-700\/50  { border-color: rgba(0,0,0,0.08) !important; }
+html.light-rider .border-slate-700\/60  { border-color: rgba(0,0,0,0.10) !important; }
+html.light-rider .border-slate-700      { border-color: rgba(0,0,0,0.10) !important; }
+html.light-rider .border-slate-800      { border-color: rgba(0,0,0,0.06) !important; }
+html.light-rider .border-slate-800\/60  { border-color: rgba(0,0,0,0.06) !important; }
+html.light-rider .border-slate-800\/80  { border-color: rgba(0,0,0,0.08) !important; }
+html.light-rider .border-white\/10      { border-color: rgba(0,0,0,0.06) !important; }
+html.light-rider .border-white\/5       { border-color: rgba(0,0,0,0.04) !important; }
+html.light-rider .border-white\/20      { border-color: rgba(0,0,0,0.08) !important; }
+html.light-rider .divide-slate-800 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(0,0,0,0.06) !important; }
+
+/* ── 5. تدرجات لونية (Gradients) → فاتحة ── */
+html.light-rider .from-slate-800  { --tw-gradient-from: #f1f5f9 !important; }
+html.light-rider .from-slate-900  { --tw-gradient-from: #f0f4ff !important; }
+html.light-rider .from-gray-900   { --tw-gradient-from: #f0f4ff !important; }
+html.light-rider .from-gray-800   { --tw-gradient-from: #f1f5f9 !important; }
+html.light-rider .to-slate-700    { --tw-gradient-to: #e2e8f0 !important; }
+html.light-rider .to-slate-800    { --tw-gradient-to: #f1f5f9 !important; }
+html.light-rider .to-slate-900    { --tw-gradient-to: #f0f4ff !important; }
+html.light-rider .to-gray-800     { --tw-gradient-to: #f1f5f9 !important; }
+html.light-rider .to-gray-900     { --tw-gradient-to: #f0f4ff !important; }
+html.light-rider .to-black        { --tw-gradient-to: #e2e8f0 !important; }
+html.light-rider .via-slate-800   { --tw-gradient-via: #f1f5f9 !important; }
+html.light-rider .via-\[\#0a1f1c\]  { --tw-gradient-via: #ecfdf5 !important; }
+html.light-rider .via-\[\#0a1f0d\]  { --tw-gradient-via: #ecfdf5 !important; }
+html.light-rider .to-\[\#0a1f0d\]   { --tw-gradient-to: #ecfdf5 !important; }
+
+/* تدرجات مع hex مباشر */
+html.light-rider .from-\[\#0b1326\]  { --tw-gradient-from: #f0f4ff !important; }
+html.light-rider .to-\[\#0b1326\]    { --tw-gradient-to: #f0f4ff !important; }
+html.light-rider .from-\[\#0d1321\]  { --tw-gradient-from: #eef2ff !important; }
+html.light-rider .to-\[\#0d1321\]    { --tw-gradient-to: #eef2ff !important; }
+html.light-rider .from-\[\#131b2c\]  { --tw-gradient-from: #f1f5f9 !important; }
+html.light-rider .to-\[\#131b2c\]    { --tw-gradient-to: #f1f5f9 !important; }
+html.light-rider .from-\[\#171f33\]  { --tw-gradient-from: #ffffff !important; }
+html.light-rider .to-\[\#171f33\]    { --tw-gradient-to: #ffffff !important; }
+/* تدرجات خضراء نيون → أخضر أعمق للتباين */
+html.light-rider .from-\[\#00E676\]  { --tw-gradient-from: #059669 !important; }
+html.light-rider .to-\[\#00C853\]    { --tw-gradient-to: #047857 !important; }
+html.light-rider .to-\[\#69F0AE\]    { --tw-gradient-to: #34d399 !important; }
+
+/* ── 6. ظلال وتوهج — أخف في النهاري ── */
+html.light-rider .shadow-glow {
+  box-shadow:
+    0 0 20px rgba(5,150,105,0.12),
+    0 0 40px rgba(5,150,105,0.06) !important;
+}
+html.light-rider .shadow-glow-lg {
+  box-shadow:
+    0 0 30px rgba(5,150,105,0.15),
+    0 0 60px rgba(5,150,105,0.08) !important;
+}
+html.light-rider .shadow-glow-sm {
+  box-shadow: 0 0 10px rgba(5,150,105,0.10) !important;
+}
+
+/* ظل الأكسنت على الأزرار الخضراء */
+html.light-rider .shadow-\[0_0_30px_rgba\(52\,211\,153\,0\.1\)\] {
+  box-shadow: 0 0 20px rgba(5,150,105,0.08) !important;
+}
+html.light-rider .shadow-\[0_0_20px_rgba\(91\,221\,166\,0\.15\)\] {
+  box-shadow: 0 0 15px rgba(5,150,105,0.10) !important;
+}
+
+/* ── 7. ring / outline → فاتح ── */
+html.light-rider .ring-emerald-500\/20  { --tw-ring-color: rgba(5,150,105,0.15) !important; }
+html.light-rider .ring-emerald-500\/50  { --tw-ring-color: rgba(5,150,105,0.30) !important; }
+html.light-rider .focus\:border-emerald-500\/50:focus { border-color: rgba(5,150,105,0.4) !important; }
+html.light-rider .focus\:ring-emerald-500\/20:focus   { --tw-ring-color: rgba(5,150,105,0.15) !important; }
+
+/* ── 8. عناصر خاصة ── */
+
+/* شريط التنقل السفلي */
+html.light-rider .bg-\[\#0b1326\]\/95  { background-color: rgba(240,244,255,0.95) !important; }
+
+/* مؤشر النشاط في التبويبات */
+html.light-rider .bg-emerald-500\/10   { background-color: rgba(5,150,105,0.08) !important; }
+html.light-rider .bg-emerald-500\/20   { background-color: rgba(5,150,105,0.12) !important; }
+html.light-rider .bg-emerald-400\/10   { background-color: rgba(5,150,105,0.08) !important; }
+html.light-rider .bg-emerald-400\/15   { background-color: rgba(5,150,105,0.10) !important; }
+html.light-rider .border-emerald-500\/20 { border-color: rgba(5,150,105,0.15) !important; }
+html.light-rider .border-emerald-500\/30 { border-color: rgba(5,150,105,0.20) !important; }
+html.light-rider .border-emerald-500\/50 { border-color: rgba(5,150,105,0.35) !important; }
+
+/* hover states */
+html.light-rider .hover\:bg-white\/20:hover { background-color: rgba(0,0,0,0.06) !important; }
+html.light-rider .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.04) !important; }
+html.light-rider .hover\:text-white:hover    { color: #0f172a !important; }
+/* hover states — ألوان داكنة إضافية */
+html.light-rider .hover\:bg-\[\#1d2740\]:hover  { background-color: #e2e8f0 !important; }
+html.light-rider .hover\:bg-\[\#1e293b\]:hover  { background-color: #e2e8f0 !important; }
+html.light-rider .hover\:bg-\[\#1f2d44\]:hover  { background-color: #e2e8f0 !important; }
+html.light-rider .hover\:bg-\[\#111b30\]:hover  { background-color: #f0f4ff !important; }
+html.light-rider .hover\:bg-\[\#1a253c\]:hover  { background-color: #f1f5f9 !important; }
+html.light-rider .hover\:bg-\[\#212d42\]:hover  { background-color: #e2e8f0 !important; }
+html.light-rider .hover\:bg-\[\#222a3d\]:hover  { background-color: #e2e8f0 !important; }
+html.light-rider .hover\:bg-\[\#283a52\]:hover  { background-color: #cbd5e1 !important; }
+html.light-rider .hover\:bg-\[\#3d4a5d\]:hover  { background-color: #94a3b8 !important; }
+html.light-rider .hover\:bg-\[\#163d30\]:hover  { background-color: #a7f3d0 !important; }
+html.light-rider .hover\:bg-\[\#131b2c\]:hover  { background-color: #e2e8f0 !important; }
+
+/* نص الأزرار الخضراء — يبقى فاتح على الأخضر الداكن */
+html.light-rider .bg-\[\#5bdda6\] .text-\[\#0b1326\],
+html.light-rider .text-\[\#0b1326\] { color: #ffffff !important; }
+html.light-rider .bg-\[\#5bdda6\] > .text-\[\#064e3b\] { color: #ffffff !important; }
+
+/* انتقال سلس عند التبديل */
+html.light-rider * {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 0.3s;
+  transition-timing-function: ease;
+}
+
+/* ── 9. مكونات السائق في الوضع النهاري ── */
+html.light-rider .driver-page-shell {
+  background-image:
+    radial-gradient(circle at 15% 10%, hsl(38 90% 50% / 0.06), transparent 28%),
+    radial-gradient(circle at 85% 0%, hsl(160 84% 36% / 0.05), transparent 26%),
+    linear-gradient(145deg, hsl(220 30% 97%), hsl(220 25% 94%));
+}
+
+html.light-rider .driver-geometric-card {
+  border-color: hsl(220 14% 86%);
+  background: linear-gradient(140deg, hsl(0 0% 100% / 0.95), hsl(220 18% 96% / 0.9));
+  box-shadow:
+    0 4px 20px rgba(0,0,0,0.06),
+    inset 0 0 0 1px hsl(38 90% 50% / 0.08);
+}
+
+html.light-rider .driver-geometric-outline {
+  border-color: hsl(38 90% 50% / 0.35);
+  background: hsl(220 18% 96% / 0.8);
+  box-shadow: inset 0 0 0 1px hsl(220 14% 86% / 0.5);
+}
+
+html.light-rider .driver-stepper {
+  border-color: hsl(220 14% 86%);
+  background: hsl(0 0% 100% / 0.88);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+}
+
+html.light-rider .driver-stepper-node {
+  border-color: hsl(220 14% 86%);
+  background: hsl(220 18% 96%);
+}
+
+/* ── 10. مكونات الراكب المميزة في النهاري ── */
+html.light-rider .hero-gradient {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, hsl(160 80% 40% / 0.06), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 50%, hsl(160 80% 40% / 0.04), transparent),
+    radial-gradient(ellipse 60% 40% at 20% 80%, hsl(160 80% 40% / 0.03), transparent);
+}
+
+html.light-rider .glass {
+  background: rgba(255,255,255,0.85);
+  border-color: rgba(0,0,0,0.06);
+}
+
+html.light-rider .glass-card {
+  background: rgba(255,255,255,0.7);
+  border-color: rgba(0,0,0,0.06);
+}
+
+html.light-rider .card-hover:hover {
+  border-color: hsl(160 84% 36% / 0.3);
+  box-shadow:
+    0 0 20px hsl(160 84% 36% / 0.08),
+    inset 0 0 15px hsl(160 84% 36% / 0.03);
+}
+
+html.light-rider .text-glow {
+  text-shadow:
+    0 0 20px hsl(160 84% 36% / 0.25),
+    0 0 40px hsl(160 84% 36% / 0.12);
+}
+
+html.light-rider .border-glow {
+  border-color: hsl(160 84% 36% / 0.2);
+  box-shadow: inset 0 0 15px hsl(160 84% 36% / 0.03);
+}
+
+html.light-rider .btn-glow:hover {
+  box-shadow:
+    0 0 25px hsl(160 84% 36% / 0.2),
+    0 0 50px hsl(160 84% 36% / 0.1);
+}
+
+html.light-rider .dots-pattern {
+  background-image: radial-gradient(hsl(160 84% 36% / 0.08) 1px, transparent 1px);
 }
 
 .animate-float-delay-1s {
@@ -170,6 +515,74 @@ html, body {
     --rider-card-border: 224 20% 22%;
     --rider-glow: 160 100% 45%;
     --rider-radius: 1rem;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Light Mode — متغيرات HSL للسائق والراكب
+     تتفعل عند إضافة class: light-rider على html
+     ═══════════════════════════════════════════════════════════ */
+
+  html.light-rider .driver-luxury {
+    --primary: 160 84% 36%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 160 78% 42%;
+    --primary-dark: 160 84% 28%;
+    --primary-glow: 160 84% 40%;
+
+    --background: 220 30% 97%;
+    --foreground: 224 40% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 40% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 40% 12%;
+
+    --secondary: 220 20% 94%;
+    --secondary-foreground: 224 30% 18%;
+
+    --muted: 220 16% 92%;
+    --muted-foreground: 220 10% 42%;
+
+    --accent: 38 90% 50%;
+    --accent-foreground: 226 38% 15%;
+
+    --border: 220 14% 86%;
+    --input: 220 16% 92%;
+    --ring: 38 90% 50%;
+
+    --driver-geo-line: 220 20% 82%;
+    --driver-geo-surface: 220 18% 96%;
+    --driver-geo-emphasis: 38 90% 50%;
+    --driver-geo-emerald: 160 84% 36%;
+  }
+
+  html.light-rider .rider-premium {
+    --background: 224 30% 97%;
+    --foreground: 224 40% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 40% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 40% 10%;
+
+    --secondary: 222 20% 94%;
+    --secondary-foreground: 224 28% 16%;
+
+    --muted: 222 16% 92%;
+    --muted-foreground: 218 12% 45%;
+
+    --accent: 160 60% 30%;
+    --accent-foreground: 160 80% 20%;
+
+    --border: 224 16% 86%;
+    --input: 224 18% 93%;
+    --ring: 160 84% 36%;
+
+    --rider-card-surface: 0 0% 100%;
+    --rider-card-border: 224 16% 86%;
+    --rider-glow: 160 84% 36%;
   }
 }
 
@@ -1100,4 +1513,62 @@ body.driver-mode {
   inset: 0;
   width: 100%;
   height: 100%;
+  /* safe-area: منع تراكب المحتوى مع شريط التصفح السفلي */
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  padding-top: env(safe-area-inset-top, 0px) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Car Mode — Driver UI polish (car app only)
+   ═══════════════════════════════════════════════════════════ */
+body.car-mode .driver-page-shell {
+  padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.car-mode .car-quick-dock {
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.car-mode .car-quick-dock-panel {
+  box-shadow:
+    0 24px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(16, 185, 129, 0.12) inset;
+}
+
+body.car-mode .car-quick-btn {
+  min-height: 68px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.car-mode .car-quick-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 480px) {
+  body.car-mode .car-quick-btn {
+    min-height: 74px;
+  }
+
+  body.car-mode .car-quick-btn span {
+    font-size: 11px;
+  }
+}
+
+/* Utility: بادينج سفلي آمن لعناصر الـ bottom sheet */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+
+.pb-safe-4 {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.pb-safe-6 {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.pb-safe-8 {
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
 }

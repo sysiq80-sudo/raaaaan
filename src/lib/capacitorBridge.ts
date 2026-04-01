@@ -29,6 +29,17 @@ export const isIOS = Capacitor.getPlatform() === 'ios';
 /** هل المنصة ويب */
 export const isWeb = Capacitor.getPlatform() === 'web';
 
+const FOREGROUND_PUSH_DEDUPE_TTL_MS = 8_000;
+const foregroundPushDedupe = new Map<string, number>();
+const RIDER_STATUS_TYPES = new Set([
+  'RIDE_STATUS_CHANGE',
+  'ride-accepted',
+  'driver-arrived',
+  'ride-started',
+  'ride-completed',
+  'ride-cancelled',
+]);
+
 // ═══ GPS / تحديد الموقع في الخلفية ═══
 
 /**
@@ -408,6 +419,29 @@ export const initNativePushNotifications = async (): Promise<void> => {
       
       const rideId = notification.data?.ride_id || notification.data?.rideId;
       const notifType = notification.data?.type;
+      const dedupeKey = `${rideId || 'no-ride'}:${notifType || 'unknown'}`;
+      const now = Date.now();
+
+      // منع تكرار إشعارات foreground لنفس الحدث خلال نافذة قصيرة
+      const lastSeenAt = foregroundPushDedupe.get(dedupeKey);
+      if (typeof lastSeenAt === 'number' && now - lastSeenAt < FOREGROUND_PUSH_DEDUPE_TTL_MS) {
+        return;
+      }
+      foregroundPushDedupe.set(dedupeKey, now);
+      for (const [key, seenAt] of foregroundPushDedupe.entries()) {
+        if (now - seenAt > FOREGROUND_PUSH_DEDUPE_TTL_MS) {
+          foregroundPushDedupe.delete(key);
+        }
+      }
+
+      // للراكب في foreground: لا تُظهر Local notification إضافي لحالات الرحلة
+      if (
+        document.visibilityState === 'visible' &&
+        typeof notifType === 'string' &&
+        RIDER_STATUS_TYPES.has(notifType)
+      ) {
+        return;
+      }
       
       // عرض إشعار محلي أصلي حتى لو التطبيق مفتوح (السائق قد لا يكون على صفحة الطلبات)
       const channelId = notifType === 'new_ride' || notifType === 'NEW_RIDE_REQUEST' 

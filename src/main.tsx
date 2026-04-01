@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
+import "mapbox-gl/dist/mapbox-gl.css"; // ✅ FIX: إصلاح الخرائط — يجب أن يكون قبل index.css
 import "./index.css";
 import { registerServiceWorker } from "./utils/serviceWorker";
 import { supabase } from "./integrations/supabase/client";

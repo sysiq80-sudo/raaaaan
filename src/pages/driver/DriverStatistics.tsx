@@ -1,10 +1,8 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { User, Session } from "@supabase/supabase-js";
+import { useDriverSession } from "@/hooks/useDriverSession";
 import { 
   TrendingUp,
   TrendingDown,
@@ -79,11 +77,8 @@ interface PaymentData {
 const COLORS = ['#10b981', '#8b5cf6', '#3b82f6', '#f59e0b'];
 
 const DriverStatistics = () => {
-  const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const { driver, loading: authLoading } = useDriverSession();
   const [loading, setLoading] = useState(true);
-  const [driverId, setDriverId] = useState<string | null>(null);
   const [period, setPeriod] = useState<"week" | "month" | "all">("week");
   
   // Stats
@@ -104,48 +99,21 @@ const DriverStatistics = () => {
     bestDay: "",
   });
 
+  // إزالة driver-mode لتفعيل السكرول
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
+    const had = document.body.classList.contains('driver-mode');
+    document.body.classList.remove('driver-mode');
+    document.body.style.overflow = 'auto';
+    document.body.style.position = 'static';
+    return () => {
+      if (had) document.body.classList.add('driver-mode');
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+    };
   }, []);
 
-  useEffect(() => {
-    if (user) {
-      fetchDriverId();
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (driverId) {
-      fetchStatistics();
-    }
-  }, [driverId, period]);
-
-  const fetchDriverId = async () => {
-    const { data: driver } = await supabase
-      .from("drivers")
-      .select("id")
-      .eq("user_id", user!.id)
-      .maybeSingle();
-
-    if (driver) {
-      setDriverId(driver.id);
-    } else {
-      setLoading(false);
-    }
-  };
-
-  const fetchStatistics = async () => {
-    setLoading(true);
+  const fetchStatistics = useCallback(async () => {
+    if (!driver) return;
     try {
       // Determine date range
       const now = new Date();
@@ -195,7 +163,11 @@ const DriverStatistics = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [driver, period]);
+
+  useEffect(() => {
+    if (driver) fetchStatistics();
+  }, [driver, period, fetchStatistics]);
 
   const processRidesData = (rides: RideData[], startDate: Date, endDate: Date) => {
     // Basic stats
@@ -288,24 +260,19 @@ const DriverStatistics = () => {
     });
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-[#0b1326] flex items-center justify-center" dir="rtl">
         <div className="text-center">
-          <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">جاري تحميل الإحصائيات...</p>
+          <Loader2 className="w-10 h-10 text-[#5bdda6] animate-spin mx-auto mb-4" />
+          <p className="text-slate-500 text-sm">جاري تحميل الإحصائيات...</p>
         </div>
       </div>
     );
   }
 
-  if (!user) {
-    navigate("/driver/auth");
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20" dir="rtl">
+    <div className="min-h-screen bg-[#0b1326] overflow-y-auto" dir="rtl">
       <DriverPageHeader title="الإحصائيات" />
       {/* Main Content */}
       <main className="pt-20 pb-8 px-4">

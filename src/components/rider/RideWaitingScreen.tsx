@@ -67,6 +67,7 @@ export const RideWaitingScreen = ({
   const { data: waitSettings } = useRiderWaitSettings();
   const bottomNavEnabled = useRiderStore((state) => state.bottomNavEnabled);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const rideStartTimeRef = useRef<number | null>(null); // توقيت إنشاء الرحلة من DB
   const [nearbyDrivers, setNearbyDrivers] = useState(0);
   const [searchPhase, setSearchPhase] = useState(0);
   const [cancelling, setCancelling] = useState(false);
@@ -178,13 +179,39 @@ export const RideWaitingScreen = ({
   // State to prevent duplicate auto-cancellation
   const [hasAutoCancelled, setHasAutoCancelled] = useState(false);
 
-  // Timer for elapsed time
+  // جلب created_at وحساب وقت البدء الحقيقي + تشغيل التايمر
   useEffect(() => {
+    const initTimer = async () => {
+      // جلب وقت إنشاء الرحلة من قاعدة البيانات
+      const { data } = await supabase
+        .from("rides")
+        .select("created_at")
+        .eq("id", rideId)
+        .single();
+
+      if (data?.created_at) {
+        // حساب الثواني المنقضية منذ إنشاء الرحلة
+        const startMs = new Date(data.created_at).getTime();
+        rideStartTimeRef.current = startMs;
+        const initialElapsed = Math.floor((Date.now() - startMs) / 1000);
+        setElapsedTime(Math.max(0, initialElapsed));
+      }
+    };
+
+    initTimer();
+
+    // تحديث كل ثانية باستخدام توقيت البدء الحقيقي
     const timer = setInterval(() => {
-      setElapsedTime((prev) => prev + 1);
+      if (rideStartTimeRef.current) {
+        const elapsed = Math.floor((Date.now() - rideStartTimeRef.current) / 1000);
+        setElapsedTime(elapsed);
+      } else {
+        setElapsedTime((prev) => prev + 1);
+      }
     }, 1000);
+
     return () => clearInterval(timer);
-  }, []);
+  }, [rideId]);
 
   // Auto-cancel ride when timeout is reached
   useEffect(() => {
@@ -639,43 +666,61 @@ export const RideWaitingScreen = ({
     return messages[searchPhase];
   };
 
-  // ═══ شاشة السائق المقبول ═══
+  // ═══ شاشة السائق المقبول — Dark Luxury ═══
   if (showDriverCard && acceptedDriver) {
     return (
-      <div className="fixed inset-0 z-50 bg-background flex flex-col overflow-hidden">
+      <div className="fixed inset-0 z-50 flex flex-col overflow-hidden" style={{ background: "#0b1326" }} dir="rtl">
 
-        {/* المحتوى */}
-        <div className="flex-1 flex flex-col px-4 py-3 gap-3 overflow-hidden">
-
-          {/* بانر النجاح — حواف حادة */}
-          <div className="shrink-0 bg-primary p-3 flex items-center gap-3 text-primary-foreground">
-            <div className="w-9 h-9 bg-primary-foreground/20 flex items-center justify-center shrink-0">
-              <Sparkles className="w-5 h-5" />
+        {/* هيدر النجاح */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="shrink-0 px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-4"
+          style={{ background: "linear-gradient(135deg, #0d1f14 0%, #0b1f16 100%)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "rgba(91,221,166,0.15)", border: "1px solid rgba(91,221,166,0.3)" }}>
+              <Sparkles className="w-5 h-5" style={{ color: "#5bdda6" }} />
             </div>
             <div>
-              <p className="font-bold text-sm">تم قبول طلبك!</p>
-              <p className="text-xs text-primary-foreground/80">السائق في الطريق إليك الآن</p>
+              <h1 className="text-[18px] font-black text-white leading-tight">تم قبول طلبك! 🎉</h1>
+              <p className="text-[12px] mt-0.5" style={{ color: "rgba(91,221,166,0.7)" }}>السائق في الطريق إليك الآن</p>
             </div>
           </div>
+        </motion.div>
 
-          {/* بطاقة السائق — حواف حادة */}
-          <div className="shrink-0 bg-card border border-border/40 overflow-hidden">
-            <div className="p-3 flex items-center gap-3">
-              <Avatar className="w-14 h-14 border-2 border-primary/30 shrink-0">
-                <AvatarImage src={acceptedDriver.profile_image_url || ""} alt={acceptedDriver.full_name} />
-                <AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">
-                  {acceptedDriver.full_name.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
+        {/* المحتوى */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+
+          {/* بطاقة السائق */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="rounded-2xl overflow-hidden"
+            style={{ background: "#171f33", border: "1px solid rgba(91,221,166,0.12)" }}
+          >
+            <div className="p-4 flex items-center gap-3">
+              <div className="relative shrink-0">
+                <Avatar className="w-16 h-16" style={{ border: "2px solid rgba(91,221,166,0.4)" }}>
+                  <AvatarImage src={acceptedDriver.profile_image_url || ""} alt={acceptedDriver.full_name} />
+                  <AvatarFallback className="text-xl font-black" style={{ background: "rgba(91,221,166,0.12)", color: "#5bdda6" }}>
+                    {acceptedDriver.full_name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "#5bdda6", border: "2px solid #0b1326" }}>
+                  <User className="w-2.5 h-2.5" style={{ color: "#0b1326" }} />
+                </div>
+              </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-foreground truncate">{acceptedDriver.full_name}</h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="flex items-center gap-1 text-warning text-xs font-bold bg-warning/10 px-2 py-0.5">
+                <h3 className="text-[16px] font-black text-white truncate">{acceptedDriver.full_name}</h3>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="flex items-center gap-1 text-[12px] font-bold px-2 py-0.5 rounded-lg" style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}>
                     <Star className="w-3 h-3 fill-current" />
                     {acceptedDriver.rating?.toFixed(1) || '5.0'}
                   </span>
                   {acceptedDriver.vehicle_plate && (
-                    <span className="text-xs font-mono font-black text-foreground bg-muted px-2 py-0.5">
+                    <span className="text-[11px] font-black px-2 py-0.5 rounded-lg" style={{ background: "rgba(255,255,255,0.07)", color: "#e2e8f0", border: "1px solid rgba(255,255,255,0.1)", direction: "ltr" }}>
                       {acceptedDriver.vehicle_plate}
                     </span>
                   )}
@@ -684,249 +729,381 @@ export const RideWaitingScreen = ({
             </div>
 
             {/* معلومات المركبة */}
-            <div className="px-3 pb-3 border-t border-border/30 pt-2 flex items-center gap-2">
-              <Car className="w-4 h-4 text-muted-foreground shrink-0" />
-              <span className="text-sm text-muted-foreground">
+            <div className="px-4 py-3 flex items-center gap-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(91,221,166,0.1)" }}>
+                <Car className="w-4 h-4" style={{ color: "#5bdda6" }} />
+              </div>
+              <span className="text-[13px] text-slate-400">
                 {getVehicleTypeName(acceptedDriver.vehicle_type)}
                 {acceptedDriver.vehicle_model && ` • ${acceptedDriver.vehicle_model}`}
                 {acceptedDriver.vehicle_color && ` • ${acceptedDriver.vehicle_color}`}
               </span>
             </div>
 
-            {/* أزرار التواصل — دون حواف */}
-            <div className="grid grid-cols-2 border-t border-border/30">
+            {/* أزرار التواصل */}
+            <div className="grid grid-cols-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
               <button
                 onClick={() => window.open(`tel:${acceptedDriver.phone}`, '_self')}
-                className="flex items-center justify-center gap-2 py-3 text-sm font-semibold text-primary hover:bg-primary/5 transition-colors border-l border-border/30"
+                className="flex items-center justify-center gap-2 py-3.5 text-[13px] font-bold transition-all active:opacity-70"
+                style={{ color: "#5bdda6", borderLeft: "1px solid rgba(255,255,255,0.06)" }}
               >
                 <Phone className="w-4 h-4" /> اتصال
               </button>
               <button
                 onClick={() => window.open(`https://wa.me/${acceptedDriver.phone}`, '_blank')}
-                className="flex items-center justify-center gap-2 py-3 text-sm font-semibold text-green-600 hover:bg-green-500/5 transition-colors"
+                className="flex items-center justify-center gap-2 py-3.5 text-[13px] font-bold transition-all active:opacity-70"
+                style={{ color: "#25d366" }}
               >
                 <MessageCircle className="w-4 h-4" /> واتساب
               </button>
             </div>
-          </div>
+          </motion.div>
 
-          {/* خط السير — حواف حادة */}
-          <div className="shrink-0 bg-card border border-border/40 overflow-hidden">
-            {/* نقطة الانطلاق */}
-            <div className="flex items-center gap-3 px-3 py-3">
-              <div className="w-8 h-8 bg-primary flex items-center justify-center shrink-0">
-                <MapPin className="w-4 h-4 text-primary-foreground" />
+          {/* خط السير */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="rounded-2xl overflow-hidden"
+            style={{ background: "#171f33", border: "1px solid rgba(255,255,255,0.07)" }}
+          >
+            {/* الانطلاق */}
+            <div className="flex items-center gap-3 px-4 py-3.5">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(91,221,166,0.15)", border: "1px solid rgba(91,221,166,0.25)" }}>
+                <MapPin className="w-4 h-4" style={{ color: "#5bdda6" }} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-primary font-bold uppercase tracking-wider">الانطلاق</p>
-                <p className="text-sm font-semibold text-foreground truncate">{pickupAddress}</p>
+                <p className="text-[10px] font-bold tracking-widest mb-0.5" style={{ color: "#5bdda6" }}>الانطلاق</p>
+                <p className="text-[13px] font-semibold text-white truncate">{pickupAddress}</p>
               </div>
             </div>
 
-            {/* خط فاصل مع نقطتين */}
-            <div className="flex items-center gap-3 px-3">
-              <div className="w-8 flex justify-center">
-                <div className="flex flex-col items-center">
-                  <div className="w-0.5 h-2 bg-border/60" />
-                  <div className="w-1 h-1 bg-muted-foreground/40 rounded-full" />
-                  <div className="w-0.5 h-2 bg-border/60" />
+            {/* فاصل */}
+            <div className="flex items-center gap-3 px-4" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="w-9 flex justify-center">
+                <div className="flex flex-col items-center gap-0.5 py-1">
+                  <div className="w-px h-2 bg-slate-600" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                  <div className="w-px h-2 bg-slate-600" />
                 </div>
               </div>
-              <div className="flex-1 border-t border-dashed border-border/40" />
             </div>
 
-            {/* الوجهة */}
-            <div className="flex items-center gap-3 px-3 py-3">
-              <div className="w-8 h-8 bg-orange-500 flex items-center justify-center shrink-0">
-                <Navigation className="w-4 h-4 text-white" />
+            {/* الوجهة + الأجرة */}
+            <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(249,115,22,0.15)", border: "1px solid rgba(249,115,22,0.25)" }}>
+                <Navigation className="w-4 h-4 text-orange-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-orange-500 font-bold uppercase tracking-wider">الوجهة</p>
-                <p className="text-sm font-semibold text-foreground truncate">{dropoffAddress}</p>
+                <p className="text-[10px] font-bold tracking-widest text-orange-400 mb-0.5">الوجهة</p>
+                <p className="text-[13px] font-semibold text-white truncate">{dropoffAddress}</p>
               </div>
-              <div className="text-left shrink-0 border-r border-border/30 pr-3 mr-1">
-                <p className="text-[10px] text-muted-foreground">الأجرة</p>
-                <p className="text-lg font-black text-primary">{estimatedFare.toLocaleString()}</p>
-                <p className="text-[10px] text-muted-foreground">د.ع</p>
+              <div className="shrink-0 text-left" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", paddingRight: "0.75rem", marginRight: "0.25rem" }}>
+                <p className="text-[10px] text-slate-500 mb-0.5">الأجرة</p>
+                <p className="text-[18px] font-black" style={{ color: "#5bdda6" }}>{estimatedFare.toLocaleString()}</p>
+                <p className="text-[10px] text-slate-500">د.ع</p>
               </div>
             </div>
-          </div>
-
-          <div className="flex-1" />
+          </motion.div>
         </div>
 
-        {/* زر تتبع الرحلة — حواف حادة */}
-        <button
-          onClick={handleContinueToTracking}
-          className="w-full h-14 flex items-center justify-center gap-2 bg-primary text-primary-foreground text-base font-bold shrink-0 active:brightness-90 transition-all"
-          style={{ borderRadius: 0 }}
-        >
-          <Navigation className="w-5 h-5" />
-          تتبع الرحلة على الخريطة
-        </button>
+        {/* زر تتبع الرحلة */}
+        <div className="shrink-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <motion.button
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            onClick={handleContinueToTracking}
+            whileTap={{ scale: 0.97 }}
+            className="w-full h-14 flex items-center justify-center gap-2 rounded-2xl text-[15px] font-black transition-all"
+            style={{ background: "#5bdda6", color: "#0b1326", boxShadow: "0 4px 24px rgba(91,221,166,0.35)" }}
+          >
+            <Navigation className="w-5 h-5" />
+            تتبع الرحلة على الخريطة
+          </motion.button>
+        </div>
       </div>
     );
   }
 
-  // Waiting State - Premium Design
+  // Waiting State — Dark Luxury
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col">
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "#0b1326" }} dir="rtl">
 
+      {/* طبقة انتقال السائق */}
       <AnimatePresence>
         {showDriverFoundTransition && acceptedDriver && (
           <motion.div
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-md"
+            className="fixed inset-0 z-[60] flex items-center justify-center"
+            style={{ background: "rgba(11,19,38,0.9)", backdropFilter: "blur(16px)" }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              initial={{ scale: 0.85, opacity: 0, y: 24 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
-              transition={{ type: "spring", stiffness: 300, damping: 24 }}
-              className="bg-card rounded-2xl border border-primary/20 shadow-2xl p-6 text-center max-w-xs"
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 26 }}
+              className="rounded-3xl p-7 text-center mx-6"
+              style={{ background: "#171f33", border: "1px solid rgba(91,221,166,0.3)", boxShadow: "0 0 60px rgba(91,221,166,0.15)" }}
             >
-              <div className="w-14 h-14 mx-auto rounded-full bg-primary/15 flex items-center justify-center mb-3">
-                <Sparkles className="w-7 h-7 text-primary" />
+              <div className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4" style={{ background: "rgba(91,221,166,0.15)" }}>
+                <Sparkles className="w-8 h-8" style={{ color: "#5bdda6" }} />
               </div>
-              <h2 className="text-lg font-bold text-foreground mb-1">
-                تم العثور على سائق!
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {acceptedDriver.full_name} في الطريق إليك الآن
-              </p>
+              <h2 className="text-[20px] font-black text-white mb-2">تم العثور على سائق!</h2>
+              <p className="text-[13px] text-slate-400">{acceptedDriver.full_name} في الطريق إليك الآن</p>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* المحتوى — بدون سكرول */}
-      <div className="flex-1 flex flex-col px-4 py-3 gap-3 overflow-hidden">
-
-        {/* بانر البحث — حواف حادة */}
-        <div className="shrink-0 bg-primary/8 border border-primary/20 p-3 flex items-center gap-3">
-          <div className="relative w-12 h-12 shrink-0">
-            <div className="absolute inset-0 rounded-full border-2 border-primary/40 animate-ping" />
-            <div className="relative w-full h-full rounded-full bg-primary/15 flex items-center justify-center border border-primary/30">
-              <Search className="w-5 h-5 text-primary" />
+      {/* هيدر البحث */}
+      <div
+        className="shrink-0 px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-5"
+        style={{ background: "linear-gradient(180deg, #0d1a2e 0%, #0b1326 100%)", borderBottom: "1px solid rgba(91,221,166,0.08)" }}
+      >
+        <div className="flex flex-col items-center gap-3 text-center">
+          {/* أيقونة البحث */}
+          <div className="relative w-14 h-14 shrink-0">
+            <div className="absolute inset-0 rounded-full animate-ping" style={{ border: "2px solid rgba(91,221,166,0.3)" }} />
+            <div className="relative w-full h-full rounded-2xl flex items-center justify-center" style={{ background: "rgba(91,221,166,0.12)", border: "1px solid rgba(91,221,166,0.2)" }}>
+              <Search className="w-6 h-6" style={{ color: "#5bdda6" }} />
             </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-bold text-foreground">بانتظار سائق</h1>
-            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+          {/* النصوص */}
+          <div>
+            <h1 className="text-[18px] font-black text-white leading-tight">بانتظار سائق 🔍</h1>
+            <p className="text-[12px] mt-1" style={{ color: "rgba(91,221,166,0.65)" }}>
               {encouragingMessages[encouragingMessageIndex]?.icon}{" "}
-              {encouragingMessages[encouragingMessageIndex]?.text || "نبحث في منطقتك عن سائق متاح..."}
+              {encouragingMessages[encouragingMessageIndex]?.text || "جاري البحث عن أفضل سائق لك..."}
             </p>
           </div>
+          {/* عداد السائقين */}
+          {nearbyDrivers > 0 && (
+            <div className="text-center px-4 py-1.5 rounded-xl" style={{ background: "rgba(91,221,166,0.1)", border: "1px solid rgba(91,221,166,0.2)" }}>
+              <span className="text-[13px] font-bold" style={{ color: "#5bdda6" }}>{nearbyDrivers} سائق متاح قريب منك</span>
+            </div>
+          )}
         </div>
+      </div>
 
-        {/* مؤقت التقدم — حواف حادة */}
-        <div className="shrink-0 bg-card border border-border/40 p-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-primary" /> وقت الانتظار
+      {/* المحتوى */}
+      <div className="flex-1 flex flex-col px-4 py-4 gap-3 overflow-y-auto">
+
+        {/* شريط التقدم */}
+        <div className="shrink-0 rounded-2xl p-5" style={{ background: "#171f33", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-[14px] font-semibold text-slate-300 flex items-center gap-2">
+              <Clock className="w-4 h-4" style={{ color: "#5bdda6" }} />
+              وقت الانتظار
             </span>
-            <span className="text-xl font-bold font-mono text-foreground tabular-nums">
-              {formatTime(elapsedTime)}
-              <span className="text-xs text-muted-foreground font-normal mr-1">/ {maxWaitTimeout}:00</span>
-            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[32px] font-black font-mono text-white tabular-nums leading-none">{formatTime(elapsedTime)}</span>
+              <span className="text-[14px] text-slate-500 font-medium">/ {maxWaitTimeout}:00</span>
+            </div>
           </div>
-          <div className="w-full h-2 bg-muted/50 rounded-full overflow-hidden">
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
             <div
-              className={`h-full rounded-full transition-all duration-1000 ${
-                elapsedTime / 60 >= maxWaitTimeout * warningThreshold
-                  ? "bg-destructive"
-                  : "bg-primary"
-              }`}
-              style={{ width: `${Math.min((elapsedTime / 60 / maxWaitTimeout) * 100, 100)}%` }}
+              className="h-full rounded-full transition-all duration-1000"
+              style={{
+                background: elapsedTime / 60 >= maxWaitTimeout * warningThreshold
+                  ? "linear-gradient(90deg, #ef4444, #dc2626)"
+                  : "linear-gradient(90deg, #5bdda6, #3db886)",
+                width: `${Math.min((elapsedTime / 60 / maxWaitTimeout) * 100, 100)}%`,
+              }}
             />
           </div>
           {elapsedTime / 60 >= maxWaitTimeout * warningThreshold && autoCancelEnabled && (
-            <p className="text-xs text-destructive text-center mt-2 font-medium animate-pulse">
+            <p className="text-[13px] text-center mt-3 font-semibold animate-pulse" style={{ color: "#f87171" }}>
               {warningMessage}
             </p>
           )}
+          <div className="flex items-center justify-between mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+            <span className="text-[13px] text-slate-400">وقت الوصول المتوقع</span>
+            <span className="text-[15px] font-black" style={{ color: "#5bdda6" }}>{getEstimatedWaitTime()} دقيقة</span>
+          </div>
         </div>
 
-        {/* خط سير الرحلة — حواف حادة + أيقونات */}
-        <div className="shrink-0 bg-card border border-border/40 overflow-hidden">
-          {/* نقطة الانطلاق */}
-          <div className="flex items-center gap-3 px-3 py-3">
-            <div className="w-8 h-8 bg-primary flex items-center justify-center shrink-0">
-              <MapPin className="w-4 h-4 text-primary-foreground" />
+        {/* خط سير الرحلة */}
+        <div className="shrink-0 rounded-2xl overflow-hidden" style={{ background: "#171f33", border: "1px solid rgba(255,255,255,0.06)" }}>
+          {/* الانطلاق */}
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(91,221,166,0.12)", border: "1px solid rgba(91,221,166,0.2)" }}>
+              <MapPin className="w-4 h-4" style={{ color: "#5bdda6" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-primary font-bold uppercase tracking-wider">الانطلاق</p>
-              <p className="text-sm font-semibold text-foreground truncate">{pickupAddress}</p>
+              <p className="text-[10px] font-bold tracking-widest mb-0.5" style={{ color: "#5bdda6" }}>الانطلاق</p>
+              <p className="text-[13px] font-semibold text-white truncate">{pickupAddress}</p>
             </div>
           </div>
 
-          {/* خط فاصل متحرك */}
-          <div className="flex items-center gap-3 px-3">
-            <div className="w-8 flex justify-center">
-              <div className="flex flex-col items-center gap-0.5">
-                <div className="w-0.5 h-1.5 bg-muted-foreground/30" />
-                <div className="w-1 h-1 bg-muted-foreground/40 rounded-full" />
-                <div className="w-0.5 h-1.5 bg-muted-foreground/30" />
+          {/* فاصل */}
+          <div className="flex items-center gap-3 px-4" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+            <div className="w-9 flex justify-center">
+              <div className="flex flex-col items-center gap-0.5 py-1.5">
+                <div className="w-px h-2 bg-slate-700" />
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+                <div className="w-px h-2 bg-slate-700" />
               </div>
             </div>
-            <div className="flex-1 border-t border-dashed border-border/40" />
           </div>
 
-          {/* الوجهة */}
-          <div className="flex items-center gap-3 px-3 py-3">
-            <div className="w-8 h-8 bg-orange-500 flex items-center justify-center shrink-0">
-              <Navigation className="w-4 h-4 text-white" />
+          {/* الوجهة + الأجرة */}
+          <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.2)" }}>
+              <Navigation className="w-4 h-4 text-orange-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-orange-500 font-bold uppercase tracking-wider">الوجهة</p>
-              <p className="text-sm font-semibold text-foreground truncate">{dropoffAddress}</p>
+              <p className="text-[10px] font-bold tracking-widest text-orange-400 mb-0.5">الوجهة</p>
+              <p className="text-[13px] font-semibold text-white truncate">{dropoffAddress}</p>
             </div>
-            {/* الأجرة */}
-            <div className="text-left shrink-0 border-r border-border/30 pr-3 mr-1">
-              <p className="text-[10px] text-muted-foreground">الأجرة</p>
-              <p className="text-lg font-black text-primary">{estimatedFare.toLocaleString()}</p>
-              <p className="text-[10px] text-muted-foreground">د.ع</p>
+            <div className="shrink-0 text-left" style={{ borderRight: "1px solid rgba(255,255,255,0.07)", paddingRight: "0.75rem", marginRight: "0.25rem" }}>
+              <p className="text-[10px] text-slate-500 mb-0.5">الأجرة</p>
+              <p className="text-[18px] font-black" style={{ color: "#5bdda6" }}>{estimatedFare.toLocaleString()}</p>
+              <p className="text-[10px] text-slate-500">د.ع</p>
             </div>
           </div>
         </div>
 
-        {/* رسائل إضافية حادة */}
+        {/* رسائل إعادة المطابقة */}
         {(reassignmentCount > 0 || isReMatching) && (
-          <div className="shrink-0 bg-amber-500/8 border border-amber-500/20 p-2.5 flex items-center gap-2">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="shrink-0 rounded-2xl p-3 flex items-center gap-3"
+            style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}
+          >
             {isReMatching
-              ? <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
-              : <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              ? <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: "#5bdda6" }} />
+              : <Sparkles className="w-4 h-4 shrink-0 text-amber-400" />
             }
-            <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+            <p className="text-[12px] text-amber-300 font-medium">
               {isReMatching
                 ? "توسيع نطاق البحث..."
                 : reassignmentCount === 1 ? "جاري البحث عن سائق بديل..."
                 : reassignmentCount >= 3 ? "آخر محاولة للعثور على سائق متاح..."
-                : "لا تزال النبحث عن سائق..."}
+                : "لا تزال البحث مستمراً..."}
+            </p>
+          </motion.div>
+        )}
+
+        {/* ═══ بطاقة الأذكار الإسلامية ═══ */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="shrink-0 rounded-2xl overflow-hidden"
+          style={{
+            background: "linear-gradient(135deg, #0f1f14 0%, #111d2c 100%)",
+            border: "1px solid rgba(91,221,166,0.15)",
+          }}
+        >
+          {/* رأس البطاقة */}
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+            <div className="flex items-center gap-2">
+              <span className="text-[18px]">📿</span>
+              <span className="text-[13px] font-semibold text-white">اجعل انتظارك ذكراً</span>
+            </div>
+            {totalDhikr > 0 && (
+              <span
+                className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+                style={{ background: "rgba(91,221,166,0.12)", color: "#5bdda6", border: "1px solid rgba(91,221,166,0.2)" }}
+              >
+                {totalDhikr} ذكر اليوم
+              </span>
+            )}
+          </div>
+
+          {/* أزرار الأذكار */}
+          <div className="grid grid-cols-3 gap-px" style={{ background: "rgba(255,255,255,0.04)" }}>
+            {/* سبحان الله */}
+            <button
+              onClick={() => handleDhikrTap("tasbih")}
+              className="flex flex-col items-center gap-1.5 py-4 transition-all active:scale-95"
+              style={{
+                background: lastTappedDhikr === "tasbih" ? "rgba(91,221,166,0.12)" : "#0f1f14",
+              }}
+            >
+              <span className="text-[22px] leading-none">🌿</span>
+              <span className="text-[11px] font-bold text-white">سبحان الله</span>
+              <span
+                className="text-[20px] font-black tabular-nums leading-none"
+                style={{ color: "#5bdda6" }}
+              >
+                {dhikrCounts.tasbih}
+              </span>
+            </button>
+
+            {/* الحمد لله */}
+            <button
+              onClick={() => handleDhikrTap("tahmid")}
+              className="flex flex-col items-center gap-1.5 py-4 transition-all active:scale-95"
+              style={{
+                background: lastTappedDhikr === "tahmid" ? "rgba(251,191,36,0.1)" : "#0f1f14",
+                borderRight: "1px solid rgba(255,255,255,0.04)",
+                borderLeft: "1px solid rgba(255,255,255,0.04)",
+              }}
+            >
+              <span className="text-[22px] leading-none">☀️</span>
+              <span className="text-[11px] font-bold text-white">الحمد لله</span>
+              <span
+                className="text-[20px] font-black tabular-nums leading-none"
+                style={{ color: "#fbbf24" }}
+              >
+                {dhikrCounts.tahmid}
+              </span>
+            </button>
+
+            {/* أستغفر الله */}
+            <button
+              onClick={() => handleDhikrTap("istighfar")}
+              className="flex flex-col items-center gap-1.5 py-4 transition-all active:scale-95"
+              style={{
+                background: lastTappedDhikr === "istighfar" ? "rgba(147,51,234,0.1)" : "#0f1f14",
+              }}
+            >
+              <span className="text-[22px] leading-none">🤲</span>
+              <span className="text-[11px] font-bold text-white">أستغفر الله</span>
+              <span
+                className="text-[20px] font-black tabular-nums leading-none"
+                style={{ color: "#c084fc" }}
+              >
+                {dhikrCounts.istighfar}
+              </span>
+            </button>
+          </div>
+
+          {/* ذيل البطاقة */}
+          <div className="px-4 py-2.5 flex items-center justify-center" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+            <p className="text-[11px] text-slate-500 text-center">
+              انقر على كل زكر لتسجيله • يُحفظ تلقائياً يومياً
             </p>
           </div>
-        )}
-
-        <div className="flex-1" />
+        </motion.div>
       </div>
 
-      {/* زر الإلغاء — حواف حادة */}
-      <button
-        onClick={handleCancelClick}
-        disabled={cancelling}
-        className="w-full h-14 flex items-center justify-center gap-2 bg-destructive/10 text-destructive text-base font-bold disabled:opacity-50 border-t-2 border-destructive/40 shrink-0 active:bg-destructive/20 transition-all"
-        style={{ borderRadius: 0 }}
-      >
-        {cancelling ? (
-          <><Loader2 className="w-5 h-5 animate-spin" />جاري الإلغاء...</>
-        ) : (
-          <><X className="w-5 h-5" />إلغاء الطلب</>
-        )}
-      </button>
+      {/* زر الإلغاء */}
+      <div className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        <button
+          onClick={handleCancelClick}
+          disabled={cancelling}
+          className="w-full h-12 flex items-center justify-center gap-2 rounded-2xl text-[14px] font-semibold transition-all active:opacity-70 disabled:opacity-40"
+          style={{
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.25)",
+            color: "#f87171",
+          }}
+        >
+          {cancelling ? (
+            <><Loader2 className="w-4 h-4 animate-spin" />جاري الإلغاء...</>
+          ) : (
+            <><X className="w-4 h-4" />إلغاء الطلب</>
+          )}
+        </button>
+      </div>
 
-      {/* Cancellation Reason Dialog */}
+      {/* ديالوج سبب الإلغاء */}
       <CancellationReasonDialog
         open={showCancelDialog}
         onOpenChange={setShowCancelDialog}

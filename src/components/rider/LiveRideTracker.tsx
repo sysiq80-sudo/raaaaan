@@ -507,15 +507,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           if ((updatedRide.status === "arrived" || updatedRide.status === "in_progress") && driver?.current_location) {
             updateRouteToDestination(driver.current_location);
           }
-
-          if (updatedRide.status === "completed") {
-            toast({
-              title: "تم إكمال الرحلة! ✅",
-              description: "شكراً لاستخدامك ران",
-            });
-          } else if (updatedRide.status === "cancelled") {
-            toast({ title: "تم إلغاء الرحلة", variant: "destructive" });
-          }
         }
       )
       .subscribe();

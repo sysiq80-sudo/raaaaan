@@ -10,7 +10,7 @@ android {
     namespace = "com.raan.captain"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.raan.captain"
+        applicationId "com.raan.rider"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

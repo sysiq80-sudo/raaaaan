@@ -52,6 +52,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdminNotificationsBell } from "./AdminNotificationsBell";
 import AIAdminAssistant from "./AIAdminAssistant";
+import { AdminGlobalSearch } from "./AdminGlobalSearch";
 import {
   Tooltip,
   TooltipContent,
@@ -118,13 +119,15 @@ const AdminLayout = ({
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const profilesTable = supabase.from("profiles") as any;
+        const { data: profile } = await profilesTable
           .select("full_name, email")
           .eq("user_id", user.id)
           .single();
 
-        setAdminName(profile?.full_name || user.email || "مدير النظام");
+        const p = profile as { full_name?: string; email?: string } | null;
+        setAdminName(p?.full_name || user.email || "مدير النظام");
       }
     };
 
@@ -322,11 +325,12 @@ const AdminLayout = ({
               const linkContent = (
                 <Link
                   to="/admin"
+                  dir="ltr"
                   className={cn(
                     "flex items-center rounded-lg transition-all duration-200",
                     collapsed
                       ? "justify-center p-3"
-                      : "gap-3 px-4 py-3 flex-row-reverse",
+                      : "gap-2 px-4 py-3",
                     isActive
                       ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -334,7 +338,7 @@ const AdminLayout = ({
                 >
                   <LayoutDashboard className="w-5 h-5 flex-shrink-0" />
                   {!collapsed && (
-                    <span className="animate-fade-in whitespace-nowrap flex-1 text-right">
+                    <span className="animate-fade-in whitespace-nowrap">
                       الرئيسية
                     </span>
                   )}
@@ -403,15 +407,16 @@ const AdminLayout = ({
                 >
                   {/* رأس المجموعة */}
                   <CollapsibleTrigger
+                    dir="ltr"
                     className={cn(
-                      "flex items-center w-full rounded-lg transition-all duration-200 gap-3 px-4 py-2.5 flex-row-reverse",
+                      "flex items-center w-full rounded-lg transition-all duration-200 gap-2 px-4 py-2.5",
                       isGroupActive
                         ? "bg-sidebar-accent text-sidebar-foreground font-semibold"
                         : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     )}
                   >
                     <GroupIcon className="w-5 h-5 flex-shrink-0" />
-                    <span className="flex-1 text-right whitespace-nowrap text-sm font-medium">
+                    <span className="flex-1 whitespace-nowrap text-sm font-medium">
                       {group.label}
                     </span>
                     <ChevronDown
@@ -432,15 +437,16 @@ const AdminLayout = ({
                           <Link
                             key={item.href}
                             to={item.href}
+                            dir="ltr"
                             className={cn(
-                              "flex items-center rounded-lg transition-all duration-200 gap-3 px-3 py-2 flex-row-reverse",
+                              "flex items-center rounded-lg transition-all duration-200 gap-2 px-3 py-2",
                               isActive
                                 ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
                                 : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                             )}
                           >
                             <Icon className="w-4 h-4 flex-shrink-0" />
-                            <span className="whitespace-nowrap text-xs flex-1 text-right leading-tight">
+                            <span className="whitespace-nowrap text-xs leading-tight">
                               {item.label}
                             </span>
                           </Link>
@@ -506,34 +512,38 @@ const AdminLayout = ({
       {/* Main Content */}
       <main
         className={cn(
-          "flex-1 transition-all duration-300 ease-in-out",
+          "flex-1 transition-all duration-300 ease-in-out h-screen overflow-y-auto",
           mainMargin
         )}
       >
         {/* Top Header Bar */}
-        <header className="bg-card border-b border-border sticky top-0 z-10 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {/* زر فتح/إغلاق القائمة الجانبية — دائماً ظاهر */}
-              <button
-                onClick={() => setCollapsed(!collapsed)}
-                className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                title={collapsed ? "فتح القائمة الجانبية" : "إغلاق القائمة الجانبية"}
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <User className="w-5 h-5" />
-                <span className="font-medium text-foreground">{adminName}</span>
-              </div>
+        <header className="bg-card border-b border-border sticky top-0 z-10 px-6 py-3">
+          <div className="flex items-center gap-4">
+            {/* زر فتح/إغلاق القائمة الجانبية */}
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground flex-shrink-0"
+              title={collapsed ? "فتح القائمة الجانبية" : "إغلاق القائمة الجانبية"}
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 text-muted-foreground flex-shrink-0">
+              <User className="w-4 h-4" />
+              <span className="text-sm font-medium text-foreground">{adminName}</span>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Calendar className="w-5 h-5" />
+
+            {/* 🔍 البحث الشامل — في المنتصف */}
+            <AdminGlobalSearch />
+
+            {/* التاريخ والوقت والإشعارات */}
+            <div className="flex items-center gap-4 flex-shrink-0">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Calendar className="w-4 h-4" />
                 <span>{formatDate(currentTime)}</span>
               </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Clock className="w-5 h-5" />
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Clock className="w-4 h-4" />
                 <span className="font-mono">{formatTime(currentTime)}</span>
               </div>
               <AdminNotificationsBell />
@@ -543,12 +553,12 @@ const AdminLayout = ({
 
         {/* Page Content */}
         <div className="p-8">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">
+              <h1 className="text-xl font-bold text-foreground mb-1">
                 {title}
               </h1>
-              {subtitle && <p className="text-muted-foreground">{subtitle}</p>}
+              {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
             </div>
             {actions}
           </div>

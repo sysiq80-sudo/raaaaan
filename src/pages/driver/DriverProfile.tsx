@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ArrowRight, 
   User, 
   Car, 
   MapPin, 
@@ -42,6 +41,7 @@ import {
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import DriverPageHeader from "@/components/driver/DriverPageHeader";
+import { useDriverSession } from "@/hooks/useDriverSession";
 
 interface DriverData {
   id: string;
@@ -89,6 +89,7 @@ const EDITABLE_FIELDS = [
 const DriverProfile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { driver: sessionDriver, loading: authLoading } = useDriverSession();
   const [loading, setLoading] = useState(true);
   const [driver, setDriver] = useState<DriverData | null>(null);
   const [region, setRegion] = useState<RegionData | null>(null);
@@ -101,19 +102,27 @@ const DriverProfile = () => {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // إزالة driver-mode لتفعيل السكرول
   useEffect(() => {
+    const hadDriverMode = document.body.classList.contains('driver-mode');
+    document.body.classList.remove('driver-mode');
+    document.body.style.overflow = 'auto';
+    document.body.style.position = 'static';
+    return () => {
+      if (hadDriverMode) document.body.classList.add('driver-mode');
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sessionDriver) return;
     const fetchDriverProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        navigate("/driver/auth");
-        return;
-      }
 
       const { data: driverData, error } = await supabase
         .from("drivers")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", sessionDriver.userId)
         .maybeSingle();
 
       if (error || !driverData) {
@@ -121,38 +130,34 @@ const DriverProfile = () => {
         return;
       }
 
-      setDriver(driverData);
+      setDriver(driverData as any);
 
       // Fetch region name if exists
-      if (driverData.working_region_id) {
+      if ((driverData as any).working_region_id) {
         const { data: regionData } = await supabase
           .from("regions")
           .select("id, name_ar")
-          .eq("id", driverData.working_region_id)
+          .eq("id", (driverData as any).working_region_id)
           .maybeSingle();
         
-        if (regionData) {
-          setRegion(regionData);
-        }
+        if (regionData) setRegion(regionData as any);
       }
 
       // Fetch edit requests
       const { data: requests } = await supabase
         .from("driver_edit_requests")
         .select("*")
-        .eq("driver_id", driverData.id)
+        .eq("driver_id", (driverData as any).id)
         .order("created_at", { ascending: false })
         .limit(10);
       
-      if (requests) {
-        setEditRequests(requests);
-      }
+      if (requests) setEditRequests(requests as any);
 
       setLoading(false);
     };
 
     fetchDriverProfile();
-  }, [navigate]);
+  }, [sessionDriver, navigate]);
 
   const getVehicleTypeName = (type: string | null) => {
     switch (type) {
@@ -259,7 +264,7 @@ const DriverProfile = () => {
         current_value: getCurrentFieldValue(selectedField),
         requested_value: requestedValue.trim(),
         reason: reason.trim() || null,
-      })
+      } as any)
       .select()
       .single();
 
@@ -282,7 +287,7 @@ const DriverProfile = () => {
 
     // Add to local state
     if (data) {
-      setEditRequests(prev => [data, ...prev]);
+      setEditRequests(prev => [data as any, ...prev]);
     }
 
     // Reset form
@@ -292,7 +297,7 @@ const DriverProfile = () => {
     setReason("");
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return <SplashScreen />;
   }
 
@@ -303,7 +308,7 @@ const DriverProfile = () => {
   const pendingRequestsCount = editRequests.filter(r => r.status === "pending").length;
 
   return (
-    <div className="min-h-screen bg-background" dir="rtl">
+    <div className="min-h-screen bg-[#0b1326] overflow-y-auto" dir="rtl">
       <DriverPageHeader title="الملف الشخصي" />
       <main className="pt-20 pb-8 px-4">
         <div className="container max-w-lg space-y-6">

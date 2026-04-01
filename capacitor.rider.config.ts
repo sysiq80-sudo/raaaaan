@@ -37,7 +37,7 @@ const config: CapacitorConfig = {
   plugins: {
     Geolocation: {},
     LocalNotifications: {
-      smallIcon: 'ic_stat_icon_config_sample',
+      smallIcon: 'ic_transparent',
       iconColor: '#10b981',
     },
     PushNotifications: {

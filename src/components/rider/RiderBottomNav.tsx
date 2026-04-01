@@ -47,23 +47,20 @@ const RiderBottomNav = () => {
         {active && (
           <motion.div
             layoutId="rider-nav-indicator"
-            className="absolute top-0 inset-x-3 h-0.5 rounded-full bg-primary"
+            className="absolute top-0 inset-x-3 h-0.5 rounded-full"
+            style={{ background: 'var(--raan-accent)' }}
             transition={{ type: "spring", stiffness: 500, damping: 35 }}
           />
         )}
         <Icon
           className={cn(
-            "w-5 h-5 transition-all duration-200",
-            active
-              ? "text-primary stroke-[2.5px]"
-              : "text-muted-foreground/60 group-hover:text-muted-foreground"
+            "w-5 h-5 transition-all duration-200"
           )}
+          style={{ color: active ? 'var(--raan-accent)' : 'var(--raan-text-muted)' }}
         />
         <span
-          className={cn(
-            "text-[10px] font-semibold leading-none transition-colors",
-            active ? "text-primary" : "text-muted-foreground/50 group-hover:text-muted-foreground"
-          )}
+          className={cn("text-[10px] font-semibold leading-none transition-colors")}
+          style={{ color: active ? 'var(--raan-accent)' : 'var(--raan-text-muted)' }}
         >
           {label}
         </span>
@@ -74,23 +71,24 @@ const RiderBottomNav = () => {
   return (
     <div
       dir="rtl"
-      className="shrink-0 w-full border-t border-border/50"
+      className="shrink-0 w-full transition-colors duration-300"
+      style={{ borderTop: '1px solid var(--raan-border)' }}
       role="navigation"
       aria-label="التنقل الرئيسي"
     >
-      {/* خط علوي */}
-      <div className="h-px w-full bg-border/50" />
-
       <div
-        className="bg-card/95 backdrop-blur-xl flex items-center h-[68px]"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      className="backdrop-blur-xl flex items-center h-[68px] transition-colors duration-300"
+        style={{
+          background: 'var(--raan-bg)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+        }}
       >
-        {/* يمين: رحلاتي + المحفظة */}
+        {/* يمين */}
         {RIGHT_ITEMS.map((item) => (
           <NavItem key={item.id} {...item} />
         ))}
 
-        {/* وسط: زر رحلة جديدة البارز */}
+        {/* وسط: زر رحلة جديدة */}
         <div className="flex items-center justify-center flex-shrink-0 px-3">
           <motion.button
             onClick={() => navigate("/rider")}
@@ -98,19 +96,19 @@ const RiderBottomNav = () => {
             className={cn(
               "relative flex flex-col items-center justify-center gap-1.5",
               "w-[64px] h-[52px] rounded-2xl -mt-4",
-              "bg-primary text-primary-foreground",
-              "shadow-lg shadow-primary/40",
+              "bg-[#5bdda6] text-[#0b1326]",
+              "shadow-lg shadow-[#5bdda6]/30",
               "transition-shadow duration-200"
             )}
             aria-label="رحلة جديدة"
           >
-            <div className="absolute inset-0 rounded-2xl bg-primary/20 blur-md -z-10" />
+            <div className="absolute inset-0 rounded-2xl bg-[#5bdda6]/20 blur-md -z-10" />
             <Navigation className="w-6 h-6 stroke-[2.5px]" />
             <span className="text-[9px] font-bold leading-none">رحلة جديدة</span>
           </motion.button>
         </div>
 
-        {/* يسار: أماكني + الإعدادات */}
+        {/* يسار */}
         {LEFT_ITEMS.map((item) => (
           <NavItem key={item.id} {...item} />
         ))}

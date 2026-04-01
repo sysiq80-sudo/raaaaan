@@ -227,12 +227,7 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
 
           {/* أفاتار الراكب و النجوم */}
           <div className="flex flex-col items-center gap-2">
-            <div className="w-14 h-14 rounded-full bg-[#171f33] border border-slate-700/50 flex items-center justify-center shadow-lg relative shrink-0">
-              <div className="absolute -top-1 -right-1 bg-amber-500 rounded-full w-5 h-5 flex items-center justify-center border-2 border-[#171f33]">
-                <Star className="w-3 h-3 text-white fill-white" />
-              </div>
-              <span className="text-xl font-black text-slate-200">{riderInitials}</span>
-            </div>
+
             <p className="text-sm font-bold text-slate-300">كيف كانت تجربتك مع الراكب؟</p>
           </div>
 

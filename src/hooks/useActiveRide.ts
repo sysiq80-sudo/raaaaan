@@ -6,7 +6,6 @@ import {
   playSound,
   vibrate,
   VibrationPatterns,
-  showNotification,
 } from "@/utils/rideNotificationSounds";
 
 const LOG_CONTEXT = "useActiveRide";
@@ -170,12 +169,6 @@ export const useActiveRide = (userId: string | null) => {
           duration: 8000,
         });
 
-        showNotification(
-          "🎉 تم قبول طلبك!",
-          "السائق في الطريق إليك - انتظره في موقع الانطلاق",
-          { tag: "ride-accepted", requireInteraction: true }
-        );
-
         // Switch screens immediately
         setShowWaitingScreen(false);
         setShowLiveTracker(true);
@@ -193,11 +186,6 @@ export const useActiveRide = (userId: string | null) => {
           duration: 10000,
         });
 
-        showNotification(
-          "🔔 السائق وصل!",
-          "اخرج الآن - السائق في انتظارك عند موقع الانطلاق",
-          { tag: "driver-arrived", requireInteraction: true }
-        );
       }
 
       // Handle in_progress status

@@ -74,19 +74,38 @@ const AdminDriverDetails = () => {
   const [incentiveClaims, setIncentiveClaims] = useState<IncentiveClaim[]>([]);
   const [monthlyEarnings, setMonthlyEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
-    // driverId comes from route param, ensure it's present before fetching
-    if (isAdmin) {
-      if (driverId) {
-        fetchDriverData();
-      } else {
-        // no id provided – stop loading to show error state
-        setLoading(false);
-      }
+    // ✅ FIX: نبدأ جلب البيانات فور توفر driverId — حتى لو authLoading لا يزال true
+    // نستخدم timeout كشبكة أمان للخروج من التحميل بعد 8 ثوانٍ
+    if (!driverId) {
+      setLoading(false);
+      return;
     }
-  }, [isAdmin, driverId]);
+
+    // إذا أُكّد أنه أدمن — ابدأ الجلب فوراً
+    if (isAdmin) {
+      fetchDriverData();
+      return;
+    }
+
+    // إذا لم يتضح الدور بعد (authLoading) — انتظر قليلاً ثم ابدأ
+    if (!authLoading) {
+      // authLoading انتهى لكن isAdmin=false → useAdminAuth ستوجهه للخارج
+      setLoading(false);
+      return;
+    }
+
+    // ✅ Safety: ابدأ الجلب بعد 1.5 ثانية بغض النظر عن isAdmin
+    // (useAdminAuth ستعيد التوجيه إن لم يكن مشرفاً)
+    const fallbackTimer = setTimeout(() => {
+      if (driverId) fetchDriverData();
+    }, 1500);
+
+    return () => clearTimeout(fallbackTimer);
+  }, [isAdmin, driverId, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchDriverData = async () => {
     if (!driverId) return;
@@ -223,11 +242,12 @@ const AdminDriverDetails = () => {
         }
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching driver data:", error);
+      setFetchError(true);
       toast({
-        title: "خطأ",
-        description: "فشل في تحميل بيانات السائق",
+        title: "خطأ في تحميل البيانات",
+        description: "تعذّر جلب بيانات السائق — تحقق من اتصالك وأعد المحاولة",
         variant: "destructive",
       });
     } finally {
@@ -283,11 +303,30 @@ const AdminDriverDetails = () => {
     });
   };
 
-  if (authLoading || loading) {
+  // ✅ FIX: نعرض loading فقط عند dataLoading — لا ننتظر authLoading الذي قد يتعطل
+  if (loading) {
     return (
       <AdminLayout title="تفاصيل السائق">
-        <div className="flex items-centerjustify-center min-h-[400px]">
-          <p className="text-muted-foreground">جاري التحميل...</p>
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">جاري تحميل بيانات السائق...</p>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  // عرض خطأ مع زر إعادة المحاولة
+  if (fetchError && !driver) {
+    return (
+      <AdminLayout title="تفاصيل السائق">
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <AlertCircle className="w-12 h-12 text-destructive" />
+          <h3 className="text-lg font-bold">تعذّر تحميل البيانات</h3>
+          <p className="text-muted-foreground text-center">فشل الاتصال بقاعدة البيانات أو انتهت الجلسة</p>
+          <div className="flex gap-3">
+            <Button onClick={() => { setFetchError(false); setLoading(true); fetchDriverData(); }}>إعادة المحاولة</Button>
+            <Button variant="outline" onClick={() => navigate("/admin/drivers")}>العودة للقائمة</Button>
+          </div>
         </div>
       </AdminLayout>
     );

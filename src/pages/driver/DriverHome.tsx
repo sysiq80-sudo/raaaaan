@@ -33,10 +33,10 @@ import { ExternalNavigationModal } from "@/components/driver/ExternalNavigationM
 import DriverSideMenu from "@/components/driver/DriverSideMenu";
 import { initAudioContext, cleanupAudioContext } from "@/lib/audioContext";
 import { useDriverStore } from "@/stores/driverStore";
+import logo from "@/assets/logo.png";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
 import { acceptRideFromNotification } from "@/services/driverNotificationService";
-import logo from "@/assets/logo.png";
 import {
   Menu,
   X,
@@ -971,13 +971,12 @@ const DriverHome = () => {
         <div className="container relative flex items-center justify-between h-16">
           {/* ═══ Left: Notification Icons ═══ */}
           <div className="flex items-center gap-3 z-10">
-            {/* Icon 1: General Notifications — Bell */}
             <NotificationsBell driverId={driverId} isOpen={notificationsOpen} onToggle={() => { setNotificationsOpen(!notificationsOpen); setRewardsOpen(false); setMenuOpen(false); }} />
           </div>
 
-          {/* Logo - Absolute Center */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center z-0">
-            <img src={logo} alt="RAAN" className="w-14 h-14 rounded-xl" />
+          {/* ═══ Center: Logo ═══ */}
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center">
+            <img src={logo} alt="RAAN" className="w-11 h-11 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]" />
           </div>
 
           {/* Menu Button — Right side */}
@@ -1056,7 +1055,7 @@ const DriverHome = () => {
                 <div className="absolute inset-0 bg-[#0b1326]">
                   {/* نقطة نبض — موقع السائق (مثل المرجع) */}
                   {isOnline && currentLocation && (
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                    <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2">
                       <div className="relative flex items-center justify-center">
                         <div className="absolute w-32 h-32 bg-[#5bdda6]/15 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
                         <div className="absolute w-16 h-16 bg-[#5bdda6]/20 rounded-full animate-pulse" />
@@ -1073,7 +1072,7 @@ const DriverHome = () => {
 
             {/* ═══ Driver Control Center — Centered DutyToggle ═══ */}
             {!hasRideRequest && !hasActiveRide && (
-              <div className="absolute inset-x-0 bottom-[12vh] z-20 pointer-events-none flex justify-center">
+              <div className="absolute inset-x-0 bottom-[22vh] z-20 pointer-events-none flex justify-center">
                 <div className="relative flex flex-col items-center gap-3 w-full max-w-2xl px-4">
                   <div className="pointer-events-auto w-full">
                     <DutyToggle

@@ -124,19 +124,19 @@ const RiderRidesPage: React.FC = () => {
   ];
 
   return (
-    <div className="flex flex-col bg-background h-full">
+    <div className="flex flex-col min-h-full transition-colors duration-300" style={{ background: 'var(--raan-bg)' }} dir="rtl">
       <RiderPageHeader title="رحلاتي" />
 
       {/* ── التبويبات ── */}
-      <div className="pt-16 px-4 pb-3 sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/40 flex-shrink-0">
-        <div className="flex gap-2 p-1 rounded-2xl bg-[#111827]/80 border border-slate-700/40">
+      <div className="pt-16 px-4 pb-3 sticky top-0 z-10 backdrop-blur-xl flex-shrink-0 transition-colors duration-300" style={{ background: 'var(--raan-bg)', borderBottom: '1px solid var(--raan-border)' }}>
+        <div className="flex gap-2 p-1 rounded-2xl bg-[#171f33] border border-slate-700/40">
           {FILTERS.map((f) => (
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
               className={`flex-1 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-300 ${
                 filter === f.key
-                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25"
+                  ? "bg-[#5bdda6] text-[#0b1326] shadow-lg shadow-[#5bdda6]/20"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
@@ -161,7 +161,7 @@ const RiderRidesPage: React.FC = () => {
           </div>
         ) : rides.length === 0 ? (
           <div className="text-center py-20 space-y-5">
-            <div className="w-20 h-20 mx-auto rounded-2xl bg-[#151f30] border border-slate-700/50 flex items-center justify-center">
+            <div className="w-20 h-20 mx-auto rounded-2xl bg-[#171f33] border border-slate-700/50 flex items-center justify-center">
               <Car className="w-10 h-10 text-slate-500" />
             </div>
             <div className="space-y-2">
@@ -170,7 +170,7 @@ const RiderRidesPage: React.FC = () => {
             </div>
             <button
               onClick={() => navigate("/rider")}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-bold text-sm rounded-full shadow-lg shadow-emerald-500/25 transition-all"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-[#5bdda6] hover:bg-[#4ecf99] text-[#0b1326] font-bold text-sm rounded-full shadow-lg shadow-[#5bdda6]/25 transition-all"
             >
               <Navigation className="w-4 h-4" />
               احجز رحلة جديدة
@@ -187,7 +187,7 @@ const RiderRidesPage: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ delay: idx * 0.05, duration: 0.35 }}
-                  className="bg-[#151f30] rounded-2xl border border-slate-700/50 overflow-hidden"
+                  className="bg-[#171f33] rounded-2xl border border-slate-700/40 overflow-hidden"
                 >
                   <div className="p-4">
                     {/* التاريخ والحالة */}
@@ -252,7 +252,7 @@ const RiderRidesPage: React.FC = () => {
                     {ride.status === "completed" && (
                       <button
                         onClick={() => handleRebook(ride)}
-                        className="w-full mt-3 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[13px] font-semibold hover:bg-emerald-500/20 active:bg-emerald-500/30 transition-all"
+                        className="w-full mt-3 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#5bdda6]/10 border border-[#5bdda6]/25 text-[#5bdda6] text-[13px] font-semibold hover:bg-[#5bdda6]/20 active:bg-[#5bdda6]/30 transition-all"
                       >
                         <RotateCcw className="w-4 h-4" />
                         إعادة الحجز

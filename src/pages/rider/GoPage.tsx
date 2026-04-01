@@ -1746,29 +1746,31 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       y: 0,
       opacity: 1
     }} className="absolute top-4 left-0 right-0 z-30 pointer-events-auto">
-        <div className="flex items-center justify-between p-4">
-          {/* زر الرجوع - يظهر عند اختيار الوجهة للعودة لوضع الانطلاق (يظهر على اليسار في RTL) */}
+        <div className="flex items-center justify-between px-4 py-2">
+          {/* زر الرجوع يسار */}
           {!isPickup ? (
             <button
               onClick={() => {
                 if (navigator.vibrate) navigator.vibrate(30);
                 setCurrentMode("pickup");
               }}
-              className="w-10 h-10 rounded-xl bg-card/90 backdrop-blur-xl flex items-center justify-center shadow-lg border border-border/20 hover:scale-105 transition-all"
+              className="w-10 h-10 rounded-xl bg-[#0b1326]/90 backdrop-blur-xl flex items-center justify-center shadow-lg border border-[#5bdda6]/20 hover:scale-105 transition-all"
               aria-label="العودة لتحديد موقع الانطلاق"
             >
-              <ArrowRight className="w-5 h-5 text-foreground" />
+              <ArrowRight className="w-5 h-5 text-[#5bdda6]" />
             </button>
           ) : (
             <div className="w-10" />
           )}
 
-          {/* فراغ وسطي */}
-          <div className="flex-1" />
+          {/* شعار RAAN في الوسط */}
+          <div className="flex items-center gap-2">
+            <img src={logo} alt="RAAN" className="w-8 h-8 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]" />
+          </div>
 
-          {/* زر القائمة - على اليمين في RTL (آخر عنصر في flex → CSS left → يمين في RTL) */}
-          <button onClick={() => setMenuOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-xl bg-card/95 backdrop-blur-xl shadow-lg hover:bg-card hover:scale-105 transition-all duration-200 active:scale-95 border border-border/30" aria-label="القائمة الرئيسية">
-            <Menu className="w-5 h-5" />
+          {/* زر القائمة يمين */}
+          <button onClick={() => setMenuOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-xl bg-[#0b1326]/90 backdrop-blur-xl shadow-lg hover:scale-105 transition-all duration-200 active:scale-95 border border-[#5bdda6]/20" aria-label="القائمة الرئيسية">
+            <Menu className="w-5 h-5 text-slate-300" />
           </button>
         </div>
       </motion.div>
@@ -1963,40 +1965,52 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       {/* 🟢 Bottom panel - Glassmorphism متكاملة مع شريط التنقل + safe-area-inset */}
       <motion.div 
         ref={bottomPanelRef}
-        initial={{
-        y: 100
-      }} animate={{
-        y: 0
-      }} className={`bg-card/98 backdrop-blur-xl border-t border-border/30 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] z-20 rounded-t-3xl transition-all duration-300 pointer-events-auto ${bottomNavEnabled ? 'fixed left-0 right-0' : 'fixed left-0 right-0'}`}
+        initial={{ y: 100 }}
+        animate={{ y: 0 }}
+        className="bg-[#0b1326]/98 backdrop-blur-xl border-t border-[#5bdda6]/10 shadow-[0_-10px_40px_rgba(11,19,38,0.6)] z-20 rounded-t-3xl transition-all duration-300 pointer-events-auto fixed left-0 right-0"
         style={{
           bottom: bottomNavEnabled ? 'calc(env(safe-area-inset-bottom) + 65px)' : 'calc(env(safe-area-inset-bottom, 0px) + 64px)',
-          WebkitBackdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(20px)',
           overflow: 'visible',
         }}
       >
-        {/* شعار RAAN — أعلى البانل بالوسط */}
+        {/* شعار RAAN + مؤشر الخطوة */}
         <div className="flex flex-col items-center justify-center pt-4 pb-2 gap-1">
-          <img src={logo} alt="RAAN" className="w-10 h-10 drop-shadow-md" />
-          <p className="text-[10px] font-bold tracking-[0.2em] text-muted-foreground uppercase">RAN</p>
+          {/* مؤشر السحب */}
+          <div className="w-10 h-1 rounded-full bg-[#5bdda6]/20 mb-2" />
+          {/* أيقونة الخطوة */}
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-[0_0_12px_rgba(91,221,166,0.25)] ${
+            isPickup
+              ? 'bg-[#5bdda6]/20 border border-[#5bdda6]/30'
+              : 'bg-[#5bdda6]/10 border border-[#5bdda6]/20'
+          }`}>
+            {isPickup
+              ? <Navigation className="w-4 h-4 text-[#5bdda6]" />
+              : <MapPin className="w-4 h-4 text-[#5bdda6]" />}
+          </div>
+          <p className="text-[11px] font-bold tracking-widest text-[#5bdda6]/60 uppercase mt-0.5">
+            {isPickup ? 'موقع الانطلاق' : 'الوجهة'}
+          </p>
         </div>
+
         <div className="px-4 pb-4 flex flex-col gap-3">
           {/* Service area warning */}
-          {localServiceAreaStatus && !localServiceAreaStatus.in_service && <div className="flex items-center gap-3 p-3 mb-3 rounded-md bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/30">
-              <div className="w-8 h-8 rounded-md bg-destructive/20 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-4 h-4 text-destructive" />
+          {localServiceAreaStatus && !localServiceAreaStatus.in_service && <div className="flex items-center gap-3 p-3 mb-3 rounded-2xl bg-red-500/10 border border-red-500/20">
+              <div className="w-8 h-8 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4 text-red-400" />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-destructive text-sm mb-1">
+                <p className="font-semibold text-red-400 text-sm mb-1">
                   ⚠️ خارج منطقة الخدمة
                 </p>
-                {localServiceAreaStatus.nearest_region && <p className="text-muted-foreground text-xs">
+                {localServiceAreaStatus.nearest_region && <p className="text-slate-400 text-xs">
                     أقرب منطقة: {localServiceAreaStatus.nearest_region.name_ar}{" "}
                     ({localServiceAreaStatus.nearest_region.distance_km} كم)
                   </p>}
               </div>
             </div>}
 
-          {/* حقل البحث الأول - موقع الانطلاق/الوجهة (قابل للكتابة مثل الحقل الثاني تماماً) */}
+          {/* حقل البحث */}
           <div className="relative pointer-events-auto">
             <DynamicSearchHeader
               query={locationSearchQuery}
@@ -2107,7 +2121,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
            بنفس نمط أزرار شاشة السائق تماماً
            ════════════════════════════════════════════ */}
       <div
-        className="fixed bottom-0 inset-x-0 z-30 bg-slate-900/98 backdrop-blur-lg border-t border-slate-700/50"
+        className="fixed bottom-0 inset-x-0 z-30 bg-[#0b1326]/98 backdrop-blur-lg border-t border-[#5bdda6]/10"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <motion.button
@@ -2118,17 +2132,17 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           disabled={!centerAddress || isCheckingService || isConfirming}
           animate={centerAddress ? {
             boxShadow: [
-              "0 0 0 0 rgba(var(--primary-rgb, 79,70,229),0)",
-              "0 0 0 10px rgba(var(--primary-rgb, 79,70,229),0.15)",
-              "0 0 0 0 rgba(var(--primary-rgb, 79,70,229),0)"
+              "0 0 0 0 rgba(91,221,166,0)",
+              "0 0 0 10px rgba(91,221,166,0.15)",
+              "0 0 0 0 rgba(91,221,166,0)"
             ]
           } : {}}
           transition={{ duration: 2, repeat: Infinity }}
           whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.98 }}
           className={`w-full h-16 flex items-center justify-center gap-3 text-lg font-black rounded-none touch-manipulation transition-all duration-200 ${
             centerAddress && !isCheckingService && !isConfirming
-              ? 'bg-primary hover:bg-primary/90 active:bg-primary/80 text-primary-foreground'
-              : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+              ? 'bg-[#5bdda6] hover:bg-[#4ecf99] text-[#0b1326]'
+              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
           }`}
         >
           {isCheckingService || isConfirming ? (

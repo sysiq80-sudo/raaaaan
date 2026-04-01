@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { RaanThemeProvider } from "@/contexts/RaanThemeContext";
 import SplashScreen from "@/components/SplashScreen";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import DevInspector from "@/components/DevInspector";
@@ -59,6 +60,7 @@ const LoadingFallback = () => <SplashScreen />;
 const DriverApp = () => {
   return (
     <ErrorBoundary>
+      <RaanThemeProvider>
       <TooltipProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
@@ -74,6 +76,7 @@ const DriverApp = () => {
           </AuthProvider>
         </QueryClientProvider>
       </TooltipProvider>
+      </RaanThemeProvider>
     </ErrorBoundary>
   );
 };

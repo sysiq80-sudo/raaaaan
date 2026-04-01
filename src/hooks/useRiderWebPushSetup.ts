@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { isNativePlatform } from "@/lib/capacitorBridge";
 import {
   registerServiceWorker,
-  requestNotificationPermission,
   isServiceWorkerSupported,
 } from "@/utils/serviceWorker";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,10 +25,11 @@ export const useRiderWebPushSetup = (userId: string | null) => {
         const registration = await registerServiceWorker();
         if (!registration) return;
 
-        // Check/request permission
-        const permission = await requestNotificationPermission();
-        if (permission !== "granted") {
-          console.log("[RiderWebPush] Permission not granted:", permission);
+        // Only auto-register if permission was already granted (from settings).
+        // Don't auto-trigger the browser prompt — it gets silently blocked
+        // without a user gesture. The settings page toggle handles first-time requests.
+        if (!('Notification' in window) || Notification.permission !== 'granted') {
+          console.log("[RiderWebPush] Permission not yet granted, skipping auto-setup");
           return;
         }
 

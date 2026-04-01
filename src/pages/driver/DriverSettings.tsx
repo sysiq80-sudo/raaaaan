@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import SplashScreen from "@/components/common/SplashScreen";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,21 +11,21 @@ import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
 import RadiusSlider from "@/components/driver/RadiusSlider";
 import { toast } from "sonner";
-import { User, Session } from "@supabase/supabase-js";
 import { isNativePlatform } from "@/lib/capacitorBridge";
 import { registerFCMToken } from "@/services/driverNotificationService";
 import ThemeToggle from "@/components/ThemeToggle";
 import { NotificationMuteScheduler } from "@/components/driver/NotificationMuteScheduler";
-import { 
+import { useDriverSession } from "@/hooks/useDriverSession";
+import DriverPageHeader from "@/components/driver/DriverPageHeader";
+import { useNavigate } from "react-router-dom";
+import {
   Car, 
-  ArrowRight,
   User as UserIcon,
   Bell,
   BellRing,
   Volume2,
   VolumeX,
   Vibrate,
-  Globe,
   LogOut,
   Save,
   MapPin,
@@ -34,7 +33,6 @@ import {
   CheckCircle2,
   Shield
 } from "lucide-react";
-import DriverPageHeader from "@/components/driver/DriverPageHeader";
 
 // Local storage keys for notification preferences
 const NOTIFICATION_PREFS_KEY = 'driver_notification_prefs';
@@ -63,9 +61,7 @@ const defaultNotificationPrefs: NotificationPreferences = {
 
 const DriverSettings = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { driver: sessionDriver, loading: authLoading } = useDriverSession();
   const [saving, setSaving] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
   
@@ -80,12 +76,27 @@ const DriverSettings = () => {
   });
 
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>(defaultNotificationPrefs);
-  const [driverId, setDriverId] = useState<string | null>(null);
+  const [driverId, setDriverId] = useState<string | null>(sessionDriver?.driverId ?? null);
 
-  const [generalPrefs, setGeneralPrefs] = useState({
-    language: "ar",
-    auto_accept: false,
-  });
+  const [autoAccept, setAutoAccept] = useState(false);
+
+  // sync driverId من الـ hook
+  useEffect(() => {
+    if (sessionDriver) setDriverId(sessionDriver.driverId);
+  }, [sessionDriver]);
+
+  // إزالة driver-mode لتفعيل السكرول
+  useEffect(() => {
+    const had = document.body.classList.contains('driver-mode');
+    document.body.classList.remove('driver-mode');
+    document.body.style.overflow = 'auto';
+    document.body.style.position = 'static';
+    return () => {
+      if (had) document.body.classList.add('driver-mode');
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+    };
+  }, []);
 
   // Load notification preferences from localStorage
   useEffect(() => {
@@ -210,72 +221,47 @@ const DriverSettings = () => {
     }
   };
 
+  // جلب بيانات إضافية من الـ driver مباشرة بعد توفر sessionDriver
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (!session?.user) setLoading(false);
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (!session?.user) setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      fetchDriverProfile();
-    }
-  }, [user]);
-
-  const fetchDriverProfile = async () => {
-    try {
-      const { data: driver } = await supabase
+    if (!sessionDriver) return;
+    const load = async () => {
+      const { data: dr } = await supabase
         .from("drivers")
-        .select("*")
-        .eq("user_id", user!.id)
+        .select("email, max_pickup_radius, full_name, phone, vehicle_model, vehicle_color, vehicle_plate, auto_accept")
+        .eq("user_id" as any, sessionDriver.userId)
         .maybeSingle();
-
-      if (driver) {
-        setDriverId(driver.id);
+      if (dr) {
         setDriverProfile({
-          full_name: driver.full_name || "",
-          phone: driver.phone || "",
-          email: driver.email || "",
-          vehicle_model: driver.vehicle_model || "",
-          vehicle_color: driver.vehicle_color || "",
-          vehicle_plate: driver.vehicle_plate || "",
-          max_pickup_radius: driver.max_pickup_radius || 10,
+          full_name:        (dr as any).full_name  || "",
+          phone:            (dr as any).phone       || "",
+          email:            (dr as any).email       || "",
+          vehicle_model:    (dr as any).vehicle_model || "",
+          vehicle_color:    (dr as any).vehicle_color || "",
+          vehicle_plate:    (dr as any).vehicle_plate || "",
+          max_pickup_radius:(dr as any).max_pickup_radius ?? 10,
         });
+        setAutoAccept((dr as any).auto_accept ?? false);
       }
-    } catch (error) {
-      console.error("Error fetching driver profile:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    load();
+  }, [sessionDriver]);
 
   const handleSaveProfile = async () => {
+    if (!sessionDriver) return;
     setSaving(true);
     try {
-      // فقط الحقول المسموح للسائق بتعديلها (ليس الاسم أو بيانات السيارة)
       const { error } = await supabase
         .from("drivers")
         .update({
           email: driverProfile.email,
           max_pickup_radius: driverProfile.max_pickup_radius,
-        })
-        .eq("user_id", user!.id);
+          auto_accept: autoAccept,
+        } as any)
+        .eq("user_id" as any, sessionDriver.userId);
 
       if (error) throw error;
       
-      // Save notification prefs
       localStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(notificationPrefs));
-      
       toast.success("تم حفظ التغييرات بنجاح");
     } catch (error) {
       console.error("Error saving profile:", error);
@@ -286,21 +272,23 @@ const DriverSettings = () => {
   };
 
   const handleLogout = async () => {
+    if (sessionDriver?.driverId) {
+      await supabase.from("drivers").update({ is_online: false, is_available: false } as any).eq("id" as any, sessionDriver.driverId);
+    }
     await supabase.auth.signOut();
-    navigate("/auth", { replace: true });
+    navigate("/driver/auth", { replace: true });
   };
 
-  if (loading) {
+  if (authLoading) {
     return <SplashScreen />;
   }
 
-  if (!user) {
-    navigate("/auth");
+  if (!sessionDriver) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#0b1326] overflow-y-auto" dir="rtl">
       <DriverPageHeader title="الإعدادات" />
       {/* Main Content */}
       <main className="pt-20 pb-8 px-4">
@@ -588,8 +576,8 @@ const DriverSettings = () => {
                   <p className="text-sm text-muted-foreground">قبول الطلبات تلقائياً</p>
                 </div>
                 <Switch
-                  checked={generalPrefs.auto_accept}
-                  onCheckedChange={(checked) => setGeneralPrefs({ ...generalPrefs, auto_accept: checked })}
+                  checked={autoAccept}
+                  onCheckedChange={setAutoAccept}
                 />
               </div>
             </CardContent>
@@ -598,30 +586,6 @@ const DriverSettings = () => {
           {/* Theme Toggle */}
           <ThemeToggle />
 
-          {/* Language Section */}
-          <Card className="driver-geometric-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Globe className="w-5 h-5 text-primary" />
-                اللغة
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select
-                value={generalPrefs.language}
-                onValueChange={(value) => setGeneralPrefs({ ...generalPrefs, language: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="اختر اللغة" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ar">العربية</SelectItem>
-                  <SelectItem value="ku">الكردية</SelectItem>
-                  <SelectItem value="en">English</SelectItem>
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
 
           {/* Save Button */}
           <Button onClick={handleSaveProfile} disabled={saving} className="w-full">

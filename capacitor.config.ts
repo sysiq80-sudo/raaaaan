@@ -1,20 +1,20 @@
 /**
- * ران كابتن — إعدادات Capacitor لتطبيق السائق
+ * ران — إعدادات Capacitor لتطبيق الراكب
  * 
- * appId: com.raan.captain
- * appName: ران كابتن
- * webDir: dist-driver
+ * appId: com.raan.rider
+ * appName: ران
+ * webDir: dist-rider
  * 
  * الاستخدام:
- *   npm run build:driver
- *   npx cap sync --config capacitor.driver.config.ts android
+ *   npm run build:rider
+ *   npx cap sync --config capacitor.rider.config.ts android
  */
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.raan.captain',
-  appName: 'ران كابتن',
-  webDir: 'dist-driver',
+  appId: 'com.raan.rider',
+  appName: 'ران',
+  webDir: 'dist-rider',
 
   server: {
     androidScheme: 'https',
@@ -37,7 +37,7 @@ const config: CapacitorConfig = {
   plugins: {
     Geolocation: {},
     LocalNotifications: {
-      smallIcon: 'ic_stat_icon_config_sample',
+      smallIcon: 'ic_transparent',
       iconColor: '#10b981',
     },
     PushNotifications: {
