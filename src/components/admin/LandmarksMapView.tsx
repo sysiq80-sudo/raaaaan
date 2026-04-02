@@ -1,4 +1,3 @@
-import mapboxgl from 'mapbox-gl';
 import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,10 +11,9 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
+import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { landmarkCategories } from "@/pages/admin/AdminLandmarks";
-
-const escapeHtml = (str: string) =>
-  str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 
 interface LandmarkData {
   id: string;
@@ -39,229 +37,138 @@ export const LandmarksMapView = ({
   onLandmarkClick,
 }: LandmarksMapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
-  const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const map = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<google.maps.Marker[]>([]);
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
 
-  const [mapToken, setMapToken] = useState<string | null>(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   const [showInactive, setShowInactive] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // Fetch Mapbox token
+  const { apiKey, isLoading: isApiKeyLoading } = useGoogleMapsApiKey();
+
+  // Initialize Google Maps
   useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        const response = await fetch(
-          "https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token"
-        );
-        const data = await response.json();
-        if (data.token) setMapToken(data.token);
-      } catch (error) {
-        console.error("Error fetching token:", error);
-      }
-    };
-    fetchToken();
-  }, []);
+    if (!mapContainer.current || isApiKeyLoading || !apiKey) return;
+    if (map.current) return;
 
-  // Initialize map
-  useEffect(() => {
-    if (!mapContainer.current || !mapToken) return;
+    const defaultCenter = { lat: 33.4235, lng: 43.3074 };
+    const center = landmarks.length > 0
+      ? {
+          lat: landmarks.reduce((s, l) => s + l.location.lat, 0) / landmarks.length,
+          lng: landmarks.reduce((s, l) => s + l.location.lng, 0) / landmarks.length,
+        }
+      : defaultCenter;
 
-    mapboxgl.accessToken = mapToken;
-
-    // Calculate center from landmarks or default to Ramadi
-    const defaultCenter: [number, number] = [43.3074, 33.4235];
-    let center = defaultCenter;
-
-    if (landmarks.length > 0) {
-      const avgLat =
-        landmarks.reduce((sum, l) => sum + l.location.lat, 0) /
-        landmarks.length;
-      const avgLng =
-        landmarks.reduce((sum, l) => sum + l.location.lng, 0) /
-        landmarks.length;
-      center = [avgLng, avgLat];
-    }
-
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/streets-v12",
-      center,
-      zoom: 12,
-    });
-
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-left");
-
-    map.current.on("load", () => {
-      setMapLoaded(true);
+    loadGoogleMaps(apiKey).then(() => {
+      if (!mapContainer.current) return;
+      map.current = new google.maps.Map(mapContainer.current, {
+        center,
+        zoom: 12,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        zoomControl: false,
+      });
+      infoWindowRef.current = new google.maps.InfoWindow();
+      setMapReady(true);
     });
 
     return () => {
-      map.current?.remove();
-      map.current = null;
+      if (map.current) {
+        markersRef.current.forEach(m => m.setMap(null));
+        markersRef.current = [];
+        map.current = null;
+        setMapReady(false);
+      }
     };
-  }, [mapToken]);
+  }, [apiKey, isApiKeyLoading]);
+
+  // Color map by category
+  const categoryColorMap: Record<string, string> = {
+    hospital: "#ef4444", university: "#3b82f6", school: "#6366f1",
+    mosque: "#10b981", market: "#f97316", government: "#a855f7",
+    station: "#06b6d4", airport: "#0ea5e9", gas_station: "#eab308",
+    restaurant: "#ec4899", hotel: "#8b5cf6", parking: "#64748b",
+    landmark: "#f59e0b", residential: "#14b8a6", other: "#6b7280",
+  };
 
   // Update markers when landmarks or filters change
   useEffect(() => {
-    if (!map.current || !mapLoaded) return;
+    if (!mapReady || !map.current) return;
 
     // Clear existing markers
-    markersRef.current.forEach((marker) => marker.remove());
+    markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
 
     // Filter landmarks
     const filteredLandmarks = landmarks.filter((landmark) => {
       if (!showInactive && !landmark.is_active) return false;
-      if (selectedCategory && landmark.category !== selectedCategory)
-        return false;
+      if (selectedCategory && landmark.category !== selectedCategory) return false;
       return true;
     });
 
     // Add markers
     filteredLandmarks.forEach((landmark) => {
       const categoryConfig =
-        landmarkCategories[
-          landmark.category as keyof typeof landmarkCategories
-        ] || landmarkCategories.other;
+        landmarkCategories[landmark.category as keyof typeof landmarkCategories] || landmarkCategories.other;
 
-      // Create custom marker element
-      const el = document.createElement("div");
-      el.className = "landmark-marker";
-      el.style.cssText = `
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: transform 0.2s;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        border: 2px solid white;
-        ${!landmark.is_active ? "opacity: 0.5;" : ""}
-      `;
+      const color = categoryColorMap[landmark.category || "other"] || "#6b7280";
 
-      // Set background color based on category
-      const colorMap: Record<string, string> = {
-        hospital: "#ef4444",
-        university: "#3b82f6",
-        school: "#6366f1",
-        mosque: "#10b981",
-        market: "#f97316",
-        government: "#a855f7",
-        station: "#06b6d4",
-        airport: "#0ea5e9",
-        gas_station: "#eab308",
-        restaurant: "#ec4899",
-        hotel: "#8b5cf6",
-        parking: "#64748b",
-        landmark: "#f59e0b",
-        residential: "#14b8a6",
-        other: "#6b7280",
-      };
-      el.style.backgroundColor =
-        colorMap[landmark.category || "other"] || "#6b7280";
+      const marker = new google.maps.Marker({
+        position: { lat: landmark.location.lat, lng: landmark.location.lng },
+        map: map.current!,
+        title: landmark.name_ar,
+        opacity: landmark.is_active ? 1 : 0.5,
+        icon: {
+          // Map pin SVG path
+          path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
+          fillColor: color,
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 1,
+          scale: 1.5,
+          anchor: new google.maps.Point(12, 22),
+        },
+      });
 
-      // Add icon
-      el.innerHTML = `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-          <circle cx="12" cy="10" r="3"/>
-        </svg>
-      `;
-
-      el.onmouseenter = () => {
-        el.style.transform = "scale(1.2)";
-      };
-      el.onmouseleave = () => {
-        el.style.transform = "scale(1)";
-      };
-
-      el.onclick = (e) => {
-        e.stopPropagation();
-
-        // Close any existing popup
-        popupRef.current?.remove();
-
-        // Create popup
-        const popup = new mapboxgl.Popup({
-          offset: 25,
-          closeButton: true,
-          closeOnClick: false,
-          maxWidth: "280px",
-        })
-          .setLngLat([landmark.location.lng, landmark.location.lat])
-          .setHTML(
-            `
-            <div style="direction: rtl; text-align: right; padding: 8px 0;">
-              <h3 style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${
-                escapeHtml(landmark.name_ar)
-              }</h3>
-              ${
-                landmark.name_en
-                  ? `<p style="color: #6b7280; font-size: 12px; margin-bottom: 8px;">${escapeHtml(landmark.name_en)}</p>`
-                  : ""
-              }
-              <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
-                <span style="background: ${
-                  colorMap[landmark.category || "other"]
-                }20; color: ${
-              colorMap[landmark.category || "other"]
-            }; padding: 2px 8px; border-radius: 4px; font-size: 11px;">
-                  ${categoryConfig.label}
-                </span>
-                ${
-                  landmark.region
-                    ? `<span style="color: #6b7280; font-size: 11px;">${escapeHtml(landmark.region.name_ar)}</span>`
-                    : ""
-                }
-              </div>
-              <button 
-                id="edit-landmark-${landmark.id}" 
-                style="width: 100%; padding: 8px; background: #22c55e; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;"
-              >
-                ✏️ تعديل المعلم
-              </button>
+      marker.addListener('click', () => {
+        if (!infoWindowRef.current) return;
+        infoWindowRef.current.setContent(`
+          <div style="direction:rtl;text-align:right;padding:8px 4px;min-width:200px;font-family:sans-serif;">
+            <h3 style="font-weight:600;font-size:14px;margin:0 0 4px;">${landmark.name_ar}</h3>
+            ${landmark.name_en ? `<p style="color:#6b7280;font-size:12px;margin:0 0 8px;">${landmark.name_en}</p>` : ''}
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+              <span style="background:${color}20;color:${color};padding:2px 8px;border-radius:4px;font-size:11px;">${categoryConfig.label}</span>
+              ${landmark.region ? `<span style="color:#6b7280;font-size:11px;">${landmark.region.name_ar}</span>` : ''}
             </div>
-          `
-          )
-          .addTo(map.current!);
-
-        popupRef.current = popup;
-
-        // Add click handler for edit button
+            <button id="edit-lm-${landmark.id}"
+              style="width:100%;padding:8px;background:#22c55e;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;">
+              ✏️ تعديل المعلم
+            </button>
+          </div>
+        `);
+        infoWindowRef.current.open(map.current!, marker);
         setTimeout(() => {
-          const editBtn = document.getElementById(
-            `edit-landmark-${landmark.id}`
-          );
-          if (editBtn) {
-            editBtn.onclick = () => {
-              popup.remove();
-              onLandmarkClick(landmark);
-            };
-          }
+          document.getElementById(`edit-lm-${landmark.id}`)?.addEventListener('click', () => {
+            infoWindowRef.current?.close();
+            onLandmarkClick(landmark);
+          });
         }, 100);
-      };
-
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([landmark.location.lng, landmark.location.lat])
-        .addTo(map.current!);
+      });
 
       markersRef.current.push(marker);
     });
-  }, [landmarks, mapLoaded, showInactive, selectedCategory, onLandmarkClick]);
+  }, [landmarks, mapReady, showInactive, selectedCategory, onLandmarkClick]);
 
-  const handleZoomIn = () => map.current?.zoomIn();
-  const handleZoomOut = () => map.current?.zoomOut();
+  const handleZoomIn = () => { if (map.current) map.current.setZoom((map.current.getZoom() ?? 12) + 1); };
+  const handleZoomOut = () => { if (map.current) map.current.setZoom((map.current.getZoom() ?? 12) - 1); };
 
   const handleFitBounds = () => {
     if (!map.current || landmarks.length === 0) return;
-
-    const bounds = new mapboxgl.LngLatBounds();
-    landmarks.forEach((l) => bounds.extend([l.location.lng, l.location.lat]));
-    map.current.fitBounds(bounds, { padding: 50 });
+    const bounds = new google.maps.LatLngBounds();
+    landmarks.forEach((l) => bounds.extend({ lat: l.location.lat, lng: l.location.lng }));
+    map.current.fitBounds(bounds, 50);
   };
 
   const visibleCount = landmarks.filter((l) => {

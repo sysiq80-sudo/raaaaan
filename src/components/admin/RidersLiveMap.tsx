@@ -1,13 +1,11 @@
-import mapboxgl from 'mapbox-gl';
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, MapPin, RefreshCw, X } from "lucide-react";
-
-const escapeHtml = (str: string) =>
-  str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 
 interface RiderLocation {
   id: string;
@@ -25,36 +23,52 @@ interface RidersLiveMapProps {
 
 const RidersLiveMap = ({ open, onClose }: RidersLiveMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
-  
+  const map = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+
   const [riders, setRiders] = useState<RiderLocation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mapboxToken, setMapboxToken] = useState<string>("");
+  const [mapReady, setMapReady] = useState(false);
 
+  const { apiKey, isLoading: isApiKeyLoading } = useGoogleMapsApiKey();
+
+  // Initialize Google Maps when dialog opens
   useEffect(() => {
-    const fetchMapboxToken = async () => {
-      try {
-        const response = await fetch(
-          'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token'
-        );
-        const data = await response.json();
-        if (data.token) {
-          setMapboxToken(data.token);
-        }
-      } catch (error) {
-        console.error('Error fetching Mapbox token:', error);
-      }
-    };
-    fetchMapboxToken();
-  }, []);
+    if (!open || !mapContainer.current || isApiKeyLoading || !apiKey) return;
+    if (map.current) { setMapReady(true); return; }
+
+    loadGoogleMaps(apiKey).then(() => {
+      if (!mapContainer.current) return;
+      map.current = new google.maps.Map(mapContainer.current, {
+        center: { lat: 33.3152, lng: 43.6793 },
+        zoom: 6,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        zoomControl: true,
+      });
+      infoWindowRef.current = new google.maps.InfoWindow();
+      setMapReady(true);
+    }).catch(err => console.error('Google Maps load error:', err));
+  }, [open, apiKey, isApiKeyLoading]);
+
+  // Cleanup when dialog closes
+  useEffect(() => {
+    if (!open) {
+      markersRef.current.forEach(m => m.setMap(null));
+      markersRef.current.clear();
+      if (infoWindowRef.current) infoWindowRef.current.close();
+      map.current = null;
+      setMapReady(false);
+    }
+  }, [open]);
 
   const fetchRiders = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("profiles")
       .select("id, user_id, full_name, phone, current_location, status")
-      .eq("role", "rider")
       .not("current_location", "is", null);
 
     if (!error && data) {
@@ -85,7 +99,7 @@ const RidersLiveMap = ({ open, onClose }: RidersLiveMapProps) => {
           event: 'UPDATE',
           schema: 'public',
           table: 'profiles',
-          filter: 'role=eq.rider'
+          filter: 'current_location=neq.null'
         },
         (payload) => {
           const updated = payload.new as RiderLocation;
@@ -106,37 +120,16 @@ const RidersLiveMap = ({ open, onClose }: RidersLiveMapProps) => {
   }, [open]);
 
   // Initialize map
+  // (handled above with Google Maps init effect)
+
+  // Update markers when riders data changes
   useEffect(() => {
-    if (!open || !mapContainer.current || !mapboxToken || map.current) return;
+    if (!mapReady || !map.current) return;
 
-    mapboxgl.accessToken = mapboxToken;
-    
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/streets-v12",
-      center: [43.6793, 33.3152], // Iraq center
-      zoom: 6,
-      language: "ar",
-    });
-
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-left");
-
-    return () => {
-      if (map.current) {
-        map.current.remove();
-        map.current = null;
-      }
-    };
-  }, [open, mapboxToken]);
-
-  // Update markers
-  useEffect(() => {
-    if (!map.current) return;
-
-    // Remove old markers
+    // Remove stale markers
     markersRef.current.forEach((marker, id) => {
       if (!riders.find(r => r.id === id)) {
-        marker.remove();
+        marker.setMap(null);
         markersRef.current.delete(id);
       }
     });
@@ -146,55 +139,55 @@ const RidersLiveMap = ({ open, onClose }: RidersLiveMapProps) => {
       const loc = rider.current_location;
       if (!loc) return;
 
+      const isActive = rider.status !== 'suspended';
       let marker = markersRef.current.get(rider.id);
-      
+
       if (marker) {
-        marker.setLngLat([loc.lng, loc.lat]);
+        marker.setPosition({ lat: loc.lat, lng: loc.lng });
       } else {
-        const el = document.createElement("div");
-        el.className = "rider-marker";
-        el.innerHTML = `
-          <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-lg ${
-            rider.status === 'suspended' ? 'bg-red-500' : 'bg-primary'
-          }">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          </div>
-        `;
+        marker = new google.maps.Marker({
+          position: { lat: loc.lat, lng: loc.lng },
+          map: map.current!,
+          title: rider.full_name || 'راكب',
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: isActive ? '#22c55e' : '#ef4444',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2,
+          },
+        });
 
-        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-          <div class="p-2 text-right" dir="rtl">
-            <p class="font-bold">${escapeHtml(rider.full_name || "بدون اسم")}</p>
-            <p class="text-sm text-gray-600" dir="ltr">${escapeHtml(rider.phone || "-")}</p>
-            <span class="inline-block mt-1 px-2 py-0.5 text-xs rounded ${
-              rider.status === 'suspended' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-            }">
-              ${rider.status === 'suspended' ? 'معطل' : 'نشط'}
-            </span>
-          </div>
-        `);
+        marker.addListener('click', () => {
+          if (!infoWindowRef.current) return;
+          infoWindowRef.current.setContent(`
+            <div dir="rtl" style="text-align:right;padding:6px;min-width:150px;font-family:sans-serif;">
+              <p style="font-weight:700;margin:0 0 4px;font-size:13px;">${rider.full_name || 'بدون اسم'}</p>
+              <p style="color:#6b7280;font-size:11px;margin:0 0 6px;">${rider.phone || '-'}</p>
+              <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;${isActive ? 'background:#dcfce7;color:#15803d' : 'background:#fee2e2;color:#b91c1c'}">
+                ${isActive ? 'نشط' : 'معطل'}
+              </span>
+            </div>
+          `);
+          infoWindowRef.current.open(map.current!, marker);
+        });
 
-        marker = new mapboxgl.Marker(el)
-          .setLngLat([loc.lng, loc.lat])
-          .setPopup(popup)
-          .addTo(map.current!);
-        
         markersRef.current.set(rider.id, marker);
       }
     });
 
     // Fit bounds if we have riders
-    if (riders.length > 0) {
-      const bounds = new mapboxgl.LngLatBounds();
+    if (riders.length > 0 && map.current) {
+      const bounds = new google.maps.LatLngBounds();
       riders.forEach(r => {
         if (r.current_location) {
-          bounds.extend([r.current_location.lng, r.current_location.lat]);
+          bounds.extend({ lat: r.current_location.lat, lng: r.current_location.lng });
         }
       });
-      map.current.fitBounds(bounds, { padding: 50, maxZoom: 12 });
+      map.current.fitBounds(bounds, 50);
     }
-  }, [riders]);
+  }, [riders, mapReady]);
 
   if (!open) return null;
 
@@ -225,17 +218,14 @@ const RidersLiveMap = ({ open, onClose }: RidersLiveMapProps) => {
         </div>
 
         <div className="flex-1 relative">
-          {!mapboxToken ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-muted">
+          <div ref={mapContainer} className="absolute inset-0" />
+          {(isApiKeyLoading || !apiKey) && (
+            <div className="absolute inset-0 flex items-center justify-center bg-muted z-10">
               <div className="text-center">
                 <MapPin className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">
-                  يرجى إضافة مفتاح Mapbox في الإعدادات لعرض الخريطة
-                </p>
+                <p className="text-muted-foreground">جاري تحميل الخريطة...</p>
               </div>
             </div>
-          ) : (
-            <div ref={mapContainer} className="absolute inset-0" />
           )}
         </div>
 

@@ -1,5 +1,6 @@
-import mapboxgl from 'mapbox-gl';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useGoogleMapsApiKey } from '@/hooks/useGoogleMapsApiKey';
+import { loadGoogleMaps } from '@/lib/googleMapsLoader';
 import { Button } from '@/components/ui/button';
 import { Loader2, Trash2, Save, Plus, Pencil, MousePointer, AlertTriangle, Layers } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -54,302 +55,221 @@ const RegionMapEditor: React.FC<RegionMapEditorProps> = ({
   onDeleteCoordinates
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
+  const map = useRef<google.maps.Map | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [mapToken, setMapToken] = useState<string | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingPoints, setDrawingPoints] = useState<Array<{ lat: number; lng: number }>>([]);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
+
+  // Google Maps objects refs
+  const polygonRefs = useRef<Map<string, { polygon: google.maps.Polygon; label: google.maps.Marker }>>(new Map());
+  const drawMarkersRef = useRef<google.maps.Marker[]>([]);
+  const previewPolygonRef = useRef<google.maps.Polygon | null>(null);
+  const previewPolylineRef = useRef<google.maps.Polyline | null>(null);
+  const clickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const isDrawingRef = useRef(false);
-  
+
+  const { apiKey, isLoading: isApiKeyLoading } = useGoogleMapsApiKey();
+
   // Ramadi center
-  const ramadiCenter: [number, number] = [43.2954, 33.4262];
+  const ramadiCenter = { lat: 33.4262, lng: 43.2954 };
 
   // Keep ref in sync with state
   useEffect(() => {
     isDrawingRef.current = isDrawing;
   }, [isDrawing]);
 
-  // Fetch token
+  // Initialize Google Maps
   useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        const baseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const response = await fetch(
-          `${baseUrl}/functions/v1/mapbox-proxy?action=token`
-        );
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch token');
-        }
-        
-        const data = await response.json();
-        if (data.token) {
-          setMapToken(data.token);
-          setMapError(null);
-        } else {
-          throw new Error('No token in response');
-        }
-      } catch (error) {
-        console.error('Error fetching token:', error);
-        setMapError('فشل في تحميل الخريطة. تأكد من إعداد MAPBOX_PUBLIC_TOKEN');
-        setIsLoading(false);
-      }
-    };
-    fetchToken();
-  }, []);
-
-  // Initialize map
-  useEffect(() => {
-    if (!mapContainer.current || !mapToken) return;
-
-    try {
-      mapboxgl.accessToken = mapToken;
-      
-      map.current = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/dark-v11',
-        center: ramadiCenter,
-        zoom: 10,
-        attributionControl: false
-      });
-
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-left');
-      map.current.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left');
-
-      map.current.on('load', () => {
-        setIsLoading(false);
-        
-        // Add source for all regions
-        map.current?.addSource('regions', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] }
-        });
-
-        // Fill layer
-        map.current?.addLayer({
-          id: 'regions-fill',
-          type: 'fill',
-          source: 'regions',
-          paint: {
-            'fill-color': ['get', 'color'],
-            'fill-opacity': ['case', ['get', 'selected'], 0.5, 0.25]
-          }
-        });
-
-        // Outline layer
-        map.current?.addLayer({
-          id: 'regions-outline',
-          type: 'line',
-          source: 'regions',
-          paint: {
-            'line-color': ['get', 'color'],
-            'line-width': ['case', ['get', 'selected'], 4, 2],
-            'line-opacity': 1
-          }
-        });
-
-        // Labels layer
-        map.current?.addLayer({
-          id: 'regions-labels',
-          type: 'symbol',
-          source: 'regions',
-          layout: {
-            'text-field': ['get', 'name'],
-            'text-size': 14,
-            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-            'text-anchor': 'center'
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': '#000000',
-            'text-halo-width': 2
-          }
-        });
-
-        // Drawing source
-        map.current?.addSource('drawing', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] }
-        });
-
-        map.current?.addLayer({
-          id: 'drawing-fill',
-          type: 'fill',
-          source: 'drawing',
-          paint: {
-            'fill-color': '#00d9a5',
-            'fill-opacity': 0.4
-          }
-        });
-
-        map.current?.addLayer({
-          id: 'drawing-line',
-          type: 'line',
-          source: 'drawing',
-          paint: {
-            'line-color': '#00d9a5',
-            'line-width': 3,
-            'line-dasharray': [2, 2]
-          }
-        });
-
-        // Update regions immediately after load
-        updateRegionsOnMap();
-      });
-
-      // Click handler for drawing - use ref to check current drawing state
-      map.current.on('click', (e) => {
-        if (!isDrawingRef.current) {
-          // Check if clicked on a region
-          const features = map.current?.queryRenderedFeatures(e.point, { layers: ['regions-fill'] });
-          if (features && features.length > 0) {
-            onSelectRegion(features[0].properties?.id || null);
-          }
-          return;
-        }
-
-        const newPoint = { lat: e.lngLat.lat, lng: e.lngLat.lng };
-        setDrawingPoints(prev => [...prev, newPoint]);
-      });
-
-      // Change cursor in drawing mode
-      map.current.on('mousemove', () => {
-        if (map.current) {
-          map.current.getCanvas().style.cursor = isDrawingRef.current ? 'crosshair' : 'pointer';
-        }
-      });
-
-    } catch (error) {
-      console.error('Map initialization error:', error);
-      setMapError('فشل في تهيئة الخريطة');
+    if (!mapContainer.current || isApiKeyLoading) return;
+    if (!apiKey) {
+      setMapError('مفتاح Google Maps غير متاح. تأكد من إعداد VITE_GOOGLE_MAPS_API_KEY');
       setIsLoading(false);
+      return;
     }
 
+    loadGoogleMaps(apiKey).then(() => {
+      if (!mapContainer.current) return;
+      map.current = new google.maps.Map(mapContainer.current, {
+        center: ramadiCenter,
+        zoom: 10,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        attributionControl: false,
+      } as google.maps.MapOptions);
+
+      setIsLoading(false);
+
+      // Click handler for drawing and selection
+      clickListenerRef.current = map.current.addListener('click', (e: google.maps.MapMouseEvent) => {
+        if (!isDrawingRef.current) return;
+        const lat = e.latLng?.lat();
+        const lng = e.latLng?.lng();
+        if (lat !== undefined && lng !== undefined) {
+          setDrawingPoints(prev => [...prev, { lat, lng }]);
+        }
+      });
+
+      // Change cursor based on drawing mode
+      map.current.addListener('mousemove', () => {
+        if (map.current) {
+          (map.current as any).setOptions({ draggableCursor: isDrawingRef.current ? 'crosshair' : '' });
+        }
+      });
+    }).catch(err => {
+      console.error('Google Maps load error:', err);
+      setMapError('فشل في تحميل Google Maps');
+      setIsLoading(false);
+    });
+
     return () => {
-      map.current?.remove();
+      if (clickListenerRef.current) google.maps.event.removeListener(clickListenerRef.current);
+      polygonRefs.current.forEach(({ polygon, label }) => {
+        polygon.setMap(null); label.setMap(null);
+      });
+      polygonRefs.current.clear();
+      drawMarkersRef.current.forEach(m => m.setMap(null));
+      drawMarkersRef.current = [];
+      if (previewPolygonRef.current) previewPolygonRef.current.setMap(null);
+      if (previewPolylineRef.current) previewPolylineRef.current.setMap(null);
       map.current = null;
     };
-  }, [mapToken, onSelectRegion]);
+  }, [apiKey, isApiKeyLoading]);
 
-  // Function to update regions on map with priority-based colors
+  // Update regions on map with Google Maps Polygons
   const updateRegionsOnMap = useCallback(() => {
-    if (!map.current?.isStyleLoaded()) return;
+    if (!map.current) return;
 
-    // Sort regions by priority (lower priority renders first, so higher priority appears on top)
+    // Clear old polygons and labels
+    polygonRefs.current.forEach(({ polygon, label }) => {
+      polygon.setMap(null);
+      label.setMap(null);
+    });
+    polygonRefs.current.clear();
+
+    // Sort by priority (lower first so higher priority renders on top)
     const sortedRegions = [...regions]
       .filter(r => r.coordinates && r.coordinates.length >= 3)
       .sort((a, b) => (a.priority || 0) - (b.priority || 0));
 
-    const features = sortedRegions.map((region) => ({
-      type: 'Feature' as const,
-      properties: {
-        id: region.id,
-        name: region.name_ar,
-        priority: region.priority || 0,
-        color: getPriorityColor(region.priority || 0),
-        selected: region.id === selectedRegionId
-      },
-      geometry: {
-        type: 'Polygon' as const,
-        coordinates: [[
-          ...region.coordinates!.map(c => [c.lng, c.lat]),
-          [region.coordinates![0].lng, region.coordinates![0].lat]
-        ]]
-      }
-    }));
+    sortedRegions.forEach(region => {
+      const path = region.coordinates!.map(c => ({ lat: c.lat, lng: c.lng }));
+      const color = getPriorityColor(region.priority || 0);
+      const isSelected = region.id === selectedRegionId;
 
-    const source = map.current?.getSource('regions') as mapboxgl.GeoJSONSource;
-    if (source) {
-      source.setData({ type: 'FeatureCollection', features });
-    }
-  }, [regions, selectedRegionId]);
+      const polygon = new google.maps.Polygon({
+        paths: path,
+        strokeColor: color,
+        strokeWeight: isSelected ? 4 : 2,
+        strokeOpacity: 1,
+        fillColor: color,
+        fillOpacity: isSelected ? 0.5 : 0.25,
+        map: map.current!,
+        zIndex: region.priority || 0,
+      });
+
+      polygon.addListener('click', () => {
+        if (!isDrawingRef.current) onSelectRegion(region.id);
+      });
+
+      // Label at centroid
+      const centLat = region.coordinates!.reduce((s, c) => s + c.lat, 0) / region.coordinates!.length;
+      const centLng = region.coordinates!.reduce((s, c) => s + c.lng, 0) / region.coordinates!.length;
+      const label = new google.maps.Marker({
+        position: { lat: centLat, lng: centLng },
+        map: map.current!,
+        clickable: false,
+        label: { text: region.name_ar, color: '#ffffff', fontWeight: 'bold', fontSize: '12px' },
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
+      });
+
+      polygonRefs.current.set(region.id, { polygon, label });
+    });
+  }, [regions, selectedRegionId, onSelectRegion]);
 
   // Update regions on map when data changes
   useEffect(() => {
+    if (!map.current) return;
     updateRegionsOnMap();
 
     // Fit to selected region
-    if (selectedRegionId && map.current) {
+    if (selectedRegionId) {
       const region = regions.find(r => r.id === selectedRegionId);
       if (region?.coordinates && region.coordinates.length > 0) {
-        const bounds = new mapboxgl.LngLatBounds();
-        region.coordinates.forEach(c => bounds.extend([c.lng, c.lat]));
-        map.current.fitBounds(bounds, { padding: 100, duration: 1000 });
+        const bounds = new google.maps.LatLngBounds();
+        region.coordinates.forEach(c => bounds.extend({ lat: c.lat, lng: c.lng }));
+        map.current.fitBounds(bounds, 100);
       }
     }
   }, [regions, selectedRegionId, updateRegionsOnMap]);
 
-  // Update drawing preview
+  // Update drawing preview when drawingPoints changes
   useEffect(() => {
-    if (!map.current?.isStyleLoaded()) return;
+    if (!map.current) return;
 
-    // Clear old markers
-    markersRef.current.forEach(m => m.remove());
-    markersRef.current = [];
+    // Clear old drawing markers
+    drawMarkersRef.current.forEach(m => m.setMap(null));
+    drawMarkersRef.current = [];
+    if (previewPolygonRef.current) { previewPolygonRef.current.setMap(null); previewPolygonRef.current = null; }
+    if (previewPolylineRef.current) { previewPolylineRef.current.setMap(null); previewPolylineRef.current = null; }
 
-    const source = map.current?.getSource('drawing') as mapboxgl.GeoJSONSource;
-    if (!source) return;
+    if (drawingPoints.length === 0) return;
 
-    if (drawingPoints.length === 0) {
-      source.setData({ type: 'FeatureCollection', features: [] });
-      return;
-    }
-
-    // Add markers for each point
+    // Add draggable point markers
     drawingPoints.forEach((point, index) => {
-      const el = document.createElement('div');
-      el.className = 'flex items-center justify-center w-6 h-6 bg-primary rounded-full border-2 border-white shadow-lg cursor-move';
-      el.style.background = '#00d9a5';
-      el.innerHTML = `<span class="text-xs font-bold text-white">${index + 1}</span>`;
-      
-      const marker = new mapboxgl.Marker({ element: el, draggable: true })
-        .setLngLat([point.lng, point.lat])
-        .addTo(map.current!);
-      
-      marker.on('dragend', () => {
-        const lngLat = marker.getLngLat();
-        setDrawingPoints(prev => {
-          const newPoints = [...prev];
-          newPoints[index] = { lat: lngLat.lat, lng: lngLat.lng };
-          return newPoints;
-        });
+      const marker = new google.maps.Marker({
+        position: { lat: point.lat, lng: point.lng },
+        map: map.current!,
+        draggable: true,
+        zIndex: 100,
+        label: { text: String(index + 1), color: '#ffffff', fontWeight: 'bold', fontSize: '11px' },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#00d9a5',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+        },
       });
 
-      markersRef.current.push(marker);
+      marker.addListener('dragend', () => {
+        const pos = marker.getPosition();
+        if (pos) {
+          setDrawingPoints(prev => {
+            const next = [...prev];
+            next[index] = { lat: pos.lat(), lng: pos.lng() };
+            return next;
+          });
+        }
+      });
+
+      drawMarkersRef.current.push(marker);
     });
 
-    // Update polygon preview
+    // Show polygon preview if 3+ points
     if (drawingPoints.length >= 3) {
-      source.setData({
-        type: 'FeatureCollection',
-        features: [{
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[
-              ...drawingPoints.map(p => [p.lng, p.lat]),
-              [drawingPoints[0].lng, drawingPoints[0].lat]
-            ]]
-          }
-        }]
+      previewPolygonRef.current = new google.maps.Polygon({
+        paths: drawingPoints.map(p => ({ lat: p.lat, lng: p.lng })),
+        strokeColor: '#00d9a5',
+        strokeWeight: 3,
+        strokeOpacity: 1,
+        fillColor: '#00d9a5',
+        fillOpacity: 0.4,
+        map: map.current!,
+        clickable: false,
+        zIndex: 50,
       });
     } else if (drawingPoints.length >= 2) {
-      source.setData({
-        type: 'FeatureCollection',
-        features: [{
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates: drawingPoints.map(p => [p.lng, p.lat])
-          }
-        }]
+      previewPolylineRef.current = new google.maps.Polyline({
+        path: drawingPoints.map(p => ({ lat: p.lat, lng: p.lng })),
+        strokeColor: '#00d9a5',
+        strokeWeight: 3,
+        strokeOpacity: 1,
+        map: map.current!,
+        clickable: false,
       });
-    } else {
-      source.setData({ type: 'FeatureCollection', features: [] });
     }
   }, [drawingPoints]);
 
@@ -371,14 +291,10 @@ const RegionMapEditor: React.FC<RegionMapEditorProps> = ({
   const cancelDrawing = () => {
     setIsDrawing(false);
     setDrawingPoints([]);
-    markersRef.current.forEach(m => m.remove());
-    markersRef.current = [];
-    
-    // Clear drawing source
-    const source = map.current?.getSource('drawing') as mapboxgl.GeoJSONSource;
-    if (source) {
-      source.setData({ type: 'FeatureCollection', features: [] });
-    }
+    drawMarkersRef.current.forEach(m => m.setMap(null));
+    drawMarkersRef.current = [];
+    if (previewPolygonRef.current) { previewPolygonRef.current.setMap(null); previewPolygonRef.current = null; }
+    if (previewPolylineRef.current) { previewPolylineRef.current.setMap(null); previewPolylineRef.current = null; }
   };
 
   const saveDrawing = () => {
