@@ -116,38 +116,62 @@ const OTPVerification = ({ phone, purpose, onVerified, onBack }: OTPVerification
       }
     } catch (error: any) {
       console.error('Error verifying OTP:', error);
+      // FunctionsHttpError: try to read the response body for the Arabic error message
+      let errorMsg = 'فشل في التحقق من الرمز';
+      try {
+        // Supabase JS v2: FunctionsHttpError has .context with the raw Response
+        if (error?.context) {
+          const body = await error.context.json();
+          errorMsg = body?.error || errorMsg;
+        } else if (error?.message) {
+          errorMsg = error.message;
+        }
+      } catch (_) {
+        errorMsg = error?.message || errorMsg;
+      }
       toast({
-        title: "خطأ في التحقق",
-        description: error.message || "فشل في التحقق من الرمز",
-        variant: "destructive",
+        title: 'خطأ في التحقق',
+        description: errorMsg,
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (index: number, value: string) => {
-    // Only allow digits
-    if (value && !/^\d$/.test(value)) return;
+  const handleChange = (index: number, rawValue: string) => {
+    // Extract only digits (handles multi-char input when box is pre-filled: "1"+"2"="12")
+    const digits = rawValue.replace(/\D/g, '');
 
+    // If multiple digits entered at once (e.g. box had '1', user typed '2' → '12')
+    // distribute them sequentially starting at current index
+    if (digits.length > 1) {
+      const newOtp = [...otp];
+      digits.split('').forEach((d, i) => {
+        if (index + i < 6) newOtp[index + i] = d;
+      });
+      setOtp(newOtp);
+      const nextIndex = Math.min(index + digits.length, 5);
+      inputRefs.current[nextIndex]?.focus();
+      const fullCode = newOtp.join('');
+      if (/^\d{6}$/.test(fullCode)) setTimeout(() => verifyOTP(), 200);
+      return;
+    }
+
+    const digit = digits; // single digit or empty string (backspace)
     const newOtp = [...otp];
-    newOtp[index] = value;
+    newOtp[index] = digit;
     setOtp(newOtp);
 
     // Auto-advance to next input
-    if (value && index < 5) {
+    if (digit && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
 
-    // Auto-submit when complete - improved validation
-    if (value && index === 5) {
-      const fullCode = newOtp.join("");
-      if (fullCode.length === 6 && /^\d{6}$/.test(fullCode)) {
-        // Delay to ensure state is updated
-        setTimeout(() => {
-          verifyOTP();
-        }, 200);
-      }
+    // Auto-submit when last box filled
+    if (digit && index === 5) {
+      const fullCode = newOtp.join('');
+      if (/^\d{6}$/.test(fullCode)) setTimeout(() => verifyOTP(), 200);
     }
   };
 

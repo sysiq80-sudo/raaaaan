@@ -1,11 +1,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { Map, CheckCircle2, XCircle, Loader2, RefreshCw } from "lucide-react";
 
 interface MapSettings {
@@ -18,54 +15,10 @@ interface MapSettingsTabProps {
 }
 
 const MapSettingsTab = ({ onSettingsChange }: MapSettingsTabProps) => {
-  const [settings, setSettings] = useState<MapSettings>({
-    provider: 'mapbox',
-    google_maps_configured: false,
-  });
-  const [mapboxStatus, setMapboxStatus] = useState<'checking' | 'connected' | 'error'>('checking');
   const [googleStatus, setGoogleStatus] = useState<'checking' | 'connected' | 'not_configured' | 'error'>('checking');
-  const [testing, setTesting] = useState<'mapbox' | 'google' | null>(null);
+  const [testing, setTesting] = useState(false);
 
-  // Load current settings
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('app_settings')
-          .select('value')
-          .eq('key', 'maps')
-          .single();
-
-        if (!error && data?.value) {
-          const value = data.value as Record<string, unknown>;
-          setSettings({
-            provider: (value.provider as 'mapbox' | 'google') || 'mapbox',
-            google_maps_configured: Boolean(value.google_maps_configured),
-          });
-        }
-      } catch (error) {
-        console.error('Error loading map settings:', error);
-      }
-    };
-
-    loadSettings();
-    checkConnections();
-  }, []);
-
-  const checkConnections = async () => {
-    // Check Mapbox
-    setMapboxStatus('checking');
-    try {
-      const response = await fetch(
-        'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token'
-      );
-      const data = await response.json();
-      setMapboxStatus(data.token ? 'connected' : 'error');
-    } catch {
-      setMapboxStatus('error');
-    }
-
-    // Check Google Maps
+  const checkGoogleMaps = async () => {
     setGoogleStatus('checking');
     try {
       const response = await fetch(
@@ -74,64 +27,45 @@ const MapSettingsTab = ({ onSettingsChange }: MapSettingsTabProps) => {
       const data = await response.json();
       if (data.configured) {
         setGoogleStatus('connected');
-        setSettings(prev => ({ ...prev, google_maps_configured: true }));
+        onSettingsChange({ provider: 'google', google_maps_configured: true });
       } else {
         setGoogleStatus('not_configured');
+        onSettingsChange({ provider: 'google', google_maps_configured: false });
       }
     } catch {
       setGoogleStatus('error');
+      onSettingsChange({ provider: 'google', google_maps_configured: false });
     }
   };
 
-  const testConnection = async (provider: 'mapbox' | 'google') => {
-    setTesting(provider);
+  useEffect(() => {
+    checkGoogleMaps();
+  }, []);
+
+  const testConnection = async () => {
+    setTesting(true);
     try {
-      if (provider === 'mapbox') {
-        const response = await fetch(
-          'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=reverse-geocode&lat=33.4262&lng=43.2954'
-        );
-        const data = await response.json();
-        if (data.features && data.features.length > 0) {
-          toast.success('Mapbox يعمل بشكل صحيح');
-          setMapboxStatus('connected');
-        } else {
-          toast.error('Mapbox: لا توجد نتائج');
-          setMapboxStatus('error');
-        }
-      } else {
-        const response = await fetch(
-          'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/google-maps-proxy?action=reverse-geocode&lat=33.4262&lng=43.2954'
-        );
-        const data = await response.json();
-        if (data.error) {
-          toast.error(`Google Maps: ${data.error}`);
-          setGoogleStatus(data.configured === false ? 'not_configured' : 'error');
-        } else if (data.features && data.features.length > 0) {
-          toast.success('Google Maps يعمل بشكل صحيح');
-          setGoogleStatus('connected');
-          setSettings(prev => ({ ...prev, google_maps_configured: true }));
-        }
+      const response = await fetch(
+        'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/google-maps-proxy?action=reverse-geocode&lat=33.4262&lng=43.2954'
+      );
+      const data = await response.json();
+      if (data.error) {
+        toast.error(`Google Maps: ${data.error}`);
+        setGoogleStatus(data.configured === false ? 'not_configured' : 'error');
+      } else if (data.features && data.features.length > 0) {
+        toast.success('Google Maps يعمل بشكل صحيح');
+        setGoogleStatus('connected');
+        onSettingsChange({ provider: 'google', google_maps_configured: true });
       }
-    } catch (error) {
-      toast.error(`خطأ في اختبار ${provider === 'mapbox' ? 'Mapbox' : 'Google Maps'}`);
+    } catch {
+      toast.error('خطأ في اختبار Google Maps');
+      setGoogleStatus('error');
     } finally {
-      setTesting(null);
+      setTesting(false);
     }
   };
 
-  const handleProviderChange = (provider: 'mapbox' | 'google') => {
-    // Don't allow switching to Google if not configured
-    if (provider === 'google' && googleStatus !== 'connected') {
-      toast.error('يجب إضافة مفتاح Google Maps API أولاً');
-      return;
-    }
-    
-    const newSettings = { ...settings, provider };
-    setSettings(newSettings);
-    onSettingsChange(newSettings);
-  };
-
-  const getStatusBadge = (status: 'checking' | 'connected' | 'not_configured' | 'error') => {
+  const getStatusBadge = (status: typeof googleStatus) => {
     switch (status) {
       case 'checking':
         return <Badge variant="secondary" className="gap-1"><Loader2 className="w-3 h-3 animate-spin" />جاري الفحص</Badge>;
@@ -151,96 +85,79 @@ const MapSettingsTab = ({ onSettingsChange }: MapSettingsTabProps) => {
           <Map className="w-5 h-5" />
           إعدادات الخرائط
         </CardTitle>
-        <CardDescription>اختر مزود الخرائط المستخدم في التطبيق</CardDescription>
+        <CardDescription>التطبيق يستخدم Google Maps حصراً لجميع خدمات الخرائط</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Provider Selection */}
-        <div className="space-y-4">
-          <Label>مزود الخرائط الحالي</Label>
-          <RadioGroup
-            value={settings.provider}
-            onValueChange={(value) => handleProviderChange(value as 'mapbox' | 'google')}
-            className="space-y-3"
-          >
-            {/* Mapbox Option */}
-            <div className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${settings.provider === 'mapbox' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-              <div className="flex items-center gap-3">
-                <RadioGroupItem value="mapbox" id="mapbox" />
-                <div>
-                  <Label htmlFor="mapbox" className="font-medium cursor-pointer">Mapbox</Label>
-                  <p className="text-sm text-muted-foreground">خرائط سريعة مع تصميم داكن جميل</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {getStatusBadge(mapboxStatus)}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => testConnection('mapbox')}
-                  disabled={testing === 'mapbox'}
-                >
-                  {testing === 'mapbox' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'اختبار'}
-                </Button>
-              </div>
-            </div>
 
-            {/* Google Maps Option */}
-            <div className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${settings.provider === 'google' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-              <div className="flex items-center gap-3">
-                <RadioGroupItem 
-                  value="google" 
-                  id="google" 
-                  disabled={googleStatus !== 'connected'}
-                />
-                <div>
-                  <Label htmlFor="google" className={`font-medium ${googleStatus !== 'connected' ? 'text-muted-foreground' : 'cursor-pointer'}`}>
-                    Google Maps
-                  </Label>
-                  <p className="text-sm text-muted-foreground">خرائط Google الرسمية مع Street View</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {getStatusBadge(googleStatus)}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => testConnection('google')}
-                  disabled={testing === 'google' || googleStatus === 'not_configured'}
-                >
-                  {testing === 'google' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'اختبار'}
-                </Button>
-              </div>
+        {/* Google Maps Status */}
+        <div className={`flex items-center justify-between p-4 rounded-lg border ${googleStatus === 'connected' ? 'border-green-500 bg-green-500/5' : 'border-border'}`}>
+          <div className="flex items-center gap-3">
+            <img src="https://maps.gstatic.com/mapfiles/api-3/images/google_gray.svg" alt="Google Maps" className="w-6 h-6" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+            <div>
+              <p className="font-medium">Google Maps API</p>
+              <p className="text-sm text-muted-foreground">Maps JS · Geocoding · Places · Directions · Static Maps</p>
             </div>
-          </RadioGroup>
+          </div>
+          <div className="flex items-center gap-2">
+            {getStatusBadge(googleStatus)}
+            <Button variant="outline" size="sm" onClick={testConnection} disabled={testing}>
+              {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'اختبار'}
+            </Button>
+          </div>
         </div>
 
-        {/* Refresh Connections Button */}
+        {/* Refresh Button */}
         <div className="flex justify-end">
-          <Button variant="outline" onClick={checkConnections} className="gap-2">
+          <Button variant="outline" onClick={checkGoogleMaps} className="gap-2">
             <RefreshCw className="w-4 h-4" />
-            إعادة فحص الاتصالات
+            إعادة الفحص
           </Button>
         </div>
 
-        {/* Google Maps Setup Instructions */}
+        {/* Setup Instructions (shown when not configured) */}
         {googleStatus !== 'connected' && (
           <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
-            <h4 className="font-medium text-amber-800 dark:text-amber-200 mb-2">إعداد Google Maps</h4>
-            <ol className="text-sm text-amber-700 dark:text-amber-300 space-y-1 list-decimal list-inside">
-              <li>اذهب إلى <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="underline">Google Cloud Console</a></li>
-              <li>أنشئ مشروع جديد أو اختر مشروع موجود</li>
-              <li>فعّل APIs التالية: Maps JavaScript API, Directions API, Geocoding API, Places API</li>
+            <h4 className="font-medium text-amber-800 dark:text-amber-200 mb-2">إعداد Google Maps API</h4>
+            <ol className="text-sm text-amber-700 dark:text-amber-300 space-y-1.5 list-decimal list-inside">
+              <li>افتح <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="underline">Google Cloud Console</a></li>
+              <li>فعّل: Maps JavaScript API · Geocoding API · Places API · Directions API · Maps Static API</li>
               <li>أنشئ مفتاح API من صفحة Credentials</li>
-              <li>أضف المفتاح في إعدادات Supabase Edge Functions Secrets باسم: <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">GOOGLE_MAPS_API_KEY</code></li>
+              <li>
+                أضف المفتاح في متغير البيئة:
+                <code className="block mt-1 bg-amber-100 dark:bg-amber-900 px-2 py-1 rounded text-xs font-mono">VITE_GOOGLE_MAPS_API_KEY=AIza...</code>
+              </li>
+              <li>
+                أو في Supabase Edge Functions Secrets:
+                <code className="block mt-1 bg-amber-100 dark:bg-amber-900 px-2 py-1 rounded text-xs font-mono">GOOGLE_MAPS_API_KEY=AIza...</code>
+              </li>
             </ol>
-            <a 
-              href="https://supabase.com/dashboard/project/wgolkcztdrwdphwjvqxt/settings/functions"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block mt-3 text-sm font-medium text-primary hover:underline"
-            >
-              فتح إعدادات Edge Functions Secrets ←
-            </a>
+            <div className="flex gap-3 mt-3 flex-wrap">
+              <a
+                href="https://supabase.com/dashboard/project/wgolkcztdrwdphwjvqxt/settings/functions"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                فتح Supabase Secrets ←
+              </a>
+              <a
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                فتح Google Credentials ←
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Env var hint when connected */}
+        {googleStatus === 'connected' && (
+          <div className="p-3 rounded-lg border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30">
+            <p className="text-sm text-green-700 dark:text-green-300">
+              Google Maps متصل ويعمل بشكل صحيح. جميع شاشات الخريطة تستخدم Google Maps.
+            </p>
           </div>
         )}
       </CardContent>

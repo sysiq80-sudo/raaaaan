@@ -1,11 +1,12 @@
 /**
  * Static Map Component for Ride History
- * Uses Mapbox Static Images API - much cheaper than interactive maps
+ * Uses Google Maps Static Images API
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Loader2, MapPin } from 'lucide-react';
-import { generateStaticMapUrl, type Coordinates } from '@/lib/mapUtils';
+import { type Coordinates } from '@/lib/mapUtils';
+import { getGoogleMapsApiKey } from '@/hooks/useGoogleMapsApiKey';
 
 interface StaticRideMapProps {
   pickupLocation: Coordinates;
@@ -17,6 +18,35 @@ interface StaticRideMapProps {
   showLoadingState?: boolean;
 }
 
+function buildGoogleStaticMapUrl(
+  pickupLocation: Coordinates,
+  dropoffLocation: Coordinates,
+  width: number,
+  height: number,
+  routeCoordinates?: Coordinates[]
+): string | null {
+  const apiKey = getGoogleMapsApiKey();
+  if (!apiKey) return null;
+
+  const base = 'https://maps.googleapis.com/maps/api/staticmap';
+  const parts: string[] = [
+    `size=${width}x${height}`,
+    `scale=2`,
+    `language=ar`,
+    `markers=color:green%7Clabel:A%7C${pickupLocation.lat},${pickupLocation.lng}`,
+    `markers=color:red%7Clabel:B%7C${dropoffLocation.lat},${dropoffLocation.lng}`,
+    `maptype=roadmap`,
+    `key=${apiKey}`,
+  ];
+
+  if (routeCoordinates && routeCoordinates.length > 1) {
+    const pathPoints = routeCoordinates.map(c => `${c.lat},${c.lng}`).join('%7C');
+    parts.push(`path=color:0x3b82f6cc%7Cweight:4%7C${pathPoints}`);
+  }
+
+  return `${base}?${parts.join('&')}`;
+}
+
 export function StaticRideMap({
   pickupLocation,
   dropoffLocation,
@@ -26,109 +56,60 @@ export function StaticRideMap({
   className = '',
   showLoadingState = true
 }: StaticRideMapProps) {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
 
-  // Fetch Mapbox token
-  useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        const response = await fetch(
-          'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token',
-          {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-          }
-        );
-        const data = await response.json();
-        if (data.token) {
-          setAccessToken(data.token);
-        } else {
-          setError('تعذر تحميل الخريطة');
-        }
-      } catch (err) {
-        console.error('Error fetching Mapbox token:', err);
-        setError('خطأ في تحميل الخريطة');
-      }
-    };
-
-    fetchToken();
-  }, []);
-
-  // Generate static map URL when token is available
-  useEffect(() => {
-    if (!accessToken) return;
-
-    try {
-      const url = generateStaticMapUrl(pickupLocation, dropoffLocation, {
-        width,
-        height,
-        accessToken,
-        style: 'dark-v11',
-        routeCoordinates,
-        padding: 40
-      });
-      setImageUrl(url);
-      setIsLoading(false);
-    } catch (err) {
-      console.error('Error generating static map:', err);
-      setError('خطأ في إنشاء الخريطة');
-      setIsLoading(false);
-    }
-  }, [accessToken, pickupLocation, dropoffLocation, routeCoordinates, width, height]);
+  const imageUrl = useMemo(
+    () => buildGoogleStaticMapUrl(pickupLocation, dropoffLocation, width, height, routeCoordinates),
+    [pickupLocation, dropoffLocation, width, height, routeCoordinates]
+  );
 
   if (error) {
     return (
       <div 
+  if (!imageUrl) {
+    return (
+      <div
         className={`flex items-center justify-center bg-muted rounded-lg ${className}`}
-        style={{ width, height }}
+        style={{ height }}
       >
         <div className="text-center text-muted-foreground">
           <MapPin className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p className="text-xs">{error}</p>
+          <p className="text-xs">مفتاح Google Maps غير متاح</p>
         </div>
       </div>
     );
   }
 
-  if (isLoading && showLoadingState) {
+  if (hasError) {
     return (
-      <div 
-        className={`flex items-center justify-center bg-muted rounded-lg animate-pulse ${className}`}
-        style={{ width, height }}
-      >
-        <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
-      </div>
-    );
-  }
-
-  if (!imageUrl) {
-    return (
-      <div 
+      <div
         className={`flex items-center justify-center bg-muted rounded-lg ${className}`}
-        style={{ width, height }}
+        style={{ height }}
       >
-        <MapPin className="w-8 h-8 text-muted-foreground opacity-50" />
+        <div className="text-center text-muted-foreground">
+          <MapPin className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p className="text-xs">تعذر تحميل الخريطة</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={`relative overflow-hidden rounded-lg ${className}`}>
+    <div className={`relative overflow-hidden rounded-lg ${className}`} style={{ height }}>
+      {isLoading && showLoadingState && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted animate-pulse" style={{ borderRadius: 'inherit' }}>
+          <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+        </div>
+      )}
       <img
         src={imageUrl}
-        alt="مسار الرحلة"
-        className="w-full h-full object-cover"
-        style={{ width, height }}
-        loading="lazy"
-        onError={() => {
-          setError('فشل تحميل صورة الخريطة');
-        }}
+        alt="خريطة الرحلة"
+        className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+        onLoad={() => setIsLoading(false)}
+        onError={() => { setIsLoading(false); setHasError(true); }}
       />
-      {/* Overlay gradient for better text visibility */}
-      <div className="absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-t from-background/40 via-transparent to-transparent pointer-events-none" />
     </div>
   );
 }

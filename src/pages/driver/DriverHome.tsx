@@ -1039,33 +1039,30 @@ const DriverHome = () => {
 
         {driverId && adminActivated && driverStatus === "approved" && (
           <>
-            {/* Dashboard — Map only during active ride, dark ambient background when waiting */}
+            {/* Dashboard — الخريطة تظهر دائماً مع تأثيرات مختلفة حسب الحالة */}
             <div className="flex-1 relative min-h-0">
+              {/* الخريطة دائماً مُهيَّأة لتجنب التأخير عند بدء الرحلة */}
+              <DriverMap
+                driverLocation={currentLocation}
+                isOnline={isOnline}
+              />
+
               {hasActiveRide ? (
-                <>
-                  <DriverMap
-                    driverLocation={currentLocation}
-                    isOnline={isOnline}
-                  />
-                  {/* تأثير التدرج فوق الخريطة */}
-                  <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at center, transparent 0%, rgba(11,19,38,0.7) 85%)' }} />
-                </>
+                /* تأثير التدرج فوق الخريطة أثناء الرحلة */
+                <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at center, transparent 0%, rgba(11,19,38,0.7) 85%)' }} />
               ) : (
-                /* خلفية داكنة فاخرة مع تأثير محيطي عند الانتظار */
-                <div className="absolute inset-0 bg-[#0b1326]">
-                  {/* نقطة نبض — موقع السائق (مثل المرجع) */}
+                /* تأثيرات محيطية فوق الخريطة عند الانتظار — pointer-events-none لا تمنع التفاعل مع الخريطة */
+                <div className="absolute inset-0 pointer-events-none">
+                  {/* نقطة نبض — موقع السائق */}
                   {isOnline && currentLocation && (
                     <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2">
                       <div className="relative flex items-center justify-center">
-                        <div className="absolute w-32 h-32 bg-[#5bdda6]/15 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
-                        <div className="absolute w-16 h-16 bg-[#5bdda6]/20 rounded-full animate-pulse" />
-                        <div className="w-5 h-5 bg-[#5bdda6] rounded-full border-4 border-[#0b1326] shadow-[0_0_20px_rgba(91,221,166,0.6)] z-10" />
+                        <div className="absolute w-32 h-32 bg-[#5bdda6]/20 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
+                        <div className="absolute w-16 h-16 bg-[#5bdda6]/25 rounded-full animate-pulse" />
+                        <div className="w-5 h-5 bg-[#5bdda6] rounded-full border-4 border-[#0b1326] shadow-[0_0_20px_rgba(91,221,166,0.8)] z-10" />
                       </div>
                     </div>
                   )}
-                  {/* ديكور محيطي */}
-                  <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-[#5bdda6]/5 blur-[120px] pointer-events-none" />
-                  <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-[#5bdda6]/3 blur-[100px] pointer-events-none" />
                 </div>
               )}
             </div>
