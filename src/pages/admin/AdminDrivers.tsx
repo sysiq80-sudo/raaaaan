@@ -93,8 +93,9 @@ const AdminDrivers = () => {
   const fetchDrivers = async () => {
     const { data, error } = await supabase
       .from("drivers")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select("id, user_id, full_name, phone, email, vehicle_type, vehicle_model, vehicle_plate, vehicle_color, status, created_at, is_online, is_available, rating, working_region_id, profile_image_url, gender, admin_controlled")
+      .order("created_at", { ascending: false })
+      .limit(500);
 
     if (error) {
       toast({

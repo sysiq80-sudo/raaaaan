@@ -110,8 +110,23 @@ export const RideRequestCard = ({
     return Math.max(0, TIMER_DURATION - elapsed);
   }, []);
 
-  // ✨ Cooldown: الرحلات المتخطاة تختفي 60 ثانية
-  const skippedRidesRef = useRef<Record<string, number>>({});
+  // ✨ Cooldown: الرحلات المتخطاة تختفي 60 ثانية (محفوظة في localStorage)
+  const skippedRidesRef = useRef<Record<string, number>>((() => {
+    try {
+      const stored = localStorage.getItem('raan_skipped_rides');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const now = Date.now();
+        // تنظيف المنتهية الصلاحية عند التحميل
+        const valid: Record<string, number> = {};
+        for (const [id, time] of Object.entries(parsed)) {
+          if (now - (time as number) < 60000) valid[id] = time as number;
+        }
+        return valid;
+      }
+    } catch {}
+    return {};
+  })());
 
   // Track active ride to search from dropoff location
   const [activeRideDropoff, setActiveRideDropoff] = useState<{ lat: number; lng: number } | null>(null);
@@ -141,6 +156,7 @@ export const RideRequestCard = ({
       }
       if (changed) {
         logger.debug("RideRequestCard", "تنظيف cooldown الرحلات المتخطاة");
+        try { localStorage.setItem('raan_skipped_rides', JSON.stringify(skipped)); } catch {}
       }
     }, 30000);
     return () => clearInterval(cleanupInterval);
@@ -662,8 +678,8 @@ export const RideRequestCard = ({
         throw new Error('لا توجد جلسة نشطة — يرجى إعادة تسجيل الدخول');
       }
 
-      const baseUrl = "https://wgolkcztdrwdphwjvqxt.supabase.co";
-      const apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo";
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'apikey': apiKey,
@@ -819,6 +835,7 @@ export const RideRequestCard = ({
 
     const rejectedRideId = pendingRide.id;
     skippedRidesRef.current[rejectedRideId] = Date.now();
+    try { localStorage.setItem('raan_skipped_rides', JSON.stringify(skippedRidesRef.current)); } catch {}
 
     // احذف الرحلة الحالية من المصفوفة وانتقل للتالية
     setPendingRides(prev => {

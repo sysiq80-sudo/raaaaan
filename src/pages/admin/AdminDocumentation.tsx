@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -106,7 +107,7 @@ const AdminDocumentation: React.FC = () => {
                 { label: 'البوت المتحكم', href: '/admin/bot-controller', desc: 'التبديل بين الوضع المبرمج والتدفق المرئي' },
                 { label: 'التدفقات المرئية', href: '/admin/workflows', desc: 'بناء تدفقات واتساب بالسحب والإفلات' },
               ].map((page) => (
-                <a key={page.href} href={page.href} className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors group">
+                <Link key={page.href} to={page.href} className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors group">
                   <ArrowLeft className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
@@ -115,7 +116,7 @@ const AdminDocumentation: React.FC = () => {
                     </div>
                     <p className="text-xs text-muted-foreground">{page.desc}</p>
                   </div>
-                </a>
+                </Link>
               ))}
             </div>
           </CardContent>

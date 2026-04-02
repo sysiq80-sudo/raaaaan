@@ -110,6 +110,8 @@ const AdminFleets = lazy(() => import("./pages/admin/AdminFleets"));
 const AdminNotifications = lazy(() => import("./pages/admin/AdminNotifications"));
 const AdminNotificationGroups = lazy(() => import("./pages/admin/AdminNotificationGroups"));
 const AdminDevInspector = lazy(() => import("./pages/admin/AdminDevInspector"));
+const AdminReferralCodes = lazy(() => import("./pages/admin/AdminReferralCodes"));
+const AdminFraudAlerts = lazy(() => import("./pages/admin/AdminFraudAlerts"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -781,6 +783,26 @@ const AppRoutes = () => {
               }
             />
             <Route
+              path="/admin/referral-codes"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminReferralCodes />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/fraud-alerts"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminFraudAlerts />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
               path="/admin/pending-rides"
               element={
                 <ErrorBoundary>
@@ -796,6 +818,16 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminDriverDetails />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/driver-application/:id"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminDriverApplication />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }
@@ -1056,16 +1088,6 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminDeveloperSettings />
-                  </ProtectedRoute>
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/settings/devInspector"
-              element={
-                <ErrorBoundary>
-                  <ProtectedRoute requiredRole="admin">
-                    <AdminDevInspector />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }

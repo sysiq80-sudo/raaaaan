@@ -176,9 +176,18 @@ const AdminRiders = () => {
       console.error("Error fetching rides:", ridesError);
     }
 
+    // Group rides by rider_id using Map for O(n+m) performance
+    const ridesByRider = new Map<string, typeof rides>();
+    (rides || []).forEach(r => {
+      if (!r.rider_id) return;
+      const arr = ridesByRider.get(r.rider_id) || [];
+      arr.push(r);
+      ridesByRider.set(r.rider_id, arr);
+    });
+
     // Calculate stats for each rider
     const ridersWithStats: RiderWithStats[] = (profiles || []).map((profile) => {
-      const riderRides = (rides || []).filter(r => r.rider_id === profile.user_id);
+      const riderRides = ridesByRider.get(profile.user_id) || [];
       const completedRides = riderRides.filter(r => r.status === 'completed');
       const cancelledRides = riderRides.filter(r => r.status === 'cancelled');
       const totalSpent = completedRides.reduce((sum, r) => sum + (r.final_fare || 0), 0);

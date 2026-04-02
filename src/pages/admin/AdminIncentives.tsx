@@ -86,13 +86,22 @@ const AdminIncentives = () => {
       if (claimsError) throw claimsError;
       setClaims(claimsData || []);
 
-      const totalBonuses = (claimsData || []).reduce((sum, c) => sum + c.bonus_earned, 0);
-      const uniqueDrivers = new Set((claimsData || []).map(c => c.driver_id)).size;
+      // Fetch accurate stats from DB
+      const { count: totalClaimsCount } = await supabase
+        .from("driver_incentive_claims")
+        .select("*", { count: "exact", head: true });
+
+      const { data: sumData } = await supabase
+        .from("driver_incentive_claims")
+        .select("bonus_earned, driver_id");
+
+      const totalBonuses = (sumData || []).reduce((sum, c) => sum + c.bonus_earned, 0);
+      const uniqueDrivers = new Set((sumData || []).map(c => c.driver_id)).size;
       const activeCount = (incentivesData || []).filter(i => i.is_active).length;
 
       setStats({
         totalBonusesPaid: totalBonuses,
-        totalClaims: claimsData?.length || 0,
+        totalClaims: totalClaimsCount || 0,
         activeIncentives: activeCount,
         driversRewarded: uniqueDrivers,
       });

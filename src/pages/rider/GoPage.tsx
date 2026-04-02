@@ -1040,6 +1040,37 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         return;
       }
 
+      // ✅ التحقق من أن نقطة الانطلاق ≠ الوجهة (مسافة أقل من 100 متر)
+      const toRad = (deg: number) => (deg * Math.PI) / 180;
+      const R = 6371000; // نصف قطر الأرض بالأمتار
+      const dLat = toRad(dropoffLocation.lat - pickupLocation.lat);
+      const dLng = toRad(dropoffLocation.lng - pickupLocation.lng);
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(pickupLocation.lat)) * Math.cos(toRad(dropoffLocation.lat)) * Math.sin(dLng / 2) ** 2;
+      const pickupDropoffDistance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      if (pickupDropoffDistance < 100) {
+        console.warn('🚫 handleBookRide: pickup ≈ dropoff');
+        toast({
+          title: "الوجهة قريبة جداً",
+          description: "الرجاء اختيار وجهة مختلفة عن نقطة الانطلاق (100 متر على الأقل)",
+          variant: "destructive"
+        });
+        setIsBooking(false);
+        return;
+      }
+
+      // ✅ التحقق من أن الإحداثيات ضمن حدود العراق
+      const isInIraq = (lat: number, lng: number) => lat >= 29 && lat <= 37.5 && lng >= 38 && lng <= 49;
+      if (!isInIraq(pickupLocation.lat, pickupLocation.lng) || !isInIraq(dropoffLocation.lat, dropoffLocation.lng)) {
+        console.warn('🚫 handleBookRide: coordinates outside Iraq');
+        toast({
+          title: "موقع خارج العراق",
+          description: "الخدمة متاحة فقط داخل العراق",
+          variant: "destructive"
+        });
+        setIsBooking(false);
+        return;
+      }
+
       console.log('✅ handleBookRide: locations OK, checking service area...');
       try {
         const checkServiceAreaWithRetry = async (
@@ -1274,8 +1305,23 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           supabase.functions.invoke("match-ride", { body: { rideId: ride.id } }),
           8000,
           "مطابقة السائق"
-        ).catch((matchErr) => {
-          console.warn("⚠️ match-ride background error:", matchErr);
+        ).catch(async (matchErr) => {
+          console.warn("⚠️ match-ride first attempt failed:", matchErr);
+          // إعادة محاولة واحدة بعد 2 ثانية
+          try {
+            await new Promise(r => setTimeout(r, 2000));
+            await withTimeout(
+              supabase.functions.invoke("match-ride", { body: { rideId: ride.id } }),
+              10000,
+              "مطابقة السائق (إعادة محاولة)"
+            );
+          } catch (retryErr) {
+            console.error("❌ match-ride retry also failed:", retryErr);
+            toast({
+              title: "⚠️ جارٍ البحث عن سائق",
+              description: "تأخر في البحث عن سائق مناسب، سيتم المحاولة تلقائياً",
+            });
+          }
         });
 
       } catch (error: any) {
@@ -1387,7 +1433,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   // Show live tracker if ride is in progress
   if (showLiveTracker && activeRide) {
     return <Suspense fallback={<ScreenSkeleton />}>
-        <LiveRideTracker ride={activeRide} onClose={resetBooking} onRideUpdate={updatedRide => {
+        <LiveRideTracker ride={activeRide} onClose={resetBooking} onRebook={() => {
+        // ✅ إعادة الحجز: إغلاق التتبع والعودة لنفس التفاصيل ثم محاولة حجز تلقائي
+        resetBooking();
+        // الموقع والوجهة محفوظين في الـ store - الراكب يحتاج فقط ضغط "اطلب" مرة أخرى
+      }} onRideUpdate={updatedRide => {
         // ✔️ إصلاح race condition: عند completed لا نستدعي resetBooking لأن useActiveRide يكتشف الإتمام
         // ويضبط شاشة التقييم تلقائياً — نستدعيها فقط عند الإلغاء
         if (updatedRide.status === "cancelled") {

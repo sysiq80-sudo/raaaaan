@@ -283,7 +283,7 @@ const AdminSettings = () => {
     const { error } = await supabase
       .from('app_settings')
       .upsert(
-        { key, value: JSON.parse(JSON.stringify(value)) },
+        { key, value: value as unknown as Record<string, unknown> },
         { onConflict: 'key' }
       );
 

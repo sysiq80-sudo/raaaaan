@@ -38,7 +38,11 @@ export const exportToCSV = <T extends Record<string, any>>(
       }
       
       // Convert to string and escape quotes
-      const strValue = String(value).replace(/"/g, '""');
+      let strValue = String(value).replace(/"/g, '""');
+      // Prevent CSV formula injection (=, +, -, @, tab, carriage return)
+      if (/^[=+\-@\t\r]/.test(strValue)) {
+        strValue = "'" + strValue;
+      }
       return `"${strValue}"`;
     }).join(',');
   });

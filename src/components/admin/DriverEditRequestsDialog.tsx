@@ -95,7 +95,18 @@ export const DriverEditRequestsDialog = ({ open, onOpenChange }: Props) => {
     setLoading(false);
   };
 
+  const ALLOWED_FIELDS = ['full_name', 'phone', 'email', 'vehicle_model', 'vehicle_color', 'vehicle_plate'];
+
   const handleApprove = async (request: EditRequest) => {
+    if (!ALLOWED_FIELDS.includes(request.field_name)) {
+      toast({
+        title: "خطأ",
+        description: `الحقل "${request.field_name}" غير مسموح بتعديله`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setProcessingId(request.id);
 
     // Update the driver's field

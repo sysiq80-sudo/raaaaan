@@ -196,7 +196,7 @@ const AdminCommissionReports = () => {
                   {formatCurrency(totals?.totalCommission || 0)}
                 </div>
                 <Badge variant="secondary" className="mt-1">
-                  15% من الإيرادات
+                  {totals && totals.totalFares > 0 ? Math.round((totals.totalCommission / totals.totalFares) * 100) : 0}% من الإيرادات
                 </Badge>
               </CardContent>
             </Card>
@@ -213,7 +213,7 @@ const AdminCommissionReports = () => {
                   {formatCurrency(totals?.totalDriverShare || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  85% من الإيرادات
+                  {totals && totals.totalFares > 0 ? Math.round((totals.totalDriverShare / totals.totalFares) * 100) : 0}% من الإيرادات
                 </p>
               </CardContent>
             </Card>

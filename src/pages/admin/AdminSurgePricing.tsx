@@ -96,6 +96,11 @@ const AdminSurgePricing = () => {
       return;
     }
 
+    if (formData.surge_multiplier < 1.0 || formData.surge_multiplier > 2.0) {
+      toast.error('معامل الزيادة يجب أن يكون بين 1.0 و 2.0');
+      return;
+    }
+
     const payload = {
       ...formData,
       region_id: formData.region_id || null,
@@ -297,12 +302,12 @@ const AdminSurgePricing = () => {
                       type="number"
                       step="0.1"
                       min="1"
-                      max="5"
+                      max="2"
                       value={formData.surge_multiplier}
                       onChange={(e) => setFormData({ ...formData, surge_multiplier: parseFloat(e.target.value) })}
                     />
                     <p className="text-xs text-muted-foreground">
-                      مثال: 1.5 = زيادة 50%
+                      مثال: 1.5 = زيادة 50% (الحد الأقصى 2.0)
                     </p>
                   </div>
                   <div className="space-y-2">

@@ -5,7 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, MapPin, RefreshCw, X } from "lucide-react";
-import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+
+const escapeHtml = (str: string) =>
+  str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 
 interface RiderLocation {
   id: string;
@@ -52,6 +54,7 @@ const RidersLiveMap = ({ open, onClose }: RidersLiveMapProps) => {
     const { data, error } = await supabase
       .from("profiles")
       .select("id, user_id, full_name, phone, current_location, status")
+      .eq("role", "rider")
       .not("current_location", "is", null);
 
     if (!error && data) {
@@ -82,7 +85,7 @@ const RidersLiveMap = ({ open, onClose }: RidersLiveMapProps) => {
           event: 'UPDATE',
           schema: 'public',
           table: 'profiles',
-          filter: 'current_location=neq.null'
+          filter: 'role=eq.rider'
         },
         (payload) => {
           const updated = payload.new as RiderLocation;
@@ -162,8 +165,8 @@ const RidersLiveMap = ({ open, onClose }: RidersLiveMapProps) => {
 
         const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
           <div class="p-2 text-right" dir="rtl">
-            <p class="font-bold">${rider.full_name || "بدون اسم"}</p>
-            <p class="text-sm text-gray-600" dir="ltr">${rider.phone || "-"}</p>
+            <p class="font-bold">${escapeHtml(rider.full_name || "بدون اسم")}</p>
+            <p class="text-sm text-gray-600" dir="ltr">${escapeHtml(rider.phone || "-")}</p>
             <span class="inline-block mt-1 px-2 py-0.5 text-xs rounded ${
               rider.status === 'suspended' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
             }">

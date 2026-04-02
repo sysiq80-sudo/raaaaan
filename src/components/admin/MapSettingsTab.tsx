@@ -56,8 +56,9 @@ const MapSettingsTab = ({ onSettingsChange }: MapSettingsTabProps) => {
     // Check Mapbox
     setMapboxStatus('checking');
     try {
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(
-        'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token'
+        `${baseUrl}/functions/v1/mapbox-proxy?action=token`
       );
       const data = await response.json();
       setMapboxStatus(data.token ? 'connected' : 'error');
@@ -68,8 +69,9 @@ const MapSettingsTab = ({ onSettingsChange }: MapSettingsTabProps) => {
     // Check Google Maps
     setGoogleStatus('checking');
     try {
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL;
       const response = await fetch(
-        'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/google-maps-proxy?action=check'
+        `${baseUrl}/functions/v1/google-maps-proxy?action=check`
       );
       const data = await response.json();
       if (data.configured) {
@@ -87,8 +89,9 @@ const MapSettingsTab = ({ onSettingsChange }: MapSettingsTabProps) => {
     setTesting(provider);
     try {
       if (provider === 'mapbox') {
+        const baseUrl = import.meta.env.VITE_SUPABASE_URL;
         const response = await fetch(
-          'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=reverse-geocode&lat=33.4262&lng=43.2954'
+          `${baseUrl}/functions/v1/mapbox-proxy?action=reverse-geocode&lat=33.4262&lng=43.2954`
         );
         const data = await response.json();
         if (data.features && data.features.length > 0) {
@@ -99,8 +102,9 @@ const MapSettingsTab = ({ onSettingsChange }: MapSettingsTabProps) => {
           setMapboxStatus('error');
         }
       } else {
+        const baseUrl = import.meta.env.VITE_SUPABASE_URL;
         const response = await fetch(
-          'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/google-maps-proxy?action=reverse-geocode&lat=33.4262&lng=43.2954'
+          `${baseUrl}/functions/v1/google-maps-proxy?action=reverse-geocode&lat=33.4262&lng=43.2954`
         );
         const data = await response.json();
         if (data.error) {

@@ -118,34 +118,26 @@ const AdminPendingRides = () => {
         variant: "destructive"
       });
     } else {
-      // Fetch rider and driver info separately
-      const ridesWithInfo = await Promise.all((data || []).map(async (ride) => {
-        let riderInfo = null;
-        let driverInfo = null;
+      // Batch fetch rider and driver info
+      const riderIds = [...new Set((data || []).map(r => r.rider_id).filter(Boolean))];
+      const driverIds = [...new Set((data || []).map(r => r.driver_id).filter(Boolean))];
 
-        if (ride.rider_id) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('full_name, phone')
-            .eq('user_id', ride.rider_id)
-            .maybeSingle();
-          riderInfo = profile;
-        }
+      const [ridersResult, driversResult] = await Promise.all([
+        riderIds.length > 0
+          ? supabase.from('profiles').select('user_id, full_name, phone').in('user_id', riderIds)
+          : Promise.resolve({ data: [] }),
+        driverIds.length > 0
+          ? supabase.from('drivers').select('id, full_name, phone').in('id', driverIds)
+          : Promise.resolve({ data: [] }),
+      ]);
 
-        if (ride.driver_id) {
-          const { data: driver } = await supabase
-            .from('drivers')
-            .select('full_name, phone')
-            .eq('id', ride.driver_id)
-            .maybeSingle();
-          driverInfo = driver;
-        }
+      const riderMap = new Map((ridersResult.data || []).map(p => [p.user_id, p]));
+      const driverMap = new Map((driversResult.data || []).map(d => [d.id, d]));
 
-        return {
-          ...ride,
-          rider: riderInfo,
-          driver: driverInfo
-        };
+      const ridesWithInfo = (data || []).map(ride => ({
+        ...ride,
+        rider: ride.rider_id ? riderMap.get(ride.rider_id) || null : null,
+        driver: ride.driver_id ? driverMap.get(ride.driver_id) || null : null,
       }));
 
       setRides(ridesWithInfo);
@@ -242,22 +234,42 @@ const AdminPendingRides = () => {
     
     setIsProcessing(true);
     
-    const { error } = await supabase
-      .from('rides')
-      .update({
-        status: 'completed',
-        completed_at: new Date().toISOString(),
+    // استخدام Edge Function لإكمال الرحلة مع حساب الأجرة والعمولة بشكل صحيح
+    const { data: funcData, error: funcError } = await supabase.functions.invoke('complete-ride', {
+      body: {
+        ride_id: selectedRide.id,
         final_fare: selectedRide.estimated_fare,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', selectedRide.id);
+        distance_km: null,
+        admin_override: true,
+      }
+    });
 
-    if (error) {
-      toast({
-        title: "خطأ",
-        description: "فشل في إكمال الرحلة",
-        variant: "destructive"
-      });
+    // في حال فشل Edge Function، نرجع للطريقة المباشرة كحل بديل
+    if (funcError) {
+      console.error('Edge function failed, falling back to direct update:', funcError);
+      const { error } = await supabase
+        .from('rides')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          final_fare: selectedRide.estimated_fare,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedRide.id);
+
+      if (error) {
+        toast({
+          title: "خطأ",
+          description: "فشل في إكمال الرحلة",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "تم الإكمال",
+          description: "تم إكمال الرحلة بنجاح (بديل)"
+        });
+        fetchPendingRides();
+      }
     } else {
       toast({
         title: "تم الإكمال",

@@ -85,6 +85,23 @@ export const MarketingShell = ({ children }: { children: React.ReactNode }) => {
   const [open, setOpen] = useState(false);
   const location = useLocation();
 
+  // ═══════════════════════════════════════════════════════════
+  // تطبيق class الموقع التعريفي على html لتمكين التمرير
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    document.documentElement.classList.add("marketing-site");
+    document.documentElement.classList.remove("app-shell");
+    document.body.style.overflow = "auto";
+    document.body.style.height = "auto";
+    document.body.style.minHeight = "100%";
+    return () => {
+      document.documentElement.classList.remove("marketing-site");
+      document.body.style.overflow = "";
+      document.body.style.height = "";
+      document.body.style.minHeight = "";
+    };
+  }, []);
+
   useEffect(() => {
     setOpen(false);
     window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
@@ -92,8 +109,9 @@ export const MarketingShell = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div dir={direction} className="min-h-screen bg-background text-foreground">
+
       <header className="fixed inset-x-0 top-0 z-50 border-b border-border/30 bg-background/80 backdrop-blur-xl">
-        <div className="container flex h-18 items-center justify-between gap-4 md:h-20">
+        <div className="container flex h-16 items-center justify-between gap-4 md:h-20">
           <Link to="/" className="flex items-center gap-3">
             <img src={logo} alt="RAAN" className="h-11 w-11 rounded-2xl shadow-glow-sm" />
             <div>
@@ -185,16 +203,27 @@ export const MarketingShell = ({ children }: { children: React.ReactNode }) => {
               transition: { duration: 0.48, ease: [0.22, 1, 0.36, 1] } }}
             exit={{ opacity: 0, rotateX: -6, y: -18, scale: 0.992,
               transition: { duration: 0.28, ease: [0.4, 0, 0.6, 1] } }}
-            className="origin-top"
+            className="origin-top pt-20 md:pt-24"
           >
             {children}
           </motion.main>
         </AnimatePresence>
       </div>
 
-      <footer className="border-t border-border/30 bg-card/30">
-        <div className="container py-14">
-          <div className="grid gap-10 lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.8fr]">
+      {/* ═══ زر CTA عائم للجوال ═══ */}
+      <div className="fixed bottom-0 inset-x-0 z-40 lg:hidden pb-safe">
+        <div className="bg-background/90 backdrop-blur-xl border-t border-border/30 px-4 py-3">
+          <Link to="/auth">
+            <Button className="w-full bg-gradient-primary shadow-glow btn-glow font-bold text-base h-12">
+              {copy.bookNow} 🚗
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      <footer className="border-t border-border/30 bg-card/30 marketing-pb-cta">
+        <div className="container py-10 lg:py-14">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.8fr]">
             <div>
               <div className="flex items-center gap-3">
                 <img src={logo} alt="RAAN" className="h-12 w-12 rounded-2xl shadow-glow-sm" />

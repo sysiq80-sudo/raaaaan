@@ -65,34 +65,16 @@ export default function AdminCancellationSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const { data: existing } = await supabase
+      const { error } = await supabase
         .from('app_settings')
-        .select('id')
-        .eq('key', 'cancellation_fee')
-        .maybeSingle();
+        .upsert({
+          key: 'cancellation_fee',
+          value: settings as unknown as Record<string, unknown>,
+          description: 'غرامة إلغاء الرحلة بعد قبول السائق (بالدينار العراقي)',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
 
-      if (existing) {
-        const { error: updateError } = await supabase
-          .from('app_settings')
-          .update({
-            value: JSON.parse(JSON.stringify(settings)),
-            description: 'غرامة إلغاء الرحلة بعد قبول السائق (بالدينار العراقي)',
-            updated_at: new Date().toISOString()
-          })
-          .eq('key', 'cancellation_fee');
-
-        if (updateError) throw updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from('app_settings')
-          .insert({
-            key: 'cancellation_fee',
-            value: JSON.parse(JSON.stringify(settings)),
-            description: 'غرامة إلغاء الرحلة بعد قبول السائق (بالدينار العراقي)'
-          });
-
-        if (insertError) throw insertError;
-      }
+      if (error) throw error;
 
       toast({
         title: "تم الحفظ بنجاح",

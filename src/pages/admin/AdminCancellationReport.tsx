@@ -77,13 +77,12 @@ const AdminCancellationReport = () => {
 
   const fetchCancellationData = async () => {
     try {
-      // Fetch all rides
-      const { data: allRides, error: allError } = await supabase
+      // Fetch total ride count efficiently
+      const { count: totalRideCount, error: countError } = await supabase
         .from("rides")
-        .select("id, status")
-        .limit(10000);
+        .select("*", { count: "exact", head: true });
 
-      if (allError) throw allError;
+      if (countError) throw countError;
 
       // Fetch cancelled rides
       const { data: rides, error } = await supabase
@@ -103,7 +102,7 @@ const AdminCancellationReport = () => {
       }
 
       // Calculate totals
-      const totalRides = allRides?.length || 0;
+      const totalRides = totalRideCount || 0;
       const riderCancellations = rides.filter(r => r.cancelled_by === "rider").length;
       const driverCancellations = rides.filter(r => r.cancelled_by === "driver").length;
       const feesCollected = rides

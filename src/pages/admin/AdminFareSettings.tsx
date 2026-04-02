@@ -72,6 +72,11 @@ const AdminFareSettings = () => {
   };
 
   const handleSave = async () => {
+    if (fareSettings.max_surge_multiplier > 2.0) {
+      toast.error('الحد الأقصى لمعامل الزيادة لا يمكن أن يتجاوز 2.0');
+      return;
+    }
+
     setSaving(true);
     
     try {
@@ -79,7 +84,7 @@ const AdminFareSettings = () => {
       const { error: fareError } = await supabase
         .from('app_settings')
         .upsert(
-          { key: 'fare_calculation', value: JSON.parse(JSON.stringify(fareSettings)) },
+          { key: 'fare_calculation', value: { ...fareSettings } },
           { onConflict: 'key' }
         );
 
@@ -89,11 +94,16 @@ const AdminFareSettings = () => {
       const { error: commissionError } = await supabase
         .from('app_settings')
         .upsert(
-          { key: 'commission', value: JSON.parse(JSON.stringify(commissionSettings)) },
+          { key: 'commission', value: { ...commissionSettings } },
           { onConflict: 'key' }
         );
 
       if (commissionError) throw commissionError;
+
+      // مزامنة معدل العمولة مع wallet_settings المستخدم من Edge Function
+      await supabase.from('wallet_settings')
+        .update({ default_commission_rate: commissionSettings.rate })
+        .not('id', 'is', null);
 
       toast.success('تم حفظ الإعدادات بنجاح');
     } catch (error) {

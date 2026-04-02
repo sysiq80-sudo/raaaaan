@@ -122,7 +122,7 @@ export const EditDriverDialog = ({
         const { data: sessionData } = await supabase.auth.getSession();
 
         const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL || 'https://xgilxccbmqiyqmxjjfqp.supabase.co'}/functions/v1/bright-endpoint`,
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bright-endpoint`,
           {
             method: 'POST',
             headers: {

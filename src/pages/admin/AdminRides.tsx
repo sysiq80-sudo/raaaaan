@@ -53,6 +53,9 @@ const AdminRides = () => {
   const PAGE_SIZE = 50;
   const [currentPage, setCurrentPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [totalActiveCount, setTotalActiveCount] = useState(0);
+  const [totalCompletedCount, setTotalCompletedCount] = useState(0);
+  const [totalEarningsAll, setTotalEarningsAll] = useState(0);
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   useEffect(() => {
@@ -66,27 +69,30 @@ const AdminRides = () => {
     const from = currentPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    // جلب العدد الكلي
-    const { count } = await supabase
-      .from("rides")
-      .select("*", { count: "exact", head: true });
-    
-    if (count !== null) setTotalCount(count);
+    // جلب العدد الكلي والإحصائيات بالتوازي
+    const [countResult, activeCountResult, completedCountResult, earningsResult, ridesResult] = await Promise.all([
+      supabase.from("rides").select("*", { count: "exact", head: true }),
+      supabase.from("rides").select("*", { count: "exact", head: true }).in("status", ["pending", "accepted", "arrived", "in_progress"]),
+      supabase.from("rides").select("*", { count: "exact", head: true }).eq("status", "completed"),
+      supabase.from("rides").select("final_fare").eq("status", "completed").not("final_fare", "is", null),
+      supabase.from("rides").select("*").order("created_at", { ascending: false }).range(from, to),
+    ]);
 
-    const { data, error } = await supabase
-      .from("rides")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .range(from, to);
+    if (countResult.count !== null) setTotalCount(countResult.count);
+    if (activeCountResult.count !== null) setTotalActiveCount(activeCountResult.count);
+    if (completedCountResult.count !== null) setTotalCompletedCount(completedCountResult.count);
+    if (earningsResult.data) {
+      setTotalEarningsAll(earningsResult.data.reduce((sum, r) => sum + (r.final_fare || 0), 0));
+    }
 
-    if (error) {
+  if (ridesResult.error) {
       toast({
         title: "خطأ",
         description: "فشل في جلب بيانات الرحلات",
         variant: "destructive",
       });
     } else {
-      setRides(data || []);
+      setRides(ridesResult.data || []);
     }
     setLoading(false);
   };
@@ -178,15 +184,6 @@ const AdminRides = () => {
     }
   };
 
-  const activeRides = rides.filter((r) =>
-    ["pending", "accepted", "arrived", "in_progress"].includes(r.status || ""),
-  );
-  const completedRides = rides.filter((r) => r.status === "completed");
-  const totalEarnings = completedRides.reduce(
-    (sum, r) => sum + (r.final_fare || 0),
-    0,
-  );
-
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -214,7 +211,7 @@ const AdminRides = () => {
   return (
     <AdminLayout
       title="إدارة الرحلات"
-      subtitle={`${totalCount} رحلة إجمالاً • صفحة ${currentPage + 1} من ${totalPages || 1} • ${activeRides.length} نشطة`}
+      subtitle={`${totalCount} رحلة إجمالاً • صفحة ${currentPage + 1} من ${totalPages || 1} • ${totalActiveCount} نشطة`}
       actions={
         <Button
           variant="outline"
@@ -234,7 +231,7 @@ const AdminRides = () => {
               <Route className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{rides.length}</p>
+              <p className="text-2xl font-bold">{totalCount}</p>
               <p className="text-sm text-muted-foreground">إجمالي الرحلات</p>
             </div>
           </CardContent>
@@ -245,7 +242,7 @@ const AdminRides = () => {
               <Clock className="w-5 h-5 text-warning" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{activeRides.length}</p>
+              <p className="text-2xl font-bold">{totalActiveCount}</p>
               <p className="text-sm text-muted-foreground">رحلات نشطة</p>
             </div>
           </CardContent>
@@ -256,7 +253,7 @@ const AdminRides = () => {
               <Route className="w-5 h-5 text-success" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{completedRides.length}</p>
+              <p className="text-2xl font-bold">{totalCompletedCount}</p>
               <p className="text-sm text-muted-foreground">مكتملة</p>
             </div>
           </CardContent>
@@ -268,7 +265,7 @@ const AdminRides = () => {
             </div>
             <div>
               <p className="text-2xl font-bold">
-                {(totalEarnings / 1000).toFixed(0)}K
+                {(totalEarningsAll / 1000).toFixed(0)}K
               </p>
               <p className="text-sm text-muted-foreground">الإيرادات (د.ع)</p>
             </div>

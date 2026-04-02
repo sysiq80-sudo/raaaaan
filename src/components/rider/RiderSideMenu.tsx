@@ -14,6 +14,7 @@ import {
   HelpCircle,
   Info,
   LogIn,
+  Gift,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 
@@ -76,6 +77,7 @@ const RiderSideMenu = ({
     { icon: <CreditCard className="text-emerald-400" />, label: "المحفظة",        href: "/rider/payments",     color: "bg-emerald-500/10" },
     { icon: <MapPin className="text-rose-400" />,      label: "أماكني المحفوظة",  href: "/rider/saved-places", color: "bg-rose-500/10" },
     { icon: <Settings className="text-slate-400" />,   label: "الإعدادات",        href: "/rider/settings",     color: "bg-slate-500/10" },
+    { icon: <Gift className="text-pink-400" />,        label: "ادعُ واربح",        href: "/rider/settings",     color: "bg-pink-500/10" },
     { icon: <HelpCircle className="text-amber-400" />, label: "المساعدة",         href: "/help",               color: "bg-amber-500/10" },
     { icon: <Info className="text-purple-400" />,      label: "عن التطبيق",       href: "/about",              color: "bg-purple-500/10" },
   ];

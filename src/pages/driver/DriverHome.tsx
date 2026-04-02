@@ -21,6 +21,7 @@ import { useDriverNotifications } from "@/hooks/useDriverNotifications";
 import { RideRequestCard } from "@/components/driver/RideRequestCard";
 import { ActiveRideCard } from "@/components/driver/ActiveRideCard";
 import { DriverMap } from "@/components/driver/DriverMap";
+import { DemandHeatMap } from "@/components/driver/DemandHeatMap";
 import DriverQuickStats from "@/components/driver/DriverQuickStats";
 import { RecentRides } from "@/components/driver/RecentRides";
 import { NotificationSetup } from "@/components/driver/NotificationSetup";
@@ -146,6 +147,13 @@ const DriverHome = () => {
 
       if (!rides || rides.length === 0) {
         toast({ title: "لا توجد رحلة نشطة", variant: "destructive" });
+        setShowCancelConfirm(false);
+        return;
+      }
+
+      // منع إلغاء رحلة قيد التنفيذ
+      if (rides[0].status === 'in_progress') {
+        toast({ title: "لا يمكن إلغاء رحلة قيد التنفيذ", description: "يجب إكمال الرحلة أولاً", variant: "destructive" });
         setShowCancelConfirm(false);
         return;
       }
@@ -548,7 +556,6 @@ const DriverHome = () => {
     const handleBeforeUnload = () => {
       if (!isOnline) return;
 
-      // استخدام sendBeacon لضمان وصول الطلب حتى لو أُغلق التبويب
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       if (!supabaseUrl || !supabaseKey) return;
@@ -560,19 +567,25 @@ const DriverHome = () => {
         updated_at: new Date().toISOString(),
       });
 
-      // fetch مع keepalive لضمان وصول الطلب عند إغلاق التبويب
+      // sendBeacon with anon key (best-effort on tab close, user token may be expired)
       try {
-        fetch(url, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": supabaseKey,
-            "Authorization": `Bearer ${supabaseKey}`,
-            "Prefer": "return=minimal",
-          },
-          body,
-          keepalive: true, // يضمن إكمال الطلب حتى بعد إغلاق الصفحة
-        });
+        const sent = navigator.sendBeacon?.(
+          url,
+          new Blob([body], { type: 'application/json' })
+        );
+        if (!sent) {
+          fetch(url, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": supabaseKey,
+              "Authorization": `Bearer ${supabaseKey}`,
+              "Prefer": "return=minimal",
+            },
+            body,
+            keepalive: true,
+          });
+        }
       } catch {
         // صامت — أفضل جهد
       }
@@ -756,6 +769,31 @@ const DriverHome = () => {
     setOnlineToggleLoading(true);
 
     try {
+      // ✅ التحقق من GPS قبل الاتصال - يجب تحديد الموقع أولاً
+      if (online && !currentLocation) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 30000,
+            });
+          });
+          const loc = { lat: position.coords.latitude, lng: position.coords.longitude };
+          setCurrentLocation(loc);
+          latestLocationRef.current = loc;
+        } catch (gpsError) {
+          setOnlineToggleLoading(false);
+          toast({
+            title: "تعذر تحديد الموقع",
+            description: "يجب تفعيل GPS وتحديد موقعك قبل الاتصال",
+            variant: "destructive",
+            duration: 6000,
+          });
+          return;
+        }
+      }
+
       // تهيئة AudioContext + Wake Lock عند الاتصال (تفاعل مستخدم حقيقي)
       if (online) {
         initAudioContext();
@@ -1068,6 +1106,8 @@ const DriverHome = () => {
                   <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-[#5bdda6]/3 blur-[100px] pointer-events-none" />
                 </div>
               )}
+              {/* خريطة مناطق الطلب الحرارية */}
+              <DemandHeatMap isOnline={isOnline} />
             </div>
 
             {/* ═══ Driver Control Center — Centered DutyToggle ═══ */}

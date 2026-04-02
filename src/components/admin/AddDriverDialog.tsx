@@ -89,7 +89,8 @@ export const AddDriverDialog = ({
     setLoading(true);
 
     try {
-      // Create a temporary user ID for the driver (admin-created drivers don't need auth account)
+      // Admin-created drivers use a placeholder UUID since they don't have auth accounts.
+      // They are marked admin_controlled=true so the system knows they need to register later.
       const tempUserId = crypto.randomUUID();
 
       // Insert driver
@@ -108,7 +109,7 @@ export const AddDriverDialog = ({
           working_region_id: formData.working_region_id || null,
           max_pickup_radius: formData.max_pickup_radius,
           status: formData.status,
-          admin_controlled: false,
+          admin_controlled: true,
           admin_activated: true,
         })
         .select()

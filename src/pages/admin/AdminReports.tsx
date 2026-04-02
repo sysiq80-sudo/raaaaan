@@ -63,10 +63,10 @@ const AdminReports = () => {
 
   const fetchReportData = async () => {
     try {
-      // Fetch all rides
+      // Fetch rides with only needed columns
       const { data: rides, error } = await supabase
         .from("rides")
-        .select("*")
+        .select("id, status, created_at, final_fare, estimated_fare")
         .order("created_at", { ascending: false });
 
       if (error) throw error;

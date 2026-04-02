@@ -481,7 +481,7 @@ const AdminBotChats = () => {
                         placeholder="اكتب رسالة..."
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+                        onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                         className="flex-1"
                       />
                       <Button onClick={sendMessage} disabled={!newMessage.trim()}>

@@ -167,11 +167,13 @@ serve(async (req) => {
     // وقت الانتظار = من وصول السائق (arrived_at) إلى بدء الرحلة (started_at)
     // وليس مدة الرحلة الكاملة
     let finalWaitingMinutes = waiting_minutes;
-    if (finalWaitingMinutes === null && ride.driver_arrival_time && ride.started_at) {
-      // Waiting = time between driver arrival and ride start
+    if (ride.driver_arrival_time && ride.started_at) {
+      // الأولوية لحساب السيرفر: Waiting = time between driver arrival and ride start
       const arrivedAt = new Date(ride.driver_arrival_time).getTime();
       const startedAt = new Date(ride.started_at).getTime();
-      finalWaitingMinutes = Math.max(0, Math.floor((startedAt - arrivedAt) / 60000));
+      const serverCalcMinutes = Math.max(0, Math.floor((startedAt - arrivedAt) / 60000));
+      // استخدم القيمة الأكبر بين حساب السيرفر والقيمة المُرسلة من العميل
+      finalWaitingMinutes = Math.max(serverCalcMinutes, finalWaitingMinutes || 0);
     } else if (finalWaitingMinutes === null) {
       finalWaitingMinutes = 0;
     }

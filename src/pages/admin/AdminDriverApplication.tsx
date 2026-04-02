@@ -93,6 +93,11 @@ const AdminDriverApplication = () => {
         .maybeSingle();
 
       if (error) throw error;
+      if (!data) {
+        toast.error('لم يتم العثور على السائق');
+        setLoading(false);
+        return;
+      }
       setDriver(data);
 
       if (data.working_region_id) {

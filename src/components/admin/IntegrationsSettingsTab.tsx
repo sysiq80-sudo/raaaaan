@@ -72,29 +72,16 @@ const IntegrationsSettingsTab = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Check if setting exists
-      const { data: existing } = await supabase
+      const { error } = await supabase
         .from('app_settings')
-        .select('id')
-        .eq('key', 'integrations')
-        .maybeSingle();
+        .upsert({
+          key: 'integrations',
+          value: config as unknown as Record<string, unknown>,
+          description: 'إعدادات التكاملات الخارجية (Sentry, Upstash, PostHog)',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
 
-      if (existing) {
-        const { error } = await supabase
-          .from('app_settings')
-          .update({ value: JSON.parse(JSON.stringify(config)), updated_at: new Date().toISOString() })
-          .eq('key', 'integrations');
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('app_settings')
-          .insert({ 
-            key: 'integrations', 
-            value: JSON.parse(JSON.stringify(config)),
-            description: 'إعدادات التكاملات الخارجية (Sentry, Upstash, PostHog)'
-          });
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       toast.success("تم حفظ إعدادات التكاملات بنجاح");
     } catch (error) {

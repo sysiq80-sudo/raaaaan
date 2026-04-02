@@ -79,12 +79,14 @@ interface LiveRideTrackerProps {
   ride: Ride;
   onClose: () => void;
   onRideUpdate: (ride: Ride) => void;
+  onRebook?: () => void;
 }
 
 const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   ride,
   onClose,
   onRideUpdate,
+  onRebook,
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
@@ -116,6 +118,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [driverCancelledRide, setDriverCancelledRide] = useState(false);
   const [showDestinationChange, setShowDestinationChange] = useState(false);
   const [remainingDistance, setRemainingDistance] = useState<number | null>(
     null
@@ -149,6 +152,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     onRideUpdate,
     onDriverLocationUpdate: handleDriverLocationUpdate,
     onClose,
+    onDriverCancelled: () => setDriverCancelledRide(true),
     setShowArrivedAlert,
   });
 
@@ -1185,6 +1189,45 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           />
         ) : null}
       </div>
+
+      {/* ✅ شاشة إلغاء السائق مع خيار إعادة الحجز */}
+      {driverCancelledRide && (
+        <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-md flex flex-col items-center justify-center gap-6 p-6">
+          <div className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center">
+            <X className="w-10 h-10 text-red-500" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground text-center">
+            السائق ألغى الرحلة
+          </h2>
+          <p className="text-muted-foreground text-center text-sm">
+            يمكنك طلب سائق آخر بنفس التفاصيل
+          </p>
+          <div className="flex flex-col gap-3 w-full max-w-xs">
+            {onRebook && (
+              <Button
+                onClick={() => {
+                  setDriverCancelledRide(false);
+                  onRebook();
+                }}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3"
+              >
+                <Search className="w-4 h-4 ml-2" />
+                طلب سائق آخر
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDriverCancelledRide(false);
+                onClose();
+              }}
+              className="w-full"
+            >
+              العودة للرئيسية
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

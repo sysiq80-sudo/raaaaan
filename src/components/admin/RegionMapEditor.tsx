@@ -1,6 +1,5 @@
 import mapboxgl from 'mapbox-gl';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useGoogleMapsApiKey } from '@/hooks/useGoogleMapsApiKey';
 import { Button } from '@/components/ui/button';
 import { Loader2, Trash2, Save, Plus, Pencil, MousePointer, AlertTriangle, Layers } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -76,8 +75,9 @@ const RegionMapEditor: React.FC<RegionMapEditorProps> = ({
   useEffect(() => {
     const fetchToken = async () => {
       try {
+        const baseUrl = import.meta.env.VITE_SUPABASE_URL;
         const response = await fetch(
-          `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token`
+          `${baseUrl}/functions/v1/mapbox-proxy?action=token`
         );
         
         if (!response.ok) {
@@ -228,7 +228,7 @@ const RegionMapEditor: React.FC<RegionMapEditorProps> = ({
     }
 
     return () => {
-      // Google Maps doesn't have remove method
+      map.current?.remove();
       map.current = null;
     };
   }, [mapToken, onSelectRegion]);

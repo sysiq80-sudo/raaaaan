@@ -136,7 +136,11 @@ const AdminNotificationGroups = () => {
                         variant="ghost"
                         size="icon"
                         className="text-red-500 hover:text-red-700"
-                        onClick={() => deleteGroup.mutate(g.id)}
+                        onClick={() => {
+                          if (window.confirm(`هل أنت متأكد من حذف المجموعة "${g.name}"؟`)) {
+                            deleteGroup.mutate(g.id);
+                          }
+                        }}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

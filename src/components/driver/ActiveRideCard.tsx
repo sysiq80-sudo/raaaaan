@@ -53,6 +53,7 @@ interface ActiveRide {
   status: string;
   created_at: string;
   started_at: string | null;
+  driver_arrival_time: string | null;
   scheduled_at?: string | null;
   rider_id: string;
   payment_method: string | null;
@@ -241,6 +242,7 @@ export const ActiveRideCard = ({
         status: ride.status || "accepted",
         created_at: ride.created_at,
         started_at: ride.started_at,
+        driver_arrival_time: (ride as any).driver_arrival_time || null,
         rider_id: ride.rider_id || "",
         payment_method: ride.payment_method,
         surge_multiplier: (ride as any).surge_multiplier ?? undefined,
@@ -953,7 +955,7 @@ export const ActiveRideCard = ({
       }
 
       // ✅ تحديث الحالة المحلية فوراً (بدون انتظار realtime)
-      setActiveRide(prev => prev ? { ...prev, status: "arrived" } : null);
+      setActiveRide(prev => prev ? { ...prev, status: "arrived", driver_arrival_time: new Date().toISOString() } : null);
 
       // ⚡ THEN broadcast (best-effort — لا يمنع الاستمرار)
       notifyRider("driver_arrived", "السائق وصل لموقعك!", {
@@ -1089,11 +1091,13 @@ export const ActiveRideCard = ({
       const gpsDistance = calculateGpsDistance(trackingPointsRef.current);
       console.log(`[Driver] GPS distance: ${gpsDistance} km from ${trackingPointsRef.current.length} points`);
 
+      // حساب وقت الانتظار من وصول السائق (driver_arrival_time) وليس من إنشاء الرحلة
+      const arrivalRef = activeRide.driver_arrival_time || activeRide.started_at || activeRide.created_at;
       const waitingMinutes =
-        activeRide.status === "arrived"
-          ? Math.floor(
-            (Date.now() - new Date(activeRide.created_at).getTime()) / 60000,
-          )
+        (activeRide.status === "arrived" || activeRide.driver_arrival_time)
+          ? Math.max(0, Math.floor(
+            (Date.now() - new Date(arrivalRef).getTime()) / 60000,
+          ))
           : 0;
 
       const estimatedFare = activeRide.estimated_fare || 0;
@@ -1118,14 +1122,22 @@ export const ActiveRideCard = ({
 
       if (completionError) {
         console.error("[Driver] complete-ride Edge Function failed:", completionError);
-        // Fallback: direct DB update if Edge Function fails
+        // Fallback: تحديث مباشر مع حساب أجرة الانتظار يدوياً
+        let fallbackFare = estimatedFare;
+        // إضافة أجرة الانتظار يدوياً (3 دقائق مجانية، 250 د.ع/دقيقة)
+        const freeMinutes = 3;
+        const chargeableWaiting = Math.max(0, waitingMinutes - freeMinutes);
+        const waitingFare = chargeableWaiting * 250;
+        fallbackFare += waitingFare;
+
         const { error } = await supabase
           .from("rides")
           .update({
             status: "completed",
             completed_at: new Date().toISOString(),
-            final_fare: estimatedFare,
+            final_fare: fallbackFare,
             waiting_minutes: waitingMinutes,
+            waiting_fare: waitingFare,
             actual_distance_km: gpsDistance > 0 ? gpsDistance : null,
           })
           .eq("id", activeRide.id);

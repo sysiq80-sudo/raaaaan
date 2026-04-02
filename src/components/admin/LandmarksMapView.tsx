@@ -12,8 +12,10 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 import { landmarkCategories } from "@/pages/admin/AdminLandmarks";
+
+const escapeHtml = (str: string) =>
+  str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 
 interface LandmarkData {
   id: string;
@@ -96,7 +98,7 @@ export const LandmarksMapView = ({
     });
 
     return () => {
-      // Google Maps doesn't have remove method
+      map.current?.remove();
       map.current = null;
     };
   }, [mapToken]);
@@ -195,11 +197,11 @@ export const LandmarksMapView = ({
             `
             <div style="direction: rtl; text-align: right; padding: 8px 0;">
               <h3 style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${
-                landmark.name_ar
+                escapeHtml(landmark.name_ar)
               }</h3>
               ${
                 landmark.name_en
-                  ? `<p style="color: #6b7280; font-size: 12px; margin-bottom: 8px;">${landmark.name_en}</p>`
+                  ? `<p style="color: #6b7280; font-size: 12px; margin-bottom: 8px;">${escapeHtml(landmark.name_en)}</p>`
                   : ""
               }
               <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
@@ -212,7 +214,7 @@ export const LandmarksMapView = ({
                 </span>
                 ${
                   landmark.region
-                    ? `<span style="color: #6b7280; font-size: 11px;">${landmark.region.name_ar}</span>`
+                    ? `<span style="color: #6b7280; font-size: 11px;">${escapeHtml(landmark.region.name_ar)}</span>`
                     : ""
                 }
               </div>

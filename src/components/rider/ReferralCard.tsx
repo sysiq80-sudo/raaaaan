@@ -346,8 +346,8 @@ export const ReferralInput: React.FC<ReferralInputProps> = ({ userId, onSuccess 
         try {
             const { data, error } = await supabase
                 .rpc('apply_referral', {
-                    p_code: code.toUpperCase(),
-                    p_referred_user_id: userId
+                    p_referral_code: code.toUpperCase(),
+                    p_referred_id: userId
                 });
 
             if (error) throw error;

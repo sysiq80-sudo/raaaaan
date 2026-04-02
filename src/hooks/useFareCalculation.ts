@@ -96,6 +96,18 @@ export const useFareCalculation = (
         return;
       }
 
+      // ✅ التحقق من صحة المسافة
+      if (routeDistance < 0.1) {
+        setFareError('المسافة قصيرة جداً');
+        setFareBreakdown(null);
+        return;
+      }
+      if (routeDistance > 500 || !isFinite(routeDistance)) {
+        setFareError('المسافة غير صحيحة');
+        setFareBreakdown(null);
+        return;
+      }
+
       setFareError(null);
 
       // ⚡ عرض تقدير محلي فوري حتى يأتي الرد من السيرفر

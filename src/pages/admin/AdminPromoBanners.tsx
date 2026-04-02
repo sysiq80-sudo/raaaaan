@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Plus, Edit2, Trash2, Save, X, Eye, EyeOff,
@@ -71,6 +72,7 @@ const iconTypes = [
 ];
 
 const AdminPromoBanners = () => {
+    const { isAdmin, loading: authLoading } = useAdminAuth();
     const [banners, setBanners] = useState<PromoBanner[]>([]);
     const [loading, setLoading] = useState(true);
     const [editingBanner, setEditingBanner] = useState<PromoBanner | null>(null);
@@ -247,15 +249,16 @@ const AdminPromoBanners = () => {
         const otherBanner = banners[newIndex];
 
         try {
-            await supabase
-                .from('promo_banners')
-                .update({ display_order: banner.display_order })
-                .eq('id', otherBanner.id);
-
-            await supabase
-                .from('promo_banners')
-                .update({ display_order: otherBanner.display_order })
-                .eq('id', banner.id);
+            await Promise.all([
+                supabase
+                    .from('promo_banners')
+                    .update({ display_order: banner.display_order })
+                    .eq('id', otherBanner.id),
+                supabase
+                    .from('promo_banners')
+                    .update({ display_order: otherBanner.display_order })
+                    .eq('id', banner.id),
+            ]);
 
             fetchBanners();
         } catch (error) {
@@ -268,13 +271,16 @@ const AdminPromoBanners = () => {
         return found ? found.icon : Sparkles;
     };
 
-    if (loading) {
+    if (authLoading || loading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-            </div>
+            <AdminLayout title="العروض الترويجية">
+                <div className="flex items-center justify-center h-64">
+                    <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+                </div>
+            </AdminLayout>
         );
     }
+    if (!isAdmin) return null;
 
     return (
         <AdminLayout title="العروض الترويجية">
@@ -307,7 +313,7 @@ const AdminPromoBanners = () => {
                             >
                                 {/* Preview Banner */}
                                 <div className={`relative overflow-hidden`}>
-                                    <div className={`absolute inset-0 bg-gradient-to-br from-${banner.gradient_from} via-${banner.gradient_via} to-${banner.gradient_to}`} />
+                                    <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom right, ${banner.gradient_from}, ${banner.gradient_via}, ${banner.gradient_to})` }} />
                                     <div className="absolute inset-0 opacity-20">
                                         <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/20 rounded-full blur-2xl" />
                                     </div>

@@ -163,21 +163,20 @@ const DriverAuth = () => {
         phoneClean = phoneClean.slice(1);
       }
 
-      // إضافة الصفر للتنسيق الصحيح
-      const phoneWithZero = "0" + phoneClean;
-      const phoneWithoutZero = phoneClean;
+      // Normalize to single canonical format to avoid multiple auth attempts
+      let normalizedPhone = phoneClean;
+      if (normalizedPhone.startsWith("964")) {
+        normalizedPhone = normalizedPhone.slice(3);
+      }
+      // Remove leading 0 if present
+      if (normalizedPhone.startsWith("0")) {
+        normalizedPhone = normalizedPhone.slice(1);
+      }
 
-      // محاولة جميع التنسيقات الممكنة
+      // Try driver domain first, then fallback to general domain
       const phoneEmails = [
-        // التنسيق مع صفر
-        `${phoneWithZero}@raan.app`,
-        `${phoneWithZero}@driver.raan.app`,
-        // التنسيق بدون صفر
-        `${phoneWithoutZero}@raan.app`,
-        `${phoneWithoutZero}@driver.raan.app`,
-        // تنسيق 964
-        `964${phoneWithoutZero}@raan.app`,
-        `964${phoneWithoutZero}@driver.raan.app`,
+        `${normalizedPhone}@driver.raan.app`,
+        `${normalizedPhone}@raan.app`,
       ];
 
       console.log("Trying login with phones:", phoneEmails);

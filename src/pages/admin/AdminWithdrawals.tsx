@@ -75,7 +75,6 @@ export default function AdminWithdrawals() {
     try {
       const { data, error } = await (supabase
         .from("withdrawal_requests" as any) as any)
-        .from("withdrawal_requests")
         .select("*")
         .order("created_at", { ascending: false });
 
@@ -179,7 +178,6 @@ export default function AdminWithdrawals() {
 
       const { error } = await (supabase
         .from("withdrawal_requests" as any) as any)
-        .from("withdrawal_requests")
         .update(updates)
         .eq("id", selectedRequest.id);
 

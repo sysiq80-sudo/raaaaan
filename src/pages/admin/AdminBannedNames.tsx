@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 import {
     Plus,
     Trash2,
@@ -48,6 +49,7 @@ interface BannedName {
 }
 
 const AdminBannedNames = () => {
+    const { isAdmin, loading: authLoading } = useAdminAuth();
     const { toast } = useToast();
     const [bannedNames, setBannedNames] = useState<BannedName[]>([]);
     const [loading, setLoading] = useState(true);
@@ -203,6 +205,9 @@ const AdminBannedNames = () => {
     // Stats
     const activeCount = bannedNames.filter(n => n.is_active).length;
     const inactiveCount = bannedNames.filter(n => !n.is_active).length;
+
+    if (authLoading) return <AdminLayout title="إدارة الأسماء المحظورة"><div className="flex justify-center p-8"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div></AdminLayout>;
+    if (!isAdmin) return null;
 
     return (
         <AdminLayout title="إدارة الأسماء المحظورة">

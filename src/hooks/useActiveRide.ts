@@ -7,6 +7,7 @@ import {
   vibrate,
   VibrationPatterns,
 } from "@/utils/rideNotificationSounds";
+import { cacheActiveRide, getCachedActiveRide } from "@/hooks/useOfflineMode";
 
 const LOG_CONTEXT = "useActiveRide";
 
@@ -230,12 +231,35 @@ export const useActiveRide = (userId: string | null) => {
       .order("created_at", { ascending: false })
       .limit(1);
 
+    // استرجاع من الكاش عند فشل الاتصال
+    if (error && !navigator.onLine) {
+      logger.debug(LOG_CONTEXT, "Offline - loading cached active ride");
+      const cached = getCachedActiveRide();
+      if (cached?.ride) {
+        const parsedRide = parseRideData(cached.ride);
+        setActiveRide(parsedRide);
+        previousStatusRef.current = parsedRide.status;
+        if (parsedRide.status === "pending") {
+          setPendingRideId(parsedRide.id);
+          setShowWaitingScreen(true);
+          setShowLiveTracker(false);
+        } else {
+          setShowWaitingScreen(false);
+          setShowLiveTracker(true);
+        }
+      }
+      return;
+    }
+
     if (!error && rides && rides.length > 0) {
       const rideData = rides[0] as any;
       const parsedRide = parseRideData(rideData);
 
       setActiveRide(parsedRide);
       previousStatusRef.current = rideData.status;
+
+      // حفظ الرحلة النشطة للعمل دون اتصال
+      cacheActiveRide(rideData);
 
       if (rideData.status === "pending") {
         setPendingRideId(rideData.id);
@@ -259,6 +283,7 @@ export const useActiveRide = (userId: string | null) => {
       setShowWaitingScreen(false);
       setPendingRideId(null);
       previousStatusRef.current = null;
+      cacheActiveRide(null);
     }
   }, [userId, parseRideData]);
 

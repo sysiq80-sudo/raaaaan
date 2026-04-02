@@ -101,9 +101,15 @@ export const RideCompletedScreen = ({
         }
       } catch (innerErr) { /* ignore */ }
 
+      // تحديث متوسط تقييم السائق — استعلام مجمّع أكثر أماناً
       try {
-        const { data: ridesData } = await supabase.from("rides").select("driver_rating").eq("driver_id", ride.driver_id).eq("status", "completed").not("driver_rating", "is", null);
-        if (ridesData?.length) {
+        const { count, data: ridesData } = await supabase
+          .from("rides")
+          .select("driver_rating", { count: "exact" })
+          .eq("driver_id", ride.driver_id)
+          .eq("status", "completed")
+          .not("driver_rating", "is", null);
+        if (ridesData && ridesData.length > 0) {
           const avg = Math.round((ridesData.reduce((s, r) => s + (r.driver_rating ?? 0), 0) / ridesData.length) * 10) / 10;
           await supabase.from("drivers").update({ rating: avg }).eq("id", ride.driver_id);
         }

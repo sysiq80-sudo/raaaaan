@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ interface BotConfig {
 
 const AdminBotController: React.FC = () => {
   const navigate = useNavigate();
+  const { isAdmin, loading: authLoading } = useAdminAuth();
   const [config, setConfig] = useState<BotConfig>({
     mode: 'hardcoded',
     active_workflow_id: null,
@@ -150,6 +152,9 @@ const AdminBotController: React.FC = () => {
   ];
 
   const activeMode = modeOptions.find(m => m.value === config.mode) || modeOptions[0];
+
+  if (authLoading) return <AdminLayout title="البوت المتحكم"><div className="flex justify-center p-8"><div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" /></div></AdminLayout>;
+  if (!isAdmin) return null;
 
   return (
     <AdminLayout title="البوت المتحكم" subtitle="التحكم بطريقة عمل بوت الواتساب">

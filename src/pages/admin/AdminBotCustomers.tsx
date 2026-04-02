@@ -92,7 +92,8 @@ const AdminBotCustomers = () => {
     const { data, error } = await (supabase as any)
       .from("bot_customers")
       .select("*")
-      .order("last_active", { ascending: false });
+      .order("last_active", { ascending: false })
+      .limit(500);
 
     if (error) {
       console.error("Failed to fetch bot_customers:", error);

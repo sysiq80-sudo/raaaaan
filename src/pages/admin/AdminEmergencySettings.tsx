@@ -119,14 +119,13 @@ const AdminEmergencySettings = () => {
         { key: 'emergency_abuse_limit', value: abuseLimit },
       ];
 
-      for (const update of updates) {
-        const { error } = await supabase
-          .from('app_settings')
-          .update({ value: update.value })
-          .eq('key', update.key);
-
-        if (error) throw error;
-      }
+      const results = await Promise.all(
+        updates.map(u =>
+          supabase.from('app_settings').update({ value: u.value }).eq('key', u.key)
+        )
+      );
+      const failed = results.find(r => r.error);
+      if (failed?.error) throw failed.error;
 
       toast({
         title: "✅ تم الحفظ",
@@ -152,8 +151,8 @@ const AdminEmergencySettings = () => {
     setAbuseLimit("3");
     
     toast({
-      title: "تمت الاستعادة",
-      description: "تمت استعادة الإعدادات الافتراضية",
+      title: "تمت الاستعادة محلياً",
+      description: "تمت استعادة القيم الافتراضية — اضغط حفظ لتطبيقها على قاعدة البيانات",
     });
   };
 

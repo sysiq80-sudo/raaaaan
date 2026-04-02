@@ -331,7 +331,7 @@ function InfoRow({ icon, label, value, mono = false }: { icon: string; label: st
   );
 }
 
-export function DevInspector() {
+function DevInspectorInner() {
   const [enabled, setEnabled] = useState(() => {
     try {
       return localStorage.getItem('dev-inspector-enabled') === 'on';
@@ -341,9 +341,12 @@ export function DevInspector() {
   });
   const [showFloatingButton, setShowFloatingButton] = useState(() => {
     try {
-      return localStorage.getItem('dev-inspector-show') === 'on';
+      const stored = localStorage.getItem('dev-inspector-show');
+      // يظهر افتراضياً في بيئة التطوير إلا إذا أوقفه المستخدم يدوياً
+      if (stored === null) return true;
+      return stored === 'on';
     } catch {
-      return false;
+      return true;
     }
   });
   const [hoveredInfo, setHoveredInfo] = useState<ElementInfo | null>(null);

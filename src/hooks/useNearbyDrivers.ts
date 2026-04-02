@@ -16,13 +16,17 @@ export const useNearbyDrivers = (
   const [nearbyDriversCount, setNearbyDriversCount] = useState<number | null>(null);
   const [availableDriversByType, setAvailableDriversByType] = useState<Record<VehicleType, number> | undefined>(undefined);
   const [nearbyDriverLocations, setNearbyDriverLocations] = useState<DriverLocation[]>([]);
+  const [driversError, setDriversError] = useState<string | null>(null);
 
   useEffect(() => {
+    let consecutiveErrors = 0;
+
     const fetchNearbyDrivers = async () => {
       if (!pickupCoords) {
         setNearbyDriversCount(null);
         setAvailableDriversByType(undefined);
         setNearbyDriverLocations([]);
+        setDriversError(null);
         return;
       }
 
@@ -32,7 +36,19 @@ export const useNearbyDrivers = (
           .select('id, vehicle_type, current_location')
           .not('current_location', 'is', null);
 
-        if (!error && drivers) {
+        if (error) {
+          consecutiveErrors++;
+          console.error('Error fetching nearby drivers:', error);
+          if (consecutiveErrors >= 3) {
+            setDriversError('تعذر جلب بيانات السائقين');
+          }
+          return;
+        }
+
+        consecutiveErrors = 0;
+        setDriversError(null);
+
+        if (drivers) {
           const countsByType: Record<VehicleType, number> = {
             economy: 0,
             comfort: 0,
@@ -59,7 +75,11 @@ export const useNearbyDrivers = (
           setNearbyDriverLocations(locations);
         }
       } catch (error) {
+        consecutiveErrors++;
         console.error('Error fetching nearby drivers:', error);
+        if (consecutiveErrors >= 3) {
+          setDriversError('تعذر جلب بيانات السائقين');
+        }
       }
     };
 
@@ -72,6 +92,7 @@ export const useNearbyDrivers = (
   return {
     nearbyDriversCount,
     availableDriversByType,
-    nearbyDriverLocations
+    nearbyDriverLocations,
+    driversError
   };
 };

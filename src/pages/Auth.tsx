@@ -220,36 +220,31 @@ const Auth = () => {
 
     try {
       const cleanedPhone = phoneInput.replace(/\D/g, "");
-      const phoneFormats = formatPhoneForLookup(phoneInput);
-      // الراكب يسجل دخول فقط عبر @raan.app - لا يسمح بنطاقات السائق أو الأدمن
-      const domains = ["@raan.app"];
-
-      // Generate all possible email combinations
-      const emailsToTry: string[] = [];
-      for (const phone of phoneFormats) {
-        for (const domain of domains) {
-          emailsToTry.push(`${phone}${domain}`);
-        }
+      // Normalize to single canonical format to avoid multiple auth attempts
+      let normalizedPhone = cleanedPhone;
+      if (cleanedPhone.startsWith("964")) {
+        normalizedPhone = cleanedPhone.slice(3);
+      } else if (cleanedPhone.startsWith("0")) {
+        normalizedPhone = cleanedPhone.slice(1);
       }
+      // الراكب يسجل دخول فقط عبر @raan.app
+      const emailToTry = `${normalizedPhone}@raan.app`;
 
       let loginSuccess = false;
       let lastError: any = null;
 
-      // Try each email format until one works
-      for (const email of emailsToTry) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: email,
-          password: loginPassword,
-        });
+      const { error } = await supabase.auth.signInWithPassword({
+        email: emailToTry,
+        password: loginPassword,
+      });
 
-        if (!error) {
-          loginSuccess = true;
-          toast({
-            title: "مرحباً بك! ✅",
-            description: "تم تسجيل الدخول بنجاح",
-          });
-          break;
-        }
+      if (!error) {
+        loginSuccess = true;
+        toast({
+          title: "مرحباً بك! ✅",
+          description: "تم تسجيل الدخول بنجاح",
+        });
+      } else {
         lastError = error;
       }
 
@@ -430,21 +425,19 @@ const Auth = () => {
       if (data?.error) throw new Error(data.error);
 
       // محاولة تسجيل دخول تلقائي بكلمة المرور الجديدة
-      const phoneFormats = formatPhoneForLookup(phoneInput);
-      let loginSuccess = false;
-
-      for (const phone of phoneFormats) {
-        const { error: loginError } = await supabase.auth.signInWithPassword({
-          email: `${phone}@raan.app`,
-          password: ghostPassword,
-        });
-        if (!loginError) {
-          loginSuccess = true;
-          break;
-        }
+      let normalizedPhone = phoneInput.replace(/\D/g, "");
+      if (normalizedPhone.startsWith("964")) {
+        normalizedPhone = normalizedPhone.slice(3);
+      } else if (normalizedPhone.startsWith("0")) {
+        normalizedPhone = normalizedPhone.slice(1);
       }
 
-      if (loginSuccess) {
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: `${normalizedPhone}@raan.app`,
+        password: ghostPassword,
+      });
+
+      if (!loginError) {
         toast({
           title: "تم تفعيل حسابك! ✅",
           description: "مرحباً بك في تطبيق ران — رصيدك ورحلاتك السابقة بانتظارك",

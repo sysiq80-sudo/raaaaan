@@ -85,12 +85,51 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (isAdmin) {
-      fetchStats();
+      // تحميل الإحصائيات على دفعتين: الأساسية أولاً ثم التفصيلية
+      fetchCriticalStats().then(() => fetchDetailStats());
       fetchRecentActivity();
     }
   }, [isAdmin]);
 
-  const fetchStats = async () => {
+  // الدفعة الأولى: الإحصائيات الأساسية (5 استعلامات فقط)
+  const fetchCriticalStats = async () => {
+    try {
+      const today = new Date();
+      const todayStart = startOfDay(today).toISOString();
+
+      const [
+        ridesResult,
+        activeDriversResult,
+        activeRidesResult,
+        todayRidesResult,
+        todayEarningsResult,
+      ] = await Promise.all([
+        supabase.from("rides").select("id", { count: "exact", head: true }),
+        supabase.from("drivers").select("id", { count: "exact", head: true }).eq("is_online", true),
+        supabase.from("rides").select("id", { count: "exact", head: true }).in("status", ["pending", "accepted", "arrived", "in_progress"]),
+        supabase.from("rides").select("id", { count: "exact", head: true }).gte("created_at", todayStart),
+        supabase.from("rides").select("final_fare").eq("status", "completed").gte("created_at", todayStart),
+      ]);
+
+      const todayEarnings = todayEarningsResult.data?.reduce((sum, ride) => sum + (ride.final_fare || 0), 0) || 0;
+
+      setStats(prev => ({
+        ...prev,
+        totalRides: ridesResult.count || 0,
+        activeDrivers: activeDriversResult.count || 0,
+        activeRides: activeRidesResult.count || 0,
+        todayRides: todayRidesResult.count || 0,
+        todayEarnings,
+      }));
+    } catch (error) {
+      console.error("Error fetching critical stats:", error);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  // الدفعة الثانية: الإحصائيات التفصيلية (11 استعلام)
+  const fetchDetailStats = async () => {
     try {
       const today = new Date();
       const todayStart = startOfDay(today).toISOString();
@@ -98,12 +137,8 @@ const AdminDashboard = () => {
       const weekAgoStart = startOfDay(weekAgo).toISOString();
 
       const [
-        ridesResult,
-        activeDriversResult,
         pendingDriversResult,
-        todayEarningsResult,
         usersResult,
-        activeRidesResult,
         completedRidesResult,
         cancelledRidesResult,
         incentivesResult,
@@ -111,16 +146,11 @@ const AdminDashboard = () => {
         driverRatingsResult,
         weeklyRidesResult,
         weeklyEarningsResult,
-        todayRidesResult,
         regionsResult,
         landmarksResult,
       ] = await Promise.all([
-        supabase.from("rides").select("id", { count: "exact", head: true }),
-        supabase.from("drivers").select("id", { count: "exact", head: true }).eq("is_online", true),
         supabase.from("drivers").select("id", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("rides").select("final_fare").eq("status", "completed").gte("created_at", todayStart),
         supabase.from("profiles").select("id", { count: "exact", head: true }),
-        supabase.from("rides").select("id", { count: "exact", head: true }).in("status", ["pending", "accepted", "arrived", "in_progress"]),
         supabase.from("rides").select("id", { count: "exact", head: true }).eq("status", "completed"),
         supabase.from("rides").select("id", { count: "exact", head: true }).eq("status", "cancelled"),
         supabase.from("driver_incentive_claims").select("bonus_earned"),
@@ -128,25 +158,20 @@ const AdminDashboard = () => {
         supabase.from("drivers").select("rating").not("rating", "is", null),
         supabase.from("rides").select("id", { count: "exact", head: true }).gte("created_at", weekAgoStart),
         supabase.from("rides").select("final_fare").eq("status", "completed").gte("created_at", weekAgoStart),
-        supabase.from("rides").select("id", { count: "exact", head: true }).gte("created_at", todayStart),
         supabase.from("regions").select("id", { count: "exact", head: true }).eq("is_active", true),
         supabase.from("landmarks").select("id", { count: "exact", head: true }).eq("is_active", true),
       ]);
 
-      const todayEarnings = todayEarningsResult.data?.reduce((sum, ride) => sum + (ride.final_fare || 0), 0) || 0;
       const totalIncentives = incentivesResult.data?.reduce((sum, claim) => sum + (claim.bonus_earned || 0), 0) || 0;
       const avgRating = driverRatingsResult.data?.length 
         ? driverRatingsResult.data.reduce((sum, d) => sum + (Number(d.rating) || 0), 0) / driverRatingsResult.data.length 
         : 0;
       const weeklyEarnings = weeklyEarningsResult.data?.reduce((sum, ride) => sum + (ride.final_fare || 0), 0) || 0;
 
-      setStats({
-        totalRides: ridesResult.count || 0,
-        activeDrivers: activeDriversResult.count || 0,
+      setStats(prev => ({
+        ...prev,
         pendingDrivers: pendingDriversResult.count || 0,
-        todayEarnings,
         totalUsers: usersResult.count || 0,
-        activeRides: activeRidesResult.count || 0,
         completedRides: completedRidesResult.count || 0,
         cancelledRides: cancelledRidesResult.count || 0,
         totalIncentivesPaid: totalIncentives,
@@ -154,14 +179,11 @@ const AdminDashboard = () => {
         avgDriverRating: avgRating,
         weeklyRides: weeklyRidesResult.count || 0,
         weeklyEarnings,
-        todayRides: todayRidesResult.count || 0,
         regionsCount: regionsResult.count || 0,
         landmarksCount: landmarksResult.count || 0,
-      });
+      }));
     } catch (error) {
-      console.error("Error fetching stats:", error);
-    } finally {
-      setStatsLoading(false);
+      console.error("Error fetching detail stats:", error);
     }
   };
 

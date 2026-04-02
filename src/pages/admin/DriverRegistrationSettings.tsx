@@ -67,17 +67,21 @@ export default function DriverRegistrationSettings() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin" />
-      </div>
+      <AdminLayout title="إعدادات تسجيل السائقين">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin" />
+        </div>
+      </AdminLayout>
     );
   }
 
   if (!settings) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">لا توجد إعدادات</p>
-      </div>
+      <AdminLayout title="إعدادات تسجيل السائقين">
+        <div className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">لا توجد إعدادات</p>
+        </div>
+      </AdminLayout>
     );
   }
 

@@ -582,7 +582,9 @@ export const RideWaitingScreen = ({
         }
       }
     }
-    const { error } = await supabase
+    // فلترة بالحالات التي يُسمح للراكب بإلغائها فقط
+    const cancellableStatuses = ["pending", "accepted", "arrived"];
+    const { error, count } = await supabase
       .from("rides")
       .update({
         status: "cancelled",
@@ -591,7 +593,8 @@ export const RideWaitingScreen = ({
         cancellation_fee: cancellationFee,
         cancellation_fee_paid: cancellationFee > 0,
       })
-      .eq("id", rideId);
+      .eq("id", rideId)
+      .in("status", cancellableStatuses);
     if (!error) {
       // خصم غرامة الإلغاء من محفظة الراكب إن وُجدت
       if (cancellationFee > 0) {
@@ -606,19 +609,25 @@ export const RideWaitingScreen = ({
 
             if (profile && (profile.wallet_balance || 0) >= cancellationFee) {
               const newBalance = (profile.wallet_balance || 0) - cancellationFee;
-              await supabase
+              // تحديث المحفظة بشرط أن الرصيد لم يتغير (حماية من race condition)
+              const { error: walletErr } = await supabase
                 .from("profiles")
                 .update({ wallet_balance: newBalance })
-                .eq("id", profile.id);
+                .eq("id", profile.id)
+                .gte("wallet_balance", cancellationFee);
 
-              await (supabase as any).from("wallet_transactions").insert({
-                user_id: user.id,
-                amount: -cancellationFee,
-                type: "cancellation_fee",
-                description: `غرامة إلغاء رحلة #${rideId.substring(0, 8)}`,
-                reference_id: rideId,
-                balance_after: newBalance,
-              });
+              if (!walletErr) {
+                await (supabase as any).from("wallet_transactions").insert({
+                  user_id: user.id,
+                  amount: -cancellationFee,
+                  type: "cancellation_fee",
+                  description: `غرامة إلغاء رحلة #${rideId.substring(0, 8)}`,
+                  reference_id: rideId,
+                  balance_after: newBalance,
+                });
+              } else {
+                console.warn("[RideWaiting] Wallet deduction skipped — balance changed:", walletErr);
+              }
             }
           }
         } catch (feeError) {

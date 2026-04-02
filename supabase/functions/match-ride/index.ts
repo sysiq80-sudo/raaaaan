@@ -166,24 +166,13 @@ serve(async (req) => {
       );
     }
 
-    // منع الحجز الذاتي - Check if rider is also a driver
+    // منع الحجز الذاتي - سنستبعد السائق/الراكب من نتائج المطابقة لاحقاً
+    // بدلاً من منع الراكب الذي هو سائق أيضاً من الحجز بالكامل
     const { data: riderAsDriver } = await supabase
       .from("drivers")
       .select("id")
       .eq("user_id", ride.rider_id)
-      .single();
-
-    if (riderAsDriver) {
-      console.log("🚫 منع الحجز الذاتي - الراكب هو سائق أيضاً:", ride.rider_id);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          message: "لا يمكنك حجز رحلة لنفسك",
-          error_code: "SELF_BOOKING_NOT_ALLOWED",
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+      .maybeSingle();
 
     // 2. تحميل إعدادات المطابقة
     const matchConfig = await getMatchingConfig(supabase);
@@ -205,9 +194,18 @@ serve(async (req) => {
       throw new Error("فشل في جلب السائقين");
     }
 
-    console.log(`👥 عدد السائقين المتصلين: ${drivers?.length || 0}`);
+    // استبعاد السائق الذي هو نفسه الراكب (منع الحجز الذاتي)
+    let availableDrivers = drivers || [];
+    if (riderAsDriver) {
+      availableDrivers = availableDrivers.filter(
+        (d: any) => d.id !== riderAsDriver.id
+      );
+      console.log(`🚫 استبعاد السائق/الراكب ${riderAsDriver.id} من المطابقة`);
+    }
 
-    if (!drivers || drivers.length === 0) {
+    console.log(`👥 عدد السائقين المتصلين: ${availableDrivers.length}`);
+
+    if (!availableDrivers || availableDrivers.length === 0) {
       const noDriverAttempt = (ride.matching_attempts || 0) + 1;
       await supabase
         .from("rides")
@@ -294,7 +292,7 @@ serve(async (req) => {
       try {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
-        const eligibleIds = drivers
+        const eligibleIds = availableDrivers
           .filter((d) => !alreadyNotified.has(d.id))
           .map((d) => d.id);
         if (eligibleIds.length > 0) {
@@ -315,7 +313,7 @@ serve(async (req) => {
       }
     }
 
-    const driversWithDistance = drivers
+    const driversWithDistance = availableDrivers
       .filter((driver) => {
         // Filter by vehicle type compatibility + تفضيل السائقة
         if (

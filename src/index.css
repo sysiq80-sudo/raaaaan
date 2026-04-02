@@ -66,14 +66,32 @@ html.light-rider {
 }
 
 html, body {
-  /* منع تداخل محتوى التطبيق مع شريط الحالة وشريط التنقل السفلي في الاجهزة المحمولة */
+  /* الخلفية والانتقال */
+  background-color: var(--raan-body-bg);
+  transition: background-color 0.3s ease;
+  /* الموقع التعريفي يحتاج تمريراً طبيعياً */
+  min-height: 100%;
+  width: 100%;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   قشرة تطبيق الجوال — يُطبَّق فقط داخل تطبيق جوال (PWA/Capacitor)
+   يمنع التمرير المزدوج في الراكب والسائق
+   ═══════════════════════════════════════════════════════════ */
+html.app-shell, html.app-shell body {
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  background-color: var(--raan-body-bg);
-  overflow: hidden; /* لمنع التمرير المزدوج في الحواف */
-  height: 100vh;
+  overflow: hidden;
+  height: 100dvh;
   width: 100vw;
-  transition: background-color 0.3s ease;
+}
+
+/* الموقع التعريفي — تمرير طبيعي ناعم */
+html.marketing-site, html.marketing-site body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: none;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -389,6 +407,36 @@ html.light-rider .dots-pattern {
 .animate-fade-up-delay {
   animation-delay: var(--animation-delay, 0ms);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Utilities للموقع التسويقي
+   ═══════════════════════════════════════════════════════════ */
+
+/* حشوة آمنة للأسفل (safe area) */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* حشوة إضافية للـ CTA العائم على الجوال */
+@media (max-width: 1023px) {
+  .marketing-pb-cta {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* تحسين عرض الحاوية على الجوال */
+.container {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+@media (min-width: 640px) {
+  .container {
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+}
+
 
 @layer base {
   :root {

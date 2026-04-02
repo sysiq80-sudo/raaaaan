@@ -6,12 +6,8 @@ import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { 
   Map, 
-  Navigation, 
-  MapPin,
-  Image,
   DollarSign,
   TrendingUp,
-  Calendar,
   Activity,
   BarChart3,
   Clock,

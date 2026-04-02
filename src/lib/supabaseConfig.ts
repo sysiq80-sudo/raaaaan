@@ -15,12 +15,12 @@ export interface SupabaseConfig {
   projects: SupabaseProject[];
 }
 
-// الإعدادات الافتراضية للمشروع الحالي
+// الإعدادات الافتراضية للمشروع الحالي — تقرأ من متغيرات البيئة أولاً
 const DEFAULT_PROJECT: SupabaseProject = {
   id: 'default',
   name: 'المشروع الرئيسي',
-  url: 'https://wgolkcztdrwdphwjvqxt.supabase.co',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo',
+  url: import.meta.env.VITE_SUPABASE_URL || 'https://wgolkcztdrwdphwjvqxt.supabase.co',
+  anonKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo',
   isDefault: true,
   createdAt: new Date().toISOString(),
 };

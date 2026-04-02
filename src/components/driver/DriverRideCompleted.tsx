@@ -110,6 +110,9 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
         console.warn("[DriverRating] ride_ratings insert skipped:", innerErr);
       }
 
+      /* 3️⃣ ملاحظة: متوسط تقييم الراكب يُحسب عند الحاجة من rides.rider_rating
+         لأن جدول profiles لا يحتوي على عمود rider_rating حالياً */
+
       /* ✅ الاحتفال دائماً */
       try {
         confetti({ particleCount: 100, spread: 90, origin: { y: 0.5 }, colors: ["#10b981","#fbbf24","#06b6d4","#8b5cf6"] });

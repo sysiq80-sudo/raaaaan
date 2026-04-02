@@ -130,6 +130,51 @@ export const useOfflineMode = () => {
 };
 
 /**
+ * تخزين/استرجاع الرحلة النشطة للعمل دون اتصال
+ */
+const ACTIVE_RIDE_CACHE_KEY = "raan_cache_active_ride";
+
+export function cacheActiveRide(
+  ride: Record<string, unknown> | null,
+  driver?: Record<string, unknown> | null
+) {
+  if (typeof window === "undefined") return;
+  if (!ride) {
+    window.localStorage.removeItem(ACTIVE_RIDE_CACHE_KEY);
+    return;
+  }
+  try {
+    window.localStorage.setItem(
+      ACTIVE_RIDE_CACHE_KEY,
+      JSON.stringify({ ride, driver: driver || null, timestamp: Date.now() })
+    );
+  } catch (err) {
+    console.error("[OfflineSync] Failed to cache active ride:", err);
+  }
+}
+
+export function getCachedActiveRide(): {
+  ride: Record<string, unknown>;
+  driver: Record<string, unknown> | null;
+  timestamp: number;
+} | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(ACTIVE_RIDE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // تجاهل بيانات أقدم من ساعتين
+    if (Date.now() - parsed.timestamp > 2 * 60 * 60 * 1000) {
+      window.localStorage.removeItem(ACTIVE_RIDE_CACHE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * تخزين البيانات المهمة تلقائياً عند الاتصال
  * (المفضلة، إعدادات المنطقة، أنواع المركبات)
  */

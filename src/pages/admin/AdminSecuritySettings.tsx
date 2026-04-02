@@ -239,9 +239,10 @@ export default function AdminSecuritySettings() {
                   min={1}
                   max={10}
                   value={settings.max_active_rides_per_user}
-                  onChange={(e) =>
-                    updateField("max_active_rides_per_user", parseInt(e.target.value) || 3)
-                  }
+                  onChange={(e) => {
+                    const parsed = parseInt(e.target.value);
+                    updateField("max_active_rides_per_user", isNaN(parsed) ? 3 : parsed);
+                  }}
                 />
                 <p className="text-xs text-muted-foreground">
                   يشمل الرحلات المعلقة والمقبولة والجارية — الافتراضي: 3
@@ -259,9 +260,10 @@ export default function AdminSecuritySettings() {
                   min={0}
                   max={600}
                   value={settings.ride_creation_cooldown_seconds}
-                  onChange={(e) =>
-                    updateField("ride_creation_cooldown_seconds", parseInt(e.target.value) || 60)
-                  }
+                  onChange={(e) => {
+                    const parsed = parseInt(e.target.value);
+                    updateField("ride_creation_cooldown_seconds", isNaN(parsed) ? 60 : parsed);
+                  }}
                 />
                 <p className="text-xs text-muted-foreground">
                   يمنع إنشاء رحلات متتالية بسرعة — الافتراضي: 60 ثانية

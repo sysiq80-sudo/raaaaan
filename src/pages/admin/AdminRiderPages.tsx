@@ -146,6 +146,21 @@ const AdminRiderPages = () => {
   const setAsDefault = async (layout: PageLayout) => {
     if (layout.is_default) return;
 
+    // Unset old default first
+    const { error: unsetError } = await supabase
+      .from('rider_page_layouts')
+      .update({ is_default: false })
+      .eq('is_default', true);
+
+    if (unsetError) {
+      toast({
+        title: "خطأ",
+        description: "فشل في إلغاء الصفحة الافتراضية السابقة",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const { error } = await supabase
       .from('rider_page_layouts')
       .update({ is_default: true })

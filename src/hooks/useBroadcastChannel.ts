@@ -27,6 +27,7 @@ interface UseBroadcastChannelProps {
   onRideUpdate: (ride: any) => void;
   onDriverLocationUpdate: (location: { lat: number; lng: number }) => void;
   onClose: () => void;
+  onDriverCancelled?: () => void;
   setShowArrivedAlert: (show: boolean) => void;
   // ✅ تم حذف setShowCompletedScreen — يتولى useActiveRide عرض شاشة التقييم
 }
@@ -37,6 +38,7 @@ export const useBroadcastChannel = ({
   onRideUpdate,
   onDriverLocationUpdate,
   onClose,
+  onDriverCancelled,
   setShowArrivedAlert,
 }: UseBroadcastChannelProps) => {
   const { toast } = useToast();
@@ -148,7 +150,11 @@ export const useBroadcastChannel = ({
             duration: 10000,
           });
 
-          setTimeout(() => onClose(), 3000);
+          if (onDriverCancelled) {
+            onDriverCancelled();
+          } else {
+            setTimeout(() => onClose(), 3000);
+          }
         }
       )
       .on("broadcast", { event: "driver_location_update" }, (payload: any) => {
@@ -291,7 +297,11 @@ export const useBroadcastChannel = ({
                   updatedRide.cancellation_reason || "تم إلغاء الرحلة",
                 variant: "destructive",
               });
-              setTimeout(() => onClose(), 2000);
+              if (onDriverCancelled && updatedRide.cancelled_by !== "rider") {
+                onDriverCancelled();
+              } else {
+                setTimeout(() => onClose(), 2000);
+              }
             }
 
             // Update ride state

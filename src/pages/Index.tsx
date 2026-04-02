@@ -218,6 +218,21 @@ const Index = () => {
     return () => clearInterval(t);
   }, []);
 
+  // تمكين التمرير للموقع التعريفي
+  useEffect(() => {
+    document.documentElement.classList.add("marketing-site");
+    document.documentElement.classList.remove("app-shell");
+    document.body.style.overflow = "auto";
+    document.body.style.height = "auto";
+    document.body.style.minHeight = "100%";
+    return () => {
+      document.documentElement.classList.remove("marketing-site");
+      document.body.style.overflow = "";
+      document.body.style.height = "";
+      document.body.style.minHeight = "";
+    };
+  }, []);
+
   useEffect(() => {
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as unknown as { standalone?: boolean }).standalone === true;
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -230,15 +245,21 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background overflow-hidden" dir="rtl">
-      {/* ═══════════ HEADER ═══════════ */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/30">
-        <div className="container flex items-center justify-between h-16 md:h-20">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="RAAN" className="w-10 h-10 rounded-xl shadow-glow-sm" />
-            <span className="text-xl font-bold text-foreground">ران <span className="text-primary">RAAN</span></span>
-          </div>
-          <nav className="hidden lg:flex items-center gap-8">
+    <div className="min-h-screen bg-background" dir="rtl">
+      {/* ═══════════ HEADER — مطابق لـ MarketingShell ═══════════ */}
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-border/30 bg-background/80 backdrop-blur-xl">
+        <div className="container flex h-16 items-center justify-between gap-4 md:h-20">
+          {/* الشعار */}
+          <Link to="/" className="flex items-center gap-3">
+            <img src={logo} alt="RAAN" className="h-11 w-11 rounded-2xl shadow-glow-sm" />
+            <div>
+              <div className="text-lg font-bold text-foreground">ران <span className="text-primary">RAAN</span></div>
+              <div className="text-xs text-muted-foreground">AI Taxi for Anbar</div>
+            </div>
+          </Link>
+
+          {/* القائمة — desktop فقط */}
+          <nav className="hidden items-center gap-7 lg:flex">
             {[
               { label: "الرئيسية", to: "/" },
               { label: "الذكاء الاصطناعي", to: "/ai" },
@@ -247,46 +268,74 @@ const Index = () => {
               { label: "من نحن", to: "/about" },
               { label: "تواصل معنا", to: "/contact" },
             ].map((n) => (
-              <Link key={n.to} to={n.to} className="text-muted-foreground hover:text-primary transition-colors font-medium">
+              <Link
+                key={n.to}
+                to={n.to}
+                className="relative text-sm font-medium text-muted-foreground transition-colors hover:text-foreground
+                  after:absolute after:-bottom-1 after:left-0 after:h-[2px] after:rounded-full after:bg-primary
+                  after:w-0 hover:after:w-full after:transition-[width] after:duration-300"
+              >
                 {n.label}
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
-            <Link to="/auth" className="hidden sm:block">
+
+          {/* أزرار desktop */}
+          <div className="hidden items-center gap-3 lg:flex">
+            <Link to="/auth">
               <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">تسجيل الراكب</Button>
             </Link>
-            <Link to="/driver/auth" className="hidden sm:block">
-              <Button variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10">تسجيل السائق</Button>
+            <Link to="/driver/auth">
+              <Button variant="outline" size="sm" className="border-primary/40 text-primary hover:bg-primary/10">تسجيل السائق</Button>
             </Link>
             <Link to="/auth">
-              <Button size="sm" className="bg-gradient-primary shadow-glow btn-glow font-semibold px-5">احجز الآن</Button>
+              <Button size="sm" className="bg-gradient-primary px-5 font-semibold shadow-glow btn-glow">احجز الآن</Button>
             </Link>
-            <button onClick={() => setMobileMenu(!mobileMenu)} className="lg:hidden p-2 rounded-xl bg-card border border-border/30 text-foreground">
-              {mobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
           </div>
+
+          {/* زر القائمة — mobile */}
+          <button
+            type="button"
+            onClick={() => setMobileMenu(!mobileMenu)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border/30 bg-card/70 text-foreground lg:hidden"
+          >
+            {mobileMenu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
+
+        {/* القائمة المنسدلة — mobile */}
         {mobileMenu && (
-          <div className="lg:hidden absolute top-full left-0 right-0 bg-background/95 backdrop-blur-xl border-b border-border/30 p-4 space-y-2">
-            {[
-              { to: "/", label: "الرئيسية" },
-              { to: "/ai", label: "الذكاء الاصطناعي" },
-              { to: "/features", label: "المميزات" },
-              { to: "/drive", label: "كن كابتن" },
-              { to: "/about", label: "من نحن" },
-              { to: "/contact", label: "تواصل معنا" },
-            ].map((s) => (
-              <Link key={s.to} to={s.to} onClick={() => setMobileMenu(false)} className="block w-full text-right px-4 py-3 rounded-xl text-foreground hover:bg-primary/10 transition-colors">
-                {s.label}
-              </Link>
-            ))}
+          <div className="border-t border-border/30 bg-background/95 p-4 backdrop-blur-xl lg:hidden">
+            <div className="space-y-2">
+              {[
+                { to: "/", label: "الرئيسية" },
+                { to: "/ai", label: "الذكاء الاصطناعي" },
+                { to: "/features", label: "المميزات" },
+                { to: "/drive", label: "كن كابتن" },
+                { to: "/about", label: "من نحن" },
+                { to: "/contact", label: "تواصل معنا" },
+              ].map((s) => (
+                <Link
+                  key={s.to}
+                  to={s.to}
+                  onClick={() => setMobileMenu(false)}
+                  className="block rounded-2xl px-4 py-3 text-sm font-medium text-foreground hover:bg-card transition-colors"
+                >
+                  {s.label}
+                </Link>
+              ))}
+            </div>
+            <div className="mt-4 grid gap-3">
+              <Link to="/auth"><Button variant="ghost" className="w-full justify-center">تسجيل الراكب</Button></Link>
+              <Link to="/driver/auth"><Button variant="outline" className="w-full justify-center border-primary/30 text-primary">تسجيل السائق</Button></Link>
+              <Link to="/auth"><Button className="w-full justify-center bg-gradient-primary shadow-glow">احجز الآن</Button></Link>
+            </div>
           </div>
         )}
       </header>
 
       {/* ═══════════ HERO ═══════════ */}
-      <section id="hero" className="relative pt-24 md:pt-32 pb-16 md:pb-24 hero-gradient min-h-screen flex items-center">
+      <section id="hero" className="relative pt-20 md:pt-24 pb-16 md:pb-24 hero-gradient min-h-screen flex items-center">
         <div className="absolute inset-0 dots-pattern opacity-30" />
         <div className="absolute top-20 right-[15%] w-80 h-80 bg-primary/10 rounded-full blur-[100px] animate-pulse-glow" />
         <div className="absolute bottom-20 left-[10%] w-96 h-96 bg-primary/8 rounded-full blur-[120px]" />
@@ -851,7 +900,7 @@ const Index = () => {
       </section>
 
       {/* ═══════════ FOOTER ═══════════ */}
-      <footer id="contact" className="py-16 bg-background border-t border-border/30">
+      <footer id="contact" className="py-12 lg:py-16 bg-background border-t border-border/30 marketing-pb-cta">
         <div className="container">
           <div className="grid md:grid-cols-4 gap-10 mb-12">
             <div className="md:col-span-2">
@@ -930,6 +979,17 @@ const Index = () => {
       </footer>
 
       <style>{`@keyframes voiceBar { 0% { transform: scaleY(0.4); } 100% { transform: scaleY(1); } }`}</style>
+
+      {/* ═══ زر CTA عائم للجوال ═══ */}
+      <div className="fixed bottom-0 inset-x-0 z-40 lg:hidden">
+        <div className="bg-background/90 backdrop-blur-xl border-t border-border/30 px-4 py-3 pb-safe">
+          <Link to="/auth">
+            <Button className="w-full bg-gradient-primary shadow-glow btn-glow font-bold text-base h-12">
+              احجز الآن 🚗
+            </Button>
+          </Link>
+        </div>
+      </div>
     </div>
   );
 };

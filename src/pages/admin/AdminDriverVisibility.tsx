@@ -379,7 +379,11 @@ const AdminDriverVisibility = () => {
                           variant="ghost"
                           size="icon"
                           className="text-destructive"
-                          onClick={() => deleteFakeDriverMutation.mutate(driver.id)}
+                          onClick={() => {
+                            if (window.confirm(`هل تريد حذف السائق "${driver.name}"؟`)) {
+                              deleteFakeDriverMutation.mutate(driver.id);
+                            }
+                          }}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

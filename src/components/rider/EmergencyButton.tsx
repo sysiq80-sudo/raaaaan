@@ -118,41 +118,49 @@ export const EmergencyButton = ({ rideId, currentLocation }: EmergencyButtonProp
         location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       }
 
-      // Save emergency alert to database
-      const { error: alertError } = await supabase
-        .from('emergency_alerts')
-        .insert({
+      // إرسال SMS لجميع جهات الاتصال عبر Edge Function
+      const smsPromise = supabase.functions.invoke("send-emergency-sms", {
+        body: {
           user_id: user.id,
           ride_id: rideId || null,
-          location: location
-        });
+          location: location,
+        },
+      });
 
-      if (alertError) throw alertError;
-
-      // Generate Google Maps link
+      // Generate Google Maps link for WhatsApp fallback
       const mapsLink = `https://maps.google.com/maps?q=${location.lat},${location.lng}`;
 
-      // Load contacts
+      // Load contacts for WhatsApp
       const { data: emergencyContacts } = await supabase
         .from('emergency_contacts')
         .select('*')
         .eq('user_id', user.id);
 
-      // Send WhatsApp messages to all contacts
+      // فتح واتساب كقناة إضافية مع أول جهة اتصال
       if (emergencyContacts && emergencyContacts.length > 0) {
         const message = encodeURIComponent(
-          `🚨 طوارئ! أحتاج مساعدة!\n\nموقعي الحالي:\n${mapsLink}\n\nأرسلت من تطبيق رعان`
+          `🚨 طوارئ! أحتاج مساعدة!\n\nموقعي الحالي:\n${mapsLink}\n\nأرسلت من تطبيق ران`
         );
         
-        // Open WhatsApp with the first contact
         const firstContact = emergencyContacts[0] as EmergencyContact;
         const phone = firstContact.phone.replace(/\D/g, '');
         window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
       }
 
+      // انتظار نتيجة SMS
+      const { data: smsResult, error: smsError } = await smsPromise;
+      if (smsError) {
+        console.warn("[EmergencyButton] SMS sending failed:", smsError);
+      } else {
+        console.log("[EmergencyButton] SMS result:", smsResult);
+      }
+
+      const smsCount = smsResult?.sent_count || 0;
       toast({
         title: "تم إرسال تنبيه الطوارئ",
-        description: "تم إرسال موقعك إلى جهات الاتصال"
+        description: smsCount > 0 
+          ? `تم إرسال SMS لـ ${smsCount} جهة اتصال + واتساب`
+          : "تم إرسال موقعك عبر واتساب"
       });
 
       setShowConfirm(false);

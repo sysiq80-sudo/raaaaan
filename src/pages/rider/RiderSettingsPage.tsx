@@ -38,6 +38,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { ReferralCard, ReferralInput } from "@/components/rider/ReferralCard";
 
 interface UserProfile {
   id: string;
@@ -368,6 +369,19 @@ const RiderSettingsPage: React.FC = () => {
                 />
               </div>
             </motion.div>
+
+            {/* ── نظام الإحالات ── */}
+            {userId && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.4 }}
+                className="space-y-3"
+              >
+                <ReferralCard userId={userId} variant="compact" />
+                <ReferralInput userId={userId} />
+              </motion.div>
+            )}
 
             {/* ── تسجيل الخروج وحذف الحساب ── */}
             <motion.div
