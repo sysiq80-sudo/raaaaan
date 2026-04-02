@@ -1089,19 +1089,8 @@ const DriverHome = () => {
                 /* تأثير التدرج فوق الخريطة أثناء الرحلة */
                 <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at center, transparent 0%, rgba(11,19,38,0.7) 85%)' }} />
               ) : (
-                /* تأثيرات محيطية فوق الخريطة عند الانتظار — pointer-events-none لا تمنع التفاعل مع الخريطة */
-                <div className="absolute inset-0 pointer-events-none">
-                  {/* نقطة نبض — موقع السائق */}
-                  {isOnline && currentLocation && (
-                    <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2">
-                      <div className="relative flex items-center justify-center">
-                        <div className="absolute w-32 h-32 bg-[#5bdda6]/20 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
-                        <div className="absolute w-16 h-16 bg-[#5bdda6]/25 rounded-full animate-pulse" />
-                        <div className="w-5 h-5 bg-[#5bdda6] rounded-full border-4 border-[#0b1326] shadow-[0_0_20px_rgba(91,221,166,0.8)] z-10" />
-                      </div>
-                    </div>
-                  )}
-                </div>
+                /* تأثيرات محيطية فوق الخريطة عند الانتظار — النقطة النابضة الآن داخل DriverMap */
+                <div className="absolute inset-0 pointer-events-none" />
               )}
               {/* خريطة مناطق الطلب الحرارية */}
               <DemandHeatMap isOnline={isOnline} />

@@ -6,6 +6,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
+import { useBottomSheetDrag } from "@/hooks/useBottomSheetDrag";
 import {
   Navigation,
   Clock,
@@ -142,6 +143,7 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
   onSwapLocations,
   scheduleDialogRef,
 }) => {
+  const { isExpanded, toggleExpanded, dragProps } = useBottomSheetDrag(false);
   // زر الحجز المشترك — HTML مباشر لضمان rounded-none حقيقي
   const BookButton = (
     <button
@@ -219,14 +221,32 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
       </div>
 
       {/* ═══ البانل السفلي (60% من الشاشة) بدون سكرول ═══ */}
-      <div className="flex-1 bg-background rounded-t-2xl -mt-3 z-10 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden min-h-0">
-        {/* شريط السحب */}
-        <div className="flex justify-center pt-2 pb-1 shrink-0">
-          <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
-        </div>
+      <motion.div
+        animate={{ height: isExpanded ? '85dvh' : 'auto' }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className="flex-1 bg-background rounded-t-2xl -mt-3 z-10 shadow-[0_-8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden min-h-0"
+        {...dragProps}
+      >
+        {/* شريط السحب التفاعلي */}
+        <button
+          onClick={toggleExpanded}
+          aria-label={isExpanded ? 'تصغير البانل' : 'توسيع البانل'}
+          title={isExpanded ? 'تصغير' : 'توسيع'}
+          className="w-full flex justify-center pt-2.5 pb-1.5 cursor-grab active:cursor-grabbing shrink-0"
+        >
+          <motion.div
+            className="rounded-full"
+            animate={{
+              width: isExpanded ? 28 : 44,
+              backgroundColor: isExpanded ? 'rgb(91,221,166)' : 'rgb(148,163,184)',
+            }}
+            style={{ height: 4 }}
+            transition={{ duration: 0.25 }}
+          />
+        </button>
 
         {/* المحتوى — يتوسع ليملأ المساحة المتاحة */}
-        <div className="flex-1 flex flex-col px-3 gap-2 min-h-0 pb-1">
+        <div className={`flex-1 flex flex-col px-3 gap-2 min-h-0 pb-1 ${isExpanded ? 'overflow-y-auto' : 'overflow-hidden'}`}>
 
           {/* ─── ملخص المسار المضغوط ─── */}
           <div className="shrink-0 bg-card rounded-xl px-3 py-2.5 border border-border/30">
@@ -329,7 +349,7 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
 
         {/* ═══ زر الحجز — يلتصق بالأسفل حواف حادة ═══ */}
         {!bottomNavEnabled && BookButton}
-      </div>
+      </motion.div>
 
       {/* زر الحجز للـ bottomNav */}
       {bottomNavEnabled && (

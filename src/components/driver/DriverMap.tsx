@@ -60,6 +60,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
   const driverMarker = useRef<google.maps.Marker | null>(null);
+  const pulseCircles = useRef<google.maps.Circle[]>([]);
   const hasLoadedTilesOnceRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -210,6 +211,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
       if (tileTimeout) {
         clearTimeout(tileTimeout);
       }
+      removePulseCircles();
       if (map.current) {
         map.current = null;
         setIsMapReady(false);
@@ -225,6 +227,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
     try {
       if (driverMarker.current) {
         driverMarker.current.setPosition(new google.maps.LatLng(driverLocation.lat, driverLocation.lng));
+        updatePulseCirclesPosition(driverLocation);
       } else {
         addDriverMarker(driverLocation);
       }
@@ -240,15 +243,92 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
     if (!map.current || !window.google?.maps) return;
 
     try {
+      // نقطة مركزية خضراء نابضة بدلاً من الأيقونة الافتراضية
       driverMarker.current = new google.maps.Marker({
         position: new google.maps.LatLng(location.lat, location.lng),
         map: map.current,
         title: "السائق",
-        icon: getMarkerIcon("driver"),
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          fillColor: "#5bdda6",
+          fillOpacity: 1,
+          strokeColor: "#0b1326",
+          strokeWeight: 3,
+          scale: 8,
+        },
+        zIndex: 10,
       });
+
+      // إضافة دوائر نبض حول موقع السائق
+      addPulseCircles(location);
     } catch (err) {
       console.error("DriverMap: addDriverMarker error", err);
     }
+  };
+
+  const addPulseCircles = (location: { lat: number; lng: number }) => {
+    if (!map.current || !window.google?.maps) return;
+    removePulseCircles();
+
+    const center = new google.maps.LatLng(location.lat, location.lng);
+    // دائرة داخلية ثابتة
+    const innerCircle = new google.maps.Circle({
+      center,
+      radius: 30,
+      map: map.current,
+      fillColor: "#5bdda6",
+      fillOpacity: 0.18,
+      strokeColor: "#5bdda6",
+      strokeOpacity: 0.4,
+      strokeWeight: 1,
+      clickable: false,
+      zIndex: 5,
+    });
+    // دائرة خارجية نابضة (تتمدد وتتلاشى)
+    const outerCircle = new google.maps.Circle({
+      center,
+      radius: 30,
+      map: map.current,
+      fillColor: "#5bdda6",
+      fillOpacity: 0.12,
+      strokeColor: "#5bdda6",
+      strokeOpacity: 0.3,
+      strokeWeight: 1,
+      clickable: false,
+      zIndex: 4,
+    });
+    pulseCircles.current = [innerCircle, outerCircle];
+
+    // تحريك الدائرة الخارجية
+    let growing = true;
+    const minRadius = 30;
+    const maxRadius = 120;
+    const step = 2;
+    const animInterval = setInterval(() => {
+      if (!outerCircle.getMap()) { clearInterval(animInterval); return; }
+      let r = outerCircle.getRadius();
+      if (growing) { r += step; if (r >= maxRadius) growing = false; }
+      else { r -= step; if (r <= minRadius) growing = true; }
+      const opacity = 0.12 * (1 - (r - minRadius) / (maxRadius - minRadius));
+      outerCircle.setRadius(r);
+      outerCircle.setOptions({ fillOpacity: Math.max(opacity, 0.02), strokeOpacity: Math.max(opacity * 2, 0.05) });
+    }, 50);
+
+    // تخزين الـ interval لتنظيفه لاحقاً
+    (outerCircle as any)._pulseInterval = animInterval;
+  };
+
+  const removePulseCircles = () => {
+    pulseCircles.current.forEach(c => {
+      if ((c as any)._pulseInterval) clearInterval((c as any)._pulseInterval);
+      c.setMap(null);
+    });
+    pulseCircles.current = [];
+  };
+
+  const updatePulseCirclesPosition = (location: { lat: number; lng: number }) => {
+    const center = new google.maps.LatLng(location.lat, location.lng);
+    pulseCircles.current.forEach(c => c.setCenter(center));
   };
 
   const handleCenterOnDriver = () => {

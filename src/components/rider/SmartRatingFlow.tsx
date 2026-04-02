@@ -45,6 +45,7 @@ const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: S
   const [rating, setRating]     = useState(5);
   const [hovered, setHovered]   = useState(0);
   const [badges, setBadges]     = useState<string[]>([]);
+  const [reviewText, setReviewText] = useState("");
   const [loading, setLoading]   = useState(false);
 
   const display   = hovered || rating;
@@ -87,9 +88,12 @@ const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: S
     setLoading(true);
 
     try {
-      const badgeComment = badges.length > 0
+      // بناء التعليق: البادجات + نص المراجعة الحرة
+      const badgePart = badges.length > 0
         ? `[بادجات: ${badges.join(",")}]`
         : null;
+      const reviewPart = reviewText.trim() || null;
+      const comment = [badgePart, reviewPart].filter(Boolean).join(" | ") || null;
 
       /* 1️⃣ تحديث تقييم الرحلة — الأهم */
       const { error: rideErr } = await supabase
@@ -114,7 +118,7 @@ const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: S
           await supabase.from("ride_ratings").insert({
             ride_id: rideId,
             rating,
-            comment: badgeComment,
+            comment,
             driver_id: driverId,
             rider_id: riderProfile?.id ?? null,
           });
@@ -190,6 +194,11 @@ const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: S
                   {b.emoji} {b.label}
                 </span>
               ))}
+            </div>
+          )}
+          {reviewText.trim() && (
+            <div className="bg-slate-800/60 border border-slate-700/40 rounded-2xl px-4 py-3 max-w-xs text-center">
+              <p className="text-sm text-slate-300 leading-relaxed">“{reviewText.trim()}”</p>
             </div>
           )}
         </motion.div>
@@ -319,6 +328,54 @@ const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: S
                 })}
               </div>
             </div>
+
+            {/* ── حقل التعليق الحر ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="w-full"
+            >
+              <label className="block text-xs text-slate-500 text-center mb-2">
+                اكتب تعليقك (اختياري)
+              </label>
+              <div className={`relative rounded-2xl border transition-all duration-300 ${
+                reviewText
+                  ? 'border-emerald-500/50 shadow-[0_0_0_3px_rgba(52,211,153,0.08)]'
+                  : 'border-slate-700/50'
+              } bg-slate-900/60 backdrop-blur-sm`}>
+                {/* أيقونة القلم */}
+                <span className="absolute top-3 right-3 text-slate-500 text-sm pointer-events-none select-none">✍️</span>
+                <textarea
+                  value={reviewText}
+                  onChange={e => setReviewText(e.target.value)}
+                  placeholder="شارك تجربتك مع هذا الكابتن..."
+                  maxLength={300}
+                  rows={3}
+                  dir="rtl"
+                  className="w-full bg-transparent text-sm text-white placeholder:text-slate-600 resize-none px-4 pt-3 pb-2 pr-9 rounded-2xl focus:outline-none leading-relaxed"
+                />
+                {/* عداد الأحرف */}
+                <div className="flex items-center justify-between px-4 pb-2">
+                  <span className={`text-[10px] transition-colors ${
+                    reviewText.length > 250 ? 'text-amber-400' : 'text-slate-600'
+                  }`}>
+                    {reviewText.length}/300
+                  </span>
+                  {reviewText && (
+                    <motion.button
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      type="button"
+                      onClick={() => setReviewText('')}
+                      className="text-[10px] text-slate-500 hover:text-red-400 transition-colors"
+                    >
+                      مسح
+                    </motion.button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
           </div>
 
           {/* الأزرار */}

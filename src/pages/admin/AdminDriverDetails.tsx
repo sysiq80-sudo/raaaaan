@@ -38,8 +38,10 @@ type Driver = Database["public"]["Tables"]["drivers"]["Row"] & {
   email?: string | null;
 };
 
-type Ride = Database["public"]["Tables"]["rides"]["Row"] & {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Ride = Record<string, any> & {
   rider?: { full_name: string; phone: string };
+  ride_ratings?: { rating: number; comment: string | null }[];
 };
 
 type Subscription = Database["public"]["Tables"]["driver_subscriptions"]["Row"] & {
@@ -153,7 +155,25 @@ const AdminDriverDetails = () => {
             rider: profileMap[r.rider_id || ""] || undefined,
           }));
 
-          setRides(enriched as Ride[]);
+          // جلب ride_ratings لعرض تعليقات الراكب في لوحة التحكم
+          const rideIds = ridesData.map(r => r.id);
+          const { data: ratingsData } = await supabase
+            .from("ride_ratings")
+            .select("ride_id, rating, comment")
+            .in("ride_id", rideIds);
+
+          const ratingsMap: Record<string, { rating: number; comment: string | null }[]> = {};
+          (ratingsData || []).forEach(rv => {
+            if (!ratingsMap[rv.ride_id]) ratingsMap[rv.ride_id] = [];
+            ratingsMap[rv.ride_id].push({ rating: rv.rating, comment: rv.comment });
+          });
+
+          const withRatings = enriched.map(r => ({
+            ...r,
+            ride_ratings: ratingsMap[r.id] || [],
+          }));
+
+          setRides(withRatings as Ride[]);
         } else {
           setRides(ridesData as Ride[]);
         }
@@ -628,17 +648,48 @@ const AdminDriverDetails = () => {
                             <div className="text-muted-foreground" dir="ltr">{ride.rider?.phone || ""}</div>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">التقييم:</span>
-                            <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">التقييم:&nbsp;</span>
+                            <div className="flex items-center gap-1 mt-0.5">
                               {ride.driver_rating ? (
                                 <>
                                   <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                                  <span>{ride.driver_rating}</span>
+                                  <span className="font-medium">{ride.driver_rating}</span>
                                 </>
                               ) : (
                                 <span className="text-muted-foreground">غير مقيم</span>
                               )}
                             </div>
+                            {/* تعليق الراكب من ride_ratings */}
+                            {ride.ride_ratings?.[0]?.comment && (() => {
+                              const raw: string = ride.ride_ratings[0].comment;
+                              const badgeMatch = raw.match(/\[بادجات: ([^\]]+)\]/);
+                              const freePart = raw
+                                .replace(/\[بادجات: [^\]]+\]\s*\|?\s*/g, '')
+                                .trim();
+                              const badgeIds = badgeMatch ? badgeMatch[1].split(',') : [];
+                              const BADGE_MAP: Record<string, string> = {
+                                clean: '🧹 نظيفة', ontime: '⏱️ دقيق', roads: '🛣️ خبير',
+                                polite: '💬 مهذب', ac: '❄️ مكيف', safe: '🚗 آمن',
+                              };
+                              return (
+                                <div className="mt-1.5 space-y-1">
+                                  {badgeIds.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {badgeIds.map(b => (
+                                        <span key={b} className="text-[10px] bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 rounded-full px-2 py-0.5">
+                                          {BADGE_MAP[b] ?? b}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {freePart && (
+                                    <blockquote className="text-xs text-muted-foreground bg-muted/60 border-r-2 border-primary/50 pr-2 py-1 rounded-sm italic leading-relaxed">
+                                      "{freePart}"
+                                    </blockquote>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>

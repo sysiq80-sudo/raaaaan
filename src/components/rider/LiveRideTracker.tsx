@@ -41,6 +41,7 @@ import {
   Check,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useBottomSheetDrag } from "@/hooks/useBottomSheetDrag";
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
 import StatusIcons from "@/components/common/StatusIcons";
 import logo from "@/assets/logo.png";
@@ -127,6 +128,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     Array<{ lat: number; lng: number }>
   >([]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [lrtExpanded, setLrtExpanded] = useState(false);
   const { toast } = useToast();
 
   // Handle driver location update from broadcast
@@ -1047,7 +1049,37 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
       )}
 
       {/* Bottom Sheet */}
-      <div className="bg-card rounded-t-3xl shadow-xl border-t border-border p-4 space-y-3 overflow-hidden">
+      <motion.div
+        animate={{ height: lrtExpanded ? '85dvh' : 'auto' }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className="bg-card rounded-t-3xl shadow-xl border-t border-border overflow-hidden flex flex-col"
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={0.2}
+        onDragEnd={(_: unknown, info: { offset: { y: number }; velocity: { y: number } }) => {
+          if (info.offset.y < -40 || info.velocity.y < -400) setLrtExpanded(true);
+          else if (info.offset.y > 40 || info.velocity.y > 400) setLrtExpanded(false);
+        }}
+      >
+        {/* Drag Handle */}
+        <button
+          onClick={() => setLrtExpanded(v => !v)}
+          aria-label={lrtExpanded ? 'تصغير الورقة السفلية' : 'توسيع الورقة السفلية'}
+          title={lrtExpanded ? 'تصغير' : 'توسيع'}
+          className="w-full pt-3 pb-1 flex justify-center cursor-grab active:cursor-grabbing shrink-0"
+        >
+          <motion.div
+            className="rounded-full"
+            animate={{
+              width: lrtExpanded ? 32 : 48,
+              backgroundColor: lrtExpanded ? 'rgb(52,211,153)' : 'rgb(100,116,139)',
+            }}
+            style={{ height: 5 }}
+            transition={{ duration: 0.25 }}
+          />
+        </button>
+
+        <div className={`p-4 space-y-3 ${lrtExpanded ? 'flex-1 overflow-y-auto' : ''}`}>
         {/* Safety & Share Bar */}
         <div className="flex items-center justify-between pb-3 border-b border-border">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -1188,7 +1220,8 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
             finalFare={ride.final_fare}
           />
         ) : null}
-      </div>
+        </div>
+      </motion.div>
 
       {/* ✅ شاشة إلغاء السائق مع خيار إعادة الحجز */}
       {driverCancelledRide && (

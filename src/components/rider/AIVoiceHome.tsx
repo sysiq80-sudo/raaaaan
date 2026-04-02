@@ -405,13 +405,8 @@ const AIVoiceHome: React.FC = () => {
           />
         </div>
 
-        {/* اسم التطبيق */}
-        <p className="text-2xl font-black text-white tracking-widest leading-none">RAAN</p>
-        {/* بادج AI */}
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 mt-2">
-          <Sparkles className="w-3 h-3 text-emerald-400" />
-          <span className="text-[11px] text-emerald-400 font-semibold tracking-wider">مدعوم بالذكاء الاصطناعي</span>
-        </div>
+
+
       </motion.div>
 
 

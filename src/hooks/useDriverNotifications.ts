@@ -39,7 +39,7 @@ const vibrateDevice = () => {
 export const useDriverNotifications = (driverId: string | null, vehicleType: string | null) => {
   const { toast } = useToast();
   const DRIVER_NOTIFICATION_DEDUPE_TTL_MS = 90_000;
-  const CHANNEL_STALE_MS = 45_000;
+  const CHANNEL_STALE_MS = 120_000;
   const dedupeMapRef = useRef<Map<string, number>>(new Map());
   const lastRealtimeEventAtRef = useRef<number>(Date.now());
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
@@ -417,12 +417,29 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
             }
           }
         )
-        .subscribe((status) => {
+        .subscribe(async (status) => {
           console.log('🔴 Notification subscription status:', status);
           if (status === 'SUBSCRIBED') {
             console.log('✅ INSTANT notifications ready — listening for INSERT + UPDATE to pending');
             retryCount = 0;
             isRetrying = false;
+            // جلب فوري للرحلات المعلقة لتغطية أي رحلات أُنشئت أثناء إعادة الاتصال
+            try {
+              const { data: pendingRides } = await supabase
+                .from('rides')
+                .select('id, pickup_address, dropoff_address, estimated_fare, vehicle_type, status, distance_km')
+                .eq('status', 'pending')
+                .order('created_at', { ascending: false })
+                .limit(5);
+              if (pendingRides && pendingRides.length > 0) {
+                console.log(`📥 Found ${pendingRides.length} pending rides on channel subscribe`);
+                pendingRides.forEach(ride => {
+                  handleNewRide({ new: ride as unknown as Record<string, unknown> });
+                });
+              }
+            } catch (err) {
+              console.warn('⚠️ Failed to fetch pending rides on subscribe:', err);
+            }
           }
           if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !isRetrying) {
             if (retryCount >= MAX_RETRIES) {

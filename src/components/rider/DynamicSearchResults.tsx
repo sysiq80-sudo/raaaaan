@@ -260,116 +260,144 @@ export const DynamicSearchHeader: React.FC<{
   showAddress,
   onClearAddress,
 }) => {
-  // حساب padding اليسار بناءً على عدد الأيقونات
-  const extraIcons = [onSaveLocation, onCurrentLocation].filter(Boolean).length;
-  const leftPadding = extraIcons === 2 ? 'pl-[5.5rem]' : extraIcons === 1 ? 'pl-14' : 'pl-3';
 
   return (
-    <div className="relative">
-      <div className="relative flex items-center">
-        {/* أيقونة البحث - يمين الحقل */}
-        <Search className="absolute right-3 w-4 h-4 text-muted-foreground pointer-events-none z-10" />
-
-        {/* Input */}
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-          onFocus={onFocus}
-          placeholder={showAddress ? '' : placeholder}
-          className={cn(
-            "w-full pr-10 py-2.5 rounded-lg text-right",
-            "border border-border bg-background",
-            "text-sm focus:outline-none focus:ring-2 focus:ring-primary/50",
-            "placeholder:text-right placeholder:text-muted-foreground",
-            leftPadding,
-            isSearching && "bg-primary/5"
-          )}
-          dir="rtl"
-        />
-
-        {/* عرض العنوان الحالي من الخريطة عند عدم وجود بحث */}
-        {showAddress && !query && (
-          <div className="absolute inset-y-0 right-10 flex items-center pointer-events-none"
-            style={{ left: extraIcons === 2 ? '5.5rem' : extraIcons === 1 ? '3.5rem' : '0.75rem' }}
-          >
-            <p className="text-sm text-foreground font-medium truncate">{showAddress}</p>
-          </div>
+    <div className="relative" dir="rtl">
+      {/* ─── حاوية الحقل الرئيسية ─── */}
+      <div
+        className={cn(
+          "relative flex items-center gap-2 rounded-2xl px-4 py-0",
+          "bg-[#0d1f17] border transition-all duration-300",
+          isSearching
+            ? "border-emerald-500/60 shadow-[0_0_0_3px_rgba(52,211,153,0.12),0_4px_20px_rgba(0,0,0,0.4)]"
+            : "border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.35)] hover:border-emerald-500/30"
         )}
+      >
+        {/* ── أيقونة البحث (يمين في RTL) ── */}
+        <div className="flex-shrink-0 flex items-center justify-center w-10 h-10">
+          {isSearching ? (
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            >
+              <Loader2 className="w-5 h-5 text-emerald-400" />
+            </motion.div>
+          ) : (
+            <Search className={cn(
+              "w-5 h-5 transition-colors duration-200",
+              query ? "text-emerald-400" : "text-slate-500"
+            )} />
+          )}
+        </div>
 
-        {/* ─── الأيقونات على اليسار (يمين بصرياً في RTL) ─── */}
-        <div className="absolute left-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+        {/* ── Input أو عرض العنوان ── */}
+        <div className="flex-1 relative min-w-0">
+          {/* عرض العنوان المختار — يبدأ من أقصى اليمين */}
+          {showAddress && !query && (
+            <div className="absolute inset-0 flex items-center justify-end pointer-events-none">
+              <p className="text-sm text-white/90 font-semibold truncate text-right w-full">{showAddress}</p>
+            </div>
+          )}
 
-          {/* 🗑️ مسح العنوان المختار من الخريطة */}
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            onFocus={onFocus}
+            placeholder={showAddress && !query ? '' : placeholder}
+            className={cn(
+              "w-full bg-transparent text-right text-sm py-3.5",
+              "text-white placeholder:text-slate-500",
+              "focus:outline-none caret-emerald-400",
+              showAddress && !query ? "opacity-0" : "opacity-100"
+            )}
+            dir="rtl"
+          />
+        </div>
+
+        {/* ── أيقونات اليسار ── */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* مسح العنوان المختار */}
           {!query && showAddress && onClearAddress && (
             <motion.button
-              initial={{ opacity: 0, scale: 0.8 }}
+              initial={{ opacity: 0, scale: 0.7 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
+              exit={{ opacity: 0, scale: 0.7 }}
+              whileTap={{ scale: 0.85 }}
               onClick={onClearAddress}
-              className="p-1.5 hover:bg-destructive/10 rounded-md transition-colors"
+              className="w-9 h-9 rounded-full bg-red-500/15 hover:bg-red-500/25 flex items-center justify-center transition-colors"
               aria-label="حذف الموقع"
               title="حذف الموقع المحدد"
             >
-              <X className="w-3.5 h-3.5 text-destructive/70 hover:text-destructive" />
+              <X className="w-5 h-5 text-red-400" />
             </motion.button>
           )}
 
-          {/* 🗑️ مسح نص البحث */}
+          {/* مسح نص البحث */}
           {query && (
             <motion.button
-              initial={{ opacity: 0, scale: 0.8 }}
+              initial={{ opacity: 0, scale: 0.7 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
+              exit={{ opacity: 0, scale: 0.7 }}
+              whileTap={{ scale: 0.85 }}
               onClick={onClear}
-              className="p-1.5 hover:bg-muted rounded-md transition-colors"
+              className="w-9 h-9 rounded-full bg-white/8 hover:bg-white/15 flex items-center justify-center transition-colors"
               aria-label="مسح البحث"
             >
-              <X className="w-3.5 h-3.5 text-muted-foreground" />
+              <X className="w-5 h-5 text-slate-400" />
             </motion.button>
           )}
 
-          {/* ❤️ حفظ الموقع */}
+          {/* ❤️ حفظ المفضلة */}
           {onSaveLocation && (
             <motion.button
               whileTap={{ scale: 0.85 }}
               onClick={onSaveLocation}
-              className="p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              className={cn(
+                "w-9 h-9 rounded-full flex items-center justify-center transition-all",
+                isFavorite
+                  ? "bg-emerald-500/20 hover:bg-emerald-500/30"
+                  : "bg-white/8 hover:bg-white/15"
+              )}
               title={isFavorite ? 'إزالة من المفضلة' : 'حفظ الموقع'}
               aria-label={isFavorite ? 'إزالة من المفضلة' : 'حفظ الموقع'}
             >
               <Heart
                 className={cn(
-                  'w-4 h-4 transition-all',
+                  'w-5 h-5 transition-all',
                   isFavorite
-                    ? 'text-green-600 fill-green-600'
-                    : 'text-muted-foreground hover:text-red-500'
+                    ? 'text-emerald-400 fill-emerald-400'
+                    : 'text-slate-500 hover:text-emerald-400'
                 )}
               />
             </motion.button>
           )}
 
-          {/* 📍 تحديد موقعي الحالي */}
+          {/* 📍 موقعي الحالي */}
           {onCurrentLocation && (
             <motion.button
               whileTap={{ scale: 0.85 }}
               onClick={onCurrentLocation}
-              className="p-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+              className="w-9 h-9 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 flex items-center justify-center transition-colors"
               title="موقعي الحالي"
               aria-label="تحديد موقعي الحالي"
             >
-              <Navigation className="w-4 h-4 text-blue-500" />
+              <Navigation className="w-5 h-5 text-emerald-400" />
             </motion.button>
-          )}
-
-          {/* ⟳ Searching spinner */}
-          {isSearching && !query && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-1.5">
-              <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            </motion.div>
           )}
         </div>
       </div>
+
+      {/* ─── خط توهج سفلي عند التركيز ─── */}
+      {isSearching && (
+        <motion.div
+          className="absolute -bottom-px left-4 right-4 h-px bg-gradient-to-r from-transparent via-emerald-500/60 to-transparent"
+          initial={{ scaleX: 0, opacity: 0 }}
+          animate={{ scaleX: 1, opacity: 1 }}
+          exit={{ scaleX: 0, opacity: 0 }}
+          transition={{ duration: 0.4 }}
+        />
+      )}
     </div>
   );
 };

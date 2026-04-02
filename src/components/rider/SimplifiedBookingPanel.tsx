@@ -2,13 +2,12 @@
  * SimplifiedBookingPanel - لوحة حجز مبسطة مشابهة لـ Uber/Careem
  */
 
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useBottomSheetDrag } from "@/hooks/useBottomSheetDrag";
 import { 
   Navigation, 
   CreditCard, 
-  ChevronUp, 
-  ChevronDown, 
   Loader2,
   Clock,
   MapPin,
@@ -85,7 +84,7 @@ const SimplifiedBookingPanel = ({
   onChangePickup,
   onChangeDropoff
 }: SimplifiedBookingPanelProps) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const { isExpanded, toggleExpanded, dragProps } = useBottomSheetDrag(false);
   const [showPaymentSelector, setShowPaymentSelector] = useState(false);
   const scheduleDialogRef = useRef<{ openDialog: () => void }>(null);
 
@@ -101,22 +100,34 @@ const SimplifiedBookingPanel = ({
   return (
     <motion.div
       initial={{ y: 100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      className="bg-card/95 backdrop-blur-md rounded-t-3xl shadow-2xl border-t border-border/50"
+      animate={{ y: 0, opacity: 1, height: isExpanded ? '85dvh' : 'auto' }}
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      className="bg-card/95 backdrop-blur-md rounded-t-3xl shadow-2xl border-t border-border/50 flex flex-col"
+      {...dragProps}
     >
+      {/* Glow Line */}
+      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent pointer-events-none" />
+
       {/* Drag Handle */}
       <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full pt-3 pb-2 flex flex-col items-center"
+        onClick={toggleExpanded}
+        className="w-full pt-3 pb-2 flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing shrink-0"
       >
-        <div className="w-12 h-1.5 bg-muted rounded-full mb-1" />
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-          <span>{isExpanded ? "تصغير" : "المزيد"}</span>
-        </div>
+        <motion.div
+          className="rounded-full"
+          animate={{
+            width: isExpanded ? 32 : 48,
+            backgroundColor: isExpanded ? 'rgb(91,221,166)' : 'rgb(71,85,105)',
+          }}
+          style={{ height: 6 }}
+          transition={{ duration: 0.25 }}
+        />
+        <span className="text-[10px] text-muted-foreground">
+          {isExpanded ? 'اضغط للتصغير' : 'اسحب للتوسيع'}
+        </span>
       </button>
 
-      <div className="px-4 pb-4 space-y-4">
+      <div className={`px-4 pb-4 space-y-4 ${isExpanded ? 'flex-1 overflow-y-auto' : ''}`}>
         {/* Compact Route Summary with ETA */}
         <div className="flex items-center gap-3">
           {/* Route dots */}

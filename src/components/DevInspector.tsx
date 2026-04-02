@@ -339,16 +339,7 @@ function DevInspectorInner() {
       return false;
     }
   });
-  const [showFloatingButton, setShowFloatingButton] = useState(() => {
-    try {
-      const stored = localStorage.getItem('dev-inspector-show');
-      // يظهر افتراضياً في بيئة التطوير إلا إذا أوقفه المستخدم يدوياً
-      if (stored === null) return true;
-      return stored === 'on';
-    } catch {
-      return true;
-    }
-  });
+  const [showFloatingButton, setShowFloatingButton] = useState(true); // يظهر دائماً في DEV
   const [hoveredInfo, setHoveredInfo] = useState<ElementInfo | null>(null);
   const [selectedInfo, setSelectedInfo] = useState<ElementInfo | null>(null);
   const [isGroupSelection, setIsGroupSelection] = useState(false);
@@ -422,13 +413,7 @@ function DevInspectorInner() {
     }
   }, [enabled]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('dev-inspector-show', showFloatingButton ? 'on' : 'off');
-    } catch {
-      // noop
-    }
-  }, [showFloatingButton]);
+  // showFloatingButton دائماً true في DEV — لا نحفظه
 
   useEffect(() => {
     const onToggle = (event: Event) => {
@@ -726,4 +711,10 @@ function DevInspectorInner() {
   );
 }
 
-export default DevInspector;
+/** يظهر فقط في بيئة التطوير المحلية — لا يُشغَّل في الإنتاج */
+export function DevInspector() {
+  if (!import.meta.env.DEV) return null;
+  return <DevInspectorInner />;
+}
+
+export default DevInspector;

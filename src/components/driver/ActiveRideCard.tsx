@@ -160,6 +160,7 @@ export const ActiveRideCard = ({
     duration_minutes: number | null;
     rider_id: string;
   } | null>(null);
+  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
 
   // ═══ Helper functions for new render ═══
   const roundFare = (fare: number) => Math.round(fare / 250) * 250;
@@ -1374,19 +1375,45 @@ export const ActiveRideCard = ({
       )}
 
       {/* ═══ Bottom Sheet — Dark Luxury Active Ride ═══ */}
-      <div
-        className="absolute bottom-0 left-0 right-0 z-50 pointer-events-auto bg-[#0b1326] rounded-t-[2rem] shadow-[0_-20px_50px_rgba(0,0,0,0.4)] border-t border-slate-700/30 transition-all duration-300 ease-out overflow-hidden"
+      <motion.div
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={0.2}
+        animate={{ height: isSheetExpanded ? '90dvh' : 'auto' }}
+        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        onDragEnd={(_, info) => {
+          if (info.offset.y > 50 && isSheetExpanded) {
+            // سحب للأسفل: تصغير
+            setIsSheetExpanded(false);
+          } else if (info.offset.y < -50 && !isSheetExpanded) {
+            // سحب للأعلى: توسيع
+            setIsSheetExpanded(true);
+          }
+        }}
+        className={`absolute bottom-0 left-0 right-0 z-50 pointer-events-auto bg-[#0b1326] rounded-t-[2rem] shadow-[0_-20px_50px_rgba(0,0,0,0.4)] border-t border-slate-700/30 ${isSheetExpanded ? 'overflow-y-auto' : 'overflow-hidden'} flex flex-col`}
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}
         dir="rtl"
       >
+
         {/* Subtle Glow at top */}
         {activeRide.status === "in_progress" && <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#5bdda6]/40 to-transparent blur-sm animate-pulse" />}
         {activeRide.status === "accepted" && <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500/40 to-transparent blur-sm animate-pulse" />}
         {activeRide.status === "arrived" && <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-amber-500/40 to-transparent blur-sm animate-pulse" />}
 
-        {/* Drag Handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-12 h-1 rounded-full bg-slate-700" />
+        {/* Drag Handle — قابل للسحب */}
+        <div
+          className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none select-none"
+          onClick={() => setIsSheetExpanded(prev => !prev)}
+        >
+          <motion.div
+            className="rounded-full bg-slate-600"
+            animate={{
+              width: isSheetExpanded ? 48 : 48,
+              height: 4,
+              backgroundColor: isSheetExpanded ? '#5bdda6' : '#475569',
+            }}
+            transition={{ duration: 0.3 }}
+          />
         </div>
 
         {/* ═══ Status Header Bar (Dark Luxury Variants) ═══ */}
@@ -1629,7 +1656,7 @@ export const ActiveRideCard = ({
             </motion.button>
           )}
         </div>
-      </div>
+      </motion.div>
     </>
   );
 };
