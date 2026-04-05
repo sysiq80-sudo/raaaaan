@@ -18,6 +18,7 @@ import {
 import { User, Session } from "@supabase/supabase-js";
 import { useToast } from "@/hooks/use-toast";
 import { useDriverNotifications } from "@/hooks/useDriverNotifications";
+import { isNativePlatform } from "@/lib/capacitorBridge";
 import { RideRequestCard } from "@/components/driver/RideRequestCard";
 import { ActiveRideCard } from "@/components/driver/ActiveRideCard";
 import { DriverMap } from "@/components/driver/DriverMap";
@@ -549,9 +550,11 @@ const DriverHome = () => {
     };
   }, [isOnline, driverId]);
 
-  // 🚪 beforeunload — ضبط offline عند إغلاق التبويب
+  // 🚪 beforeunload — ضبط offline عند إغلاق التبويب (ويب فقط)
+  // على المنصات الأصلية (Android/iOS) لا نريد هذا — السائق يبقى online
+  // ليتلقى إشعارات FCM حتى مع إغلاق الشاشة
   useEffect(() => {
-    if (!driverId) return;
+    if (!driverId || isNativePlatform) return;
 
     const handleBeforeUnload = () => {
       if (!isOnline) return;

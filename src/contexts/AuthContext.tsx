@@ -205,20 +205,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!isMounted) return;
 
       if (session?.user) {
-        // تحقق من خيار "ابقَني مسجلاً" — يعمل على الويب وتطبيق الأندرويد
-        // sessionStorage يُمسح عند إغلاق المتصفح أو تطبيق Capacitor كلياً
-        const rememberMe = capacitorStorageSync.getItem("raan_remember_me");
-        const sessionAlive = sessionStorage.getItem("raan_session_alive");
-        
-        if (
-          rememberMe !== "true" && 
-          sessionAlive !== "1" &&
-          (source === "INITIAL_SESSION" || source === "getSession")
-        ) {
-          console.log("[AuthContext] Session expired (remember-me=false/null, browser/app restarted) — signing out");
-          await supabase.auth.signOut();
-          if (isMounted) setIsLoading(false);
-          return;
+        // على المنصات الأصلية (Android/iOS) — المستخدم يبقى مسجلاً دائماً
+        // sessionStorage لا تعمل بشكل موثوق في Capacitor WebView
+        // و rememberMeService يحفظ في Preferences لكن هنا نقرأ من localStorage
+        if (!isNativePlatform) {
+          const rememberMe = capacitorStorageSync.getItem("raan_remember_me");
+          const sessionAlive = sessionStorage.getItem("raan_session_alive");
+          
+          if (
+            rememberMe !== "true" && 
+            sessionAlive !== "1" &&
+            (source === "INITIAL_SESSION" || source === "getSession")
+          ) {
+            console.log("[AuthContext] Session expired (remember-me=false/null, browser/app restarted) — signing out");
+            await supabase.auth.signOut();
+            if (isMounted) setIsLoading(false);
+            return;
+          }
         }
 
         // تسجيل أن الجلسة الحالية حية لكي لا يُسجل الخروج عند تحديث الصفحة (Refresh)

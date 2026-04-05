@@ -53,6 +53,30 @@ export const capacitorStorage = {
  * نسخة متزامنة — تحاول القراءة من localStorage أولاً (متوفر على الويب و Capacitor كـ fallback)
  * مفيد للاستخدام في useState initializers والكود المتزامن
  */
+/**
+ * استعادة localStorage من Preferences عند بدء التطبيق الأصلي.
+ * يُستدعى مرة واحدة قبل تهيئة Supabase لضمان بقاء الجلسة.
+ */
+export async function hydrateFromNativeStorage(): Promise<void> {
+  if (!isNativePlatform) return;
+  try {
+    const mod = await import('@capacitor/preferences');
+    const { keys } = await mod.Preferences.keys();
+    for (const key of keys) {
+      // لا نكتب فوق قيمة موجودة بالفعل في localStorage
+      if (localStorage.getItem(key) === null) {
+        const { value } = await mod.Preferences.get({ key });
+        if (value !== null) {
+          localStorage.setItem(key, value);
+        }
+      }
+    }
+    console.log(`[hydrateFromNativeStorage] Restored ${keys.length} keys`);
+  } catch (err) {
+    console.warn('[hydrateFromNativeStorage] Failed:', err);
+  }
+}
+
 export const capacitorStorageSync = {
   getItem(key: string): string | null {
     try {

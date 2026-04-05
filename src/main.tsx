@@ -61,13 +61,16 @@ if ('serviceWorker' in navigator) {
 }
 
 import React from 'react';
+import { hydrateFromNativeStorage } from './lib/capacitorStorage';
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Root element not found");
 
-createRoot(root).render(
-  // Ensure React context works properly
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+// استعادة الجلسة من التخزين الأصلي قبل تهيئة التطبيق
+hydrateFromNativeStorage().finally(() => {
+  createRoot(root).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+});

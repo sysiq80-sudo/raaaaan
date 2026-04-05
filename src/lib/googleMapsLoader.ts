@@ -70,16 +70,20 @@ export function loadGoogleMaps(apiKey: string): Promise<typeof google> {
   loadedApiKey = apiKey;
   loadPromise = new Promise<typeof google>((resolve, reject) => {
     const script = document.createElement("script");
+    const maskedKey = apiKey ? `${apiKey.slice(0, 8)}...` : '(empty)';
+    console.log(`[GoogleMaps] Loading API with key: ${maskedKey}, origin: ${location.origin}`);
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=${ALL_LIBRARIES}&language=ar&region=IQ&loading=async`;
     script.async = true;
     script.defer = true;
 
     script.onload = () => {
+      console.log('[GoogleMaps] Script loaded, waiting for maps.Map...');
       // انتظار جهوزية google.maps.Map (قد يتأخر مع loading=async)
       const check = setInterval(() => {
         if (window.google?.maps?.Map) {
           clearInterval(check);
           clearTimeout(timeout);
+          console.log('[GoogleMaps] ✅ maps.Map ready');
           resolve(window.google);
         }
       }, 50);
@@ -95,10 +99,11 @@ export function loadGoogleMaps(apiKey: string): Promise<typeof google> {
       }, 15000);
     };
 
-    script.onerror = () => {
+    script.onerror = (e) => {
+      console.error('[GoogleMaps] ❌ Script failed to load:', e);
       loadPromise = null;
       loadedApiKey = null;
-      reject(new Error("Failed to load Google Maps script"));
+      reject(new Error("Failed to load Google Maps script — check API key restrictions and CSP"));
     };
 
     document.head.appendChild(script);
