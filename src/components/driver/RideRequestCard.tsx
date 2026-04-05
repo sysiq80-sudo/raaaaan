@@ -23,6 +23,7 @@ import {
   ChevronLeft,
   Layers,
 } from "lucide-react";
+import { useAutoAccept } from "@/stores/driverStore";
 
 interface PendingRide {
   id: string;
@@ -90,6 +91,7 @@ export const RideRequestCard = ({
   onDeepLinkResolved,
 }: RideRequestCardProps) => {
   const { toast } = useToast();
+  const autoAccept = useAutoAccept();
   // ═══ Multi-ride state ═══
   const [pendingRides, setPendingRides] = useState<PendingRide[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -201,6 +203,8 @@ export const RideRequestCard = ({
           .select('status, dropoff_location')
           .eq('driver_id', driverId)
           .in('status', ['accepted', 'arrived', 'in_progress'])
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
         if (activeRide && activeRide.dropoff_location) {
@@ -208,6 +212,9 @@ export const RideRequestCard = ({
           setActiveRideDropoff(dropoff);
           setSearchFromDropoff(true);
           hasActiveRideRef.current = true;
+          // 🛡️ إخفاء بطاقات الطلبات فوراً عند وجود رحلة نشطة
+          setPendingRides([]);
+          onRideRequestVisible?.(false);
           logger.info('RideRequestCard', '🎯 البحث الذكي مُفعَّل - البحث من موقع الوجهة', dropoff);
         } else {
           setActiveRideDropoff(null);
@@ -230,6 +237,13 @@ export const RideRequestCard = ({
     if (actionInProgressRef.current) return;
     if (!isOnline || isPaused) {
       setPendingRides([]);
+      return;
+    }
+
+    // 🛡️ لا تبحث عن طلبات جديدة إذا السائق لديه رحلة نشطة بالفعل
+    if (hasActiveRideRef.current) {
+      setPendingRides([]);
+      onRideRequestVisible?.(false);
       return;
     }
 
@@ -457,6 +471,8 @@ export const RideRequestCard = ({
           },
           (payload) => {
             if (actionInProgressRef.current) return;
+            // 🛡️ تجاهل الطلبات الجديدة إذا السائق لديه رحلة نشطة
+            if (hasActiveRideRef.current) return;
             const rideData = payload.new;
             logger.debug("RideRequestCard", "⚡ New ride INSERT (pending)", rideData?.id);
             if (rideData && rideData.id && rideData.status === 'pending' && !rideData.driver_id) {
@@ -502,6 +518,8 @@ export const RideRequestCard = ({
           { event: "UPDATE", schema: "public", table: "rides" },
           (payload) => {
             if (actionInProgressRef.current) return;
+            // 🛡️ تجاهل الطلبات الجديدة إذا السائق لديه رحلة نشطة
+            if (hasActiveRideRef.current) return;
             const oldStatus = (payload.old as Record<string, unknown>)?.status;
             const newStatus = (payload.new as Record<string, unknown>)?.status;
             const rideData = payload.new;
@@ -589,7 +607,10 @@ export const RideRequestCard = ({
       // إذا 3+ استعلامات فارغة متتالية → وسّع الفاصل إلى 30 ثانية
       const interval = emptyPollCountRef.current >= 3 ? 30000 : 15000;
       pollTimer = setTimeout(() => {
-        fetchPendingRidesRef.current();
+        // 🛡️ لا polling إذا السائق لديه رحلة نشطة
+        if (!hasActiveRideRef.current) {
+          fetchPendingRidesRef.current();
+        }
         schedulePoll(); // جدولة الاستعلام التالي
       }, interval);
     };
@@ -650,6 +671,13 @@ export const RideRequestCard = ({
       return;
     }
 
+    // 🛡️ تحقق مزدوج: لا تقبل رحلة جديدة إذا السائق لديه رحلة نشطة
+    if (hasActiveRideRef.current) {
+      console.warn("[RideRequestCard] ⚠️ handleAccept blocked — driver already has active ride");
+      toast({ title: "تنبيه", description: "لديك رحلة نشطة حالياً", variant: "destructive" });
+      return;
+    }
+
     actionInProgressRef.current = true;
     setLoading(true);
     setActionType("accept");
@@ -691,6 +719,8 @@ export const RideRequestCard = ({
       let acceptSucceeded = false;
 
       // ═══ 2. محاولة RPC عبر raw fetch (تتجاوز مكتبة Supabase JS تماماً) ═══
+      // يستخدم accept_ride_safely RPC الذي يقفل الصف بـ SELECT FOR UPDATE SKIP LOCKED
+      // لمنع قبول سائقين لنفس الرحلة (race condition)
       console.log("[RideRequestCard] 🔷 [RAW FETCH] Trying RPC accept_ride_safely...");
       try {
         const rpcRes = await fetchWithTimeout(
@@ -721,52 +751,49 @@ export const RideRequestCard = ({
         }
       } catch (rpcErr) {
         const isAbort = rpcErr instanceof DOMException && rpcErr.name === 'AbortError';
-        console.warn("[RideRequestCard] RPC failed:", isAbort ? 'TIMEOUT (12s)' : rpcErr);
+        console.warn("[RideRequestCard] RPC attempt 1 failed:", isAbort ? 'TIMEOUT (12s)' : rpcErr);
       }
 
-      // ═══ 3. محاولة PATCH مباشر عبر raw fetch ═══
+      // ═══ 3. إعادة محاولة RPC بمهلة أطول (بدلاً من PATCH مباشر غير آمن) ═══
       if (!acceptSucceeded) {
-        console.log("[RideRequestCard] 🔶 [RAW FETCH] Trying direct PATCH...");
+        console.log("[RideRequestCard] 🔷 [RAW FETCH] Retrying RPC accept_ride_safely (attempt 2)...");
         try {
-          const patchRes = await fetchWithTimeout(
-            `${baseUrl}/rest/v1/rides?id=eq.${rideId}&status=eq.pending`,
+          await new Promise(r => setTimeout(r, 1000));
+          const rpcRes2 = await fetchWithTimeout(
+            `${baseUrl}/rest/v1/rpc/accept_ride_safely`,
             {
-              method: 'PATCH',
+              method: 'POST',
               headers,
-              body: JSON.stringify({
-                status: 'accepted',
-                driver_id: driverId,
-                matched_at: new Date().toISOString(),
-              }),
+              body: JSON.stringify({ p_ride_id: rideId, p_driver_id: driverId }),
             },
-            12000
+            15000
           );
 
-          if (!patchRes.ok) {
-            const errBody = await patchRes.text();
-            console.error("[RideRequestCard] PATCH HTTP error:", patchRes.status, errBody);
-            throw new Error(`PATCH HTTP ${patchRes.status}: ${errBody}`);
+          if (!rpcRes2.ok) {
+            const errBody = await rpcRes2.text();
+            console.error("[RideRequestCard] RPC retry HTTP error:", rpcRes2.status, errBody);
+            throw new Error(`RPC retry HTTP ${rpcRes2.status}: ${errBody}`);
           }
 
-          const rows = await patchRes.json();
-          console.log("[RideRequestCard] PATCH result:", rows);
+          const rpcResult2 = await rpcRes2.json();
+          console.log("[RideRequestCard] RPC retry result:", rpcResult2);
 
-          if (Array.isArray(rows) && rows.length > 0 && rows[0].status === 'accepted') {
+          if (rpcResult2?.success) {
             acceptSucceeded = true;
-            console.log("[RideRequestCard] ✅ Direct PATCH succeeded");
+            console.log("[RideRequestCard] ✅ RPC retry succeeded");
           } else {
-            throw new Error('PATCH: no matching rows updated');
+            throw new Error(rpcResult2?.error || 'RPC retry returned failure');
           }
-        } catch (patchErr) {
-          const isAbort = patchErr instanceof DOMException && patchErr.name === 'AbortError';
-          console.error("[RideRequestCard] Direct PATCH failed:", isAbort ? 'TIMEOUT (12s)' : patchErr);
-          throw patchErr;
+        } catch (retryErr) {
+          const isAbort = retryErr instanceof DOMException && retryErr.name === 'AbortError';
+          console.error("[RideRequestCard] RPC attempt 2 failed:", isAbort ? 'TIMEOUT (15s)' : retryErr);
+          throw retryErr;
         }
       }
 
       // ═══ تحقق نهائي ═══
       if (!acceptSucceeded) {
-        throw new Error('All attempts failed');
+        throw new Error('All RPC attempts failed');
       }
 
       console.log("[RideRequestCard] ✅ Accept completed successfully");
@@ -826,6 +853,14 @@ export const RideRequestCard = ({
     }
   };
 
+  // 🚀 ميزة القبول التلقائي الفعلي
+  useEffect(() => {
+    if (autoAccept && pendingRide && !loading && !actionInProgressRef.current) {
+      console.log("[RideRequestCard] ⚡ Auto-accept triggered for ride:", pendingRide.id);
+      toast({ title: "قبول تلقائي ⚡", description: "جاري قبول الطلب تلقائياً..." });
+      handleAccept();
+    }
+  }, [autoAccept, pendingRide?.id, loading]);
 
   const handleReject = async () => {
     if (!pendingRide || loading || actionInProgressRef.current) return;
@@ -911,7 +946,7 @@ export const RideRequestCard = ({
         {/* ═══ Bottom Sheet — Dark Luxury ═══ */}
         <div
           className="bg-[#0b1326] rounded-t-3xl shadow-[0_-20px_50px_rgba(0,0,0,0.4)] border-t border-slate-700/30 relative flex flex-col w-full h-full"
-          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}
+          style={{ paddingBottom: '0.5rem' }}
         >
           {/* Subtle Glow at top */}
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#5bdda6]/30 to-transparent blur-sm pointer-events-none" />
@@ -1015,7 +1050,7 @@ export const RideRequestCard = ({
           </div>
 
           {/* ═══ أزرار الإجراءات ═══ */}
-          <div className="flex w-full mt-auto shrink-0 bg-[#0b1326] pt-2">
+          <div className="flex w-full mt-auto shrink-0 bg-[#0b1326] pt-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
             {/* تخطي — Style Dark Luxury */}
             <Button
               variant="outline"

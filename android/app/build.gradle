@@ -10,7 +10,7 @@ android {
     namespace = "com.raan.captain"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.raan.rider"
+        applicationId "com.raan.car"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -72,7 +72,8 @@ try {
     def servicesJSON = file('google-services.json')
     if (servicesJSON.text) {
         apply plugin: 'com.google.gms.google-services'
+        logger.warn("✅ google-services.json found — FCM push notifications ENABLED")
     }
 } catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+    logger.warn("⚠️ google-services.json NOT FOUND — Push Notifications will NOT work! Run: scripts\\patch-android.bat [rider|driver]")
 }

@@ -61,12 +61,28 @@ const statusMessages: Record<string, StatusMessage> = {
 export const useRideNotifications = (userId: string | null) => {
   const { toast } = useToast();
   const fcmRegistered = useRef(false);
+  // 🛡️ منع تكرار الإشعارات: تتبع آخر حالة تم إشعار المستخدم بها لكل رحلة
+  const lastNotifiedStatusRef = useRef<Map<string, string>>(new Map());
 
   const handleRideUpdate = useCallback((payload: { new: Record<string, unknown>; old: Record<string, unknown> }) => {
     const newStatus = payload.new.status as string;
     const oldStatus = payload.old.status as string;
+    const rideId = payload.new.id as string;
 
     if (newStatus !== oldStatus && statusMessages[newStatus]) {
+      // 🛡️ فحص التكرار: تجاهل إذا سبق إشعار نفس الحالة لنفس الرحلة
+      const lastNotified = lastNotifiedStatusRef.current.get(rideId);
+      if (lastNotified === newStatus) {
+        console.log(`[RiderNotification] Dedup: already notified ${rideId} → ${newStatus}`);
+        return;
+      }
+      lastNotifiedStatusRef.current.set(rideId, newStatus);
+
+      // تنظيف الرحلات المنتهية من خريطة التتبع
+      if (newStatus === 'completed' || newStatus === 'cancelled') {
+        setTimeout(() => lastNotifiedStatusRef.current.delete(rideId), 10000);
+      }
+
       const message = statusMessages[newStatus];
       
       console.log(`[RiderNotification] Status: ${oldStatus} → ${newStatus}`);
@@ -85,19 +101,11 @@ export const useRideNotifications = (userId: string | null) => {
         duration: message.toastDuration
       });
 
-      // Native notification for Capacitor apps
+      // 🛡️ على التطبيق الأصلي: فقط اهتزاز بدون إشعار محلي
+      // لأن FCM يرسل الإشعار عبر DB trigger → edge function
       if (isNativePlatform) {
         nativeHaptic('heavy');
-        showNativeNotification(
-          message.title,
-          message.description,
-          undefined,
-          {
-            channelId: 'raan-rider',
-            priority: 'high',
-            data: { rideId: payload.new.id as string, type: message.notificationTag },
-          }
-        );
+        // لا نستدعي showNativeNotification هنا لتجنب التكرار مع FCM push
       }
 
       // Show browser notification (web only)

@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
 import { playNotificationSound, resumeAudioContext } from "@/lib/audioContext";
 import { isNativePlatform, onAppStateChange, showNativeNotification, nativeHaptic } from "@/lib/capacitorBridge";
+import { capacitorStorageSync } from "@/lib/capacitorStorage";
 import { useDriverStore } from "@/stores/driverStore";
 import { 
   isNotificationMutedNow, 
@@ -48,7 +49,7 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     if (!rideId) return;
 
     try {
-      localStorage.setItem('raan_pending_open_ride', rideId);
+      capacitorStorageSync.setItem('raan_pending_open_ride', rideId);
     } catch {
       // ignore localStorage failures
     }
@@ -234,6 +235,13 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
   }, []);
 
   const handleNewRide = useCallback((payload: { new: Record<string, unknown> }) => {
+    // \ud83d\udee1\ufe0f \u0644\u0627 \u062a\u0638\u0647\u0631 \u0625\u0634\u0639\u0627\u0631\u0627\u062a \u0631\u062d\u0644\u0627\u062a \u062c\u062f\u064a\u062f\u0629 \u0625\u0630\u0627 \u0627\u0644\u0633\u0627\u0626\u0642 \u0644\u062f\u064a\u0647 \u0631\u062d\u0644\u0629 \u0646\u0634\u0637\u0629
+    const storeState = useDriverStore.getState();
+    if (storeState.activeRide) {
+      console.log('\ud83d\udee1\ufe0f Suppressed new ride notification — driver has active ride');
+      return;
+    }
+
     const ride = payload.new;
     const rideId = ride.id as string;
     const rideStatus = ride.status as string;
@@ -353,15 +361,15 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     
     // ═══ التحقق من قبول رحلة معلقة (من FCM أو URL param) ═══
     try {
-      const pendingAcceptRide = localStorage.getItem('raan_pending_accept_ride');
+      const pendingAcceptRide = capacitorStorageSync.getItem('raan_pending_accept_ride');
       if (pendingAcceptRide) {
-        localStorage.removeItem('raan_pending_accept_ride');
+        capacitorStorageSync.removeItem('raan_pending_accept_ride');
         acceptRideFromNotification(pendingAcceptRide, driverId).catch(() => {});
       }
 
-      const pendingOpenRide = localStorage.getItem('raan_pending_open_ride');
+      const pendingOpenRide = capacitorStorageSync.getItem('raan_pending_open_ride');
       if (pendingOpenRide) {
-        localStorage.removeItem('raan_pending_open_ride');
+        capacitorStorageSync.removeItem('raan_pending_open_ride');
         openRideRequestFromNotification(pendingOpenRide);
       }
     } catch {
