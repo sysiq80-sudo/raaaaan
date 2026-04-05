@@ -11,6 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useDriverStore } from "@/stores/driverStore";
 import { isNativePlatform } from "@/lib/capacitorBridge";
+import { capacitorStorageSync } from "@/lib/capacitorStorage";
 
 // ═══ أنواع البيانات ═══
 
@@ -181,58 +182,81 @@ export const registerFCMToken = async (driverId: string): Promise<boolean> => {
 
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
-    
-    // طلب الإذن
+
     const permResult = await PushNotifications.requestPermissions();
     if (permResult.receive !== 'granted') {
-      console.warn('⚠️ إذن الإشعارات مرفوض');
+      console.warn('⚠️ إذن الإشعارات مرفوض — لن تصل إشعارات طلبات الرحلات في الخلفية');
       return false;
     }
 
-    // التسجيل للإشعارات
-    await PushNotifications.register();
+    /**
+     * نفس استراتيجية الراكب: الرمز غالباً موجود من initNativePushNotifications؛
+     * وإلا نضع مستمع registration ثم register() لتفادي فقدان الحدث.
+     */
+    const readStoredToken = (): string | null => {
+      try {
+        return (
+          capacitorStorageSync.getItem('raan_fcm_token') ||
+          (typeof localStorage !== 'undefined' ? localStorage.getItem('raan_fcm_token') : null)
+        );
+      } catch {
+        return null;
+      }
+    };
 
-    // انتظار رمز التسجيل
-    return new Promise((resolve) => {
-      PushNotifications.addListener('registration', async (token) => {
-        console.log('📱 FCM Token:', token.value);
-        
-        // حفظ في localStorage للاستخدام السريع
-        try { localStorage.setItem('raan_fcm_token', token.value); } catch {}
-        
-        // حذف السجلات القديمة ثم إدراج الجديد
-        await supabase
-          .from('push_subscriptions')
-          .delete()
-          .eq('driver_id', driverId)
-          .not('fcm_token', 'is', null);
+    let token = readStoredToken();
 
-        const { error } = await supabase
-          .from('push_subscriptions')
-          .insert({
-            driver_id: driverId,
-            endpoint: `fcm://${token.value}`,
-            p256dh_key: '',
-            auth_key: '',
-            platform: 'android',
-            fcm_token: token.value,
-            updated_at: new Date().toISOString()
-          });
-
-        if (error) {
-          console.error('فشل حفظ رمز FCM:', error);
-          resolve(false);
-        } else {
-          console.log('✅ تم حفظ رمز FCM للسائق:', driverId);
-          resolve(true);
-        }
+    if (!token) {
+      token = await new Promise<string | null>((resolve) => {
+        const timeout = setTimeout(() => resolve(readStoredToken()), 9000);
+        void PushNotifications.addListener('registration', (t) => {
+          clearTimeout(timeout);
+          try {
+            localStorage.setItem('raan_fcm_token', t.value);
+            capacitorStorageSync.setItem('raan_fcm_token', t.value);
+          } catch {
+            /* صامت */
+          }
+          resolve(t.value);
+        });
+        void PushNotifications.register();
       });
+    } else {
+      void PushNotifications.register();
+    }
 
-      PushNotifications.addListener('registrationError', (error) => {
-        console.error('❌ فشل تسجيل FCM:', error);
-        resolve(false);
-      });
+    if (!token) {
+      console.warn('⚠️ لم يُستلم رمز FCM للسائق — تحقق من google-services.json وصلاحيات الإشعارات');
+      return false;
+    }
+
+    // إزالة السجلات المعطوبة ثم الاشتراك الواحد النشط (مثل الراكب)
+    await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('driver_id', driverId)
+      .like('endpoint', 'fcm://%')
+      .is('fcm_token', null);
+
+    await supabase.from('push_subscriptions').delete().eq('driver_id', driverId).like('endpoint', 'fcm://%');
+
+    const { error } = await supabase.from('push_subscriptions').insert({
+      driver_id: driverId,
+      endpoint: `fcm://${token}`,
+      p256dh_key: '',
+      auth_key: '',
+      platform: 'android',
+      fcm_token: token,
+      updated_at: new Date().toISOString(),
     });
+
+    if (error) {
+      console.error('فشل حفظ رمز FCM للسائق:', error);
+      return false;
+    }
+
+    console.log('✅ تم حفظ رمز FCM للسائق في push_subscriptions:', driverId);
+    return true;
   } catch (error) {
     console.error('فشل تسجيل FCM:', error);
     return false;

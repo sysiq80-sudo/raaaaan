@@ -32,6 +32,9 @@ function htmlEntryPlugin(entryHtml: string): Plugin {
 
 export default defineConfig(({ mode }) => ({
   cacheDir: "node_modules/.vite-admin",
+  define: {
+    __APP_MODE__: JSON.stringify('admin'),
+  },
   server: {
     host: "::",
     port: 8083,

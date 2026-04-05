@@ -1,6 +1,8 @@
 import React, { useMemo } from "react";
 import { roundFare } from "@/lib/constants";
 import { useVehicleTypes, type VehicleTypeKey } from "@/hooks/useVehicleTypes";
+import { Leaf, Car, Gem, Shield } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface CompactVehicleSelectorProps {
   selectedVehicle: VehicleTypeKey;
@@ -9,39 +11,12 @@ interface CompactVehicleSelectorProps {
   availableDrivers?: Record<VehicleTypeKey, number>;
 }
 
-// ألوان CSS لكل نوع مركبة
-const VEHICLE_COLORS: Record<string, { color: string; selectedBg: string; selectedBorder: string; selectedText: string }> = {
-  economy: {
-    color: "text-primary",
-    selectedBg: "bg-primary/10",
-    selectedBorder: "border-primary",
-    selectedText: "text-primary",
-  },
-  comfort: {
-    color: "text-blue-500",
-    selectedBg: "bg-blue-500/10",
-    selectedBorder: "border-blue-500",
-    selectedText: "text-blue-600",
-  },
-  premium: {
-    color: "text-amber-500",
-    selectedBg: "bg-amber-500/10",
-    selectedBorder: "border-amber-500",
-    selectedText: "text-amber-600",
-  },
-  women_only: {
-    color: "text-pink-500",
-    selectedBg: "bg-pink-500/10",
-    selectedBorder: "border-pink-500",
-    selectedText: "text-pink-600",
-  },
-};
-
-const DEFAULT_COLORS = {
-  color: "text-primary",
-  selectedBg: "bg-primary/10",
-  selectedBorder: "border-primary",
-  selectedText: "text-primary",
+// أيقونات وألوان كل مركبة
+const VEHICLE_META: Record<string, { icon: React.ElementType, eta: string, isPopular?: boolean }> = {
+  economy: { icon: Leaf, eta: "٤ دقائق" },
+  comfort: { icon: Car, eta: "٥ دقائق" },
+  premium: { icon: Gem, eta: "٧ دقائق", isPopular: true },
+  women_only: { icon: Shield, eta: "٩ دقائق" },
 };
 
 const CompactVehicleSelector = ({
@@ -52,60 +27,88 @@ const CompactVehicleSelector = ({
 }: CompactVehicleSelectorProps) => {
   const { vehicleTypes } = useVehicleTypes();
 
-  // تحويل بيانات DB إلى عناصر العرض
   const vehicles = useMemo(() => {
     return vehicleTypes.map((vt) => ({
       type: vt.id as VehicleTypeKey,
       name: vt.name_ar,
       multiplier: vt.multiplier,
-      ...(VEHICLE_COLORS[vt.id] || DEFAULT_COLORS),
+      ...(VEHICLE_META[vt.id] || { icon: Car, eta: "٥ دقائق" }),
     }));
   }, [vehicleTypes]);
 
   return (
-    <div className="grid grid-cols-4 gap-1.5">
+    <div className="flex gap-4 overflow-x-auto no-scrollbar -mx-2 px-2 pb-4 pt-4 shrink-0">
       {vehicles.map((v) => {
         const isSelected = selectedVehicle === v.type;
         const driverCount = availableDrivers?.[v.type] ?? 0;
         const isUnavailable = availableDrivers !== undefined && driverCount === 0;
         const fare = baseFare ? Math.round(baseFare * v.multiplier) : null;
+        
+        const Icon = v.icon;
 
         return (
           <button
             key={v.type}
             onClick={() => !isUnavailable && onSelect(v.type)}
             disabled={isUnavailable}
-            className={`
-              flex flex-col items-center justify-center py-2 px-1 rounded-xl border-2 transition-all duration-150
-              ${isUnavailable
-                ? "border-transparent bg-muted/30 opacity-40 cursor-not-allowed"
+            className={cn(
+              "flex-shrink-0 w-36 rounded-2xl p-4 flex flex-col items-center text-center transition-all relative group",
+              isUnavailable 
+                ? "bg-[#171f33]/50 border border-white/5 opacity-50 cursor-not-allowed"
                 : isSelected
-                ? `${v.selectedBg} ${v.selectedBorder}`
-                : "border-transparent bg-card hover:bg-muted/50"
-              }
-            `}
+                ? "bg-[#5bdda6]/10 border-2 border-[#5bdda6]"
+                : "bg-[#171f33] border border-white/5 hover:border-[#5bdda6]/30"
+            )}
           >
-            {/* اسم النوع */}
-            <span
-              className={`text-xs font-bold leading-tight ${
-                isSelected ? v.selectedText : "text-foreground"
-              }`}
-            >
-              {v.name}
-            </span>
+            {/* رسالة الأكثر طلباً */}
+            {v.isPopular && (
+              <div className={cn(
+                "absolute -top-3 px-3 py-0.5 rounded-full z-10 transition-colors",
+                isSelected ? "bg-[#5bdda6]" : "bg-[#2d3449]"
+              )}>
+                <span className={cn(
+                  "text-[10px] font-bold whitespace-nowrap",
+                  isSelected ? "text-[#003825]" : "text-white"
+                )}>
+                  الأكثر طلباً
+                </span>
+              </div>
+            )}
 
-            {/* الأجرة */}
+            {/* الأيقونة */}
+            <div className={cn(
+              "w-14 h-14 rounded-2xl flex items-center justify-center mb-3 transition-colors",
+              isSelected ? "bg-[#5bdda6]/20 text-[#5bdda6]" : "bg-[#2d3449] text-[#5bdda6]/60 group-hover:text-[#5bdda6]"
+            )}>
+              <Icon className="w-7 h-7" />
+            </div>
+
+            {/* اسم النوع */}
+            <h4 className="text-[15px] font-bold text-white mb-1">
+              {v.name}
+            </h4>
+
+            {/* الوقت */}
+            <p className={cn(
+              "text-[10px] mb-3",
+              isSelected ? "text-[#5bdda6]/80" : "text-[#bccac0]"
+            )}>
+              {v.eta}
+            </p>
+
+            {/* السعر */}
             {fare && !isUnavailable ? (
-              <span
-                className={`text-[10px] font-semibold mt-0.5 ${
-                  isSelected ? v.selectedText : "text-muted-foreground"
-                }`}
-              >
-                {roundFare(fare).toLocaleString()}
-              </span>
+              <p className={cn(
+                "font-bold text-base mt-auto",
+                isSelected ? "text-[#5bdda6]" : "text-white"
+              )}>
+                {roundFare(fare).toLocaleString()} <span className="text-[10px] font-normal">د.ع</span>
+              </p>
             ) : isUnavailable ? (
-              <span className="text-[9px] text-muted-foreground mt-0.5">غير متاح</span>
-            ) : null}
+              <p className="text-[9px] text-red-400 mt-auto">غير متاح</p>
+            ) : (
+              <p className="text-[10px] text-white/40 mt-auto">--</p>
+            )}
           </button>
         );
       })}

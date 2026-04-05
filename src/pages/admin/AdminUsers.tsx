@@ -132,7 +132,12 @@ const AdminUsers = () => {
       };
     });
 
-    setUsers(usersWithRoles);
+    // استبعاد مستخدمي الإدارة (admin/moderator) — يُداروا من صفحة "مدراء النظام" المنفصلة
+    const filteredUsers = usersWithRoles.filter(
+      (u) => !u.roles.some((r) => r === "admin" || r === "moderator")
+    );
+
+    setUsers(filteredUsers);
     setLoading(false);
   };
 

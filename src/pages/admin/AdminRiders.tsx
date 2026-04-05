@@ -56,7 +56,7 @@ import {
   Trash2,
   Ban,
   CheckCircle,
-  Map
+  Map as MapIcon
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
@@ -163,9 +163,23 @@ const AdminRiders = () => {
       return;
     }
 
-    console.log(`Fetched ${profiles?.length || 0} profiles`);
+    // استبعاد مستخدمي الإدارة (admin/moderator) من قائمة الركاب
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rolesTable = supabase.from("user_roles") as any;
+    const { data: adminRoles } = await rolesTable
+      .select("user_id")
+      .in("role", ["admin", "moderator"]);
+    const adminUserIds = new Set((adminRoles || []).map((r: any) => r.user_id));
 
-    // Email is now stored directly in profiles table
+    // استبعاد السائقين من قائمة الركاب
+    const { data: driverRecords } = await supabase
+      .from("drivers")
+      .select("user_id");
+    const driverUserIds = new Set((driverRecords || []).map((d: any) => d.user_id));
+
+    const filteredProfiles = (profiles || []).filter((p: any) => !adminUserIds.has(p.user_id) && !driverUserIds.has(p.user_id));
+
+    console.log(`Fetched ${profiles?.length || 0} profiles, ${filteredProfiles.length} after excluding admins`);
 
     // Fetch rides for stats
     const { data: rides, error: ridesError } = await supabase
@@ -185,8 +199,8 @@ const AdminRiders = () => {
       ridesByRider.set(r.rider_id, arr);
     });
 
-    // Calculate stats for each rider
-    const ridersWithStats: RiderWithStats[] = (profiles || []).map((profile) => {
+    // Calculate stats for each rider (استبعاد الإدارة)
+    const ridersWithStats: RiderWithStats[] = filteredProfiles.map((profile: any) => {
       const riderRides = ridesByRider.get(profile.user_id) || [];
       const completedRides = riderRides.filter(r => r.status === 'completed');
       const cancelledRides = riderRides.filter(r => r.status === 'cancelled');
@@ -398,7 +412,7 @@ const AdminRiders = () => {
             size="sm"
             onClick={() => setLiveMapOpen(true)}
           >
-            <Map className="w-4 h-4 ml-2" />
+            <MapIcon className="w-4 h-4 ml-2" />
             خريطة حية
           </Button>
           <Button

@@ -35,14 +35,21 @@ export const useLocationPicker = (
   mapToken: string | null,
   userLocation: { lat: number; lng: number } | null,
   reloadKey?: number,
+  currentMode?: "pickup" | "dropoff" | "booking",
 ) => {
   const { toast } = useToast();
   const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
 
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
+  const userMarkerRef = useRef<google.maps.Marker | null>(null);
+  const userAccuracyCircleRef = useRef<google.maps.Circle | null>(null);
+  const hasPannedToUserOnce = useRef(false);
   const skipNextReverseGeocodeRef = useRef(false); // ✨ Flag لمنع reverseGeocode بعد البحث
   const lastHandledReloadKeyRef = useRef<number | null>(null);
+  const centerAddressRef = useRef<string>(""); // ✨ Ref لتجنب stale closure في idle listener
+  const isDraggingRef = useRef(false); // ✨ Ref بدل state لتجنب stale closure في idle listener
+  const lastGeocodedLatLngRef = useRef<{ lat: number; lng: number } | null>(null); // ✨ لمنع تكرار geocoding لنفس الإحداثيات
 
   const [isLoading, setIsLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -74,6 +81,19 @@ export const useLocationPicker = (
       map.current = null;
     }
 
+    lastGeocodedLatLngRef.current = null; // ✨ إعادة تعيين عند إعادة تهيئة الخريطة
+    
+    // إزالة العلامات السابقة من الخريطة
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setMap(null);
+      userMarkerRef.current = null;
+    }
+    if (userAccuracyCircleRef.current) {
+      userAccuracyCircleRef.current.setMap(null);
+      userAccuracyCircleRef.current = null;
+    }
+    hasPannedToUserOnce.current = false;
+
     if (mapContainer.current) {
       mapContainer.current.innerHTML = "";
     }
@@ -102,6 +122,19 @@ export const useLocationPicker = (
     }
   }, []);
 
+  // ✨ حساب المسافة بين نقطتين (بالمتر) لمنع تكرار geocoding
+  const haversineDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371000;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
   /**
    * 🏛️ Reverse Geocoding — POI-First with Robust Fallbacks
    *
@@ -114,6 +147,13 @@ export const useLocationPicker = (
     async (lat: number, lng: number) => {
       if (!window.google?.maps) {
         console.warn("Google Maps not yet loaded");
+        return;
+      }
+
+      // ✨ تخطي إذا الإحداثيات لم تتغير (أقل من 5 متر)
+      const last = lastGeocodedLatLngRef.current;
+      if (last && haversineDistance(lat, lng, last.lat, last.lng) < 5) {
+        console.log("⏭️ Skipping reverseGeocode - same location (<5m)");
         return;
       }
 
@@ -320,9 +360,11 @@ export const useLocationPicker = (
           console.log("✅ Fallback:", finalAddress);
         }
 
+        centerAddressRef.current = finalAddress;
         setCenterAddress(finalAddress);
         setCenterLat(lat);
         setCenterLng(lng);
+        lastGeocodedLatLngRef.current = { lat, lng }; // ✨ تحديث آخر إحداثيات تم geocode لها
         checkServiceArea(lat, lng);
       } catch (error: any) {
         console.error("Reverse geocode error:", error);
@@ -338,7 +380,9 @@ export const useLocationPicker = (
           });
         }
 
-        setCenterAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        const fallbackAddr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        centerAddressRef.current = fallbackAddr;
+        setCenterAddress(fallbackAddr);
         setCenterLat(lat);
         setCenterLng(lng);
       }
@@ -455,7 +499,7 @@ export const useLocationPicker = (
             rotateControl: false,
             fullscreenControl: false,
             clickableIcons: true, // ✨ Enable clicking on POI markers
-            gestureHandling: "greedy", // ✨ اللمس الفوري (greedy = no modifier key needed)
+            gestureHandling: "greedy", // ✨ اللمس الفوري - يعمل بدون مفتاح modifier
             draggable: true, // ✨ تفعيل السحب
           });
 
@@ -478,11 +522,14 @@ export const useLocationPicker = (
           // Handle drag events - update address immediately when drag ends
           map.current.addListener("dragstart", () => {
             setIsDragging(true);
+            isDraggingRef.current = true; // ✨ Ref sync
+            centerAddressRef.current = "جاري تحديد العنوان...";
             setCenterAddress("جاري تحديد العنوان..."); // Show loading state
           });
 
           map.current.addListener("dragend", () => {
             setIsDragging(false);
+            isDraggingRef.current = false; // ✨ Ref sync
             // ✨ تخطي reverseGeocode إذا كان العنوان تم تعيينه يدوياً من البحث
             if (skipNextReverseGeocodeRef.current) {
               console.log(
@@ -495,6 +542,31 @@ export const useLocationPicker = (
             if (center) {
               console.log("🔄 Drag ended, reverse geocoding...");
               reverseGeocode(center.lat(), center.lng());
+            }
+          });
+
+          // Handle cursor changes for better UX
+          map.current.addListener("mouseover", () => {
+            if (mapContainer.current) {
+              mapContainer.current.style.cursor = 'grab';
+            }
+          });
+
+          map.current.addListener("mouseout", () => {
+            if (mapContainer.current) {
+              mapContainer.current.style.cursor = 'default';
+            }
+          });
+
+          map.current.addListener("mousedown", () => {
+            if (mapContainer.current) {
+              mapContainer.current.style.cursor = 'grabbing';
+            }
+          });
+
+          map.current.addListener("mouseup", () => {
+            if (mapContainer.current) {
+              mapContainer.current.style.cursor = 'grab';
             }
           });
 
@@ -511,10 +583,10 @@ export const useLocationPicker = (
 
             // ⚡ تشغيل فقط إذا كان العنوان فارغ أو "جاري تحديد"
             if (
-              !isDragging &&
-              (!centerAddress ||
-                centerAddress === "جاري تحديد العنوان..." ||
-                centerAddress.length < 5)
+              !isDraggingRef.current &&
+              (!centerAddressRef.current ||
+                centerAddressRef.current === "جاري تحديد العنوان..." ||
+                centerAddressRef.current.length < 5)
             ) {
               const center = map.current?.getCenter();
               if (center) {
@@ -524,38 +596,41 @@ export const useLocationPicker = (
             }
           });
 
-          // ✨ Handle clicking on POIs (Points of Interest)
-          map.current.addListener(
-            "click",
-            async (event: google.maps.MapMouseEvent) => {
-              if (event.placeId) {
-                // User clicked on a POI - get its name
-                event.stop(); // Prevent default behavior
+          // ✨ Handle clicking on POIs (Points of Interest) - only in pickup/dropoff modes
+          if (currentMode !== "booking") {
+            map.current.addListener(
+              "click",
+              async (event: google.maps.MapMouseEvent) => {
+                if (event.placeId) {
+                  // User clicked on a POI - get its name
+                  event.stop(); // Prevent default behavior
 
-                try {
-                  const place = new google.maps.places.Place({ id: event.placeId });
-                  await place.fetchFields({
-                    fields: ["displayName", "location", "formattedAddress"],
-                  });
+                  try {
+                    const place = new google.maps.places.Place({ id: event.placeId });
+                    await place.fetchFields({
+                      fields: ["displayName", "location", "formattedAddress"],
+                    });
 
-                  if (place.displayName) {
-                    console.log("\u2705 Clicked POI:", place.displayName);
-                    setCenterAddress(place.displayName);
+                    if (place.displayName) {
+                      console.log("\u2705 Clicked POI:", place.displayName);
+                      centerAddressRef.current = place.displayName;
+                      setCenterAddress(place.displayName);
 
-                    if (place.location) {
-                      map.current?.panTo(place.location);
-                      checkServiceArea(
-                        place.location.lat(),
-                        place.location.lng(),
-                      );
+                      if (place.location) {
+                        map.current?.panTo(place.location);
+                        checkServiceArea(
+                          place.location.lat(),
+                          place.location.lng(),
+                        );
+                      }
                     }
+                  } catch (err) {
+                    console.warn("POI details error:", err);
                   }
-                } catch (err) {
-                  console.warn("POI details error:", err);
                 }
-              }
-            },
-          );
+              },
+            );
+          }
         } catch (error) {
           console.error("❌ Map initialization error:", error);
           setIsLoading(false);
@@ -588,27 +663,29 @@ export const useLocationPicker = (
     return () => clearTimeout(timer);
   }, [reloadKey]);
 
-  const userMarkerRef = useRef<google.maps.Marker | null>(null);
-  const userAccuracyCircleRef = useRef<google.maps.Circle | null>(null);
+  // (تم نقل userMarkerRef, userAccuracyCircleRef, و hasPannedToUserOnce إلى الأعلى لتسهيل إدارتها عند التحديث)
 
   useEffect(() => {
-    if (!map.current || !userLocation) return;
+    if (!map.current || !userLocation || isLoading) return;
     if (!window.google?.maps) return;
 
-    // ⚡ Smooth pan لموقع المستخدم
-    const target = new window.google.maps.LatLng(userLocation.lat, userLocation.lng);
-    map.current.panTo(target);
-    map.current.setZoom(16);
-    console.log("🎯 Map panned to user location:", userLocation.lat, userLocation.lng);
+    // ✅ Pan لموقع المستخدم مرة واحدة فقط — بعدها المستخدم يتحكم بالسحب
+    if (!hasPannedToUserOnce.current) {
+      hasPannedToUserOnce.current = true;
+      const target = new window.google.maps.LatLng(userLocation.lat, userLocation.lng);
+      map.current.panTo(target);
+      map.current.setZoom(16);
+      console.log("🎯 Map panned to user location:", userLocation.lat, userLocation.lng);
+    }
 
-    // 🔵 الدائرة الزرقاء — google.maps.Marker مع SVG (لا يحتاج mapId)
+    // 🟢 النقطة الخضراء — google.maps.Marker مع SVG
     const svgIcon = {
       url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
         <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
           <!-- هالة شفافة خارجية -->
-          <circle cx="16" cy="16" r="15" fill="rgba(59,130,246,0.20)" />
-          <!-- حلقة بيضاء -->
-          <circle cx="16" cy="16" r="10" fill="#3b82f6" stroke="white" stroke-width="3"/>
+          <circle cx="16" cy="16" r="15" fill="rgba(91,221,166,0.20)" />
+          <!-- حلقة خضراء -->
+          <circle cx="16" cy="16" r="10" fill="#5bdda6" stroke="white" stroke-width="3"/>
           <!-- نقطة مركزية بيضاء صغيرة -->
           <circle cx="16" cy="16" r="3.5" fill="white"/>
         </svg>
@@ -618,8 +695,9 @@ export const useLocationPicker = (
     };
 
     if (userMarkerRef.current) {
-      // تحديث الموضع فقط
+      // تحديث الموضع والخريطة
       userMarkerRef.current.setPosition({ lat: userLocation.lat, lng: userLocation.lng });
+      userMarkerRef.current.setMap(map.current);
     } else {
       // إنشاء marker جديد
       userMarkerRef.current = new google.maps.Marker({
@@ -633,15 +711,16 @@ export const useLocationPicker = (
       });
     }
 
-    // 🔵 دائرة دقة الموقع (نصف قطر صغير شفاف)
+    // 🟢 دائرة دقة الموقع (نصف قطر صغير شفاف)
     if (userAccuracyCircleRef.current) {
       userAccuracyCircleRef.current.setCenter({ lat: userLocation.lat, lng: userLocation.lng });
+      userAccuracyCircleRef.current.setMap(map.current);
     } else {
       userAccuracyCircleRef.current = new google.maps.Circle({
-        strokeColor: '#3b82f6',
+        strokeColor: '#5bdda6',
         strokeOpacity: 0.3,
         strokeWeight: 1,
-        fillColor: '#3b82f6',
+        fillColor: '#5bdda6',
         fillOpacity: 0.08,
         map: map.current,
         center: { lat: userLocation.lat, lng: userLocation.lng },
@@ -650,11 +729,12 @@ export const useLocationPicker = (
         zIndex: 4,
       });
     }
-  }, [userLocation]);
+  }, [userLocation, isLoading]);
 
   // ✨ دالة لتعيين العنوان يدوياً (من البحث) مع منع reverseGeocode التلقائي
   const setManualAddress = useCallback((address: string) => {
     console.log("✅ Setting manual address:", address);
+    centerAddressRef.current = address;
     setCenterAddress(address);
     skipNextReverseGeocodeRef.current = true;
 

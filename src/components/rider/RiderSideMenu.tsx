@@ -1,9 +1,6 @@
-/**
- * RiderSideMenu — قائمة الراكب بتصميم ملء الشاشة | بدون سكرول
- */
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatEmailToPhone } from "@/lib/validations";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
   LogOut,
@@ -15,6 +12,9 @@ import {
   Info,
   LogIn,
   Gift,
+  Wallet,
+  PlusCircle,
+  BadgeCheck,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 
@@ -27,31 +27,39 @@ interface RiderSideMenuProps {
   onLogout?: () => void;
 }
 
-// ── بطاقة زر القائمة ──────────────────────────────────────────
-const MenuCard = ({
+const MenuListItem = ({
   icon,
   label,
+  description,
   href,
-  color,
+  iconBg,
   onClick,
 }: {
   icon: React.ReactNode;
   label: string;
+  description: string;
   href: string;
-  color: string;
+  iconBg: string;
   onClick?: () => void;
 }) => (
   <Link
     to={href}
     onClick={onClick}
-    className={`flex flex-col items-center justify-center gap-2.5 rounded-2xl border border-slate-700/40 ${color} hover:border-[#5bdda6]/30 active:scale-95 transition-all duration-200 shadow-sm`}
+    dir="rtl"
+    className="group flex flex-col items-center gap-2.5 rounded-2xl border border-[#2e3a55] bg-[#151f33]/80 p-4 transition-all duration-200 hover:border-[#5bdda6]/30 hover:bg-[#1a253a]/90"
   >
-    <span className="[&>svg]:w-8 [&>svg]:h-8">{icon}</span>
-    <span className="text-[13px] font-bold text-center leading-tight px-1 text-white">{label}</span>
+    <span
+      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/10 ${iconBg} text-[#5bdda6] transition-transform duration-200 group-hover:scale-105`}
+    >
+      {icon}
+    </span>
+    <div className="text-center min-w-0 w-full">
+      <p className="text-[14px] font-bold text-[#e6edff] truncate">{label}</p>
+      <p className="mt-0.5 text-[11px] text-[#a8b4d3] truncate">{description}</p>
+    </div>
   </Link>
 );
 
-// ── المكوّن الرئيسي ────────────────────────────────────────────
 const RiderSideMenu = ({
   isOpen,
   onClose,
@@ -70,103 +78,171 @@ const RiderSideMenu = ({
     if (onOpenChange) onOpenChange(false);
   };
 
-  if (!isMenuOpen) return null;
-
   const menuItems = [
-    { icon: <History className="text-blue-400" />,     label: "رحلاتي",           href: "/rider/rides",        color: "bg-blue-500/10" },
-    { icon: <CreditCard className="text-emerald-400" />, label: "المحفظة",        href: "/rider/payments",     color: "bg-emerald-500/10" },
-    { icon: <MapPin className="text-rose-400" />,      label: "أماكني المحفوظة",  href: "/rider/saved-places", color: "bg-rose-500/10" },
-    { icon: <Settings className="text-slate-400" />,   label: "الإعدادات",        href: "/rider/settings",     color: "bg-slate-500/10" },
-    { icon: <Gift className="text-pink-400" />,        label: "ادعُ واربح",        href: "/rider/settings",     color: "bg-pink-500/10" },
-    { icon: <HelpCircle className="text-amber-400" />, label: "المساعدة",         href: "/help",               color: "bg-amber-500/10" },
-    { icon: <Info className="text-purple-400" />,      label: "عن التطبيق",       href: "/about",              color: "bg-purple-500/10" },
+    {
+      icon: <History className="h-5 w-5" />,
+      label: "سجل الرحلات",
+      description: "عرض جميع رحلاتك السابقة",
+      href: "/rider/rides",
+      iconBg: "bg-[#23314c]",
+    },
+    {
+      icon: <CreditCard className="h-5 w-5" />,
+      label: "طرق الدفع",
+      description: "إدارة البطاقات والمحفظة",
+      href: "/rider/payments",
+      iconBg: "bg-[#22394a]",
+    },
+    {
+      icon: <MapPin className="h-5 w-5" />,
+      label: "الأماكن المحفوظة",
+      description: "المنزل، العمل، والمواقع المفضلة",
+      href: "/rider/saved-places",
+      iconBg: "bg-[#3a2a45]",
+    },
+    {
+      icon: <HelpCircle className="h-5 w-5" />,
+      label: "مركز المساعدة",
+      description: "الدعم الفني والأسئلة الشائعة",
+      href: "/help",
+      iconBg: "bg-[#3b3423]",
+    },
+    {
+      icon: <Settings className="h-5 w-5" />,
+      label: "الإعدادات",
+      description: "الخصوصية والتنبيهات واللغة",
+      href: "/rider/settings",
+      iconBg: "bg-[#2a3442]",
+    },
+    {
+      icon: <Gift className="h-5 w-5" />,
+      label: "ادعُ واربح",
+      description: "شارك التطبيق واحصل على مكافآت",
+      href: "/rider/settings",
+      iconBg: "bg-[#3a2742]",
+    },
+    {
+      icon: <Info className="h-5 w-5" />,
+      label: "عن التطبيق",
+      description: "تعرف أكثر على منصة ران",
+      href: "/about",
+      iconBg: "bg-[#2d3046]",
+    },
   ];
 
+  const displayName =
+    (user as { user_metadata?: { full_name?: string } })?.user_metadata?.full_name || "مستخدم ران";
+
   return (
-    <div
-      className="fixed inset-0 z-[60] bg-[#0b1326] flex flex-col overflow-hidden"
-      dir="rtl"
-    >
-      {/* هيدر */}
-      <div className="flex-shrink-0 relative flex flex-col items-center pt-[max(2.5rem,calc(env(safe-area-inset-top)+2rem))] pb-5 border-b border-[#5bdda6]/10 bg-[#0b1326]">
-        {/* زر إغلاق */}
-        <button
-          onClick={handleClose}
-          aria-label="إغلاق القائمة"
-          className="absolute top-3 left-3 w-9 h-9 rounded-xl bg-[#5bdda6]/10 border border-[#5bdda6]/20 flex items-center justify-center active:scale-90 transition-all z-10"
+    <AnimatePresence>
+      {isMenuOpen && (
+        <motion.div 
+          initial={{ x: "100%", opacity: 0.5 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: "100%", opacity: 0.5 }}
+          transition={{ type: "spring", damping: 25, stiffness: 220 }}
+          className="fixed inset-0 z-[60] overflow-hidden bg-[#0b1326]" 
+          dir="rtl"
         >
-          <X className="w-5 h-5 text-[#5bdda6]" />
-        </button>
+          <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-[#5bdda6]/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-[#27b481]/10 blur-3xl" />
 
-        {/* شعار + معلومات المستخدم */}
-        {user ? (
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <img src={logo} alt="RAAN" className="w-12 h-12 rounded-2xl shadow-[0_0_16px_rgba(91,221,166,0.3)] flex-shrink-0" />
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#5bdda6] border-2 border-[#0b1326]" />
-            </div>
-            <div className="text-right">
-              <p className="font-bold text-white text-base leading-tight">
-                {(user as {user_metadata?: {full_name?: string}}).user_metadata?.full_name || "مستخدم ران"}
-              </p>
-              <p className="text-xs text-[#5bdda6]/60 mt-0.5" dir="ltr">
-                {formatEmailToPhone((user as {email?: string}).email) || (user as {phone?: string}).phone || ""}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="RAAN" className="w-12 h-12 rounded-2xl shadow-[0_0_16px_rgba(91,221,166,0.3)] flex-shrink-0" />
-            <Link
-              to="/auth"
-              onClick={handleClose}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#5bdda6]/10 border border-[#5bdda6]/20 hover:bg-[#5bdda6]/20 transition-colors"
-            >
-              <LogIn className="w-4 h-4 text-[#5bdda6] flex-shrink-0" />
-              <span className="text-[#5bdda6] font-semibold text-sm">تسجيل الدخول</span>
-            </Link>
-          </div>
-        )}
-      </div>
-
-
-      {/* شبكة الكاردات */}
-      <div className="flex-1 flex flex-col px-3 py-4 gap-3 min-h-0 bg-[#0b1326]">
-        <div className="flex-1 grid grid-cols-3 grid-rows-2 gap-3 min-h-0">
-          {menuItems.map((item) => (
-            <MenuCard
-              key={item.href}
-              icon={item.icon}
-              label={item.label}
-              href={item.href}
-              color={item.color}
-              onClick={handleClose}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* زر تسجيل الخروج */}
-      <div className="flex-shrink-0 border-t border-[#5bdda6]/10 bg-[#0b1326]">
-        {user && (
           <button
-            onClick={async () => {
-              handleClose();
-              if (onLogout) {
-                onLogout();
-              } else {
-                await logout();
-                navigate("/auth");
-              }
-            }}
-            className="flex items-center justify-center gap-2 w-full py-4 text-red-400 bg-red-500/10 hover:bg-red-500/15 active:bg-red-500/20 transition-colors font-semibold text-base border-none pb-[max(1rem,env(safe-area-inset-bottom))]"
+            onClick={handleClose}
+            aria-label="إغلاق القائمة"
+            className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))] z-20 flex h-10 w-10 items-center justify-center rounded-xl border border-[#5bdda6]/25 bg-[#0f1a2d]/90 text-[#5bdda6] backdrop-blur active:scale-95"
           >
-            <LogOut className="w-5 h-5" />
-            <span>تسجيل الخروج</span>
+            <X className="h-5 w-5" />
           </button>
-        )}
-      </div>
-    </div>
+
+          <div className="relative h-full overflow-y-auto px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(3.25rem,calc(env(safe-area-inset-top)+2.5rem))]">
+            <div className="mx-auto w-full max-w-2xl">
+              {user ? (
+                <>
+                  <section className="mb-7 text-center">
+                    <div className="relative mx-auto mb-4 h-24 w-24 rounded-full bg-gradient-to-br from-[#5bdda6] to-[#27b481] p-[3px] shadow-[0_10px_40px_rgba(91,221,166,0.25)]">
+                      <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0f192b]">
+                        <img src={logo} alt="RAAN" className="h-11 w-11 opacity-90" />
+                      </div>
+                      <span className="absolute bottom-0 left-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0b1326] bg-[#5bdda6] text-[#083d2b]">
+                        <BadgeCheck className="h-4 w-4" />
+                      </span>
+                    </div>
+                    <h2 className="text-2xl font-extrabold text-[#e6edff]">{displayName}</h2>
+                    <div className="mx-auto mt-3 inline-flex items-center gap-2 rounded-full border border-[#5bdda6]/30 bg-[#1a2a3e] px-3 py-1">
+                      <span className="text-xs font-bold uppercase tracking-widest text-[#7ef8c3]">عضوية النخبة</span>
+                    </div>
+                  </section>
+
+                  <section className="mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-[#5bdda6] to-[#27b481] p-5 text-[#083d2b] shadow-[0_22px_45px_-18px_rgba(91,221,166,0.45)]">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-semibold text-[#0b5037]/80">الرصيد الحالي</p>
+                        <p className="mt-1 text-2xl font-extrabold">0.00 د.ع</p>
+                      </div>
+                      <Link
+                        to="/rider/wallet-topup"
+                        onClick={handleClose}
+                        className="flex items-center gap-1.5 rounded-xl bg-[#0f3f2d]/85 px-4 py-2 text-sm font-bold text-[#d9ffe8] transition-transform active:scale-95"
+                      >
+                        <PlusCircle className="h-4 w-4" />
+                        <span>شحن الرصيد</span>
+                      </Link>
+                    </div>
+                  </section>
+
+                  <section className="grid grid-cols-2 gap-3">
+                    {menuItems.map((item) => (
+                      <MenuListItem
+                        key={item.href + item.label}
+                        icon={item.icon}
+                        label={item.label}
+                        description={item.description}
+                        href={item.href}
+                        iconBg={item.iconBg}
+                        onClick={handleClose}
+                      />
+                    ))}
+                  </section>
+
+                  <button
+                    onClick={async () => {
+                      handleClose();
+                      if (onLogout) {
+                        onLogout();
+                      } else {
+                        await logout();
+                        navigate("/auth");
+                      }
+                    }}
+                    className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-400/20 bg-red-500/10 py-4 text-base font-bold text-red-300 transition-colors hover:bg-red-500/15"
+                  >
+                    <LogOut className="h-5 w-5" />
+                    <span>تسجيل الخروج</span>
+                  </button>
+                </>
+              ) : (
+                <section className="mx-auto mt-12 max-w-sm rounded-3xl border border-[#2e3a55] bg-[#141e32]/90 p-6 text-center shadow-lg">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1f2e48] text-[#5bdda6]">
+                    <Wallet className="h-8 w-8" />
+                  </div>
+                  <h2 className="text-xl font-bold text-[#e6edff]">أهلاً بك في ران</h2>
+                  <p className="mt-2 text-sm text-[#a8b4d3]">سجّل الدخول للوصول إلى المحفظة، سجل الرحلات، والإعدادات.</p>
+                  <Link
+                    to="/auth"
+                    onClick={handleClose}
+                    className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#5bdda6]/15 px-5 py-2.5 text-sm font-bold text-[#7ef8c3]"
+                  >
+                    <LogIn className="h-4 w-4" />
+                    <span>تسجيل الدخول</span>
+                  </Link>
+                </section>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 

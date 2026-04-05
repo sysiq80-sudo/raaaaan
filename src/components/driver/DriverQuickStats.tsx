@@ -82,9 +82,9 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
                 <DollarSign className="w-3.5 h-3.5 text-[#5bdda6]" />
                 <p className="text-slate-400 text-[10px] font-bold tracking-wider">الأرباح اليوم</p>
               </div>
-              <p className="text-xl font-black text-white leading-none" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                {todayEarnings.toLocaleString()}{" "}
-                <span className="text-xs font-bold text-[#5bdda6]">د.ع</span>
+              <p className="text-xl font-black text-white leading-none" style={{ fontFamily: "Inter, sans-serif" }}>
+                {todayEarnings.toLocaleString('en-US')}{" "}
+                <span className="text-xs font-bold text-[#5bdda6]" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>د.ع</span>
               </p>
             </div>
 
@@ -95,8 +95,8 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
                 <Car className="w-3.5 h-3.5 text-sky-400" />
                 <p className="text-slate-400 text-[10px] font-bold tracking-wider">الطلبات اليوم</p>
               </div>
-              <p className="text-xl font-black text-white leading-none" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                {todayRides}
+              <p className="text-xl font-black text-white leading-none" style={{ fontFamily: "Inter, sans-serif" }}>
+                {todayRides.toLocaleString('en-US')}
               </p>
             </div>
           </motion.div>

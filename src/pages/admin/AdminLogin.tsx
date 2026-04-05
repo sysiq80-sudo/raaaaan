@@ -10,6 +10,34 @@ import { Mail, Lock, Loader2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { adminLoginSchema } from "@/lib/validations";
 
+// مفتاح تخزين بيانات المشرف من جدول controller
+const ADMIN_CONTROLLER_KEY = "raan_admin_controller";
+
+export interface ControllerAdmin {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: string;
+}
+
+export function getControllerAdmin(): ControllerAdmin | null {
+  try {
+    const raw = localStorage.getItem(ADMIN_CONTROLLER_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function setControllerAdmin(admin: ControllerAdmin) {
+  localStorage.setItem(ADMIN_CONTROLLER_KEY, JSON.stringify(admin));
+}
+
+export function clearControllerAdmin() {
+  localStorage.removeItem(ADMIN_CONTROLLER_KEY);
+}
+
 const AdminLogin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -21,55 +49,18 @@ const AdminLogin = () => {
 
   useEffect(() => {
     const checkExistingSession = async () => {
+      // تحقق من وجود جلسة Supabase Auth + بيانات controller معاً
       const { data: { session } } = await supabase.auth.getSession();
+      const controllerData = getControllerAdmin();
       
-      if (session?.user) {
-        // Check if user is admin
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id)
-          .eq("role", "admin")
-          .maybeSingle();
-
-        if (roleData) {
-          navigate("/admin");
-        }
+      if (session?.user && controllerData) {
+        navigate("/admin");
       }
       setCheckingAuth(false);
     };
 
     checkExistingSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          // Defer the role check to avoid Supabase auth deadlock
-          setTimeout(async () => {
-            const { data: roleData } = await supabase
-              .from("user_roles")
-              .select("role")
-              .eq("user_id", session.user.id)
-              .eq("role", "admin")
-              .maybeSingle();
-
-            if (roleData) {
-              navigate("/admin");
-            } else {
-              toast({
-                title: "غير مصرح",
-                description: "ليس لديك صلاحية الوصول للوحة التحكم",
-                variant: "destructive",
-              });
-              await supabase.auth.signOut();
-            }
-          }, 0);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, [navigate, toast]);
+  }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,49 +82,61 @@ const AdminLogin = () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // 1. التحقق من بيانات الأدمن عبر جدول controller (edge function)
+      const { data: fnData, error: fnError } = await supabase.functions.invoke(
+        "admin-login",
+        { body: { email, password } }
+      );
 
-      if (error) {
+      if (fnError) {
+        let errorMsg = "حدث خطأ في الاتصال بالخادم";
+        try {
+          const ctx = (fnError as any)?.context;
+          if (ctx && typeof ctx.json === "function") {
+            const errBody = await ctx.json();
+            if (errBody?.error) errorMsg = errBody.error;
+          }
+        } catch {}
+
         toast({
           title: "خطأ في تسجيل الدخول",
-          description: error.message === "Invalid login credentials" 
-            ? "البريد الإلكتروني أو كلمة المرور غير صحيحة"
-            : error.message,
+          description: errorMsg,
           variant: "destructive",
         });
         setLoading(false);
         return;
       }
 
-      if (data.user) {
-        // Check if user has admin role
-        const { data: roleData, error: roleError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.user.id)
-          .eq("role", "admin")
-          .maybeSingle();
-
-        if (roleError || !roleData) {
-          toast({
-            title: "غير مصرح",
-            description: "ليس لديك صلاحية الوصول للوحة التحكم",
-            variant: "destructive",
-          });
-          await supabase.auth.signOut();
-          setLoading(false);
-          return;
-        }
-
+      if (!fnData?.success) {
         toast({
-          title: "مرحباً بك!",
-          description: "تم تسجيل الدخول بنجاح",
+          title: "خطأ في تسجيل الدخول",
+          description: fnData?.error || "البريد الإلكتروني أو كلمة المرور غير صحيحة",
+          variant: "destructive",
         });
-        navigate("/admin");
+        setLoading(false);
+        return;
       }
+
+      // 2. حفظ بيانات المشرف من controller
+      setControllerAdmin(fnData.admin);
+
+      // 3. تسجيل الدخول في Supabase Auth (للوصول للبيانات عبر RLS)
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        console.error("Supabase Auth signIn error (after controller verify):", signInError);
+        // حتى لو فشل signIn — المشرف موثق من controller
+        // نحاول الدخول بدونه
+      }
+
+      toast({
+        title: "مرحباً بك!",
+        description: "تم تسجيل الدخول بنجاح",
+      });
+      navigate("/admin");
     } catch (error: any) {
       toast({
         title: "خطأ",

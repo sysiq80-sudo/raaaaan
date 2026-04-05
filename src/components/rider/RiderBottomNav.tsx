@@ -80,7 +80,7 @@ const RiderBottomNav = () => {
       className="backdrop-blur-xl flex items-center h-[68px] transition-colors duration-300"
         style={{
           background: 'var(--raan-bg)',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+          paddingBottom: 'max(env(safe-area-inset-bottom, 24px), 24px)'
         }}
       >
         {/* يمين */}

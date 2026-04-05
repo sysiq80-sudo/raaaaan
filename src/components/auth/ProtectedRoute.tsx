@@ -42,12 +42,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // 3. تحقق من الدور المطلوب (إذا حُدّد)
-  // ✅ في التطبيقات المستقلة (APK) لا نعيد توجيه لتطبيق آخر
   const appMode = typeof __APP_MODE__ !== 'undefined' ? __APP_MODE__ : null;
-  // ✅ إذا كان redirectTo محدداً كـ /driver/auth، نحن في تطبيق السائق — لا نوجه لـ /rider
-  const isDriverApp = redirectTo === "/driver/auth" || appMode === "driver";
+  const isStandaloneRiderOrDriverApp =
+    appMode === "rider" || appMode === "driver" || appMode === "car";
+  const isDriverApp = redirectTo === "/driver/auth" || appMode === "driver" || appMode === "car";
 
-  if (requiredRole && !appMode) {
+  if (requiredRole && !isStandaloneRiderOrDriverApp) {
     // إعادة توجيه حسب الدور الفعلي إذا لا يطابق المطلوب
     if (requiredRole === "rider" && userRole === "driver") {
       return <Navigate to="/driver" replace />;
@@ -62,6 +62,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       return <Navigate to="/admin" replace />;
     }
     if (requiredRole === "admin" && userRole !== "admin") {
+      if (appMode === "admin") {
+        return <Navigate to="/admin/login" state={{ from: location.pathname }} replace />;
+      }
+
       // توجيه المستخدم غير المدير لصفحته الرئيسية بدلاً من /admin/login لمنع حلقة إعادة التوجيه
       const redirectPath = userRole === "driver" ? "/driver" : "/rider";
       return <Navigate to={redirectPath} replace />;

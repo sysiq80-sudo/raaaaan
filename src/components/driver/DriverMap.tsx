@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { getMarkerIcon, getDarkMapStyle } from "@/lib/googleMapService";
-import { MapPin, Loader2, AlertCircle, RefreshCw, Navigation } from "lucide-react";
+import { MapPin, Loader2, AlertCircle, RefreshCw, Navigation, Zap, SlidersHorizontal, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface DriverMapProps {
   driverLocation: { lat: number; lng: number } | null;
@@ -66,6 +67,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
   const [error, setError] = useState<string | null>(null);
   const [authFailed, setAuthFailed] = useState(false);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [autoAccept, setAutoAccept] = useState(false);
   const { apiKey, isLoading: isApiKeyLoading } = useGoogleMapsApiKey();
   const retryCountRef = useRef(0);
 
@@ -254,7 +256,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
           fillOpacity: 1,
           strokeColor: "#0b1326",
           strokeWeight: 3,
-          scale: 8,
+          scale: 7,
         },
         zIndex: 10,
       });
@@ -274,7 +276,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
     // دائرة داخلية ثابتة
     const innerCircle = new google.maps.Circle({
       center,
-      radius: 30,
+      radius: 60,
       map: map.current,
       fillColor: "#5bdda6",
       fillOpacity: 0.18,
@@ -287,7 +289,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
     // دائرة خارجية نابضة (تتمدد وتتلاشى)
     const outerCircle = new google.maps.Circle({
       center,
-      radius: 30,
+      radius: 60,
       map: map.current,
       fillColor: "#5bdda6",
       fillOpacity: 0.12,
@@ -299,20 +301,19 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
     });
     pulseCircles.current = [innerCircle, outerCircle];
 
-    // تحريك الدائرة الخارجية
-    let growing = true;
-    const minRadius = 30;
-    const maxRadius = 120;
-    const step = 2;
+    // تحريك الدائرة الخارجية — موجة أحادية الاتجاه (تتمدد ثم تعود للبداية)
+    const minRadius = 60;
+    const maxRadius = 600;
+    const step = 6;
     const animInterval = setInterval(() => {
       if (!outerCircle.getMap()) { clearInterval(animInterval); return; }
       let r = outerCircle.getRadius();
-      if (growing) { r += step; if (r >= maxRadius) growing = false; }
-      else { r -= step; if (r <= minRadius) growing = true; }
-      const opacity = 0.12 * (1 - (r - minRadius) / (maxRadius - minRadius));
+      r += step;
+      if (r >= maxRadius) r = minRadius; // إعادة التشغيل من البداية كموجة sonar
+      const opacity = 0.15 * (1 - (r - minRadius) / (maxRadius - minRadius));
       outerCircle.setRadius(r);
-      outerCircle.setOptions({ fillOpacity: Math.max(opacity, 0.02), strokeOpacity: Math.max(opacity * 2, 0.05) });
-    }, 50);
+      outerCircle.setOptions({ fillOpacity: Math.max(opacity, 0), strokeOpacity: Math.max(opacity * 2, 0) });
+    }, 40);
 
     // تخزين الـ interval لتنظيفه لاحقاً
     (outerCircle as any)._pulseInterval = animInterval;
@@ -404,26 +405,68 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
       
       <div ref={mapContainer} className="absolute inset-0 bg-gray-100 dark:bg-gray-800" />
       
-      {/* Controls */}
-      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+      {/* Safety Shield - Top Right */}
+      <div className="absolute top-24 right-4 z-30">
+        <Button
+          variant="destructive"
+          size="icon"
+          className="w-12 h-12 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)] transition-all bg-red-500/90 hover:bg-red-600 backdrop-blur"
+          title="الطوارئ والدعم"
+          onClick={() => toast.error("تنبيه طوارئ: تم إشعار فريق الدعم الأمني", { description: "سنقوم بالتواصل معك فوراً" })}
+        >
+          <ShieldAlert className="w-6 h-6 text-white" />
+        </Button>
+      </div>
+
+      {/* Right Edge Contextual Actions */}
+      <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-3">
+        {/* Auto-Accept Toggle */}
         <Button
           size="sm"
           variant="secondary"
-          className="shadow-lg"
+          className={`shadow-lg rounded-none rounded-l-xl border-y border-l h-12 px-3 transition-colors group relative ${
+            autoAccept 
+              ? 'bg-[#5bdda6] text-black border-[#5bdda6] hover:bg-[#4acc95]' 
+              : 'bg-black/80 border-border/50 text-white hover:bg-black'
+          }`}
+          title="القبول التلقائي"
+          onClick={() => {
+            setAutoAccept(!autoAccept);
+            if (!autoAccept) {
+              toast.success("تم تفعيل القبول التلقائي للطلبات");
+            } else {
+              toast.info("تم إيقاف القبول التلقائي");
+            }
+          }}
+        >
+          <Zap className={`w-5 h-5 ml-1.5 transition-colors ${autoAccept ? 'text-black' : 'text-slate-400 group-hover:text-white'}`} />
+          <span className={`font-bold text-sm ${autoAccept ? 'text-black' : 'text-slate-300 group-hover:text-white'}`}>تلقائي</span>
+        </Button>
+
+        {/* My Location */}
+        <Button
+          size="sm"
+          variant="secondary"
+          className="shadow-lg rounded-none rounded-l-xl border-y border-l border-border/50 bg-background/90 hover:bg-background/100 h-12 px-3 transition-colors"
           onClick={handleCenterOnDriver}
           disabled={!driverLocation}
+          title="موقعي"
         >
-          <MapPin className="w-4 h-4 ml-1" />
-          موقعي
+          <MapPin className="w-5 h-5 ml-1.5 text-primary" />
+          <span className="font-bold text-sm">موقعي</span>
         </Button>
-        
-        {driverLocation && (
-          <div className="bg-card/90 backdrop-blur px-3 py-1.5 rounded-lg shadow text-xs">
-            <span className="text-muted-foreground">
-              {driverLocation.lat.toFixed(4)}, {driverLocation.lng.toFixed(4)}
-            </span>
-          </div>
-        )}
+
+        {/* Service Filter */}
+        <Button
+          size="sm"
+          variant="secondary"
+          className="shadow-lg rounded-none rounded-l-xl border-y border-l border-border/50 bg-background/90 hover:bg-sky-500/20 h-12 px-3 transition-colors group relative"
+          title="نوع الخدمة"
+          onClick={() => toast.info("فلاتر الخدمة", { description: "هذه الميزة ستتوفر قريباً لتحديد نوع الطلبات (اقتصادي، VIP)" })}
+        >
+          <SlidersHorizontal className="w-5 h-5 group-hover:text-sky-400 text-muted-foreground ml-1.5 transition-colors" />
+          <span className="font-bold text-sm">الخدمة</span>
+        </Button>
       </div>
     </div>
   );

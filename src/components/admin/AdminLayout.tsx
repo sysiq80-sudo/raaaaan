@@ -42,6 +42,7 @@ import {
   ShieldAlert,
   Building2,
   Shield,
+  UserCog,
   BookOpen,
   Bot,
   GitBranch,
@@ -260,6 +261,7 @@ const AdminLayout = ({
       icon: Shield,
       label: "الأمان والنظام",
       items: [
+        { icon: UserCog, label: "مدراء النظام", href: "/admin/controller-users" },
         { icon: Shield, label: "الأمان والحدود", href: "/admin/security-settings" },
         { icon: BookOpen, label: "التوثيق", href: "/admin/documentation" },
         { icon: Code, label: "ران المطور", href: "/admin/developer-settings" },

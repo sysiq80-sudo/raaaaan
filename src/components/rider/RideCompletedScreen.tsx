@@ -49,6 +49,7 @@ export const RideCompletedScreen = ({
   const [rating, setRating]     = useState(5);
   const [hovered, setHovered]   = useState(0);
   const [badges, setBadges]     = useState<string[]>([]);
+  const [reviewText, setReviewText] = useState("");
   const [loading, setLoading]   = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -59,14 +60,9 @@ export const RideCompletedScreen = ({
   const paymentLabel = ride.payment_method === "wallet" ? "محفظة" : ride.payment_method === "card" ? "بطاقة" : "نقداً";
 
   useEffect(() => {
-    const duration = 2800;
-    const end = Date.now() + duration;
-    const frame = () => {
-      confetti({ particleCount: 3, angle: 60,  spread: 55, origin: { x: 0 }, colors: ["#10b981","#06b6d4","#fbbf24"] });
-      confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1 }, colors: ["#10b981","#06b6d4","#fbbf24"] });
-      if (Date.now() < end) requestAnimationFrame(frame);
-    };
-    frame();
+    try {
+      confetti({ particleCount: 20, spread: 70, origin: { y: 0.6 }, colors: ["#10b981","#fbbf24","#06b6d4"] });
+    } catch { /* ignore */ }
   }, []);
 
   const toggleBadge = (id: string) => {
@@ -78,7 +74,9 @@ export const RideCompletedScreen = ({
     if (!ride.driver_id) { onClose(); return; }
     setLoading(true);
     try {
-      const badgeComment = badges.length > 0 ? `[بادجات: ${badges.join(",")}]` : null;
+      const badgePart = badges.length > 0 ? `[بادجات: ${badges.join(",")}]` : null;
+      const reviewPart = reviewText.trim() || null;
+      const comment = [badgePart, reviewPart].filter(Boolean).join(" | ") || null;
 
       const { error: rideErr } = await supabase
         .from("rides")
@@ -94,28 +92,16 @@ export const RideCompletedScreen = ({
           await supabase.from("ride_ratings").insert({
             ride_id: ride.id,
             rating,
-            comment: badgeComment,
+            comment,
             driver_id: ride.driver_id,
             rider_id: rProfile?.id ?? null,
           });
         }
       } catch (innerErr) { /* ignore */ }
 
-      // تحديث متوسط تقييم السائق — استعلام مجمّع أكثر أماناً
-      try {
-        const { count, data: ridesData } = await supabase
-          .from("rides")
-          .select("driver_rating", { count: "exact" })
-          .eq("driver_id", ride.driver_id)
-          .eq("status", "completed")
-          .not("driver_rating", "is", null);
-        if (ridesData && ridesData.length > 0) {
-          const avg = Math.round((ridesData.reduce((s, r) => s + (r.driver_rating ?? 0), 0) / ridesData.length) * 10) / 10;
-          await supabase.from("drivers").update({ rating: avg }).eq("id", ride.driver_id);
-        }
-      } catch { /* ignore */ }
+      // متوسط تقييم السائق يُحدَّث تلقائياً عبر DB trigger (trg_update_driver_rating)
 
-      try { confetti({ particleCount: 100, spread: 90, origin: { y: 0.5 }, colors: ["#10b981","#fbbf24","#06b6d4","#8b5cf6"] }); } catch { /* ignore */ }
+      try { confetti({ particleCount: 25, spread: 90, origin: { y: 0.5 }, colors: ["#10b981","#fbbf24","#06b6d4","#8b5cf6"] }); } catch { /* ignore */ }
       setSubmitted(true);
       toast({ title: "شكراً لتقييمك! ⭐", description: "تقييمك يجعل الخدمة أفضل" });
       setTimeout(() => onClose(), 2000);
@@ -202,56 +188,60 @@ export const RideCompletedScreen = ({
       </div>
 
       {/* ── كارد التقييم ── */}
-      <div className="relative flex-1 min-h-0 flex flex-col bg-slate-900/50 backdrop-blur-sm mx-5 rounded-3xl border border-slate-700/30 overflow-hidden mb-[100px]">
-        <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 py-4 gap-3 overflow-y-auto">
+      <div className="relative flex-1 min-h-0 flex flex-col bg-slate-900/50 backdrop-blur-sm mx-5 rounded-3xl border border-slate-700/30 overflow-hidden mb-[86px]">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-between px-4 py-3 gap-0">
 
-          <div className="flex flex-col items-center gap-2 shrink-0">
-            <div className="w-14 h-14 rounded-full bg-slate-800 border border-slate-600/50 flex items-center justify-center shadow-lg relative">
-               <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full w-5 h-5 flex items-center justify-center border-2 border-slate-900">
-                  <Star className="w-3 h-3 text-white fill-white" />
+          {/* السائق */}
+          <div className="flex flex-col items-center gap-1.5 shrink-0">
+            <div className="w-11 h-11 rounded-full bg-slate-800 border border-slate-600/50 flex items-center justify-center shadow-lg relative">
+               <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full w-4 h-4 flex items-center justify-center border-2 border-slate-900">
+                  <Star className="w-2.5 h-2.5 text-white fill-white" />
                </div>
-               <span className="text-xl font-black text-slate-200">{driverInitials}</span>
+               <span className="text-base font-black text-slate-200">{driverInitials}</span>
             </div>
-            <p className="text-sm font-bold text-slate-300 text-center">كيف كانت تجربتك مع {driverName}؟</p>
+            <p className="text-xs font-bold text-slate-300 text-center">كيف كانت تجربتك مع {driverName}؟</p>
           </div>
 
-          <div className="flex gap-1.5 shrink-0" style={{ direction: "ltr" }}>
+          {/* النجوم */}
+          <div className="flex gap-1 shrink-0" style={{ direction: "ltr" }}>
             {[1, 2, 3, 4, 5].map((star) => {
               const isActive = star <= display;
               return (
                 <button
-                  key={star} type="button" 
+                  key={star} type="button"
                   onClick={() => { setRating(star); try { navigator.vibrate?.(30); } catch { /* ok */ } }}
                   onMouseEnter={() => setHovered(star)} onMouseLeave={() => setHovered(0)}
-                  className="relative focus:outline-none p-1 transition-transform active:scale-95"
+                  className="relative focus:outline-none p-0.5 transition-transform active:scale-95"
                 >
-                  <Star className={"w-10 h-10 transition-colors duration-200 " + (isActive ? "text-amber-400 fill-amber-400 drop-shadow-[0_0_12px_rgba(251,191,36,0.6)]" : "text-slate-700/40")} />
+                  <Star className={"w-9 h-9 transition-colors duration-200 " + (isActive ? "text-amber-400 fill-amber-400 drop-shadow-[0_0_12px_rgba(251,191,36,0.6)]" : "text-slate-700/40")} />
                 </button>
               );
             })}
           </div>
 
-          <div className="h-8 flex items-center justify-center shrink-0">
+          {/* الحالة */}
+          <div className="h-7 flex items-center justify-center shrink-0">
             <AnimatePresence mode="wait">
               <motion.div
                 key={display} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}
-                className="flex items-center gap-1.5 bg-slate-800 border border-slate-700/50 rounded-full px-4 py-1.5 shadow-sm"
+                className="flex items-center gap-1 bg-slate-800 border border-slate-700/50 rounded-full px-3 py-1 shadow-sm"
               >
-                <span className="text-lg">{cfg.emoji}</span>
-                <span className={`text-sm font-bold ${cfg.color}`}>{cfg.text}</span>
+                <span className="text-base">{cfg.emoji}</span>
+                <span className={`text-xs font-bold ${cfg.color}`}>{cfg.text}</span>
               </motion.div>
             </AnimatePresence>
           </div>
 
-          <div className="w-full shrink-0 pt-2 pb-2">
-            <div className="flex flex-wrap gap-2 justify-center">
+          {/* البادجات */}
+          <div className="w-full shrink-0">
+            <div className="flex flex-wrap gap-1.5 justify-center">
               {BADGES.map((badge) => {
                 const active = badges.includes(badge.id);
                 return (
                   <button
                     key={badge.id} type="button" onClick={() => toggleBadge(badge.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all duration-200 active:scale-95 ${
-                      active ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:border-slate-600"
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all duration-200 active:scale-95 ${
+                      active ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" : "bg-slate-800/50 border-slate-700/50 text-slate-400"
                     }`}
                   >
                     <span>{badge.emoji}</span>
@@ -261,11 +251,34 @@ export const RideCompletedScreen = ({
               })}
             </div>
           </div>
+
+          {/* حقل التعليق الحر */}
+          <div className="w-full shrink-0">
+            <div className={`relative rounded-2xl border transition-all duration-300 ${reviewText ? 'border-emerald-500/50 shadow-[0_0_0_3px_rgba(52,211,153,0.08)]' : 'border-slate-700/50'} bg-slate-900/60`}>
+              <span className="absolute top-2.5 right-3 text-slate-500 text-xs pointer-events-none select-none">✍️</span>
+              <textarea
+                value={reviewText}
+                onChange={e => setReviewText(e.target.value)}
+                placeholder="شارك تجربتك مع هذا الكابتن..."
+                maxLength={300}
+                rows={2}
+                dir="rtl"
+                className="w-full bg-transparent text-xs text-white placeholder:text-slate-600 resize-none px-3 pt-2.5 pb-1.5 pr-8 rounded-2xl focus:outline-none leading-relaxed"
+              />
+              <div className="flex items-center justify-between px-3 pb-1.5">
+                <span className={`text-[9px] ${reviewText.length > 250 ? 'text-amber-400' : 'text-slate-600'}`}>{reviewText.length}/300</span>
+                {reviewText && (
+                  <button type="button" onClick={() => setReviewText('')} className="text-[9px] text-slate-500 hover:text-red-400 transition-colors" aria-label="مسح التعليق">مسح</button>
+                )}
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
       {/* ── أزرار التقييم — ثابتة أسفل الشاشة ── */}
-      <div className="absolute bottom-0 left-0 right-0 flex z-50 bg-[#163d30]" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0px)" }}>
+      <div className="absolute bottom-0 left-0 right-0 flex z-50 bg-[#163d30]" style={{ paddingBottom: "max(env(safe-area-inset-bottom, 32px), 32px)" }}>
         <button
           type="button" onClick={onClose} disabled={loading}
           className="flex-1 h-[72px] flex items-center justify-center text-sm font-bold text-emerald-300 bg-[#0f2922] hover:bg-[#163d30] transition-colors disabled:opacity-50 touch-manipulation border-t border-l border-emerald-500/20"

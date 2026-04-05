@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle, RefreshCw, Phone } from "lucide-react";
@@ -15,12 +15,11 @@ interface OTPVerificationProps {
 
 const OTPVerification = ({ phone, purpose, onVerified, onBack }: OTPVerificationProps) => {
   const { toast } = useToast();
-  const [otp, setOtp] = useState<string[]>(Array(6).fill(""));
+  const [otp, setOtp] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [sent, setSent] = useState(false);
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Countdown timer
   useEffect(() => {
@@ -75,12 +74,12 @@ const OTPVerification = ({ phone, purpose, onVerified, onBack }: OTPVerification
 
   const resendOTP = async () => {
     if (countdown > 0) return;
-    setOtp(Array(6).fill(""));
+    setOtp("");
     await sendOTP();
   };
 
-  const verifyOTP = async () => {
-    const code = otp.join("");
+  const verifyOTP = async (overrideCode?: string) => {
+    const code = typeof overrideCode === 'string' ? overrideCode : otp;
     if (code.length !== 6) {
       toast({
         title: "خطأ",
@@ -139,58 +138,6 @@ const OTPVerification = ({ phone, purpose, onVerified, onBack }: OTPVerification
     }
   };
 
-  const handleChange = (index: number, rawValue: string) => {
-    // Extract only digits (handles multi-char input when box is pre-filled: "1"+"2"="12")
-    const digits = rawValue.replace(/\D/g, '');
-
-    // If multiple digits entered at once (e.g. box had '1', user typed '2' → '12')
-    // distribute them sequentially starting at current index
-    if (digits.length > 1) {
-      const newOtp = [...otp];
-      digits.split('').forEach((d, i) => {
-        if (index + i < 6) newOtp[index + i] = d;
-      });
-      setOtp(newOtp);
-      const nextIndex = Math.min(index + digits.length, 5);
-      inputRefs.current[nextIndex]?.focus();
-      const fullCode = newOtp.join('');
-      if (/^\d{6}$/.test(fullCode)) setTimeout(() => verifyOTP(), 200);
-      return;
-    }
-
-    const digit = digits; // single digit or empty string (backspace)
-    const newOtp = [...otp];
-    newOtp[index] = digit;
-    setOtp(newOtp);
-
-    // Auto-advance to next input
-    if (digit && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-
-    // Auto-submit when last box filled
-    if (digit && index === 5) {
-      const fullCode = newOtp.join('');
-      if (/^\d{6}$/.test(fullCode)) setTimeout(() => verifyOTP(), 200);
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (pastedData.length === 6) {
-      setOtp(pastedData.split(''));
-      inputRefs.current[5]?.focus();
-      setTimeout(verifyOTP, 100);
-    }
-  };
-
   const formatPhoneDisplay = (phone: string) => {
     const cleaned = phone.replace(/\D/g, '');
     if (cleaned.startsWith('964')) {
@@ -202,45 +149,51 @@ const OTPVerification = ({ phone, purpose, onVerified, onBack }: OTPVerification
   return (
     <div className="space-y-6">
       {/* Phone Display */}
-      <div className="text-center space-y-2">
-        <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-          <Phone className="w-8 h-8 text-primary" />
+      <div className="flex flex-col items-center justify-center text-center space-y-3 mb-8 pt-2">
+        <div className="w-20 h-20 bg-[#1a2333] rounded-[24px] flex items-center justify-center border border-slate-700/50 shadow-inner">
+           <Phone className="w-[34px] h-[34px] text-emerald-400" />
         </div>
-        <h3 className="text-lg font-semibold">التحقق من رقم الهاتف</h3>
-        <p className="text-muted-foreground text-sm">
-          تم إرسال رمز التحقق إلى
-        </p>
-        <p className="font-mono text-lg font-semibold" dir="ltr">
-          {formatPhoneDisplay(phone)}
-        </p>
+        <div className="pt-2">
+           <h3 className="text-[22px] font-bold text-white mb-2">التحقق من رقم الهاتف</h3>
+           <p className="text-slate-400 text-[14px]">
+             أدخل الرمز المكون من 6 أرقام المرسل إلى واتساب
+           </p>
+           <div className="bg-[#0a0f1c] inline-block px-5 py-2.5 rounded-xl border border-slate-800/80 mt-3 shadow-inner">
+             <span className="font-semibold text-[17px] text-emerald-400 tracking-widest" dir="ltr">
+               {formatPhoneDisplay(phone)}
+             </span>
+           </div>
+        </div>
       </div>
 
       {/* OTP Input */}
-      <div className="space-y-2">
-        <Label className="text-center block">أدخل رمز التحقق</Label>
-        <div className="flex justify-center gap-2" dir="ltr" onPaste={handlePaste}>
-          {otp.map((digit, index) => (
-            <Input
-              key={index}
-              ref={(el) => (inputRefs.current[index] = el)}
-              type="text"
-              inputMode="numeric"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => handleChange(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              className="w-12 h-14 text-center text-2xl font-bold"
-              disabled={loading}
-            />
-          ))}
+      <div className="space-y-6 mb-8 mt-4">
+        <div className="flex justify-center" dir="ltr" style={{ direction: 'ltr' }}>
+          <InputOTP
+            maxLength={6}
+            value={otp}
+            onChange={(val) => {
+              setOtp(val);
+              if (val.length === 6) {
+                setTimeout(() => verifyOTP(val), 200);
+              }
+            }}
+            disabled={loading}
+          >
+            <InputOTPGroup className="gap-2.5 sm:gap-3">
+              {[0, 1, 2, 3, 4, 5].map((idx) => (
+                <InputOTPSlot key={idx} index={idx} className="w-[45px] h-[58px] sm:w-[50px] sm:h-[60px] text-[24px] font-extrabold bg-[#1a2333] border border-slate-700/50 text-white rounded-xl shadow-[inset_0_2px_10px_rgba(0,0,0,0.3)] focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 transition-all placeholder-slate-600" />
+              ))}
+            </InputOTPGroup>
+          </InputOTP>
         </div>
       </div>
 
       {/* Verify Button */}
       <Button 
-        className="w-full" 
-        onClick={verifyOTP} 
-        disabled={loading || otp.some(d => !d)}
+        className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-black text-[16px] font-extrabold rounded-xl shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-50" 
+        onClick={() => verifyOTP()} 
+        disabled={loading || otp.length !== 6}
       >
         {loading ? (
           <>
@@ -266,7 +219,7 @@ const OTPVerification = ({ phone, purpose, onVerified, onBack }: OTPVerification
             variant="ghost" 
             onClick={resendOTP} 
             disabled={sending}
-            className="text-primary"
+            className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 font-bold"
           >
             {sending ? (
               <Loader2 className="w-4 h-4 animate-spin ml-2" />
@@ -280,7 +233,7 @@ const OTPVerification = ({ phone, purpose, onVerified, onBack }: OTPVerification
 
       {/* Back Button */}
       {onBack && (
-        <Button variant="outline" className="w-full" onClick={onBack}>
+        <Button variant="outline" className="w-full h-14 bg-transparent border border-slate-700 hover:bg-[#1a2333] hover:text-white text-slate-300 font-bold rounded-xl transition-all cursor-pointer" onClick={onBack}>
           تغيير رقم الهاتف
         </Button>
       )}

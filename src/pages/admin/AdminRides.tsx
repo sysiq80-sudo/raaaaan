@@ -30,6 +30,8 @@ import {
   Trash2,
   ChevronRight,
   ChevronLeft,
+  Star,
+  MessageSquare,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
@@ -48,6 +50,8 @@ const AdminRides = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [rideToDelete, setRideToDelete] = useState<Ride | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [rideRatings, setRideRatings] = useState<{ rating: number; comment: string | null }[]>([]);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
 
   // حالة الصفحات
   const PAGE_SIZE = 50;
@@ -130,9 +134,19 @@ const AdminRides = () => {
     }).format(date);
   };
 
-  const viewRideDetails = (ride: Ride) => {
+  const viewRideDetails = async (ride: Ride) => {
     setSelectedRide(ride);
     setDetailsOpen(true);
+    setRideRatings([]);
+    setRatingsLoading(true);
+    try {
+      const { data } = await supabase
+        .from("ride_ratings")
+        .select("rating, comment")
+        .eq("ride_id" as any, ride.id);
+      setRideRatings((data as any) || []);
+    } catch { /* ignore */ }
+    setRatingsLoading(false);
   };
 
   const handleDeleteClick = (ride: Ride) => {
@@ -514,6 +528,63 @@ const AdminRides = () => {
                   <p>{selectedRide.cancellation_reason}</p>
                 </div>
               )}
+
+              {/* قسم التعليقات */}
+              <div className="border-t pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                  <p className="text-sm font-semibold">تعليقات الراكب</p>
+                </div>
+                {ratingsLoading ? (
+                  <p className="text-xs text-muted-foreground">جاري التحميل...</p>
+                ) : rideRatings.length === 0 ? (
+                  <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 text-center">لا يوجد تعليقات لهذه الرحلة</p>
+                ) : (() => {
+                  const BADGE_MAP: Record<string, string> = {
+                    clean: '🧹 سيارة نظيفة', ontime: '⏱️ دقيق في المواعيد',
+                    roads: '🛣️ خبير بالطرق', polite: '💬 أسلوب مهذب',
+                    ac: '❄️ مكيف ممتاز', safe: '🚗 قيادة آمنة',
+                  };
+                  return (
+                    <div className="space-y-3">
+                      {rideRatings.map((rv, i) => {
+                        const raw = rv.comment || '';
+                        const badgeMatch = raw.match(/\[بادجات: ([^\]]+)\]/);
+                        const freePart = raw.replace(/\[بادجات: [^\]]+\]\s*\|?\s*/g, '').trim();
+                        const badgeIds = badgeMatch ? badgeMatch[1].split(',') : [];
+                        return (
+                          <div key={i} className="bg-muted/40 rounded-xl p-3 space-y-2">
+                            {/* التقييم */}
+                            <div className="flex items-center gap-1.5">
+                              {[1,2,3,4,5].map(s => (
+                                <Star key={s} className={`w-3.5 h-3.5 ${ s <= rv.rating ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground/30'}`} />
+                              ))}
+                              <span className="text-xs font-bold text-amber-600 dark:text-amber-400 mr-1">{rv.rating}/5</span>
+                            </div>
+                            {/* البادجات */}
+                            {badgeIds.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {badgeIds.map(b => (
+                                  <span key={b} className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-full px-2 py-0.5">
+                                    {BADGE_MAP[b] ?? b}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {/* النص الحر */}
+                            {freePart && (
+                              <blockquote className="text-xs text-foreground/80 bg-background/60 border-r-2 border-primary/40 pr-2 py-1 rounded italic leading-relaxed">
+                                "{freePart}"
+                              </blockquote>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+
             </div>
           )}
         </DialogContent>

@@ -76,8 +76,8 @@ CREATE TRIGGER trigger_update_receipt_transactions_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_receipt_transactions_updated_at();
 
--- إضافة إعدادات البوت الإداري في system_configs
+-- إعدادات البوت الإداري — القيم الفارغة؛ اضبط التوكن ومعرف المجموعة من لوحة الإدارة (لا تخزين أسرار في المستودع)
 INSERT INTO system_configs (category, key_name, key_value, is_secret, description) VALUES
-  ('admin_bot', 'ADMIN_TELEGRAM_BOT_TOKEN', '8500563443:AAFpTzAk8AWKvmo9nlkDv56655YnYi8kFjY', true, 'توكن بوت تليجرام الإداري للموافقة/الرفض'),
-  ('admin_bot', 'ADMIN_GROUP_CHAT_ID', '-1003353713214', false, 'معرف مجموعة الأدمن في تليجرام')
+  ('admin_bot', 'ADMIN_TELEGRAM_BOT_TOKEN', '', true, 'توكن بوت تليجرام الإداري — يُضبط من لوحة الإدارة'),
+  ('admin_bot', 'ADMIN_GROUP_CHAT_ID', '', false, 'معرف مجموعة الأدمن في تليجرام — يُضبط من لوحة الإدارة')
 ON CONFLICT (key_name) DO NOTHING;

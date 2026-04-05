@@ -86,9 +86,8 @@ export const useRiderData = () => {
     // ✅ Guard: لا تطلب الموقع الجغرافي إن لم يكن المستخدم مسجلاً
     if (!userId) return;
 
-    // ⚡ Set default location IMMEDIATELY so the map can render instantly
-    // This will be overwritten once GPS resolves
-    setUserLocation({ lat: 33.4233, lng: 43.2974 }); // Ramadi center
+    // Default location already configured in useLocationPicker's internal logic
+    // We only set userLocation when we get actual GPS data.
 
     let mounted = true;
 

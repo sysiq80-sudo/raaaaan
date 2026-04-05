@@ -1,24 +1,24 @@
 /**
- * ران - Hook البحث الديناميكي عن الأماكن
- * يوفر بحث فوري عن المواقع عبر Google Places API (New) بدلاً من الأماكن المحفوظة
+ * ران - Hook البحث الديناميكي عن الأماكن (محسّن)
+ * يوفر بحث فوري عن المواقع عبر Google Places API (New)
+ * 
+ * ✨ التحسينات:
+ * - LRU Cache: تخزين مؤقت لـ 50 استعلام (TTL: 5 دقائق)
+ * - Request Cancellation: إلغاء الطلبات القديمة عند الكتابة السريعة
+ * - Adaptive Debounce: تأخير متكيف حسب سرعة الكتابة وطول النص
+ * - Offline Detection: كشف عدم الاتصال
  * 
  * يستخدم APIs الجديدة:
- * - AutocompleteSuggestion.fetchAutocompleteSuggestions() بدلاً من AutocompleteService
- * - Place.fetchFields() بدلاً من PlacesService.getDetails()
- * - distanceMeters من API مباشرة (بدون استدعاءات إضافية)
- * 
- * ⚠️ خوارزمية الترتيب حسب القرب الجغرافي:
- * 1. locationBias مع نطاقات متزايدة (5km → 10km → 15km)
- * 2. origin لحساب المسافة من API مباشرة
- * 3. فلترة النتائج البعيدة (>5km)
- * 4. فرز حسب المسافة (الأقرب أولاً)
+ * - AutocompleteSuggestion.fetchAutocompleteSuggestions()
+ * - Place.fetchFields()
+ * - distanceMeters من API مباشرة
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useGoogleMapsApiKey } from "./useGoogleMapsApiKey";
 import { useToast } from "./use-toast";
 
-interface PlacePrediction {
+export interface PlacePrediction {
   place_id: string;
   main_text: string;
   secondary_text?: string;
@@ -29,13 +29,58 @@ interface PlacePrediction {
   distance_text?: string;
 }
 
-interface PlaceDetails {
+export interface PlaceDetails {
   lat: number;
   lng: number;
   address: string;
   name: string;
   placeId: string;
 }
+
+// ─── LRU Cache ───
+interface CacheEntry {
+  predictions: PlacePrediction[];
+  timestamp: number;
+}
+
+const CACHE_MAX_SIZE = 50;
+const CACHE_TTL = 5 * 60 * 1000;        // 5 دقائق
+const CACHE_STALE_TTL = 2 * 60 * 1000;  // 2 دقيقة (stale-while-revalidate)
+
+class SearchCache {
+  private cache = new Map<string, CacheEntry>();
+
+  private makeKey(query: string, lat?: number, lng?: number): string {
+    const locHash = lat != null && lng != null ? `${lat.toFixed(2)}_${lng.toFixed(2)}` : 'noloc';
+    return `${query.trim().toLowerCase()}__${locHash}`;
+  }
+
+  get(query: string, lat?: number, lng?: number): { data: PlacePrediction[]; isStale: boolean } | null {
+    const key = this.makeKey(query, lat, lng);
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    
+    const age = Date.now() - entry.timestamp;
+    if (age > CACHE_TTL) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return { data: entry.predictions, isStale: age > CACHE_STALE_TTL };
+  }
+
+  set(query: string, predictions: PlacePrediction[], lat?: number, lng?: number): void {
+    const key = this.makeKey(query, lat, lng);
+    // حذف أقدم مدخل إذا الكاش ممتلئ
+    if (this.cache.size >= CACHE_MAX_SIZE) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) this.cache.delete(firstKey);
+    }
+    this.cache.set(key, { predictions, timestamp: Date.now() });
+  }
+}
+
+const searchCache = new SearchCache();
 
 export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number } | null) => {
   const { toast } = useToast();
@@ -45,10 +90,19 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   // لا حاجة لـ service refs - API الجديد يستخدم static methods
   const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const apiReadyRef = useRef(false);
+  
+  // Request cancellation
+  const searchIdRef = useRef(0);
+  
+  // Adaptive debounce
+  const lastTypeTimeRef = useRef(0);
+  const typeCountRef = useRef(0);
+  const typeWindowRef = useRef(0);
 
   const formatDistance = useCallback((meters: number) => {
     if (meters < 1000) return `${Math.round(meters)} م`;
@@ -95,22 +149,36 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
     return () => clearTimeout(timer);
   }, [googleMapsApiKey]);
 
-  // البحث الأساسي باستخدام AutocompleteSuggestion API الجديد
+  // البحث الأساسي باستخدام AutocompleteSuggestion API الجديد + Cache + Cancellation
   const performSearch = useCallback(
     async (query: string) => {
-      if (!query.trim()) {
+      if (!query.trim() || query.trim().length < 2) {
         setPredictions([]);
         return;
+      }
+
+      // Request cancellation ID
+      const currentSearchId = ++searchIdRef.current;
+
+      // ─── تحقق من الكاش أولاً ───
+      const cached = searchCache.get(query, userLocation?.lat, userLocation?.lng);
+      if (cached) {
+        setPredictions(cached.data);
+        if (!cached.isStale) {
+          return; // كاش طازج — لا حاجة لاستدعاء API
+        }
+        // كاش قديم — نعرض الكاش ونحدث بالخلفية
       }
 
       if (!apiReadyRef.current) {
-        console.error("❌ Places API (New) not ready");
-        setPredictions([]);
+        // أوفلاين أو API غير جاهز
+        setIsOffline(true);
+        if (!cached) setPredictions([]);
         return;
       }
 
-      setIsSearching(true);
-      console.log("🔍 Searching for:", query);
+      setIsOffline(false);
+      if (!cached) setIsSearching(true);
       
       try {
         // ✨ بحث مع نطاقات متزايدة
@@ -191,6 +259,13 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
         }
 
         console.log(`✅ Found ${formattedPredictions.length} results (sorted by distance)`);
+        
+        // ─── Cancellation check — تجاهل إذا هناك بحث أحدث ───
+        if (currentSearchId !== searchIdRef.current) return;
+        
+        // ─── حفظ في الكاش ───
+        searchCache.set(query, formattedPredictions, userLocation?.lat, userLocation?.lng);
+        
         setPredictions(formattedPredictions);
       } catch (error: any) {
         console.error("❌ Search error:", error);
@@ -214,11 +289,48 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
     [userLocation, toast, formatDistance]
   );
 
-  // Debounce search
+  // Adaptive debounce search
   useEffect(() => {
+    // حساب debounce متكيف
+    const now = Date.now();
+    const timeSinceLastType = now - lastTypeTimeRef.current;
+    lastTypeTimeRef.current = now;
+    
+    // عداد سرعة الكتابة (عدد الأحرف في آخر ثانية)
+    if (timeSinceLastType < 1000) {
+      typeCountRef.current++;
+    } else {
+      typeCountRef.current = 1;
+    }
+    if (timeSinceLastType < 300) {
+      typeWindowRef.current++;
+    } else {
+      typeWindowRef.current = 0;
+    }
+
+    let debounceMs: number;
+    const queryLen = searchQuery.trim().length;
+    
+    if (queryLen < 2) {
+      // استعلام قصير جداً — لا بحث
+      debounceMs = 99999;
+    } else if (typeWindowRef.current > 3) {
+      // كتابة سريعة جداً — انتظر أكثر
+      debounceMs = 500;
+    } else if (queryLen >= 5) {
+      // استعلام طويل ومحدد — رد سريع
+      debounceMs = 200;
+    } else if (typeCountRef.current <= 1) {
+      // كتابة بطيئة — رد سريع
+      debounceMs = 200;
+    } else {
+      // افتراضي
+      debounceMs = 300;
+    }
+
     const timer = setTimeout(() => {
       performSearch(searchQuery);
-    }, 300);
+    }, debounceMs);
 
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
@@ -286,6 +398,7 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
     predictions,
     isSearching,
     isLoadingDetails,
+    isOffline,
     performSearch,
     getPlaceDetails,
     clearSearch,

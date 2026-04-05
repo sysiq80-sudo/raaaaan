@@ -134,12 +134,14 @@ const SOUND_PATTERNS: Record<SoundType, () => void> = {
   },
 };
 
+import { capacitorStorageSync } from '@/lib/capacitorStorage';
+
 // تخزين تفضيل المستخدم
 const SOUND_ENABLED_KEY = "raan_sounds_enabled";
 
 export const isSoundEnabled = (): boolean => {
   try {
-    const stored = localStorage.getItem(SOUND_ENABLED_KEY);
+    const stored = capacitorStorageSync.getItem(SOUND_ENABLED_KEY);
     return stored !== "false"; // مفعّل افتراضياً
   } catch {
     return true;
@@ -148,7 +150,7 @@ export const isSoundEnabled = (): boolean => {
 
 export const setSoundEnabled = (enabled: boolean): void => {
   try {
-    localStorage.setItem(SOUND_ENABLED_KEY, String(enabled));
+    capacitorStorageSync.setItem(SOUND_ENABLED_KEY, String(enabled));
   } catch {
     // تجاهل أخطاء localStorage
   }

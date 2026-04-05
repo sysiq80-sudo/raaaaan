@@ -2,7 +2,7 @@
  * SimplifiedBookingPanel - لوحة حجز مبسطة مشابهة لـ Uber/Careem
  */
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useBottomSheetDrag } from "@/hooks/useBottomSheetDrag";
 import { 
@@ -97,74 +97,89 @@ const SimplifiedBookingPanel = ({
     return labels[method];
   };
 
+  const getVehicleName = (type: string) => {
+    switch (type) {
+      case 'economy': return 'إيكونومي';
+      case 'premium': return 'بريميوم';
+      case 'comfort': return 'كومفورت';
+      case 'women_only': return 'نسائي';
+      default: return 'الرحلة';
+    }
+  };
+
   return (
     <motion.div
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1, height: isExpanded ? '85dvh' : 'auto' }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className="bg-card/95 backdrop-blur-md rounded-t-3xl shadow-2xl border-t border-border/50 flex flex-col"
+      className="bg-[#131b2e]/90 backdrop-blur-2xl rounded-t-[2rem] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] border-t border-white/5 flex flex-col w-full max-w-4xl mx-auto pb-6"
+      style={{ WebkitBackdropFilter: 'blur(20px)' }}
       {...dragProps}
     >
-      {/* Glow Line */}
-      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent pointer-events-none" />
-
       {/* Drag Handle */}
       <button
         onClick={toggleExpanded}
-        className="w-full pt-3 pb-2 flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing shrink-0"
+        className="w-full pt-4 pb-2 flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing shrink-0"
       >
         <motion.div
           className="rounded-full"
           animate={{
             width: isExpanded ? 32 : 48,
-            backgroundColor: isExpanded ? 'rgb(91,221,166)' : 'rgb(71,85,105)',
+            backgroundColor: isExpanded ? '#5bdda6' : 'rgba(255,255,255,0.2)',
           }}
-          style={{ height: 6 }}
+          style={{ height: 5 }}
           transition={{ duration: 0.25 }}
         />
-        <span className="text-[10px] text-muted-foreground">
-          {isExpanded ? 'اضغط للتصغير' : 'اسحب للتوسيع'}
-        </span>
       </button>
 
-      <div className={`px-4 pb-4 space-y-4 ${isExpanded ? 'flex-1 overflow-y-auto' : ''}`}>
+      <div className={`px-5 pb-2 space-y-4 ${isExpanded ? 'flex-1 overflow-y-auto no-scrollbar' : ''}`}>
+        
         {/* Compact Route Summary with ETA */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 bg-[#171f33] p-3 rounded-2xl border border-white/5">
           {/* Route dots */}
           <div className="flex flex-col items-center gap-0.5 shrink-0">
-            <div className="w-2 h-2 rounded-full bg-primary" />
-            <div className="w-0.5 h-5 bg-gradient-to-b from-primary to-blue-500" />
+            <div className="w-2 h-2 rounded-full bg-[#5bdda6]" />
+            <div className="w-0.5 h-6 bg-gradient-to-b from-[#5bdda6] to-blue-500" />
             <div className="w-2 h-2 rounded-full bg-blue-500" />
           </div>
           
           {/* Locations */}
-          <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex-1 min-w-0 space-y-2">
             <button onClick={onChangePickup} className="flex items-center justify-between w-full group">
-              <span className="text-xs text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity">تغيير</span>
-              <p className="text-sm truncate text-right">{pickup || 'موقع الانطلاق'}</p>
+              <span className="text-xs text-[#5bdda6] font-medium opacity-0 group-hover:opacity-100 transition-opacity">تغيير</span>
+              <p className="text-[13px] text-white/90 truncate text-right">{pickup || 'موقع الانطلاق'}</p>
             </button>
+            <div className="h-px w-full bg-white/5" />
             <button onClick={onChangeDropoff} className="flex items-center justify-between w-full group">
-              <span className="text-xs text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity">تغيير</span>
-              <p className="text-sm truncate text-right font-medium">{dropoff || 'الوجهة'}</p>
+              <span className="text-xs text-[#5bdda6] font-medium opacity-0 group-hover:opacity-100 transition-opacity">تغيير</span>
+              <p className="text-[13px] text-white font-bold truncate text-right">{dropoff || 'الوجهة'}</p>
             </button>
           </div>
 
           {/* Distance & Time */}
           {routeDistance && routeDuration && (
-            <div className="shrink-0 text-left bg-secondary/50 px-2 py-1 rounded-lg">
-              <p className="text-xs font-bold text-primary">{routeDistance.toFixed(1)} كم</p>
-              <p className="text-[10px] text-muted-foreground">~{Math.round(routeDuration)} د</p>
+            <div className="shrink-0 text-left bg-[#2d3449]/50 px-3 py-2 rounded-xl">
+              <p className="text-xs font-bold text-[#5bdda6]">{routeDistance.toFixed(1)} كم</p>
+              <p className="text-[10px] text-white/50">~{Math.round(routeDuration)} د</p>
             </div>
           )}
         </div>
 
         {/* Driver ETA Badge */}
-        <div className="flex justify-center">
+        <div className="flex justify-center -my-1">
           <DriverETABadge
             pickupCoords={pickupCoords}
             nearbyDriverLocations={nearbyDriverLocations}
             isLoading={fareLoading}
           />
+        </div>
+
+        {/* Vehicle Selection Header */}
+        <div className="flex items-center justify-between mt-2 mb-1">
+          <h2 className="text-[19px] font-bold text-white tracking-tight">اختر نوع الرحلة</h2>
+          <div className="bg-[#2d3449] px-3 py-1 rounded-full text-[10px] font-bold text-[#5bdda6] uppercase tracking-widest shadow-sm">
+            Velocity Mode
+          </div>
         </div>
 
         {/* Vehicle Selection */}
@@ -178,12 +193,14 @@ const SimplifiedBookingPanel = ({
         {/* Payment Method - Collapsed */}
         <button
           onClick={() => setShowPaymentSelector(!showPaymentSelector)}
-          className="w-full flex items-center justify-between p-3 rounded-xl bg-secondary/30 hover:bg-secondary/50 transition-colors"
+          className="w-full flex items-center justify-between p-4 rounded-2xl bg-[#171f33] hover:bg-[#222a3d] border border-white/5 transition-colors"
         >
-          <span className="text-xs text-primary font-medium">تغيير</span>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{getPaymentLabel(selectedPayment)}</span>
-            <CreditCard className="w-4 h-4 text-muted-foreground" />
+          <span className="text-xs text-[#5bdda6] font-bold">تغيير طرق الدفع</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[15px] font-bold text-white">{getPaymentLabel(selectedPayment)}</span>
+            <div className="w-8 h-8 rounded-full bg-[#2d3449] flex items-center justify-center">
+              <CreditCard className="w-4 h-4 text-[#5bdda6]" />
+            </div>
           </div>
         </button>
 
@@ -194,6 +211,7 @@ const SimplifiedBookingPanel = ({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
             >
               <PaymentMethodSelector
                 selectedMethod={selectedPayment}
@@ -213,43 +231,47 @@ const SimplifiedBookingPanel = ({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="bg-secondary/30 rounded-xl p-3 space-y-2"
+              className="bg-[#171f33] rounded-2xl p-4 space-y-3 border border-white/5 overflow-hidden"
             >
               <div className="flex justify-between text-sm">
-                <span>{fareBreakdown.base_fare.toLocaleString()} د.ع</span>
-                <span className="text-muted-foreground">سعر البداية</span>
+                <span className="text-white font-semibold">{fareBreakdown.base_fare.toLocaleString()} د.ع</span>
+                <span className="text-white/50">سعر البداية</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span>{fareBreakdown.distance_fare.toLocaleString()} د.ع</span>
-                <span className="text-muted-foreground">المسافة ({fareBreakdown.distance_km} كم)</span>
+                <span className="text-white font-semibold">{fareBreakdown.distance_fare.toLocaleString()} د.ع</span>
+                <span className="text-white/50">المسافة ({fareBreakdown.distance_km} كم)</span>
               </div>
               {fareBreakdown.vehicle_multiplier > 1 && (
-                <div className="flex justify-between text-sm text-primary">
-                  <span>×{fareBreakdown.vehicle_multiplier}</span>
+                <div className="flex justify-between text-sm text-[#5bdda6]">
+                  <span className="font-bold">×{fareBreakdown.vehicle_multiplier}</span>
                   <span>معامل السيارة</span>
                 </div>
               )}
               <div className="flex justify-between text-sm">
-                <span>{fareBreakdown.service_fee.toLocaleString()} د.ع</span>
-                <span className="text-muted-foreground">رسوم الخدمة</span>
+                <span className="text-white font-semibold">{fareBreakdown.service_fee.toLocaleString()} د.ع</span>
+                <span className="text-white/50">رسوم الخدمة</span>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* Book Button + Schedule Button */}
-        <div className="flex gap-2">
-          <Button
-            className="flex-1 h-14 text-lg font-bold shadow-lg relative overflow-hidden group"
+        <div className="flex w-[calc(100%+2.5rem)] -mx-5 mt-2 shrink-0 bg-[#131b2e] pt-1" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
+          {/* Main Action Button */}
+          <button
+            className={`flex-auto h-[72px] rounded-t-xl rounded-b-none border-t flex items-center justify-center gap-3 text-[18px] font-black transition-all touch-manipulation ${
+              !isLoggedIn || bookingLoading || fareLoading 
+                ? "bg-[#171f33] border-white/5 text-slate-500 cursor-not-allowed shadow-none" 
+                : "bg-gradient-to-r from-[#5bdda6] to-[#27b481] border-[#5bdda6]/30 text-[#003825] active:bg-[#3eba89] shadow-[0_-4px_24px_rgba(91,221,166,0.25)]"
+            }`}
             disabled={!isLoggedIn || bookingLoading || fareLoading}
             onClick={onBook}
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-primary to-primary/80 group-hover:from-primary/90 group-hover:to-primary transition-all" />
             <span className="relative flex items-center justify-center gap-2">
               {bookingLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                <Navigation className="w-5 h-5" />
+                <Navigation className="w-5 h-5 -rotate-90" /> // Arrow styled
               )}
               {!isLoggedIn ? (
                 "سجل دخولك للحجز"
@@ -257,26 +279,26 @@ const SimplifiedBookingPanel = ({
                 "جاري الإرسال..."
               ) : (
                 <>
-                  <span>احجز الآن</span>
+                  <span className="tracking-tight">تأكيد رحلة {getVehicleName(selectedVehicle)}</span>
                   {fareBreakdown && (
-                    <span className="bg-white/20 px-2 py-0.5 rounded-lg text-sm">
+                    <span className="bg-[#003825]/20 px-2 py-0.5 rounded-lg text-sm mr-1">
                       {fareBreakdown.total_fare.toLocaleString()} د.ع
                     </span>
                   )}
                 </>
               )}
             </span>
-          </Button>
+          </button>
 
           {/* Advanced Schedule Button */}
           {isLoggedIn && pickupCoords && dropoffCoords && (
-            <Button
-              className="h-14 px-4 bg-primary/10 hover:bg-primary/20 text-primary font-bold shadow-lg border border-primary/30 transition-all"
+            <button
+              className="h-[72px] w-[80px] shrink-0 flex items-center justify-center rounded-t-xl rounded-b-none border-t border-white/10 bg-[#171f33] hover:bg-[#222a3d] text-[#5bdda6] transition-all touch-manipulation ml-1"
               onClick={() => scheduleDialogRef.current?.openDialog()}
-              title="احجز رحلة متقدمة مع تحديد التاريخ والوقت"
+              title="احجز رحلة متقدمة με تحديد التاريخ والوقت"
             >
-              <Calendar className="w-5 h-5" />
-            </Button>
+              <Calendar className="w-6 h-6" />
+            </button>
           )}
         </div>
 

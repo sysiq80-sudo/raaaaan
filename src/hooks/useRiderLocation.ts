@@ -18,6 +18,8 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
   const [location, setLocation] = useState<LocationCoords | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const dbErrorCountRef = useRef<number>(0);
+
   const updateLocation = useCallback(async (position: GeolocationPosition) => {
     const now = Date.now();
     
@@ -37,23 +39,10 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
     if (now - lastUpdateRef.current < updateInterval) {
       return;
     }
-    
-    lastUpdateRef.current = now;
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
 
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ 
-        current_location: locationData,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', user.id);
-
-    if (updateError) {
-      console.error('Error updating rider location:', updateError);
-    }
+    // Skip Database updates for Rider Location to prevent 403 errors and reduce DB load.
+    // The location is kept in local state (and can be broadcasted via Realtime if needed).
+    dbErrorCountRef.current = 0;
   }, [updateInterval]);
 
   const handleError = useCallback((err: GeolocationPositionError) => {

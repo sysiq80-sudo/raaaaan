@@ -3,7 +3,8 @@ import { lazy, Suspense, useState, useEffect } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { isNativePlatform } from "@/lib/capacitorBridge";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import DevInspector from "@/components/DevInspector";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -151,13 +152,19 @@ const App = () => {
               <ConnectionStatus />
               <PWAInstallPrompt />
               <DevInspector />
-              <BrowserRouter
-                future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-              >
-                <Suspense fallback={<LoadingFallback />}>
-                  <AppRoutes />
-                </Suspense>
-              </BrowserRouter>
+              {isNativePlatform ? (
+                <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <AppRoutes />
+                  </Suspense>
+                </HashRouter>
+              ) : (
+                <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <AppRoutes />
+                  </Suspense>
+                </BrowserRouter>
+              )}
             </AuthProvider>
           </QueryClientProvider>
         </TooltipProvider>

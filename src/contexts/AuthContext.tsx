@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { setSentryUser, clearSentryUser } from "@/lib/sentry";
 import { isNativePlatform } from "@/lib/capacitorBridge";
+import { capacitorStorageSync } from "@/lib/capacitorStorage";
 
 export type UserRole = "rider" | "driver" | "admin" | null;
 export type UserType = "rider" | "driver" | "admin";
@@ -51,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(
-    () => localStorage.getItem("raan_onboarding_completed") === "true"
+    () => capacitorStorageSync.getItem("raan_onboarding_completed") === "true"
   );
   const [isLocationEnabled, setIsLocationEnabled] = useState(false);
   
@@ -65,11 +66,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Generate device ID
   const generateDeviceId = useCallback(() => {
-    const stored = localStorage.getItem("raan_device_id");
+    const stored = capacitorStorageSync.getItem("raan_device_id");
     if (stored) return stored;
     
     const newId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem("raan_device_id", newId);
+    capacitorStorageSync.setItem("raan_device_id", newId);
     return newId;
   }, []);
 
@@ -101,39 +102,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Detect user role (admin, rider, or driver)
   const detectUserRole = useCallback(async (userId: string): Promise<UserRole> => {
     try {
+      const authUser = userRef.current?.id === userId ? userRef.current : null;
+
+      // ✅ في وضع الأدمن: تحقق من وجود بيانات controller أولاً
+      const appMode = typeof __APP_MODE__ !== 'undefined' ? __APP_MODE__ : null;
+      if (appMode === 'admin') {
+        try {
+          const controllerRaw = capacitorStorageSync.getItem("raan_admin_controller");
+          if (controllerRaw) {
+            const controllerData = JSON.parse(controllerRaw);
+            if (controllerData?.role === 'admin') {
+              return "admin";
+            }
+          }
+        } catch {}
+      }
+
       // ✅ تشغيل الطلبات بالتوازي لتسريع الكشف
       const [
-        { data: { user: authUser } },
         { data: adminRole },
         { data: driver },
       ] = await Promise.all([
-        supabase.auth.getUser(),
         supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle(),
         supabase.from("drivers").select("status").eq("user_id", userId).maybeSingle(),
       ]);
 
-      const email = authUser?.email || "";
-      const isPhoneAccount = (
-        email.endsWith("@raan.app") ||
-        email.endsWith("@driver.raan.app") ||
-        email.endsWith("@whatsapp.raan.app")
-      );
-      const isDriverDomain = email.endsWith("@driver.raan.app");
+      const metaRole = authUser?.user_metadata?.role as string | undefined;
 
-      // 1. تحقق من صلاحية الأدمن (فقط الإيميلات الحقيقية)
-      if (!isPhoneAccount && adminRole) {
+      // 1. تحقق من صلاحية الأدمن (عبر جدول user_roles)
+      if (adminRole) {
         return "admin";
       }
 
       // 2. تحقق إذا كان المستخدم سائق
       if (driver) {
         setCanSwitchToDriver(driver.status === "approved");
-        if (isDriverDomain || driver.status === "approved") {
+        if (metaRole === "driver" || driver.status === "approved") {
           return "driver";
         }
         return "rider";
       }
 
+      setCanSwitchToDriver(false);
       return "rider"; // Default
     } catch (error) {
       console.error("Error detecting user role:", error);
@@ -149,7 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Simple device session tracking via localStorage
       const sessionsKey = `raan_sessions_${userId}`;
-      const sessions = JSON.parse(localStorage.getItem(sessionsKey) || "[]");
+      const sessions = JSON.parse(capacitorStorageSync.getItem(sessionsKey) || "[]");
       
       const existingDevice = sessions.find((s: any) => s.device_id === currentDeviceId);
       
@@ -168,7 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       ];
       
-      localStorage.setItem(sessionsKey, JSON.stringify(newSessions));
+      capacitorStorageSync.setItem(sessionsKey, JSON.stringify(newSessions));
     } catch (error) {
       console.error("Error monitoring device sessions:", error);
     }
@@ -195,22 +205,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!isMounted) return;
 
       if (session?.user) {
-        // تحقق من خيار "ابقَني مسجلاً" — فقط على الويب
-        // على Capacitor يتم الاحتفاظ بالجلسة دائماً لأن sessionStorage يُمسح عند إعادة تشغيل التطبيق
-        if (!isNativePlatform) {
-          const rememberMe = localStorage.getItem("raan_remember_me");
-          const sessionAlive = sessionStorage.getItem("raan_session_alive");
-          if (
-            rememberMe === "false" &&
-            sessionAlive !== "1" &&
-            (source === "INITIAL_SESSION" || source === "getSession")
-          ) {
-            console.log("[AuthContext] Session expired (remember-me=false, browser restarted) — signing out");
-            await supabase.auth.signOut();
-            if (isMounted) setIsLoading(false);
-            return;
-          }
+        // تحقق من خيار "ابقَني مسجلاً" — يعمل على الويب وتطبيق الأندرويد
+        // sessionStorage يُمسح عند إغلاق المتصفح أو تطبيق Capacitor كلياً
+        const rememberMe = capacitorStorageSync.getItem("raan_remember_me");
+        const sessionAlive = sessionStorage.getItem("raan_session_alive");
+        
+        if (
+          rememberMe !== "true" && 
+          sessionAlive !== "1" &&
+          (source === "INITIAL_SESSION" || source === "getSession")
+        ) {
+          console.log("[AuthContext] Session expired (remember-me=false/null, browser/app restarted) — signing out");
+          await supabase.auth.signOut();
+          if (isMounted) setIsLoading(false);
+          return;
         }
+
+        // تسجيل أن الجلسة الحالية حية لكي لا يُسجل الخروج عند تحديث الصفحة (Refresh)
+        sessionStorage.setItem("raan_session_alive", "1");
 
         console.log(`[AuthContext] Session found via ${source}:`, session.user.id);
         setUser(session.user);
@@ -219,11 +231,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // ✅ INSTANT LOAD: لا نحجب التطبيق على الشبكة أبداً
         // 1. ابحث عن الدور المخزن (cache أو raan_current_role)
         const cacheKey = `raan_role_${session.user.id}`;
-        const cachedRole = (localStorage.getItem(cacheKey) || localStorage.getItem("raan_current_role")) as UserRole;
+        const cachedRole = (capacitorStorageSync.getItem(cacheKey) || capacitorStorageSync.getItem("raan_current_role")) as UserRole;
 
         // ✅ في التطبيقات المستقلة — فرض الدور حسب نوع التطبيق فوراً
         const appMode = typeof __APP_MODE__ !== 'undefined' ? __APP_MODE__ : null;
-        const immediateRole: UserRole = appMode === 'rider' ? 'rider' : appMode === 'driver' ? 'driver' : (cachedRole || "rider");
+        const immediateRole: UserRole =
+          appMode === 'rider'
+            ? 'rider'
+            : appMode === 'driver' || appMode === 'car'
+              ? 'driver'
+              : appMode === 'admin'
+                ? (cachedRole === 'admin' ? 'admin' : null)
+                : (cachedRole || 'rider');
 
         if (isMounted) {
           console.log(`[AuthContext] Immediate role (cache): ${immediateRole}`);
@@ -238,9 +257,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           // ✅ في التطبيقات المستقلة (APK) — فرض الدور حسب نوع التطبيق
           const appMode = typeof __APP_MODE__ !== 'undefined' ? __APP_MODE__ : null;
-          const effectiveRole = appMode === 'rider' ? 'rider' : appMode === 'driver' ? 'driver' : freshRole;
+          const effectiveRole =
+            appMode === 'rider'
+              ? 'rider'
+              : appMode === 'driver' || appMode === 'car'
+                ? 'driver'
+                : freshRole;
 
-          localStorage.setItem(cacheKey, effectiveRole);
+          capacitorStorageSync.setItem(cacheKey, effectiveRole);
           if (effectiveRole !== immediateRole) {
             console.log(`[AuthContext] Role corrected in background: ${immediateRole} → ${effectiveRole}`);
             setUserRole(effectiveRole);
@@ -261,9 +285,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           clearSentryUser();
           // حذف role cache للمستخدم الحالي
           const uid = userRef.current?.id;
-          if (uid) localStorage.removeItem(`raan_role_${uid}`);
-          localStorage.removeItem("raan_current_role");
-          localStorage.removeItem("raan_remember_me");
+          if (uid) capacitorStorageSync.removeItem(`raan_role_${uid}`);
+          capacitorStorageSync.removeItem("raan_current_role");
+          capacitorStorageSync.removeItem("raan_remember_me");
+          capacitorStorageSync.removeItem("raan_admin_controller");
           sessionStorage.removeItem("raan_session_alive");
         } else {
           console.log(`[AuthContext] No session found (${source})`);
@@ -353,11 +378,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const user = await supabase.auth.getUser();
         if (user.data.user) {
           const sessionsKey = `raan_sessions_${user.data.user.id}`;
-          const sessions = JSON.parse(localStorage.getItem(sessionsKey) || "[]");
+          const sessions = JSON.parse(capacitorStorageSync.getItem(sessionsKey) || "[]");
           const updated = sessions.map((s: any) => 
             s.device_id === deviceId ? { ...s, is_active: false } : s
           );
-          localStorage.setItem(sessionsKey, JSON.stringify(updated));
+          capacitorStorageSync.setItem(sessionsKey, JSON.stringify(updated));
         }
       }
 
@@ -365,7 +390,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await supabase.auth.signOut();
       setUser(null);
       setUserRole(null);
-      localStorage.removeItem("raan_current_role");
+      capacitorStorageSync.removeItem("raan_current_role");
+      // ✅ مسح بيانات controller للأدمن
+      capacitorStorageSync.removeItem("raan_admin_controller");
     } catch (error) {
       console.error("Error logging out:", error);
       toast({
@@ -387,14 +414,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setUserRole("driver");
-    localStorage.setItem("raan_current_role", "driver");
+    capacitorStorageSync.setItem("raan_current_role", "driver");
     return true;
   }, [canSwitchToDriver, toast]);
 
   // Switch to rider mode
   const switchToRider = useCallback(() => {
     setUserRole("rider");
-    localStorage.setItem("raan_current_role", "rider");
+    capacitorStorageSync.setItem("raan_current_role", "rider");
   }, []);
 
   const value: AuthContextType = {

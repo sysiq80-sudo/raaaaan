@@ -104,7 +104,15 @@ const AdminDrivers = () => {
         variant: "destructive",
       });
     } else {
-      setDrivers(data || []);
+      // استبعاد مستخدمي الإدارة (admin/moderator) من قائمة السائقين
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rolesTable = supabase.from("user_roles") as any;
+      const { data: adminRoles } = await rolesTable
+        .select("user_id")
+        .in("role", ["admin", "moderator"]);
+      const adminUserIds = new Set((adminRoles || []).map((r: any) => r.user_id));
+      const filtered = (data || []).filter((d: any) => !adminUserIds.has(d.user_id));
+      setDrivers(filtered);
     }
     setLoading(false);
   };

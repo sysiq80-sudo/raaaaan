@@ -127,10 +127,9 @@ function resolveLocation(text: string): { lat: number; lng: number; address: str
 
 async function findOrCreateGuestUser(supabase: any, phone: string, supabaseUrl: string, serviceKey: string): Promise<string> {
     const smsRef = `sms_${phone}`;
-    const email = `sms_${phone}@sms.raan.app`;
 
     const { data: existing } = await supabase.from("profiles").select("user_id")
-        .or(`phone.eq.${smsRef},email.eq.${email}`).limit(1).maybeSingle();
+        .eq("phone", smsRef).limit(1).maybeSingle();
     if (existing?.user_id) {
         console.log(`[sms-webhook] 👤 Existing user: ${existing.user_id}`);
         return existing.user_id;
@@ -138,14 +137,16 @@ async function findOrCreateGuestUser(supabase: any, phone: string, supabaseUrl: 
 
     console.log(`[sms-webhook] 👤 Creating guest...`);
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email, password: crypto.randomUUID(), email_confirm: true,
+        phone: `+0${phone}`,
+        password: crypto.randomUUID(),
+        phone_confirm: true,
         user_metadata: { full_name: "ضيف SMS", source: "sms_infobip", sms_phone: phone },
     });
 
     let userId: string;
     if (authError) {
         if (authError.message.includes("already been registered")) {
-            const res = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1&filter=${encodeURIComponent(email)}`,
+            const res = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1&filter=${encodeURIComponent(smsRef)}`,
                 { headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } });
             const data = await res.json();
             if (!data.users?.[0]?.id) throw new Error("Guest not found");
@@ -154,7 +155,7 @@ async function findOrCreateGuestUser(supabase: any, phone: string, supabaseUrl: 
     } else if (!authData?.user) throw new Error("No user returned");
     else userId = authData.user.id;
 
-    await supabase.from("profiles").upsert({ user_id: userId, full_name: "ضيف SMS", phone: smsRef, email, status: "active" });
+    await supabase.from("profiles").upsert({ user_id: userId, full_name: "ضيف SMS", phone: smsRef, status: "active" });
     console.log(`[sms-webhook] ✅ Guest ready: ${userId}`);
     return userId;
 }

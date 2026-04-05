@@ -27,6 +27,7 @@ import {
   Phone,
   MessageCircle,
   Navigation,
+  Rocket,
 } from "lucide-react";
 import {
   playSound,
@@ -778,8 +779,8 @@ export const RideWaitingScreen = ({
           >
             {/* الانطلاق */}
             <div className="flex items-center gap-3 px-4 py-3.5">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(91,221,166,0.15)", border: "1px solid rgba(91,221,166,0.25)" }}>
-                <MapPin className="w-4 h-4" style={{ color: "#5bdda6" }} />
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(91,221,166,0.15)", border: "1px solid rgba(91,221,166,0.25)" }}>
+                <Rocket className="w-4 h-4" style={{ color: "#5bdda6" }} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] font-bold tracking-widest mb-0.5" style={{ color: "#5bdda6" }}>الانطلاق</p>
@@ -817,17 +818,17 @@ export const RideWaitingScreen = ({
         </div>
 
         {/* زر تتبع الرحلة */}
-        <div className="shrink-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="flex w-full mt-auto shrink-0 bg-[#0b1326] pt-1" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
           <motion.button
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             onClick={handleContinueToTracking}
             whileTap={{ scale: 0.97 }}
-            className="w-full h-14 flex items-center justify-center gap-2 rounded-2xl text-[15px] font-black transition-all"
-            style={{ background: "#5bdda6", color: "#0b1326", boxShadow: "0 4px 24px rgba(91,221,166,0.35)" }}
+            className="flex-auto h-[72px] rounded-t-xl rounded-b-none border-t border-[#5bdda6]/30 flex items-center justify-center gap-2 text-[18px] font-black transition-all shadow-[0_-4px_24px_rgba(91,221,166,0.25)] touch-manipulation"
+            style={{ background: "#5bdda6", color: "#0b1326" }}
           >
-            <Navigation className="w-5 h-5" />
+            <Navigation className="w-6 h-6 ml-1" />
             تتبع الرحلة على الخريطة
           </motion.button>
         </div>
@@ -869,20 +870,20 @@ export const RideWaitingScreen = ({
 
       {/* هيدر البحث */}
       <div
-        className="shrink-0 px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-5"
+        className="shrink-0 px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3"
         style={{ background: "linear-gradient(180deg, #0d1a2e 0%, #0b1326 100%)", borderBottom: "1px solid rgba(91,221,166,0.08)" }}
       >
-        <div className="flex flex-col items-center gap-3 text-center">
+        <div className="flex flex-col items-center gap-2 text-center">
           {/* أيقونة البحث */}
-          <div className="relative w-14 h-14 shrink-0">
+          <div className="relative w-11 h-11 shrink-0">
             <div className="absolute inset-0 rounded-full animate-ping" style={{ border: "2px solid rgba(91,221,166,0.3)" }} />
-            <div className="relative w-full h-full rounded-2xl flex items-center justify-center" style={{ background: "rgba(91,221,166,0.12)", border: "1px solid rgba(91,221,166,0.2)" }}>
-              <Search className="w-6 h-6" style={{ color: "#5bdda6" }} />
+            <div className="relative w-full h-full rounded-xl flex items-center justify-center" style={{ background: "rgba(91,221,166,0.12)", border: "1px solid rgba(91,221,166,0.2)" }}>
+              <Search className="w-5 h-5" style={{ color: "#5bdda6" }} />
             </div>
           </div>
           {/* النصوص */}
           <div>
-            <h1 className="text-[18px] font-black text-white leading-tight">بانتظار سائق 🔍</h1>
+            <h1 className="text-[16px] font-black text-white leading-tight">بانتظار سائق 🔍</h1>
             <p className="text-[12px] mt-1" style={{ color: "rgba(91,221,166,0.65)" }}>
               {encouragingMessages[encouragingMessageIndex]?.icon}{" "}
               {encouragingMessages[encouragingMessageIndex]?.text || "جاري البحث عن أفضل سائق لك..."}
@@ -898,21 +899,21 @@ export const RideWaitingScreen = ({
       </div>
 
       {/* المحتوى */}
-      <div className="flex-1 flex flex-col px-4 py-4 gap-3 overflow-y-auto">
+      <div className="flex-1 flex flex-col px-4 py-2 gap-2 overflow-hidden">
 
         {/* شريط التقدم */}
-        <div className="shrink-0 rounded-2xl p-5" style={{ background: "#171f33", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-[14px] font-semibold text-slate-300 flex items-center gap-2">
+        <div className="shrink-0 rounded-2xl p-3" style={{ background: "#171f33", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[14px] font-semibold text-slate-300 flex items-center gap-1.5">
               <Clock className="w-4 h-4" style={{ color: "#5bdda6" }} />
               وقت الانتظار
             </span>
-            <div className="flex items-baseline gap-2">
-              <span className="text-[32px] font-black font-mono text-white tabular-nums leading-none">{formatTime(elapsedTime)}</span>
-              <span className="text-[14px] text-slate-500 font-medium">/ {maxWaitTimeout}:00</span>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[28px] font-black font-mono text-white tabular-nums leading-none">{formatTime(elapsedTime)}</span>
+              <span className="text-[13px] text-slate-500 font-medium">/ {maxWaitTimeout}:00</span>
             </div>
           </div>
-          <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+          <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
             <div
               className="h-full rounded-full transition-all duration-1000"
               style={{
@@ -924,11 +925,11 @@ export const RideWaitingScreen = ({
             />
           </div>
           {elapsedTime / 60 >= maxWaitTimeout * warningThreshold && autoCancelEnabled && (
-            <p className="text-[13px] text-center mt-3 font-semibold animate-pulse" style={{ color: "#f87171" }}>
+            <p className="text-[13px] text-center mt-1.5 font-semibold animate-pulse" style={{ color: "#f87171" }}>
               {warningMessage}
             </p>
           )}
-          <div className="flex items-center justify-between mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          <div className="flex items-center justify-between mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
             <span className="text-[13px] text-slate-400">وقت الوصول المتوقع</span>
             <span className="text-[15px] font-black" style={{ color: "#5bdda6" }}>{getEstimatedWaitTime()} دقيقة</span>
           </div>
@@ -937,39 +938,38 @@ export const RideWaitingScreen = ({
         {/* خط سير الرحلة */}
         <div className="shrink-0 rounded-2xl overflow-hidden" style={{ background: "#171f33", border: "1px solid rgba(255,255,255,0.06)" }}>
           {/* الانطلاق */}
-          <div className="flex items-center gap-3 px-4 py-3.5">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(91,221,166,0.12)", border: "1px solid rgba(91,221,166,0.2)" }}>
-              <MapPin className="w-4 h-4" style={{ color: "#5bdda6" }} />
+          <div className="flex items-center gap-2.5 px-3 py-2.5">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(91,221,166,0.12)", border: "1px solid rgba(91,221,166,0.2)" }}>
+              <Rocket className="w-3.5 h-3.5" style={{ color: "#5bdda6" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold tracking-widest mb-0.5" style={{ color: "#5bdda6" }}>الانطلاق</p>
-              <p className="text-[13px] font-semibold text-white truncate">{pickupAddress}</p>
+              <p className="text-[10px] font-bold tracking-widest" style={{ color: "#5bdda6" }}>الانطلاق</p>
+              <p className="text-[14px] font-semibold text-white truncate">{pickupAddress}</p>
             </div>
           </div>
 
           {/* فاصل */}
-          <div className="flex items-center gap-3 px-4" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-            <div className="w-9 flex justify-center">
-              <div className="flex flex-col items-center gap-0.5 py-1.5">
-                <div className="w-px h-2 bg-slate-700" />
-                <div className="w-1.5 h-1.5 rounded-full bg-slate-600" />
-                <div className="w-px h-2 bg-slate-700" />
+          <div className="flex items-center gap-2.5 px-3" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+            <div className="w-8 flex justify-center">
+              <div className="flex flex-col items-center gap-0.5 py-0.5">
+                <div className="w-px h-1.5 bg-slate-700" />
+                <div className="w-1 h-1 rounded-full bg-slate-600" />
+                <div className="w-px h-1.5 bg-slate-700" />
               </div>
             </div>
           </div>
 
           {/* الوجهة + الأجرة */}
-          <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.2)" }}>
-              <Navigation className="w-4 h-4 text-orange-400" />
+          <div className="flex items-center gap-2.5 px-3 py-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.2)" }}>
+              <Navigation className="w-3.5 h-3.5 text-orange-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold tracking-widest text-orange-400 mb-0.5">الوجهة</p>
-              <p className="text-[13px] font-semibold text-white truncate">{dropoffAddress}</p>
+              <p className="text-[10px] font-bold tracking-widest text-orange-400">الوجهة</p>
+              <p className="text-[14px] font-semibold text-white truncate">{dropoffAddress}</p>
             </div>
-            <div className="shrink-0 text-left" style={{ borderRight: "1px solid rgba(255,255,255,0.07)", paddingRight: "0.75rem", marginRight: "0.25rem" }}>
-              <p className="text-[10px] text-slate-500 mb-0.5">الأجرة</p>
-              <p className="text-[18px] font-black" style={{ color: "#5bdda6" }}>{estimatedFare.toLocaleString()}</p>
+            <div className="shrink-0 text-left" style={{ borderRight: "1px solid rgba(255,255,255,0.07)", paddingRight: "0.5rem", marginRight: "0.25rem" }}>
+              <p className="text-[18px] font-black leading-tight" style={{ color: "#5bdda6" }}>{estimatedFare.toLocaleString()}</p>
               <p className="text-[10px] text-slate-500">د.ع</p>
             </div>
           </div>
@@ -1002,21 +1002,21 @@ export const RideWaitingScreen = ({
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="shrink-0 rounded-2xl overflow-hidden"
+          className="shrink-0 rounded-xl overflow-hidden"
           style={{
             background: "linear-gradient(135deg, #0f1f14 0%, #111d2c 100%)",
             border: "1px solid rgba(91,221,166,0.15)",
           }}
         >
           {/* رأس البطاقة */}
-          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-            <div className="flex items-center gap-2">
-              <span className="text-[18px]">📿</span>
-              <span className="text-[13px] font-semibold text-white">اجعل انتظارك ذكراً</span>
+          <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[14px]">📿</span>
+              <span className="text-[11px] font-semibold text-white">اجعل انتظارك ذكراً</span>
             </div>
             {totalDhikr > 0 && (
               <span
-                className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                 style={{ background: "rgba(91,221,166,0.12)", color: "#5bdda6", border: "1px solid rgba(91,221,166,0.2)" }}
               >
                 {totalDhikr} ذكر اليوم
@@ -1029,15 +1029,15 @@ export const RideWaitingScreen = ({
             {/* سبحان الله */}
             <button
               onClick={() => handleDhikrTap("tasbih")}
-              className="flex flex-col items-center gap-1.5 py-4 transition-all active:scale-95"
+              className="flex flex-col items-center gap-1 py-2.5 transition-all active:scale-95"
               style={{
                 background: lastTappedDhikr === "tasbih" ? "rgba(91,221,166,0.12)" : "#0f1f14",
               }}
             >
-              <span className="text-[22px] leading-none">🌿</span>
-              <span className="text-[11px] font-bold text-white">سبحان الله</span>
+              <span className="text-[16px] leading-none">🌿</span>
+              <span className="text-[10px] font-bold text-white">سبحان الله</span>
               <span
-                className="text-[20px] font-black tabular-nums leading-none"
+                className="text-[16px] font-black tabular-nums leading-none"
                 style={{ color: "#5bdda6" }}
               >
                 {dhikrCounts.tasbih}
@@ -1047,17 +1047,17 @@ export const RideWaitingScreen = ({
             {/* الحمد لله */}
             <button
               onClick={() => handleDhikrTap("tahmid")}
-              className="flex flex-col items-center gap-1.5 py-4 transition-all active:scale-95"
+              className="flex flex-col items-center gap-1 py-2.5 transition-all active:scale-95"
               style={{
                 background: lastTappedDhikr === "tahmid" ? "rgba(251,191,36,0.1)" : "#0f1f14",
                 borderRight: "1px solid rgba(255,255,255,0.04)",
                 borderLeft: "1px solid rgba(255,255,255,0.04)",
               }}
             >
-              <span className="text-[22px] leading-none">☀️</span>
-              <span className="text-[11px] font-bold text-white">الحمد لله</span>
+              <span className="text-[16px] leading-none">☀️</span>
+              <span className="text-[10px] font-bold text-white">الحمد لله</span>
               <span
-                className="text-[20px] font-black tabular-nums leading-none"
+                className="text-[16px] font-black tabular-nums leading-none"
                 style={{ color: "#fbbf24" }}
               >
                 {dhikrCounts.tahmid}
@@ -1067,15 +1067,15 @@ export const RideWaitingScreen = ({
             {/* أستغفر الله */}
             <button
               onClick={() => handleDhikrTap("istighfar")}
-              className="flex flex-col items-center gap-1.5 py-4 transition-all active:scale-95"
+              className="flex flex-col items-center gap-1 py-2.5 transition-all active:scale-95"
               style={{
                 background: lastTappedDhikr === "istighfar" ? "rgba(147,51,234,0.1)" : "#0f1f14",
               }}
             >
-              <span className="text-[22px] leading-none">🤲</span>
-              <span className="text-[11px] font-bold text-white">أستغفر الله</span>
+              <span className="text-[16px] leading-none">🤲</span>
+              <span className="text-[10px] font-bold text-white">أستغفر الله</span>
               <span
-                className="text-[20px] font-black tabular-nums leading-none"
+                className="text-[16px] font-black tabular-nums leading-none"
                 style={{ color: "#c084fc" }}
               >
                 {dhikrCounts.istighfar}
@@ -1084,30 +1084,26 @@ export const RideWaitingScreen = ({
           </div>
 
           {/* ذيل البطاقة */}
-          <div className="px-4 py-2.5 flex items-center justify-center" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-            <p className="text-[11px] text-slate-500 text-center">
-              انقر على كل زكر لتسجيله • يُحفظ تلقائياً يومياً
+          <div className="px-3 py-1.5 flex items-center justify-center" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+            <p className="text-[9px] text-slate-500 text-center">
+              انقر على كل ذكر لتسجيله • يُحفظ تلقائياً
             </p>
           </div>
         </motion.div>
       </div>
 
       {/* زر الإلغاء */}
-      <div className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+      <div className="flex w-full mt-auto shrink-0 bg-[#0b1326]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)', zIndex: 10 }}>
         <button
           onClick={handleCancelClick}
           disabled={cancelling}
-          className="w-full h-12 flex items-center justify-center gap-2 rounded-2xl text-[14px] font-semibold transition-all active:opacity-70 disabled:opacity-40"
-          style={{
-            background: "rgba(239,68,68,0.08)",
-            border: "1px solid rgba(239,68,68,0.25)",
-            color: "#f87171",
-          }}
+          className="flex-auto h-[56px] rounded-t-xl rounded-b-none flex items-center justify-center gap-2 text-[15px] font-black transition-all disabled:opacity-40 shadow-[0_-4px_24px_rgba(185,28,28,0.3)] touch-manipulation active:scale-[0.98]"
+          style={{ background: "linear-gradient(135deg, #b91c1c, #991b1b)", color: "#ffffff" }}
         >
           {cancelling ? (
-            <><Loader2 className="w-4 h-4 animate-spin" />جاري الإلغاء...</>
+            <><Loader2 className="w-6 h-6 animate-spin ml-1" />جاري الإلغاء...</>
           ) : (
-            <><X className="w-4 h-4" />إلغاء الطلب</>
+            <><X className="w-6 h-6 ml-1" />إلغاء الطلب</>
           )}
         </button>
       </div>

@@ -7,7 +7,7 @@ import { lazy, Suspense, useState, useEffect } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { RaanThemeProvider } from "@/contexts/RaanThemeContext";
@@ -15,6 +15,8 @@ import SplashScreen from "@/components/SplashScreen";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import DevInspector from "@/components/DevInspector";
 import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
+import { isNativePlatform } from "@/lib/capacitorBridge";
+import { capacitorStorageSync } from "@/lib/capacitorStorage";
 
 // صفحات أساسية
 import NotFound from "@/pages/NotFound";
@@ -42,6 +44,7 @@ const DriverIncentives = lazy(() => import("@/pages/driver/DriverIncentives"));
 const DriverFinance = lazy(() => import("@/pages/driver/DriverFinance"));
 const DriverSubscription = lazy(() => import("@/pages/driver/DriverSubscription"));
 const DriverGuide = lazy(() => import("@/pages/driver/DriverGuide"));
+const DriverDashboardMigrated = lazy(() => import("@/pages/driver/DriverDashboardMigrated"));
 const DriverLayout = lazy(() => import("@/components/driver/DriverLayout"));
 
 const queryClient = new QueryClient({
@@ -67,12 +70,21 @@ const DriverApp = () => {
             <Sonner />
             <ConnectionStatus />
             <PWAInstallPrompt />
-            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-              <Suspense fallback={<LoadingFallback />}>
-                <DriverRoutes />
-              </Suspense>
-              <DevInspector />
-            </BrowserRouter>
+            {isNativePlatform ? (
+              <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <DriverRoutes />
+                </Suspense>
+                <DevInspector />
+              </HashRouter>
+            ) : (
+              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <DriverRoutes />
+                </Suspense>
+                <DevInspector />
+              </BrowserRouter>
+            )}
           </AuthProvider>
         </QueryClientProvider>
       </TooltipProvider>
@@ -87,7 +99,7 @@ const DriverRoutes = () => {
 
   // ✅ فرض دور السائق فوراً لمنع توجيه خاطئ إلى /rider
   useEffect(() => {
-    localStorage.setItem("raan_current_role", "driver");
+    capacitorStorageSync.setItem("raan_current_role", "driver");
   }, []);
 
   useEffect(() => {
@@ -170,6 +182,7 @@ const DriverRoutes = () => {
       <Route path="/driver/incentives" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverIncentives /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
       <Route path="/driver/subscription" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverSubscription /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
       <Route path="/driver/guide" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverGuide /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
+      <Route path="/driver/dashboard-v2" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverDashboardMigrated /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

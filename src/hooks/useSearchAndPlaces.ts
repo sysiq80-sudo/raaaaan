@@ -14,6 +14,7 @@ export const useSearchAndPlaces = (
     predictions,
     isSearching,
     isLoadingDetails,
+    isOffline,
     getPlaceDetails,
     clearSearch,
   } = useDynamicPlacesSearch(userLocation);
@@ -24,6 +25,7 @@ export const useSearchAndPlaces = (
     predictions,
     isSearching,
     isLoadingDetails,
+    isOffline,
     getPlaceDetails,
     clearSearch,
   };

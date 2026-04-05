@@ -61,15 +61,15 @@ const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: S
   const burst = useCallback(() => {
     const fire = (opts: confetti.Options) =>
       confetti({ ...opts, disableForReducedMotion: true });
-    fire({ particleCount: 80, spread: 80, origin: { y: 0.55 }, colors: ["#10b981","#fbbf24","#06b6d4","#f59e0b","#8b5cf6"] });
+    fire({ particleCount: 20, spread: 80, origin: { y: 0.55 }, colors: ["#10b981","#fbbf24","#06b6d4","#f59e0b","#8b5cf6"] });
     setTimeout(() =>
-      fire({ particleCount: 40, spread: 100, origin: { y: 0.55 }, colors: ["#ec4899","#fbbf24","#10b981"] }), 250);
+      fire({ particleCount: 10, spread: 100, origin: { y: 0.55 }, colors: ["#ec4899","#fbbf24","#10b981"] }), 250);
   }, []);
 
   /* stars entrance confetti */
   useEffect(() => {
     try {
-      confetti({ particleCount: 55, spread: 65, origin: { y: 0.6 }, colors: ["#10b981","#fbbf24","#06b6d4"] });
+      confetti({ particleCount: 15, spread: 65, origin: { y: 0.6 }, colors: ["#10b981","#fbbf24","#06b6d4"] });
     } catch { /* ignore */ }
   }, []);
 
@@ -379,7 +379,7 @@ const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: S
           </div>
 
           {/* الأزرار */}
-          <div className="shrink-0 flex pb-[env(safe-area-inset-bottom)] border-t-2 border-emerald-500/20 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+          <div className="shrink-0 flex border-t-2 border-emerald-500/20 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
             <button
               type="button" onClick={onSkip} title="تخطي"
               className="flex-1 h-[72px] flex items-center justify-center text-sm font-bold text-slate-200 bg-[#1a2333] hover:bg-[#212d42] active:bg-[#283a52] transition-all rounded-none touch-manipulation border-r border-slate-600/40"

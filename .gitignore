@@ -1,4 +1,4 @@
-﻿# Logs
+# Logs
 logs
 *.log
 npm-debug.log*
@@ -12,7 +12,9 @@ dist
 dist-ssr
 dist-rider
 dist-driver
+dist-car
 dist-admin
+local-builds
 *.local
 
 # Environment variables — NEVER commit secrets

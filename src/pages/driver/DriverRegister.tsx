@@ -19,6 +19,7 @@ import {
   ANBAR_CITIES 
 } from '@/lib/validations';
 import { useDriverRegSettings } from '@/hooks/useDriverRegSettings';
+import { saveRememberMe } from '@/services/rememberMeService';
 
 const DriverRegister = () => {
   const navigate = useNavigate();
@@ -135,23 +136,21 @@ const DriverRegister = () => {
       });
 
       if (signupError) {
-        const serverBody = (signupError as any)?.context?.body;
-        const serverMsg =
-          (serverBody && typeof serverBody === 'object' ? serverBody.error : undefined) ||
-          (typeof serverBody === 'string'
-            ? (() => {
-                try {
-                  const parsed = JSON.parse(serverBody);
-                  return parsed?.error;
-                } catch {
-                  return undefined;
-                }
-              })()
-            : undefined);
+        // Extract the actual error body from the edge function response
+        let errorBody: any = null;
+        try {
+          if (signupError.context && typeof signupError.context.json === 'function') {
+            errorBody = await signupError.context.json();
+          }
+        } catch (_) { /* ignore parse errors */ }
+        console.log('Driver signup error body:', errorBody);
 
-        const msg = serverMsg || signupError.message || 'فشل إنشاء الحساب';
+        const msg = errorBody?.error || signupError.message || 'فشل إنشاء الحساب';
+        const userExists = errorBody?.user_exists ||
+          msg.includes('مسجل مسبقاً') ||
+          msg.toLowerCase().includes('already registered');
 
-        if (msg.toLowerCase().includes('already registered') || msg.includes('مسجل')) {
+        if (userExists) {
           toast.error('رقم الهاتف مسجل مسبقاً، يرجى تسجيل الدخول');
           navigate('/driver/auth');
           return;
@@ -161,20 +160,23 @@ const DriverRegister = () => {
         throw new Error(msg);
       }
 
-      const authEmail = signupData?.authEmail as string | undefined;
+      const authPhone = signupData?.authPhone as string | undefined;
       const userId = signupData?.userId as string | undefined;
 
-      if (!authEmail || !userId) {
+      if (!authPhone || !userId) {
         throw new Error('فشل إنشاء الحساب (بيانات ناقصة)');
       }
 
-      // 2) Sign in to establish session
+      // 2) Sign in to establish session (phone-only)
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: authEmail,
+        phone: authPhone,
         password,
       });
 
       if (signInError) throw signInError;
+
+      // احفظ تفويضه بشكل افتراضي لكي لا يخرج عند الإغلاق
+      saveRememberMe(phone, "driver");
 
       const effectiveUserId = signInData.user?.id || userId;
 

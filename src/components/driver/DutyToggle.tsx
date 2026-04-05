@@ -221,7 +221,7 @@ const DutyToggle = ({
                       <motion.div
                         animate={{ rotate: 360 }}
                         transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                        className="w-12 h-12 rounded-[16px] bg-[#5bdda6]/10 border border-[#5bdda6]/30 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(91,221,166,0.15)]"
+                        className="w-12 h-12 rounded-full bg-[#5bdda6]/10 border border-[#5bdda6]/30 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(91,221,166,0.15)]"
                       >
                         <Navigation className="w-5 h-5 text-[#5bdda6]" />
                       </motion.div>
@@ -249,7 +249,7 @@ const DutyToggle = ({
                   <div className="px-5 py-4 bg-[#171f33]/50 relative">
                     <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-[#5bdda6]/30 to-transparent" />
                     <div className="flex items-center gap-3.5">
-                      <div className="w-12 h-12 rounded-[16px] bg-[#5bdda6]/10 border border-[#5bdda6]/30 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(91,221,166,0.1)]">
+                      <div className="w-12 h-12 rounded-full bg-[#5bdda6]/10 border border-[#5bdda6]/30 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(91,221,166,0.1)]">
                         <Wifi className="w-5 h-5 text-[#5bdda6]" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -275,7 +275,7 @@ const DutyToggle = ({
                   <div className="px-5 py-4 bg-[#171f33]/50 relative">
                     <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-amber-500/30 to-transparent" />
                     <div className="flex items-center gap-3.5">
-                      <div className="w-12 h-12 rounded-[16px] bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+                      <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
                         <Coffee className="w-5 h-5 text-amber-500" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -298,7 +298,7 @@ const DutyToggle = ({
                 ) : (
                   <div className="px-5 py-4 bg-[#171f33]/30">
                     <div className="flex items-center gap-3.5">
-                      <div className="w-12 h-12 rounded-[16px] bg-slate-800/50 border border-slate-700/50 flex items-center justify-center shrink-0">
+                      <div className="w-12 h-12 rounded-full bg-slate-800/50 border border-slate-700/50 flex items-center justify-center shrink-0">
                         <WifiOff className="w-5 h-5 text-slate-400" />
                       </div>
                       <div className="flex-1 min-w-0">

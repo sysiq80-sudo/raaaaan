@@ -62,10 +62,11 @@ export const DeleteDriverDialog = ({
 
       onSuccess();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "فشل في حذف السائق";
       toast({
         title: "خطأ",
-        description: error.message || "فشل في حذف السائق",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -81,13 +82,15 @@ export const DeleteDriverDialog = ({
             <AlertTriangle className="w-5 h-5" />
             تأكيد حذف السائق
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-2">
-            <p>
-              هل أنت متأكد من حذف السائق <strong>{driver?.full_name}</strong>؟
-            </p>
-            <p className="text-destructive">
-              سيتم حذف جميع بيانات السائق ووثائقه نهائياً ولا يمكن التراجع عن هذا الإجراء.
-            </p>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <span className="block">
+                هل أنت متأكد من حذف السائق <strong>{driver?.full_name}</strong>؟
+              </span>
+              <span className="block text-destructive">
+                سيتم حذف جميع بيانات السائق ووثائقه نهائياً ولا يمكن التراجع عن هذا الإجراء.
+              </span>
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="gap-2">

@@ -62,7 +62,7 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
     } catch { /* ignore */ }
 
     try {
-      confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 }, colors: ["#10b981","#fbbf24","#06b6d4"] });
+      confetti({ particleCount: 20, spread: 70, origin: { y: 0.6 }, colors: ["#10b981","#fbbf24","#06b6d4"] });
     } catch { /* ignore */ }
   }, []);
 
@@ -115,7 +115,7 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
 
       /* ✅ الاحتفال دائماً */
       try {
-        confetti({ particleCount: 100, spread: 90, origin: { y: 0.5 }, colors: ["#10b981","#fbbf24","#06b6d4","#8b5cf6"] });
+        confetti({ particleCount: 25, spread: 90, origin: { y: 0.5 }, colors: ["#10b981","#fbbf24","#06b6d4","#8b5cf6"] });
       } catch { /* ignore */ }
 
       setSubmitted(true);
@@ -299,7 +299,7 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
       </motion.div>
 
       {/* ═══ الأزرار السفلية الحادة ممتدة للجوانب ═══ */}
-      <div className="shrink-0 flex pb-[env(safe-area-inset-bottom)] bg-[#171f33]">
+      <div className="shrink-0 flex bg-[#171f33]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
         <button
           type="button"
           onClick={onClose}

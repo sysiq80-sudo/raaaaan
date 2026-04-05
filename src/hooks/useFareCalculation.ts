@@ -34,6 +34,8 @@ export const useFareCalculation = (
   const [fareError, setFareError] = useState<string | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSuccessfulFareRef = useRef<FareBreakdown | null>(null);
+  // حفظ آخر معامل ذروة من السيرفر لاستخدامه في التقدير المحلي
+  const lastSurgeMultiplierRef = useRef<number>(1.0);
 
   // جلب معاملات أنواع المركبات من DB بدل القيم الثابتة
   const { getMultiplier } = useVehicleTypes();
@@ -55,7 +57,9 @@ export const useFareCalculation = (
     const estimatedMinutes = Math.max(1, Math.round((distanceKm / 30) * 60));
     const timeFare = estimatedMinutes * perMinuteRate;
     const subtotal = Math.max(baseFare, baseFare + distanceFare + timeFare);
-    const totalFare = Math.round(subtotal * vehicleMultiplier);
+    // تطبيق معامل الذروة المحفوظ من آخر استجابة سيرفر (الحد الأقصى 2.0)
+    const surgeMultiplier = Math.min(lastSurgeMultiplierRef.current, 2.0);
+    const totalFare = Math.round(subtotal * vehicleMultiplier * surgeMultiplier);
 
     return {
       base_fare: baseFare,
@@ -159,6 +163,10 @@ export const useFareCalculation = (
         if (data) {
           setFareBreakdown(data);
           lastSuccessfulFareRef.current = data as FareBreakdown;
+          // حفظ معامل الذروة من السيرفر لاستخدامه في التقديرات المحلية القادمة
+          if ((data as any).surge_multiplier && (data as any).surge_multiplier > 0) {
+            lastSurgeMultiplierRef.current = (data as any).surge_multiplier;
+          }
           console.log('✅ Fare calculated successfully:', data.formatted_fare);
         }
       } catch (error) {

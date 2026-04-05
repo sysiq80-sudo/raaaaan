@@ -24,7 +24,7 @@ interface Driver {
 interface UseBroadcastChannelProps {
   ride: Ride;
   driver: Driver | null;
-  onRideUpdate: (ride: any) => void;
+  onRideUpdate: (ride: Record<string, unknown>) => void;
   onDriverLocationUpdate: (location: { lat: number; lng: number }) => void;
   onClose: () => void;
   onDriverCancelled?: () => void;
@@ -42,9 +42,18 @@ export const useBroadcastChannel = ({
   setShowArrivedAlert,
 }: UseBroadcastChannelProps) => {
   const { toast } = useToast();
-  const broadcastChannel = useRef<any>(null);
+  const broadcastChannel = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const previousStatusRef = useRef<string>(ride.status);
+
+  // Refs for callbacks to prevent stale closures without re-subscribing channels
+  const onRideUpdateRef = useRef(onRideUpdate);
+  const onDriverLocationUpdateRef = useRef(onDriverLocationUpdate);
+
+  useEffect(() => {
+    onRideUpdateRef.current = onRideUpdate;
+    onDriverLocationUpdateRef.current = onDriverLocationUpdate;
+  }, [onRideUpdate, onDriverLocationUpdate]);
 
   // Setup broadcast channel for instant updates
   useEffect(() => {
@@ -58,9 +67,9 @@ export const useBroadcastChannel = ({
     });
 
     channel
-      .on("broadcast", { event: "ride_accepted" }, (payload: any) => {
+      .on("broadcast", { event: "ride_accepted" }, (payload: Record<string, unknown>) => {
         console.log("[Broadcast] ⚡ ride_accepted received");
-        onRideUpdate({ ...ride, status: "accepted" });
+        if (onRideUpdateRef.current) onRideUpdateRef.current({ ...ride, status: "accepted" });
         playSound("accepted");
         vibrate(VibrationPatterns.accepted);
 
@@ -78,9 +87,9 @@ export const useBroadcastChannel = ({
           { tag: "ride-accepted", requireInteraction: true, duration: 10000 }
         );
       })
-      .on("broadcast", { event: "driver_arrived" }, (payload: any) => {
+      .on("broadcast", { event: "driver_arrived" }, (payload: Record<string, unknown>) => {
         console.log("[Broadcast] ⚡ driver_arrived received");
-        onRideUpdate({ ...ride, status: "arrived" });
+        if (onRideUpdateRef.current) onRideUpdateRef.current({ ...ride, status: "arrived" });
         playSound("arrived");
         vibrate(VibrationPatterns.arrived);
         setShowArrivedAlert(true);
@@ -99,9 +108,9 @@ export const useBroadcastChannel = ({
 
         setTimeout(() => setShowArrivedAlert(false), 15000);
       })
-      .on("broadcast", { event: "ride_started" }, (payload: any) => {
+      .on("broadcast", { event: "ride_started" }, (payload: Record<string, unknown>) => {
         console.log("[Broadcast] ⚡ ride_started received");
-        onRideUpdate({
+        if (onRideUpdateRef.current) onRideUpdateRef.current({
           ...ride,
           status: "in_progress",
           started_at: new Date().toISOString(),
@@ -115,9 +124,9 @@ export const useBroadcastChannel = ({
           duration: 5000,
         });
       })
-      .on("broadcast", { event: "ride_completed" }, (payload: any) => {
+      .on("broadcast", { event: "ride_completed" }, (payload: Record<string, unknown>) => {
         console.log("[Broadcast] ⚡ ride_completed received");
-        onRideUpdate({
+        if (onRideUpdateRef.current) onRideUpdateRef.current({
           ...ride,
           status: "completed",
           completed_at: new Date().toISOString(),
@@ -136,7 +145,7 @@ export const useBroadcastChannel = ({
       .on(
         "broadcast",
         { event: "ride_cancelled_by_driver" },
-        (payload: any) => {
+        (payload: Record<string, unknown>) => {
           console.log("[Broadcast] ⚡ ride_cancelled_by_driver received");
           playSound("cancelled");
           vibrate(VibrationPatterns.cancelled);
@@ -157,11 +166,11 @@ export const useBroadcastChannel = ({
           }
         }
       )
-      .on("broadcast", { event: "driver_location_update" }, (payload: any) => {
+      .on("broadcast", { event: "driver_location_update" }, (payload: Record<string, unknown>) => {
         const newLocation = payload.payload?.location;
         if (newLocation?.lat && newLocation?.lng) {
           console.log("[Broadcast] 📍 Driver location updated (Real-time):", newLocation);
-          onDriverLocationUpdate(newLocation);
+          if (onDriverLocationUpdateRef.current) onDriverLocationUpdateRef.current(newLocation);
         }
       })
       .on("broadcast", { event: "driver_approaching_soon" }, () => {
@@ -230,7 +239,7 @@ export const useBroadcastChannel = ({
         },
         (payload) => {
           console.log("[DB Update] Ride update received:", payload.new);
-          const updatedRide = payload.new as any;
+          const updatedRide = payload.new as Record<string, unknown>;
           const newStatus = updatedRide.status;
           const prevStatus = previousStatusRef.current;
 
@@ -347,7 +356,7 @@ export const useBroadcastChannel = ({
           .then(() => {
             console.log("[sendQuickMessage] Message sent successfully:", event);
           })
-          .catch((error: any) => {
+          .catch((error: unknown) => {
             console.error("[sendQuickMessage] Error sending message:", error);
           });
       } else {

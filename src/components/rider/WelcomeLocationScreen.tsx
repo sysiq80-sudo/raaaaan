@@ -552,7 +552,7 @@ const WelcomeLocationScreen = ({
           exit={{ y: 80, opacity: 0 }}
           transition={{ type: "spring", stiffness: 350, damping: 30 }}
           className="fixed bottom-0 inset-x-0 z-[60] bg-slate-900/98 backdrop-blur-lg border-t border-slate-700/50"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}
         >
           <motion.button
             onClick={() => {

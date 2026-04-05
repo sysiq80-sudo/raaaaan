@@ -1,6 +1,7 @@
 // Store للأماكن المفضلة باستخدام Zustand
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { zustandCapacitorStorage } from '@/lib/zustandCapacitorStorage';
 
 export interface FavoriteLocation {
   id: string;
@@ -63,7 +64,8 @@ export const useFavoritesStore = create<FavoritesStore>()(
       },
     }),
     {
-      name: 'favorites-storage', // اسم key في localStorage
+      name: 'favorites-storage', // اسم key في التخزين
+      storage: zustandCapacitorStorage,
       partialize: (state) => ({ favorites: state.favorites }),
     }
   )

@@ -42,13 +42,12 @@ const DeleteRiderDialog = ({
 
     setIsDeleting(true);
     try {
-      // Delete profile (this will cascade to related data via RLS)
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .delete()
-        .eq("id", rider.id);
+      const { data, error } = await supabase.functions.invoke("admin-delete-rider", {
+        body: { userId: rider.user_id },
+      });
 
-      if (profileError) throw profileError;
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast({
         title: "تم الحذف",

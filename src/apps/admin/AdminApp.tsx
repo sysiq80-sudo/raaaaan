@@ -63,6 +63,7 @@ const AdminFleets = lazy(() => import("@/pages/admin/AdminFleets"));
 const AdminDevInspector = lazy(() => import("@/pages/admin/AdminDevInspector"));
 const AdminNotifications = lazy(() => import("@/pages/admin/AdminNotifications"));
 const AdminNotificationGroups = lazy(() => import("@/pages/admin/AdminNotificationGroups"));
+const AdminControllerUsers = lazy(() => import("@/pages/admin/AdminControllerUsers"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -106,12 +107,27 @@ const AdminApp = () => {
 };
 
 const AdminRoutes = () => {
-  const { user, isLoading } = useAuth();
+  const { user, userRole, isLoading } = useAuth();
+
+  // تحقق من وجود بيانات controller محفوظة
+  const hasControllerSession = (() => {
+    try {
+      const raw = localStorage.getItem("raan_admin_controller");
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  })();
 
   // ✅ الأدمن لا يحتاج شاشة ترحيبية — تحميل مباشر
   if (isLoading) return <LoadingFallback />;
 
-  if (!user) {
+  if (user && userRole === null) {
+    return <LoadingFallback />;
+  }
+
+  // المشرف يجب أن يكون لديه بيانات controller + جلسة Supabase
+  const isAuthenticated = (user && userRole === "admin") || hasControllerSession;
+
+  if (!isAuthenticated) {
     return (
       <Routes>
         <Route path="/" element={<Navigate to="/admin/login" replace />} />
@@ -178,6 +194,7 @@ const AdminRoutes = () => {
       <Route path="/settings/devInspector" element={<AR><AdminDevInspector /></AR>} />
       <Route path="/admin/notifications" element={<AR><AdminNotifications /></AR>} />
       <Route path="/admin/notification-groups" element={<AR><AdminNotificationGroups /></AR>} />
+      <Route path="/admin/controller-users" element={<AR><AdminControllerUsers /></AR>} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
   );

@@ -1,14 +1,12 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Send,
   MessageCircle,
   Phone,
   Camera,
   Image as ImageIcon,
-  MapPin,
   Navigation,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -133,9 +131,9 @@ export const RideChat = ({
         .order("created_at", { ascending: true });
 
       if (!error && data) {
-        setMessages(data as Message[]);
-        const unread = data.filter(
-          (m: any) => !m.is_read && m.sender_type !== userType,
+        setMessages(data as unknown as Message[]);
+        const unread = (data as unknown as Message[]).filter(
+          (m) => !m.is_read && m.sender_type !== userType,
         ).length;
         setUnreadCount(unread);
       }
@@ -174,7 +172,7 @@ export const RideChat = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [rideId, userType, open]);
+  }, [rideId, userType]);
 
   useEffect(() => {
     scrollToBottom();
@@ -183,17 +181,28 @@ export const RideChat = ({
   useEffect(() => {
     if (open && unreadCount > 0) {
       setUnreadCount(0);
+      // تحديث is_read في قاعدة البيانات
+      supabase
+        .from('ride_messages')
+        .update({ is_read: true } as Record<string, unknown>)
+        .eq('ride_id', rideId)
+        .neq('sender_type', userType)
+        .eq('is_read', false)
+        .then();
     }
-  }, [open, unreadCount]);
+  }, [open, unreadCount, rideId, userType]);
 
   useEffect(() => {
-    if (rideStatus === "arrived" && !chatEnded) {
+    // المحادثة تُغلق فقط عند اكتمال أو إلغاء الرحلة
+    if (rideStatus === "completed" || rideStatus === "cancelled") {
       setChatEnded(true);
       setMessages((prev) => [
         ...prev,
         {
-          id: "system-arrived",
-          message: "✅ وصل السائق إلى موقعك - المحادثة ستُغلق",
+          id: "system-ended",
+          message: rideStatus === "completed"
+            ? "✅ تمت الرحلة بنجاح - شكراً لاستخدامك ران"
+            : "❌ تم إلغاء الرحلة",
           sender_type: "rider" as const,
           created_at: new Date().toISOString(),
           is_read: true,
@@ -201,12 +210,7 @@ export const RideChat = ({
       ]);
       setTimeout(() => setOpen(false), 3000);
     }
-
-    if (rideStatus === "completed" || rideStatus === "cancelled") {
-      setChatEnded(true);
-      setOpen(false);
-    }
-  }, [rideStatus, chatEnded]);
+  }, [rideStatus]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || sending) return;
@@ -312,84 +316,96 @@ export const RideChat = ({
     return match ? match[0] : null;
   };
 
+  const chatTitle = userType === 'rider' ? 'المحادثة مع السائق' : 'المحادثة مع الراكب';
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="relative h-9 px-3">
-          <MessageCircle className="h-4 w-4 ml-1" />
+        <button
+          className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold transition-all active:scale-95"
+          style={{ background: 'rgba(91,221,166,0.1)', color: '#5bdda6', border: '1px solid rgba(91,221,166,0.2)' }}
+        >
+          <MessageCircle className="h-3.5 w-3.5" />
           محادثة
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+            <span className="absolute -top-1.5 -left-1.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: '#ef4444', boxShadow: '0 0 8px rgba(239,68,68,0.4)' }}>
               {unreadCount}
             </span>
           )}
-        </Button>
+        </button>
       </SheetTrigger>
       <SheetContent
         side="bottom"
-        className="h-[85vh] max-h-[85vh] flex flex-col p-0"
+        className="h-[85vh] max-h-[85vh] flex flex-col p-0 border-0"
+        style={{ background: '#0b1326', borderTop: '1px solid rgba(91,221,166,0.15)' }}
       >
-        <SheetHeader className="flex flex-row items-center justify-between px-6 py-4 border-b flex-shrink-0">
-          <SheetTitle>المحادثة مع السائق</SheetTitle>
-          {driverPhone && (
-            <Button variant="outline" size="icon" className="h-9 w-9" asChild>
-              <a href={`tel:${driverPhone}`}>
-                <Phone className="h-4 w-4" />
+        {/* ── الهيدر ── */}
+        <SheetHeader className="flex flex-row items-center justify-between px-5 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#0d1730' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'rgba(91,221,166,0.1)', border: '1px solid rgba(91,221,166,0.2)' }}>
+              <MessageCircle className="w-4 h-4" style={{ color: '#5bdda6' }} />
+            </div>
+            <SheetTitle className="text-[15px] font-bold text-white">{chatTitle}</SheetTitle>
+          </div>
+          <div className="flex items-center gap-2">
+            {driverPhone && (
+              <a
+                href={`tel:${driverPhone}`}
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95"
+                style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}
+              >
+                <Phone className="h-4 w-4 text-blue-400" />
               </a>
-            </Button>
-          )}
+            )}
+          </div>
         </SheetHeader>
 
-        <div className="flex flex-col flex-1 overflow-hidden px-6">
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto space-y-3 py-4">
+        <div className="flex flex-col flex-1 overflow-hidden" dir="rtl">
+          {/* ── الرسائل ── */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ background: '#080f20' }}>
             {messages.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                لا توجد رسائل بعد
-              </p>
+              <div className="flex flex-col items-center justify-center h-full gap-3 opacity-40">
+                <MessageCircle className="w-12 h-12 text-white/20" />
+                <p className="text-[13px] font-semibold text-white/30">لا توجد رسائل بعد</p>
+                <p className="text-[11px] text-white/15">ابدأ المحادثة أو اختر رسالة سريعة</p>
+              </div>
             ) : (
               messages.map((msg) => (
                 <div
                   key={msg.id}
                   className={`flex ${
-                    msg.sender_type === userType
-                      ? "justify-end"
-                      : "justify-start"
+                    msg.sender_type === userType ? "justify-end" : "justify-start"
                   }`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                    className="max-w-[80%] rounded-2xl px-4 py-2.5"
+                    style={
                       msg.sender_type === userType
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
-                    }`}
+                        ? { background: 'rgba(91,221,166,0.12)', border: '1px solid rgba(91,221,166,0.15)' }
+                        : { background: '#171f33', border: '1px solid rgba(255,255,255,0.06)' }
+                    }
                   >
                     {isImageMessage(msg.message) ? (
                       <div className="space-y-2">
-                        <p className="flex items-center gap-1">
-                          <ImageIcon className="w-4 h-4" />
+                        <p className="flex items-center gap-1 text-[12px]" style={{ color: '#5bdda6' }}>
+                          <ImageIcon className="w-3.5 h-3.5" />
                           صورة الموقع
                         </p>
                         <img
                           src={extractImageUrl(msg.message) || ""}
                           alt="صورة الموقع"
-                          className="rounded-lg max-w-full h-auto max-h-48 object-cover"
+                          className="rounded-xl max-w-full h-auto max-h-48 object-cover"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).style.display =
-                              "none";
+                            (e.target as HTMLImageElement).style.display = "none";
                           }}
                         />
                       </div>
                     ) : (
-                      <p>{msg.message}</p>
+                      <p className={`text-[13px] font-medium leading-relaxed ${
+                        msg.sender_type === userType ? 'text-white' : 'text-white/80'
+                      }`}>{msg.message}</p>
                     )}
-                    <p
-                      className={`text-xs mt-1 ${
-                        msg.sender_type === userType
-                          ? "text-primary-foreground/70"
-                          : "text-muted-foreground"
-                      }`}
-                    >
+                    <p className="text-[10px] mt-1 text-white/25">
                       {new Date(msg.created_at).toLocaleTimeString("ar-IQ", {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -402,10 +418,10 @@ export const RideChat = ({
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick messages - سياقية حسب حالة الرحلة */}
+          {/* ── الرسائل السريعة ── */}
           {!chatEnded && (
-            <div className="py-3 border-t flex-shrink-0 space-y-2">
-              {/* زر "سأرشد السائق" - للراكب فقط عند حالة accepted أو arrived */}
+            <div className="px-4 py-2.5 flex-shrink-0 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: '#0b1326' }}>
+              {/* زر إرشاد السائق */}
               {userType === "rider" &&
                 (rideStatus === "accepted" || rideStatus === "arrived") && (
                   <button
@@ -417,24 +433,24 @@ export const RideChat = ({
                       playSound("message_sent");
                     }}
                     disabled={sending}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary/10 text-primary text-sm font-semibold hover:bg-primary/20 transition-colors active:scale-[0.98] border border-primary/20"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold transition-all active:scale-[0.98]"
+                    style={{ background: 'rgba(91,221,166,0.08)', color: '#5bdda6', border: '1px solid rgba(91,221,166,0.15)' }}
                   >
-                    <Navigation className="w-4 h-4" />
+                    <Navigation className="w-3.5 h-3.5" />
                     سأرشد السائق لموقعي
                   </button>
                 )}
 
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-0.5">
                 {(
                   QUICK_MESSAGES_BY_STATUS[userType][
                     rideStatus as keyof typeof QUICK_MESSAGES_BY_STATUS.rider
                   ] || QUICK_MESSAGES_BY_STATUS[userType].default
                 ).map((msg) => (
-                  <Button
+                  <button
                     key={msg}
-                    variant="outline"
-                    size="sm"
-                    className="flex-shrink-0 text-xs whitespace-nowrap rounded-full"
+                    className="flex-shrink-0 text-[11px] font-bold whitespace-nowrap px-3 py-1.5 rounded-full transition-all active:scale-95"
+                    style={{ background: '#171f33', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.06)' }}
                     onClick={() => {
                       sendMessage(msg);
                       playSound("message_sent");
@@ -442,17 +458,18 @@ export const RideChat = ({
                     disabled={sending}
                   >
                     {msg}
-                  </Button>
+                  </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Input with Camera */}
+          {/* ── حقل الإدخال ── */}
           {!chatEnded && (
             <form
               onSubmit={handleSubmit}
-              className="flex gap-2 py-4 border-t flex-shrink-0"
+              className="flex items-center gap-2 px-4 py-3 flex-shrink-0"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: '#0d1730' }}
             >
               <input
                 ref={fileInputRef}
@@ -462,31 +479,33 @@ export const RideChat = ({
                 className="hidden"
                 onChange={handleFileChange}
               />
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="icon"
                 onClick={handleCapturePhoto}
                 disabled={uploadingImage || sending}
-                className="flex-shrink-0"
+                className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all active:scale-95"
+                style={{ background: '#171f33', border: '1px solid rgba(255,255,255,0.08)' }}
               >
-                <Camera className="h-4 w-4" />
-              </Button>
-              <Input
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="اكتب رسالة..."
-                disabled={sending || uploadingImage}
-                className="flex-1"
-              />
-              <Button
+                <Camera className="h-4 w-4 text-white/40" />
+              </button>
+              <div className="flex-1 relative">
+                <Input
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="اكتب رسالة..."
+                  disabled={sending || uploadingImage}
+                  className="h-10 rounded-xl border-0 text-[13px] text-white placeholder:text-white/20 pr-4 pl-4"
+                  style={{ background: '#171f33' }}
+                />
+              </div>
+              <button
                 type="submit"
-                size="icon"
                 disabled={sending || uploadingImage || !newMessage.trim()}
-                className="flex-shrink-0"
+                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all active:scale-95 disabled:opacity-30"
+                style={{ background: '#5bdda6', boxShadow: '0 0 12px rgba(91,221,166,0.25)' }}
               >
-                <Send className="h-4 w-4" />
-              </Button>
+                <Send className="h-4 w-4 text-[#0b1326]" />
+              </button>
             </form>
           )}
         </div>

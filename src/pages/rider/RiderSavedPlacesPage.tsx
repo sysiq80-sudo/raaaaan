@@ -522,38 +522,37 @@ const RiderSavedPlacesPage: React.FC = () => {
             </div>
 
             {/* Places list */}
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
               {places.map((place) => (
                 <div key={place.id} className="bg-[#151f30] rounded-2xl border border-slate-700/50 overflow-hidden">
-                  <div className="p-4">
-                    <div className="flex items-start gap-4">
-                      <div
-                        className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border border-slate-700/30 ${getColorForLabel(
-                          place.label,
-                        )}`}
-                      >
-                        {getIconComponent(place.label, place.icon)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-white text-[14px]">{place.name}</p>
-                        <p className="text-[12px] text-slate-400 truncate">
-                          {place.address}
-                        </p>
-                      </div>
+                  <div className="p-3.5 flex flex-col items-center text-center gap-2.5">
+                    <div
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border border-slate-700/30 ${getColorForLabel(
+                        place.label,
+                      )}`}
+                    >
+                      {getIconComponent(place.label, place.icon)}
                     </div>
-                    <div className="flex items-center gap-2 mt-4">
+                    <div className="min-w-0 w-full">
+                      <p className="font-semibold text-white text-[14px] truncate">{place.name}</p>
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                        {place.address}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 w-full mt-1">
                       <button
-                        className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[13px] font-semibold hover:bg-emerald-500/20 active:bg-emerald-500/30 transition-all"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[12px] font-semibold hover:bg-emerald-500/20 active:bg-emerald-500/30 transition-all"
                         onClick={() => handleNavigateTo(place)}
                       >
-                        <Navigation className="w-4 h-4" />
-                        اذهب إلى هنا
+                        <Navigation className="w-3.5 h-3.5" />
+                        اذهب
                       </button>
                       <button
-                        className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all"
+                        className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all"
                         onClick={() => handleDelete(place.id)}
+                        aria-label="حذف المكان"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -593,6 +592,7 @@ const RiderSavedPlacesPage: React.FC = () => {
                       setShowSearchResults(false);
                     }}
                     className="absolute left-3 top-1/2 -translate-y-1/2 p-1 hover:bg-secondary rounded-full"
+                    aria-label="مسح البحث"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -679,6 +679,7 @@ const RiderSavedPlacesPage: React.FC = () => {
                     <button
                       onClick={() => setCurrentLocation(null)}
                       className="p-1 hover:bg-secondary rounded-full"
+                      aria-label="إزالة الموقع"
                     >
                       <X className="w-4 h-4 text-muted-foreground" />
                     </button>

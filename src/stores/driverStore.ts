@@ -6,6 +6,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
+import { zustandCapacitorStorage } from '@/lib/zustandCapacitorStorage';
 
 // أنواع البيانات
 interface Location {
@@ -337,6 +338,7 @@ export const useDriverStore = create<DriverState & DriverActions>()(
         }),
         {
             name: 'raan-driver-store',
+            storage: zustandCapacitorStorage,
             partialize: (state) => ({
                 // حفظ فقط الإعدادات
                 autoAccept: state.autoAccept,
@@ -371,6 +373,7 @@ export const useDriverSettings = () => useDriverStore((state) => ({
     soundsEnabled: state.soundsEnabled,
     vibrationEnabled: state.vibrationEnabled,
 }));
+export const useAutoAccept = () => useDriverStore((state) => state.autoAccept);
 
 // Notification mute selectors - split for stability
 export const useNotificationMuteMode = () => useDriverStore((state) => state.notificationMuteMode);

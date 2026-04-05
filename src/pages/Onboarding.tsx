@@ -5,13 +5,14 @@
 
 import OnboardingFlow from "@/components/rider/OnboardingFlow";
 import { useAuth } from "@/contexts/AuthContext";
+import { capacitorStorageSync } from "@/lib/capacitorStorage";
 
 const Onboarding = () => {
   const { setIsOnboardingComplete } = useAuth();
 
   const handleOnboardingComplete = () => {
     console.log("[Onboarding] Marking onboarding as complete");
-    localStorage.setItem("raan_onboarding_completed", "true");
+    capacitorStorageSync.setItem("raan_onboarding_completed", "true");
     // ✅ فقط تحديث الحالة - AppRoutes سيتولى التوجيه
     setIsOnboardingComplete(true);
   };

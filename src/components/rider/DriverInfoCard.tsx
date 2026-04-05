@@ -1,19 +1,13 @@
 import {
-  User,
   Star,
-  Shield,
-  CheckCircle,
   Car,
-  Phone,
-  Navigation,
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { RideChat } from "@/components/rider/RideChat";
-import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import React, { useState } from "react";
 import VerifyVehicleSheet from "@/components/rider/VerifyVehicleSheet";
 import { playSound } from "@/utils/sounds";
+import { RideShareButton } from "@/components/rider/RideShareButton";
+import { EmergencyTriangleButton } from "@/components/rider/EmergencyTriangleButton";
 
 interface Driver {
   id: string;
@@ -33,6 +27,8 @@ interface DriverInfoCardProps {
   rideStatus: string;
   pickupAddress?: string;
   estimatedFare?: number;
+  currentLocation?: { lat: number; lng: number };
+  children?: React.ReactNode;
 }
 
 const DriverInfoCard = ({
@@ -41,178 +37,143 @@ const DriverInfoCard = ({
   rideStatus,
   pickupAddress,
   estimatedFare,
+  currentLocation,
+  children,
 }: DriverInfoCardProps) => {
   const [showVerify, setShowVerify] = useState(false);
+
+  // ── حالة التحميل ──
   if (!driver || rideStatus === "pending") {
     return (
-      <div className="bg-card rounded-2xl border shadow-lg p-4">
+      <div className="p-4" dir="rtl" style={{ background: '#0f1729' }}>
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <Car className="w-6 h-6 text-primary" />
+          <div
+            className="w-12 h-12 rounded-full flex items-center justify-center animate-pulse"
+            style={{ background: 'rgba(91,221,166,0.1)', border: '1px solid rgba(91,221,166,0.15)' }}
+          >
+            <Car className="w-5 h-5" style={{ color: '#5bdda6' }} />
           </div>
           <div className="flex-1">
-            <p className="font-bold text-sm text-foreground">جاري تحميل بيانات السائق...</p>
-            <p className="text-xs text-muted-foreground mt-0.5">سيظهر اسم السائق ومعلومات السيارة خلال لحظات</p>
+            <p className="font-bold text-sm text-white">جاري تحميل بيانات السائق...</p>
+            <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              سيظهر اسم السائق ومعلومات السيارة خلال لحظات
+            </p>
           </div>
         </div>
       </div>
     );
   }
 
-  const vehicleInfo =
-    [driver.vehicle_model, driver.vehicle_color, driver.vehicle_plate]
-      .filter(Boolean)
-      .join(" • ") || "معلومات السيارة غير متوفرة";
-
-  // Determine driver badge based on rating and rides
-  // Using semantic design tokens for badges
-  const getDriverBadge = () => {
-    const rating = driver.rating || 5;
-    const rides = driver.total_rides || 0;
-
-    if (rating >= 4.8 && rides >= 100) {
-      return {
-        label: "سائق مميز",
-        color: "bg-gradient-to-r from-warning to-warning/80",
-        icon: Star,
-      };
-    } else if (rating >= 4.5 && rides >= 50) {
-      return {
-        label: "موثوق",
-        color: "bg-gradient-to-r from-success to-success/80",
-        icon: Shield,
-      };
-    } else if (rides >= 10) {
-      return {
-        label: "معتمد",
-        color: "bg-gradient-to-r from-info to-info/80",
-        icon: CheckCircle,
-      };
-    }
-    return null;
-  };
-
-  const badge = getDriverBadge();
-
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-card rounded-2xl border shadow-lg p-4"
+      transition={{ duration: 0.3 }}
+      dir="rtl"
+      style={{ background: '#0f1729' }}
     >
-      <div className="flex items-start gap-3">
-        {/* صورة السائق + التقييم */}
-        <div className="relative">
-          <motion.div
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 300 }}
-          >
-            <Avatar className="w-16 h-16 border-3 border-primary/30 shadow-lg ring-2 ring-primary/20 ring-offset-2 ring-offset-background">
-              {driver.profile_image_url ? (
-                <AvatarImage
-                  src={driver.profile_image_url}
-                  alt={driver.full_name}
-                />
-              ) : null}
-              <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary text-xl font-bold">
-                {driver.full_name?.charAt(0) || <User className="w-7 h-7" />}
-              </AvatarFallback>
-            </Avatar>
-          </motion.div>
+      {/* ── القسم العلوي: صورة + معلومات ── */}
+      <div className="p-3 pb-2">
+        <div className="flex items-start gap-3">
+          {/* معلومات السائق */}
+          <div className="flex-1 min-w-0">
+            {/* الاسم */}
+            <h3 className="font-bold text-[18px] text-white truncate mb-1">
+              {driver.full_name}
+            </h3>
 
-          {/* شارة التقييم */}
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: "spring" }}
-            className="absolute -bottom-1 -right-1 flex items-center gap-0.5 bg-gradient-to-r from-warning/20 to-warning/30 dark:from-warning/30 dark:to-warning/20 px-2 py-0.5 rounded-full border border-warning/50 shadow-sm"
-          >
-            <Star className="w-3.5 h-3.5 fill-warning text-warning" />
-            <span className="text-xs font-bold text-warning-foreground dark:text-warning">
-              {driver.rating?.toFixed(1) || "5.0"}
-            </span>
-          </motion.div>
-
-          {/* شارة متصل */}
-          <div className="absolute -top-1 -left-1">
-            <div className="w-4 h-4 bg-success rounded-full border-2 border-background animate-pulse" />
-          </div>
-        </div>
-
-        {/* معلومات السائق */}
-        <div className="flex-1 min-w-0">
-          {/* الاسم + الشارة + الأجرة */}
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <h3 className="font-bold text-lg text-foreground truncate">
-                {driver.full_name}
-              </h3>
-              {badge && (
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 }}
+            {/* الأجرة + أزرار */}
+            <div className="flex items-center gap-2">
+              {estimatedFare && (
+                <div
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(91,221,166,0.12), rgba(59,130,246,0.08))',
+                    border: '1px solid rgba(91,221,166,0.2)',
+                    boxShadow: '0 2px 8px rgba(91,221,166,0.06)',
+                  }}
                 >
-                  <Badge
-                    className={`${badge.color} text-white text-[10px] px-1.5 py-0.5 font-medium`}
-                  >
-                    <badge.icon className="w-2.5 h-2.5 mr-0.5" />
-                    {badge.label}
-                  </Badge>
-                </motion.div>
+                  <span className="text-[12px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                    الأجرة
+                  </span>
+                  <span className="text-[18px] font-black tracking-tight" style={{ color: '#5bdda6' }}>
+                    {estimatedFare.toLocaleString()}
+                  </span>
+                  <span className="text-[9px] font-bold" style={{ color: 'rgba(91,221,166,0.6)' }}>
+                    د.ع
+                  </span>
+                </div>
               )}
+              <div className="flex-1" />
+              <RideShareButton rideId={rideId} />
+              <EmergencyTriangleButton rideId={rideId} currentLocation={currentLocation} />
             </div>
-            {estimatedFare && (
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground">الأجرة المتوقعة</p>
-                <p className="text-lg font-bold text-primary">
-                  {estimatedFare.toLocaleString()} د.ع
-                </p>
-              </div>
-            )}
           </div>
 
-          {/* معلومات السيارة */}
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2">
-            <Car className="w-3.5 h-3.5" />
-            <p className="truncate">{vehicleInfo}</p>
-            {/* زر لوحة السيارة - يفتح شاشة التأكيد */}
-            {driver.vehicle_plate && (
-              <button
-                onClick={() => {
-                  setShowVerify(true);
-                  playSound("tap");
-                }}
-                className="mr-auto bg-slate-900 text-white rounded-lg px-2.5 py-1 text-xs font-black tracking-wider font-mono hover:bg-slate-800 transition-colors active:scale-95"
-                dir="ltr"
-              >
-                {driver.vehicle_plate}
-              </button>
-            )}
-          </div>
-
-          {/* أزرار التواصل */}
-          <div className="flex items-center gap-2">
-            <RideChat
-              rideId={rideId}
-              userType="rider"
-              rideStatus={rideStatus}
-              driverPhone={driver.phone}
-              pickupAddress={pickupAddress}
+          {/* صورة السائق */}
+          <div className="relative shrink-0">
+            {/* حلقة متوهجة حول الصورة */}
+            <div
+              className="absolute -inset-1 rounded-2xl opacity-40"
+              style={{
+                background: 'linear-gradient(135deg, #5bdda6, #3b82f6)',
+                filter: 'blur(6px)',
+              }}
             />
-            {driver.phone && (
-              <a
-                href={`tel:${driver.phone}`}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-success/10 hover:bg-success/20 text-success rounded-full text-xs font-medium transition-colors"
+            <div
+              className="relative rounded-2xl overflow-hidden"
+              style={{
+                border: '2.5px solid rgba(91,221,166,0.35)',
+                boxShadow: '0 4px 20px rgba(91,221,166,0.12), inset 0 0 0 1px rgba(255,255,255,0.05)',
+              }}
+            >
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center overflow-hidden"
+                style={{ background: 'linear-gradient(145deg, #1a3a4a, #0f2433)' }}
               >
-                <Phone className="w-3.5 h-3.5" />
-                اتصال
-              </a>
-            )}
+                {driver.profile_image_url ? (
+                  <img 
+                    src={driver.profile_image_url} 
+                    alt={driver.full_name || ""} 
+                    className="w-full h-full object-cover" 
+                  />
+                ) : (
+                  <Car className="w-8 h-8" style={{ color: '#5bdda6' }} />
+                )}
+              </div>
+            </div>
+
+            {/* شارة متصل */}
+            <div
+              className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full"
+              style={{
+                background: '#22c55e',
+                border: '2.5px solid #0f1729',
+                boxShadow: '0 0 8px rgba(34,197,94,0.6), 0 0 16px rgba(34,197,94,0.2)',
+              }}
+            />
+
+            {/* شارة التقييم */}
+            <div
+              className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-2 py-0.5 rounded-full"
+              style={{
+                background: 'rgba(15,23,41,0.85)',
+                border: '1px solid rgba(251,191,36,0.35)',
+                backdropFilter: 'blur(12px)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              }}
+            >
+              <Star className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
+              <span className="text-[10px] font-black text-yellow-400">
+                {driver.rating?.toFixed(1) || "5.0"}
+              </span>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* ── محتوى إضافي (أزرار الإجراءات) ── */}
+      {children}
 
       {/* شاشة تأكيد لوحة السيارة */}
       {driver && (

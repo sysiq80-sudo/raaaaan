@@ -17,6 +17,7 @@ interface RiderProfile {
   id: string;
   user_id: string;
   full_name: string | null;
+  phone?: string | null;
   status?: string;
 }
 
@@ -38,6 +39,13 @@ const SuspendRiderDialog = ({
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const normalizePhoneForBlocking = (phone: string): string => {
+    let cleaned = (phone || "").replace(/\D/g, "");
+    if (cleaned.startsWith("0")) cleaned = `964${cleaned.slice(1)}`;
+    if (cleaned && !cleaned.startsWith("964")) cleaned = `964${cleaned}`;
+    return cleaned;
+  };
+
   const handleAction = async () => {
     if (!rider) return;
 
@@ -51,6 +59,37 @@ const SuspendRiderDialog = ({
         .eq("id", rider.id);
 
       if (error) throw error;
+
+      const normalizedPhone = normalizePhoneForBlocking(rider.phone || "");
+      if (normalizedPhone) {
+        if (action === "suspend") {
+          const { error: blockError } = await supabase
+            .from("blocked_phones")
+            .upsert(
+              {
+                phone: normalizedPhone,
+                reason: "Account suspended by admin",
+                is_permanent: true,
+                blocked_until: null,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "phone" },
+            );
+
+          if (blockError) {
+            console.error("Error blocking phone:", blockError);
+          }
+        } else {
+          const { error: unblockError } = await supabase
+            .from("blocked_phones")
+            .delete()
+            .eq("phone", normalizedPhone);
+
+          if (unblockError) {
+            console.error("Error unblocking phone:", unblockError);
+          }
+        }
+      }
 
       toast({
         title: action === "suspend" ? "تم التعطيل" : "تم التفعيل",

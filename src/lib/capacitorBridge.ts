@@ -14,6 +14,7 @@
  */
 
 import { Capacitor } from '@capacitor/core';
+import { capacitorStorageSync } from './capacitorStorage';
 
 // ═══ كشف البيئة ═══
 
@@ -393,25 +394,25 @@ export const initNativePushNotifications = async (): Promise<void> => {
       console.warn('⚠️ إذن Push غير ممنوح:', permResult.receive);
       return;
     }
-    
-    // تسجيل FCM
-    await PushNotifications.register();
-    
-    // مستمع رمز التسجيل
+
+    // مستمعات قبل register() حتى لا يُفقد حدث registration (مهم للسائق/الراكب)
     PushNotifications.addListener('registration', (token) => {
       console.log('📱 FCM Token received:', token.value?.substring(0, 20) + '...');
-      // سيتم حفظه في driverNotificationService.registerFCMToken()
-      // نحفظ الرمز مؤقتاً في localStorage حتى يتم تسجيل الدخول
       try {
-        localStorage.setItem('raan_fcm_token', token.value);
+        capacitorStorageSync.setItem('raan_fcm_token', token.value);
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('raan_fcm_token', token.value);
+        }
       } catch {
         // صامت
       }
     });
-    
+
     PushNotifications.addListener('registrationError', (error) => {
       console.error('❌ FCM Registration error:', error);
     });
+
+    await PushNotifications.register();
     
     // إشعار وصل والتطبيق في المقدمة — عرض إشعار محلي + إبلاغ التطبيق
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
@@ -469,14 +470,14 @@ export const initNativePushNotifications = async (): Promise<void> => {
       if (action.actionId === 'accept') {
         // قبول الرحلة — يُعالج عند فتح الصفحة
         try {
-          localStorage.setItem('raan_pending_accept_ride', rideId);
+          capacitorStorageSync.setItem('raan_pending_accept_ride', rideId);
         } catch {
           // صامت
         }
       } else {
         // فتح الطلب من الإشعار
         try {
-          localStorage.setItem('raan_pending_open_ride', rideId);
+          capacitorStorageSync.setItem('raan_pending_open_ride', rideId);
         } catch {
           // صامت
         }

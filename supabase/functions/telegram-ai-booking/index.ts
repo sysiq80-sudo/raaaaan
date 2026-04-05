@@ -821,14 +821,13 @@ async function findOrCreateTelegramUser(
   telegramUser: { id: number; first_name?: string; last_name?: string; username?: string }
 ): Promise<string> {
   const telegramRef = `tg_${telegramUser.id}`;
-  const email = `tg_${telegramUser.id}@telegram.raan.app`;
   const displayName = [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(" ") || "راكب تيليغرام";
 
-  // ── 1. البحث في profiles بالـ phone أو email
+  // ── 1. البحث في profiles بالـ phone (telegram ref)
   const { data: existing } = await supabase
     .from("profiles")
     .select("user_id")
-    .or(`phone.eq.${telegramRef},email.eq.${email}`)
+    .eq("phone", telegramRef)
     .limit(1)
     .maybeSingle();
 
@@ -837,17 +836,17 @@ async function findOrCreateTelegramUser(
     return existing.user_id;
   }
 
-  // ── 2. محاولة إنشاء مستخدم جديد
+  // ── 2. محاولة إنشاء مستخدم جديد (بدون إيميل — هاتف فقط أو معرف تلغرام)
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email,
+    phone: `+0${telegramUser.id}`,
     password: crypto.randomUUID(),
-    email_confirm: true,
+    phone_confirm: true,
     user_metadata: {
       full_name: displayName,
       source: "telegram",
       telegram_id: telegramUser.id,
       telegram_username: telegramUser.username,
-      is_ghost_account: true, // علامة الحساب الشبح
+      is_ghost_account: true,
       ghost_created_at: new Date().toISOString(),
     },
   });
@@ -859,7 +858,7 @@ async function findOrCreateTelegramUser(
       // ── المستخدم موجود في auth لكن مو بـ profiles — ابحث عنه بـ GoTrue Admin API
       console.log(`[auth] User exists in auth, looking up via GoTrue filter...`);
       const lookupRes = await fetch(
-        `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1&filter=${encodeURIComponent(email)}`,
+        `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1&filter=${encodeURIComponent(telegramRef)}`,
         {
           headers: {
             Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
@@ -892,7 +891,6 @@ async function findOrCreateTelegramUser(
     user_id: userId,
     full_name: displayName,
     phone: telegramRef,
-    email,
     status: "active",
   });
 

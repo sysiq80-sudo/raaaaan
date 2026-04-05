@@ -15,7 +15,6 @@ export async function findOrCreateWhatsAppUser(
   profileName: string | null
 ): Promise<string> {
   const waRef = `wa_${phoneNumber}`;
-  const waEmail = `wa_${phoneNumber}@whatsapp.raan.app`;
   const displayName = profileName || "راكب واتساب";
 
   // 0. فحص الأسماء المحظورة
@@ -52,7 +51,7 @@ export async function findOrCreateWhatsAppUser(
   const { data: existing } = await supabase
     .from("profiles")
     .select("user_id, phone")
-    .or(`${phoneOrFilter},email.eq.${waEmail}`)
+    .or(phoneOrFilter)
     .limit(1)
     .maybeSingle();
 
@@ -86,15 +85,15 @@ export async function findOrCreateWhatsAppUser(
   // عندما يُحمّل التطبيق لاحقاً، يستعيد الحساب عبر OTP ويضع كلمة مرور جديدة.
   const ghostPassword = crypto.randomUUID();
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email: waEmail,
+    phone: e164Phone,
     password: ghostPassword,
-    email_confirm: true,
-    phone_confirm: true, // مهم للـ OTP
+    phone_confirm: true,
     user_metadata: {
       full_name: finalName,
       source: "whatsapp",
       whatsapp_phone: phoneNumber,
-      is_ghost_account: true, // علامة الحساب الشبح
+      role: "rider",
+      is_ghost_account: true,
       ghost_created_at: new Date().toISOString(),
     },
   });
@@ -123,45 +122,6 @@ export async function findOrCreateWhatsAppUser(
 
   console.log(`[auth] 👻 Created ghost account for WA user: ${authData.user.id} (phone: ${e164Phone})`);
   return authData.user.id;
-
-  let userId: string;
-
-  if (authError) {
-    if (authError.message.includes("already been registered")) {
-      const lookupRes = await fetch(
-        `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1&filter=${encodeURIComponent(email)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            apikey: SUPABASE_SERVICE_ROLE_KEY,
-          },
-        }
-      );
-      const lookupData = await lookupRes.json();
-      const foundUser = lookupData.users?.[0];
-      if (!foundUser?.id) throw new Error("WA user registered but not found in admin lookup");
-      userId = foundUser.id;
-      console.log(`[auth] Found WA user via GoTrue: ${userId}`);
-    } else {
-      throw new Error(`Failed to create WA auth user: ${authError.message}`);
-    }
-  } else if (!authData?.user) {
-    throw new Error("Failed to create WA auth user: no user returned");
-  } else {
-    userId = authData.user.id;
-    console.log(`[auth] Created new WA auth user: ${userId}`);
-  }
-
-  // إنشاء/تحديث profile
-  await supabase.from("profiles").upsert({
-    user_id: userId,
-    full_name: finalName,
-    phone: waRef,
-    email,
-    status: "active",
-  });
-
-  return userId;
 }
 
 // ════════════════════════════════════════

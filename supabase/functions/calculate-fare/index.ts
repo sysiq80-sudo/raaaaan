@@ -161,7 +161,7 @@ serve(async (req) => {
       service_fee_percentage: 5,
       min_service_fee: 500,
       surge_pricing_enabled: true,
-      max_surge_multiplier: 3.0,
+      max_surge_multiplier: 2.0,
       subscription_discounts_enabled: true,
       tier_discounts_enabled: true,
     };
@@ -245,7 +245,7 @@ serve(async (req) => {
       if (!surgeError && surgeData) {
         surgeMultiplier = Math.min(
           parseFloat(surgeData.multiplier) || 1.0,
-          fareSettings.max_surge_multiplier || 2.5,
+          fareSettings.max_surge_multiplier || 2.0,
         );
         surgeName = surgeData.reason;
         demandLevel = surgeData.demand_level;

@@ -112,13 +112,16 @@ BEGIN
   IF NEW.trip_type = 'whatsapp'
      AND OLD.status IS DISTINCT FROM NEW.status
   THEN
-    -- Dynamic URL from system_configs
+    -- Dynamic URL + anon key من system_configs فقط — لا أسرار مضمّنة في المستودع
     SELECT key_value INTO v_base_url FROM system_configs WHERE key_name = 'SUPABASE_URL' LIMIT 1;
     SELECT key_value INTO v_anon_key FROM system_configs WHERE key_name = 'SUPABASE_ANON_KEY' LIMIT 1;
+    v_base_url := NULLIF(TRIM(COALESCE(v_base_url, '')), '');
+    v_anon_key := NULLIF(TRIM(COALESCE(v_anon_key, '')), '');
 
-    -- Fallback to hardcoded if config missing
-    v_base_url := COALESCE(NULLIF(v_base_url, ''), 'https://wgolkcztdrwdphwjvqxt.supabase.co');
-    v_anon_key := COALESCE(NULLIF(v_anon_key, ''), 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo');
+    IF v_base_url IS NULL OR v_anon_key IS NULL THEN
+      RAISE LOG '[WhatsAppRideUpdates] Skipped: set non-empty SUPABASE_URL and SUPABASE_ANON_KEY in system_configs';
+      RETURN NEW;
+    END IF;
 
     SELECT net.http_post(
       url := v_base_url || '/functions/v1/whatsapp-ride-updates',
@@ -182,9 +185,13 @@ BEGIN
   THEN
     SELECT key_value INTO v_base_url FROM system_configs WHERE key_name = 'SUPABASE_URL' LIMIT 1;
     SELECT key_value INTO v_anon_key FROM system_configs WHERE key_name = 'SUPABASE_ANON_KEY' LIMIT 1;
+    v_base_url := NULLIF(TRIM(COALESCE(v_base_url, '')), '');
+    v_anon_key := NULLIF(TRIM(COALESCE(v_anon_key, '')), '');
 
-    v_base_url := COALESCE(NULLIF(v_base_url, ''), 'https://wgolkcztdrwdphwjvqxt.supabase.co');
-    v_anon_key := COALESCE(NULLIF(v_anon_key, ''), 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo');
+    IF v_base_url IS NULL OR v_anon_key IS NULL THEN
+      RAISE LOG '[SMSRideUpdates] Skipped: set non-empty SUPABASE_URL and SUPABASE_ANON_KEY in system_configs';
+      RETURN NEW;
+    END IF;
 
     SELECT net.http_post(
       url := v_base_url || '/functions/v1/sms-ride-updates',

@@ -3,13 +3,14 @@ import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Lock, Phone, Eye, EyeOff, BadgeCheck, Headphones, Wallet } from "lucide-react";
 import logo from "@/assets/logo.png";
 import PasswordResetDialog from "@/components/PasswordResetDialog";
 import { normalizeIraqiPhone } from "@/lib/validations";
+import { normalizeIraqiPhoneToE164 } from "@/lib/phoneUtils";
 import { saveRememberMe, clearRememberMe, getRememberMe } from "@/services/rememberMeService";
+import { capacitorStorageSync } from "@/lib/capacitorStorage";
 
 const DriverAuth = () => {
   const navigate = useNavigate();
@@ -117,11 +118,11 @@ const DriverAuth = () => {
     } = supabase.auth.onAuthStateChange((event, session) => {
       // فقط معالجة SIGNED_IN أو INITIAL_SESSION
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session && isMounted) {
-        // Extract phone from email if it's a phone-based login
-        const email = session.user.email || "";
-        const phoneMatch = email.match(/^(\d+)@/);
-        const userPhone = phoneMatch ? phoneMatch[1] : undefined;
-        checkDriverStatus(userPhone);
+        // استخراج رقم الهاتف مباشرة من الجلسة
+        const rawPhone = session.user.phone || session.user.user_metadata?.phone || "";
+        let userPhone = rawPhone.replace(/\D/g, "");
+        if (userPhone.startsWith("964")) userPhone = userPhone.slice(3);
+        checkDriverStatus(userPhone || undefined);
       }
     });
 
@@ -150,72 +151,60 @@ const DriverAuth = () => {
     setLoading(true);
 
     try {
-      // تنظيف الرقم
-      let phoneClean = loginPhone.replace(/\D/g, "");
+      // Normalize to canonical Iraqi local format (7XXXXXXXXX)
+      let normalizedPhone = loginPhone.replace(/\D/g, "");
+      if (normalizedPhone.startsWith("964")) normalizedPhone = normalizedPhone.slice(3);
+      if (normalizedPhone.startsWith("0")) normalizedPhone = normalizedPhone.slice(1);
 
-      // إزالة 964 في البداية
-      if (phoneClean.startsWith("964")) {
-        phoneClean = phoneClean.slice(3);
+      // Prevent invalid attempts such as 77000000 (too short)
+      if (normalizedPhone.length !== 10 || !normalizedPhone.startsWith("7")) {
+        setErrors({ loginPhone: "يرجى إدخال رقم عراقي صحيح (مثال: 07XXXXXXXXX)" });
+        setLoading(false);
+        return;
       }
 
-      // إزالة الصفر في البداية
-      if (phoneClean.startsWith("0")) {
-        phoneClean = phoneClean.slice(1);
+      const e164Phone = normalizeIraqiPhoneToE164(loginPhone);
+
+      // ── فحص الأرقام المحظورة قبل محاولة الدخول ──
+      const phoneForBlockCheck = `964${normalizedPhone}`;
+      const { data: isBlocked, error: blockCheckError } = await supabase.rpc(
+        "is_phone_blocked",
+        { p_phone: phoneForBlockCheck }
+      );
+
+      if (!blockCheckError && isBlocked) {
+        toast({
+          title: "الحساب معطّل",
+          description: "لا يمكن تسجيل الدخول بهذا الرقم حالياً. يرجى التواصل مع الدعم.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
       }
 
-      // Normalize to single canonical format to avoid multiple auth attempts
-      let normalizedPhone = phoneClean;
-      if (normalizedPhone.startsWith("964")) {
-        normalizedPhone = normalizedPhone.slice(3);
-      }
-      // Remove leading 0 if present
-      if (normalizedPhone.startsWith("0")) {
-        normalizedPhone = normalizedPhone.slice(1);
-      }
-
-      // Try driver domain first, then fallback to general domain
-      const phoneEmails = [
-        `${normalizedPhone}@driver.raan.app`,
-        `${normalizedPhone}@raan.app`,
-      ];
-
-      console.log("Trying login with phones:", phoneEmails);
+      console.log("Trying phone-only login:", e164Phone);
 
       let signInSuccess = false;
-      let lastError = null;
-      let successfulPhone = ""; // ✅ تتبع الرقم الناجح
+      const successfulPhone = normalizedPhone;
 
-      for (const phoneEmail of phoneEmails) {
-        console.log("Trying:", phoneEmail);
-        const { data, error: signInError } =
-          await supabase.auth.signInWithPassword({
-            email: phoneEmail,
-            password: loginPhonePassword,
-          });
+      // تسجيل الدخول عبر رقم الهاتف فقط
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        phone: e164Phone,
+        password: loginPhonePassword,
+      });
 
-        if (!signInError && data.user) {
-          signInSuccess = true;
-          // استخرج الرقم من البريد الناجح
-          const match = phoneEmail.match(/^(\d+)@/);
-          successfulPhone = match ? match[1] : loginPhone; // ✅ احفظ الرقم
-          // حفظ دور السائق فوراً لضمان توجيهه لشاشة السائق
-          localStorage.setItem("raan_current_role", "driver");
-          // حفظ "تذكرني" عبر Capacitor Preferences
-          if (rememberMe) {
-            saveRememberMe(loginPhone, "driver");
-          } else {
-            clearRememberMe();
-          }
-          console.log("Login successful with:", phoneEmail);
-          toast({
-            title: "مرحباً بك كابتن!",
-            description: "تم تسجيل الدخول بنجاح",
-          });
-          break;
+      if (!signInError && data.user) {
+        signInSuccess = true;
+        capacitorStorageSync.setItem("raan_current_role", "driver");
+        if (rememberMe) {
+          saveRememberMe(loginPhone, "driver");
         } else {
-          lastError = signInError;
-          console.log("Failed with:", phoneEmail, signInError?.message);
+          clearRememberMe();
         }
+        toast({
+          title: "مرحباً بك كابتن!",
+          description: "تم تسجيل الدخول بنجاح",
+        });
       }
 
       if (signInSuccess && successfulPhone) {
@@ -284,12 +273,12 @@ const DriverAuth = () => {
         // تحديد نوع الخطأ وعرض رسالة مناسبة
         let errorMessage = "رقم الهاتف أو كلمة المرور غير صحيحة";
 
-        if (lastError?.message?.includes("Invalid login credentials")) {
+        if (signInError?.message?.includes("Invalid login credentials")) {
           errorMessage =
             "رقم الهاتف أو كلمة المرور غير صحيحة. تأكد من صحة البيانات.";
-        } else if (lastError?.message?.includes("Email not confirmed")) {
+        } else if (signInError?.message?.includes("Email not confirmed")) {
           errorMessage = "لم يتم تأكيد الحساب. تواصل مع الدعم.";
-        } else if (lastError?.message?.includes("Too many requests")) {
+        } else if (signInError?.message?.includes("Too many requests")) {
           errorMessage = "محاولات كثيرة جداً. انتظر قليلاً ثم حاول مرة أخرى.";
         }
 
@@ -299,13 +288,14 @@ const DriverAuth = () => {
           variant: "destructive",
         });
 
-        console.error("All login attempts failed. Last error:", lastError);
+        console.error("Login failed for phone:", e164Phone);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "حدث خطأ غير متوقع";
       console.error("Login error:", error);
       toast({
         title: "خطأ في تسجيل الدخول",
-        description: error.message || "حدث خطأ غير متوقع",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -355,7 +345,7 @@ const DriverAuth = () => {
                   placeholder="07xxxxxxxxx"
                   value={loginPhone}
                   onChange={(e) => setLoginPhone(e.target.value)}
-                  className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 rounded-none pr-16 pl-4 text-[16px] font-medium tracking-wide focus-visible:ring-0 w-full text-center ${errors.loginPhone ? "shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]" : ""}`}
+                  className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-[16px] font-medium tracking-wide focus-visible:ring-0 w-full text-center ${errors.loginPhone ? "shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]" : ""}`}
                   required
                   dir="ltr"
                 />
@@ -375,18 +365,18 @@ const DriverAuth = () => {
               </div>
               <Input
                 type={showPassword ? "text" : "password"}
-                placeholder="كلمة المرور"
+                placeholder="••••••••"
                 value={loginPhonePassword}
                 onChange={(e) => setLoginPhonePassword(e.target.value)}
-                className={`w-full h-14 bg-transparent border-0 text-white placeholder-slate-400 rounded-none pr-16 pl-12 text-[15px] focus-visible:ring-0 ${errors.loginPhonePassword ? "shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]" : ""}`}
+                className={`w-full h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-[15px] text-center focus-visible:ring-0 ${errors.loginPhonePassword ? "shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]" : ""}`}
                 required
                 minLength={6}
-                dir="rtl"
+                dir="ltr"
               />
               <button 
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute left-0 inset-y-0 flex items-center pl-4 text-slate-400 hover:text-white transition-colors z-10"
+                className="absolute left-0 top-0 bottom-0 w-16 flex items-center justify-center text-slate-400 hover:text-white transition-colors z-10 bg-[#0d1321] border-r border-slate-700/50"
                 tabIndex={-1}
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -407,19 +397,19 @@ const DriverAuth = () => {
                 rememberMe ? 'border-emerald-500/40 bg-emerald-500/8 text-emerald-400' : 'border-slate-700/50 bg-[#1a2333] text-slate-400'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <div className={`p-1.5 rounded-lg transition-colors ${rememberMe ? 'bg-emerald-500/15' : 'bg-slate-800'}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${rememberMe ? 'text-emerald-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium">ابقَني مسجلاً دخولي</p>
-                  <p className="text-xs text-slate-500">{rememberMe ? 'لن تحتاج لتسجيل دخول مجدداً' : 'ستُطلب كلمة المرور عند إعادة الفتح'}</p>
-                </div>
+              <div className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${rememberMe ? 'bg-emerald-500/15' : 'bg-slate-800'}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${rememberMe ? 'text-emerald-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
               </div>
-              <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${rememberMe ? 'bg-emerald-500' : 'bg-slate-700'}`}>
-                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${rememberMe ? 'right-0.5' : 'left-0.5'}`} />
+              <div className="flex items-center gap-1.5 sm:gap-2 mr-auto" dir="rtl">
+                <p className="text-sm font-medium whitespace-nowrap">ابقَني مسجلاً دخولي</p>
+                <span className="text-[10px] sm:text-[11px] text-slate-500 hidden sm:inline-block">
+                  {rememberMe ? '(لن تحتاج لتسجيل دخول مجدداً)' : '(ستُطلب كلمة المرور للفتح)'}
+                </span>
+                <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ml-1 ${rememberMe ? 'bg-emerald-500' : 'bg-slate-700'}`}>
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${rememberMe ? 'right-0.5' : 'left-0.5'}`} />
+                </div>
               </div>
             </button>
 
@@ -444,24 +434,7 @@ const DriverAuth = () => {
             </Button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-4 mt-10 mb-6">
-            <div className="flex-1 h-px bg-[#1e293b]" />
-            <span className="text-[13px] text-slate-400 font-medium">أو تواصل عبر</span>
-            <div className="flex-1 h-px bg-[#1e293b]" />
-          </div>
 
-          {/* Social */}
-          <div className="grid grid-cols-2 gap-4">
-            <Button type="button" variant="outline" className="h-12 bg-[#131b2c] border-[#1e293b] text-white hover:bg-[#1e293b] rounded-xl flex items-center justify-center gap-2">
-              <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg>
-              <span className="font-bold">جوجل</span>
-            </Button>
-            <Button type="button" variant="outline" className="h-12 bg-[#131b2c] border-[#1e293b] text-white hover:bg-[#1e293b] rounded-xl flex items-center justify-center gap-2">
-              <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor"><path d="M16.365,2.152c-1.393,0-3.085,0.852-3.92,1.803c-0.655,0.729-1.314,2.028-1.054,3.31c1.497,0.115,3.155-0.758,3.957-1.748C16.142,4.551,16.793,3.315,16.365,2.152z M17.922,17.472c-0.342,0.92-2.181,3.226-3.868,3.226c-1.037,0-1.465-0.653-3.141-0.653c-1.696,0-2.222,0.671-3.161,0.671c-1.744,0-3.896-2.585-4.52-4.32C1.908,12.637,2.822,7.319,6.066,7.319c1.693,0,2.693,0.887,3.945,0.887c1.334,0,2.887-1.077,4.505-1.077c1.087,0,3.649,0.297,4.981,2.073c-3.16,1.424-2.618,5.77-0.125,6.861C19.168,16.48,18.528,17.026,17.922,17.472z"/></svg>
-              <span className="font-bold">آبل</span>
-            </Button>
-          </div>
 
           {/* Info Section */}
           <div className="mt-14 mb-8">
@@ -505,7 +478,7 @@ const DriverAuth = () => {
 
           <div className="mt-auto pt-6 pb-2 text-center">
             <p className="text-slate-500 text-[11px]">
-              بالمتابعة، أنت توافق على <span className="border-b border-slate-600 pb-0.5">شروط الخدمة</span> و<span className="border-b border-slate-600 pb-0.5">سياسة الخصوصية</span> الخاصة بـ raan.
+              بالمتابعة، أنت توافق على <Link to="/terms" className="border-b border-slate-600 pb-0.5 text-slate-300 hover:text-emerald-400 hover:border-emerald-400 transition-colors">شروط الخدمة</Link> و<Link to="/privacy" className="border-b border-slate-600 pb-0.5 text-slate-300 hover:text-emerald-400 hover:border-emerald-400 transition-colors">سياسة الخصوصية</Link> الخاصة بـ raan.
             </p>
           </div>
             

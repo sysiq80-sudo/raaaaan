@@ -433,10 +433,10 @@ const DriverHome = () => {
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        const { latitude, longitude } = position.coords;
-        const newLocation = { lat: latitude, lng: longitude };
-        setCurrentLocation(newLocation);
-        latestLocationRef.current = newLocation;
+        const { latitude, longitude, heading, speed } = position.coords;
+        const newLocation = { lat: latitude, lng: longitude, heading, speed };
+        setCurrentLocation(newLocation as any);
+        latestLocationRef.current = newLocation as any;
         
         // Throttle: أرسل التحديث فقط إذا مرت 10 ثوان
         const now = Date.now();
@@ -1099,8 +1099,8 @@ const DriverHome = () => {
             {/* ═══ Driver Control Center — Centered DutyToggle ═══ */}
             {!hasRideRequest && !hasActiveRide && (
               <div className="absolute inset-x-0 bottom-[22vh] z-20 pointer-events-none flex justify-center">
-                <div className="relative flex flex-col items-center gap-3 w-full max-w-2xl px-4">
-                  <div className="pointer-events-auto w-full">
+                <div className="relative flex flex-col items-center gap-3 w-full max-w-2xl px-5">
+                  <div className="pointer-events-auto w-full max-w-[calc(100%-1rem)] sm:max-w-sm mx-auto">
                     <DutyToggle
                       isOnline={isOnline}
                       isPaused={isPaused}

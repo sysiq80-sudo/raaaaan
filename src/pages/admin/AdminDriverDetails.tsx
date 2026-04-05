@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,6 +29,7 @@ import {
   Gift,
   BarChart3,
   Activity,
+  MessageSquare,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
@@ -455,9 +456,10 @@ const AdminDriverDetails = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
             <TabsTrigger value="rides">الرحلات</TabsTrigger>
+            <TabsTrigger value="comments">التعليقات</TabsTrigger>
             <TabsTrigger value="financial">المالية</TabsTrigger>
             <TabsTrigger value="rewards">المكافآت</TabsTrigger>
             <TabsTrigger value="documents">الوثائق</TabsTrigger>
@@ -696,6 +698,105 @@ const AdminDriverDetails = () => {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Comments Tab */}
+          <TabsContent value="comments" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  تعليقات الركاب
+                </CardTitle>
+                <CardDescription>
+                  جميع التقييمات النصية والبادجات للرحلات المكتملة
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const BADGE_MAP: Record<string, string> = {
+                    clean: '🧹 سيارة نظيفة', ontime: '⏱️ دقيق في المواعيد',
+                    roads: '🛣️ خبير بالطرق', polite: '💬 أسلوب مهذب',
+                    ac: '❄️ مكيف ممتاز', safe: '🚗 قيادة آمنة',
+                  };
+                  const ridesWithComments = rides.filter(r => r.ride_ratings?.[0]?.comment);
+                  if (ridesWithComments.length === 0) {
+                    return (
+                      <div className="text-center py-12">
+                        <MessageSquare className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                        <p className="text-muted-foreground">لا توجد تعليقات بعد</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-4">
+                      {ridesWithComments.map((ride) => {
+                        const raw: string = ride.ride_ratings![0].comment!;
+                        const badgeMatch = raw.match(/\[بادجات: ([^\]]+)\]/);
+                        const freePart = raw.replace(/\[بادجات: [^\]]+\]\s*\|?\s*/g, '').trim();
+                        const badgeIds = badgeMatch ? badgeMatch[1].split(',') : [];
+                        return (
+                          <div key={ride.id} className="border rounded-xl p-4 space-y-3">
+                            {/* رأس التعليق */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                  <span className="text-xs font-bold text-primary">
+                                    {ride.rider?.full_name?.slice(0, 2) || 'ر'}
+                                  </span>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-semibold">{ride.rider?.full_name || 'راكب غير محدد'}</p>
+                                  <p className="text-xs text-muted-foreground">{formatDate(ride.created_at)}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                {ride.driver_rating && (
+                                  <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-1">
+                                    <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                                    <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{ride.driver_rating}</span>
+                                  </div>
+                                )}
+                                <span className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+                                  #{ride.id.slice(-6)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* البادجات */}
+                            {badgeIds.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {badgeIds.map(b => (
+                                  <span key={b} className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-full px-3 py-1">
+                                    {BADGE_MAP[b] ?? b}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* النص الحر */}
+                            {freePart && (
+                              <blockquote className="text-sm text-foreground/80 bg-muted/60 border-r-4 border-primary/40 pr-3 py-2 rounded-md leading-relaxed italic">
+                                "{freePart}"
+                              </blockquote>
+                            )}
+
+                            {/* معلومات الرحلة */}
+                            <div className="flex items-center gap-3 pt-1 text-xs text-muted-foreground border-t">
+                              <span>📍 {ride.pickup_address?.slice(0, 30) || '—'}...</span>
+                              <span>•</span>
+                              <span>🚗 {(ride.distance_km || 0).toFixed(1)} كم</span>
+                              <span>•</span>
+                              <span>💰 {formatCurrency(ride.final_fare || 0)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>

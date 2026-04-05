@@ -5,13 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useRiderLocation } from "@/hooks/useRiderLocation";
-import FareBreakdownCard from "@/components/driver/FareBreakdownCard";
-import { EmergencyTriangleButton } from "@/components/rider/EmergencyTriangleButton";
-import { RideShareButton } from "@/components/rider/RideShareButton";
 import DriverInfoCard from "@/components/rider/DriverInfoCard";
-import RideStatusBar from "@/components/rider/RideStatusBar";
 import ChangeDestinationSheet from "@/components/rider/ChangeDestinationSheet";
-import { ChatButton } from "@/components/ride/RideChat";
+import { RideChat } from "@/components/rider/RideChat";
 import { useBroadcastChannel } from "@/hooks/useBroadcastChannel";
 import {
   playSound,
@@ -20,30 +16,23 @@ import {
   showNotification,
   requestNotificationPermission,
 } from "@/utils/rideNotificationSounds";
-import { calculateLocalDistance } from "@/lib/mapUtils";
 import {
   X,
   Loader2,
-  Shield,
   CheckCircle,
-  Clock,
   MapPin,
   Edit2,
-  Car,
   Search,
   UserCheck,
   MapPinned,
   Route,
   Menu,
-  Bell,
   Timer,
   Navigation,
   Check,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useBottomSheetDrag } from "@/hooks/useBottomSheetDrag";
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
-import StatusIcons from "@/components/common/StatusIcons";
 import logo from "@/assets/logo.png";
 
 interface Ride {
@@ -132,20 +121,17 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   const { toast } = useToast();
 
   // Handle driver location update from broadcast
-  const handleDriverLocationUpdate = useCallback(
-    (location: { lat: number; lng: number }) => {
-      setDriver((prev) =>
-        prev ? { ...prev, current_location: location } : null
-      );
-      updateDriverMarker(location);
-      calculateETA(location);
-      if (ride.status === "accepted") {
-        fetchDriverToPickupRoute(location);
-        checkDriverApproaching(location);
-      }
-    },
-    [ride.status]
-  );
+  const handleDriverLocationUpdate = (location: { lat: number; lng: number }) => {
+    setDriver((prev) =>
+      prev ? { ...prev, current_location: location } : null
+    );
+    updateDriverMarker(location);
+    calculateETA(location);
+    if (ride.status === "accepted") {
+      fetchDriverToPickupRoute(location);
+      checkDriverApproaching(location);
+    }
+  };
 
   // Use broadcast channel hook
   const { sendQuickMessage, handleRiderArrived } = useBroadcastChannel({
@@ -323,51 +309,64 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           setIsLoading(false);
         });
 
-        // إضافة علامة نقطة الانطلاق (أخضر)
-        const pickupIcon = document.createElement("div");
-        pickupIcon.innerHTML = `
-          <div class="flex flex-col items-center">
-            <div class="w-10 h-10 rounded-full flex items-center justify-center shadow-lg" style="background: linear-gradient(135deg, #00d9a5, #00b389);">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
-            </div>
-          </div>
-        `;
-        const hasAdvancedMarker = !!window.google?.maps?.marker?.AdvancedMarkerElement;
+        // إضافة علامة نقطة الانطلاق (أخضر زمردي فاخر)
         pickupMarkerRef.current = new google.maps.Marker({
-            position: ride.pickup_location,
-            map: map.current,
-            icon: hasAdvancedMarker ? {
-              url: "data:image/svg+xml," + encodeURIComponent(`
-                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-                  <defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00d9a5"/><stop offset="100%" stop-color="#00b389"/></linearGradient></defs>
-                  <circle cx="20" cy="20" r="18" fill="url(#pg)" stroke="white" stroke-width="3"/>
-                  <circle cx="20" cy="20" r="6" fill="none" stroke="white" stroke-width="2"/>
-                  <circle cx="20" cy="20" r="2" fill="white"/>
-                </svg>
-              `),
-              scaledSize: new google.maps.Size(40, 40),
-              anchor: new google.maps.Point(20, 20),
-            } : undefined,
-          });
+          position: ride.pickup_location,
+          map: map.current,
+          icon: {
+            url: "data:image/svg+xml," + encodeURIComponent(`
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="56" viewBox="0 0 48 56">
+                <!-- Drop shadow -->
+                <ellipse cx="24" cy="52" rx="14" ry="4" fill="black" opacity="0.2"/>
+                <!-- Pin base -->
+                <path d="M24 50 C24 50 40 32 40 20 C40 8 32 0 24 0 C16 0 8 8 8 20 C8 32 24 50 24 50 Z" fill="url(#mainGrad)"/>
+                <!-- Inner glow -->
+                <path d="M24 48 C24 48 38 31 38 20 C38 10 31 3 24 3 C17 3 10 10 10 20 C10 31 24 48 24 48 Z" fill="none" stroke="white" stroke-width="1.5" stroke-opacity="0.5"/>
+                <!-- Circle hole -->
+                <circle cx="24" cy="20" r="10" fill="white" shadow="0 2px 4px rgba(0,0,0,0.2)"/>
+                <!-- Inner dot -->
+                <circle cx="24" cy="20" r="4" fill="#059669"/>
+                
+                <defs>
+                  <linearGradient id="mainGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#34d399"/>
+                    <stop offset="100%" stop-color="#059669"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            `),
+            scaledSize: new google.maps.Size(42, 50),
+            anchor: new google.maps.Point(21, 50),
+          },
+        });
 
-        // إضافة علامة الوجهة (أزرق)
+        // إضافة علامة الوجهة (أخضر زمردي داكن)
         dropoffMarkerRef.current = new google.maps.Marker({
           position: ride.dropoff_location,
           map: map.current,
           icon: {
             url: "data:image/svg+xml," + encodeURIComponent(`
-              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48">
-                <defs><linearGradient id="dg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0ea5e9"/><stop offset="100%" stop-color="#0284c7"/></linearGradient></defs>
-                <path d="M20 0C9 0 0 9 0 20c0 15 20 28 20 28s20-13 20-28C40 9 31 0 20 0z" fill="url(#dg)" stroke="white" stroke-width="3"/>
-                <circle cx="20" cy="18" r="7" fill="none" stroke="white" stroke-width="2"/>
-                <circle cx="20" cy="18" r="3" fill="white"/>
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="56" viewBox="0 0 48 56">
+                <!-- Drop shadow -->
+                <ellipse cx="24" cy="52" rx="14" ry="4" fill="black" opacity="0.2"/>
+                <!-- Pin base -->
+                <path d="M24 50 C24 50 40 32 40 20 C40 8 32 0 24 0 C16 0 8 8 8 20 C8 32 24 50 24 50 Z" fill="url(#dropoffGrad)"/>
+                <!-- Inner glow -->
+                <path d="M24 48 C24 48 38 31 38 20 C38 10 31 3 24 3 C17 3 10 10 10 20 C10 31 24 48 24 48 Z" fill="none" stroke="white" stroke-width="1.5" stroke-opacity="0.5"/>
+                <!-- Square Check (Destination) -->
+                <rect x="16" y="12" width="16" height="16" rx="4" fill="white" shadow="0 2px 4px rgba(0,0,0,0.2)"/>
+                <path d="M19 20 l3 3 l7 -7" fill="none" stroke="#047857" stroke-width="2.5" stroke-linecap="round"/>
+                
+                <defs>
+                  <linearGradient id="dropoffGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#10b981"/>
+                    <stop offset="100%" stop-color="#047857"/>
+                  </linearGradient>
+                </defs>
               </svg>
             `),
-            scaledSize: new google.maps.Size(40, 48),
-            anchor: new google.maps.Point(20, 48),
+            scaledSize: new google.maps.Size(42, 50),
+            anchor: new google.maps.Point(21, 50),
           },
         });
 
@@ -518,7 +517,10 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
       .subscribe();
 
     let driverChannel: any = null;
+    let broadcastCommChannel: any = null;
+    
     if (ride.driver_id) {
+      // 1. Fallback: PostgreSQL updates (slow, every ~10s or 5s)
       driverChannel = supabase
         .channel(`driver-location-${ride.driver_id}`)
         .on(
@@ -547,11 +549,35 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           }
         )
         .subscribe();
+        
+      // 2. High-Frequency: Supabase Realtime Broadcast (fast, native-like)
+      broadcastCommChannel = supabase
+        .channel(`ride-comm-${ride.id}`)
+        .on("broadcast", { event: "driver_location_update" }, (payload) => {
+          const newLocation = payload.payload.location as {
+            lat: number;
+            lng: number;
+            heading?: number;
+            speed?: number;
+          } | null;
+          
+          if (newLocation) {
+            setDriver((prev) =>
+              prev ? { ...prev, current_location: newLocation } : null
+            );
+            updateDriverMarker(newLocation);
+            // ETA and Route checks might be too heavy to run on every broadcast tick, 
+            // maybe throttle them, but for now we run calculateETA.
+            calculateETA(newLocation);
+          }
+        })
+        .subscribe();
     }
 
     return () => {
       supabase.removeChannel(rideChannel);
       if (driverChannel) supabase.removeChannel(driverChannel);
+      if (broadcastCommChannel) supabase.removeChannel(broadcastCommChannel);
     };
   }, [ride.id, ride.driver_id]);
 
@@ -628,34 +654,117 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     }
   };
 
-  // Update driver marker on map
-  const updateDriverMarker = (location: { lat: number; lng: number }) => {
+  // Helper: Calculate heading between two coordinates
+  const calculateHeading = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const l1 = lat1 * Math.PI / 180;
+    const l2 = lat2 * Math.PI / 180;
+    const y = Math.sin(dLng) * Math.cos(l2);
+    const x = Math.cos(l1) * Math.sin(l2) - Math.sin(l1) * Math.cos(l2) * Math.cos(dLng);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  };
+
+  // Update driver marker on map with smooth animation
+  const animationRef = useRef<number | null>(null);
+
+  const updateDriverMarker = (location: { lat: number; lng: number; heading?: number; speed?: number }) => {
     if (!map.current) return;
 
-    if (driverMarkerRef.current) {
-      driverMarkerRef.current.setPosition(location);
-    } else {
+    let targetHeading = location.heading || 0;
+    
+    // Fallback: calculate heading if device didn't provide one
+    if (!location.heading && driverMarkerRef.current) {
+      const prevPos = driverMarkerRef.current.getPosition();
+      if (prevPos) {
+        const pLat = prevPos.lat();
+        const pLng = prevPos.lng();
+        if (pLat !== location.lat || pLng !== location.lng) {
+          targetHeading = calculateHeading(pLat, pLng, location.lat, location.lng);
+        }
+      }
+    }
+
+    const drawCarIcon = (currentHeading: number) => {
+      const carSvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+          <g transform="rotate(${Math.round(currentHeading)} 24 24)">
+            <!-- Soft shadow -->
+            <rect x="16" y="8" width="16" height="32" rx="6" fill="black" opacity="0.3"/>
+            <!-- Car body (Premium sleek design, emerald tinted dark) -->
+            <rect x="16" y="6" width="16" height="32" rx="6" fill="#0f172a" stroke="#5bdda6" stroke-width="1.5"/>
+            <!-- Windshield -->
+            <path d="M18 16 Q24 14 30 16 L29 20 L19 20 Z" fill="#020617"/>
+            <!-- Rear Window -->
+            <path d="M18 30 Q24 32 30 30 L29 26 L19 26 Z" fill="#020617"/>
+            <!-- Headlights -->
+            <rect x="17" y="6" width="3" height="2" fill="#fbbf24" rx="1"/>
+            <rect x="28" y="6" width="3" height="2" fill="#fbbf24" rx="1"/>
+            <!-- Tail lights -->
+            <rect x="17" y="36" width="4" height="2" fill="#ef4444" rx="1"/>
+            <rect x="27" y="36" width="4" height="2" fill="#ef4444" rx="1"/>
+            <!-- Mirrors -->
+            <rect x="14" y="18" width="2" height="3" fill="#1e293b" rx="1"/>
+            <rect x="32" y="18" width="2" height="3" fill="#1e293b" rx="1"/>
+          </g>
+        </svg>
+      `;
+      return {
+        url: "data:image/svg+xml," + encodeURIComponent(carSvg),
+        scaledSize: new google.maps.Size(48, 48),
+        anchor: new google.maps.Point(24, 24),
+      };
+    };
+
+    if (!driverMarkerRef.current) {
       driverMarkerRef.current = new google.maps.Marker({
         position: location,
         map: map.current,
-        icon: {
-          url: "data:image/svg+xml," + encodeURIComponent(`
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-              <circle cx="24" cy="24" r="22" fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.3">
-                <animate attributeName="r" values="16;22;16" dur="2s" repeatCount="indefinite"/>
-                <animate attributeName="opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite"/>
-              </circle>
-              <defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient></defs>
-              <circle cx="24" cy="24" r="16" fill="url(#cg)" stroke="white" stroke-width="2"/>
-              <path d="M14 24l3-9h14l3 9M32 30a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm-16 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4zM14 24v8h2v-2h16v2h2v-8H14z" fill="white"/>
-            </svg>
-          `),
-          scaledSize: new google.maps.Size(48, 48),
-          anchor: new google.maps.Point(24, 24),
-        },
-        zIndex: 999,
+        icon: drawCarIcon(targetHeading),
       });
+      return;
     }
+
+    // Smooth Interpolation
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+
+    const startPos = driverMarkerRef.current.getPosition();
+    if (!startPos) return;
+
+    const startLat = startPos.lat();
+    const startLng = startPos.lng();
+    const endLat = location.lat;
+    const endLng = location.lng;
+    
+    // Skip animation if distance is too small (e.g., GPS jitter) or too large (e.g., jump)
+    const distance = Math.sqrt(Math.pow(endLat - startLat, 2) + Math.pow(endLng - startLng, 2));
+    if (distance < 0.00001 || distance > 0.01) {
+      driverMarkerRef.current.setPosition(location);
+      driverMarkerRef.current.setIcon(drawCarIcon(targetHeading));
+      return;
+    }
+
+    const duration = 1000; // 1 second animation to match broadcast frequency
+    const startTime = performance.now();
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function (ease out cubic)
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      
+      const currentLat = startLat + (endLat - startLat) * easeProgress;
+      const currentLng = startLng + (endLng - startLng) * easeProgress;
+      
+      driverMarkerRef.current!.setPosition({ lat: currentLat, lng: currentLng });
+      driverMarkerRef.current!.setIcon(drawCarIcon(targetHeading)); // Keep heading static for duration of animation
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
 
     // ضبط إطار الخريطة ليشمل السائق والنقاط المهمة
     const bounds = new google.maps.LatLngBounds();
@@ -664,7 +773,10 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     if (ride.status === "in_progress") {
       bounds.extend(ride.dropoff_location);
     }
-    map.current.fitBounds(bounds, { top: 80, bottom: 80, left: 40, right: 40 });
+    // We might not want to fitBounds on EVERY tick, because it ruins dragging the map.
+    // Let's only fit bounds if it's the first time or if requested.
+    // Commented out to allow user to drag map around without being snapped back immediately.
+    // map.current.fitBounds(bounds, { top: 80, bottom: 80, left: 40, right: 40 });
   };
 
   // Calculate distance between two points (Haversine formula)
@@ -869,9 +981,8 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           <img src={logo} alt="RAAN" className="w-8 h-8 rounded-lg shadow-sm" />
         </div>
 
-        <StatusIcons
-          userLocation={driver?.current_location || ride.pickup_location}
-        />
+
+
 
         <Button
           variant="ghost"
@@ -884,99 +995,58 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
       </header>
 
       {/* Status Progress Column - Right Side */}
-      <div className="absolute top-16 right-3 z-10 flex flex-col gap-1.5">
-        {[
-          {
-            status: "accepted",
-            label: "السائق قَبِل",
-            icon: UserCheck,
-            color: "bg-blue-500",
-          },
-          {
-            status: "arrived",
-            label: "السائق وصل",
-            icon: MapPinned,
-            color: "bg-green-500",
-          },
-          {
-            status: "in_progress",
-            label: "جاري التوصيل",
-            icon: Route,
-            color: "bg-primary",
-          },
-          {
-            status: "completed",
-            label: "تم الوصول",
-            icon: CheckCircle,
-            color: "bg-emerald-500",
-          },
-        ].map((step, idx) => {
-          const currentIndex = [
-            "accepted",
-            "arrived",
-            "in_progress",
-            "completed",
-          ].indexOf(ride.status);
-          const isActive = ride.status === step.status;
-          const isPassed = currentIndex > idx;
-          const isFuture = currentIndex < idx;
-          const StepIcon = step.icon;
+      <div className="absolute top-16 right-3 z-10" dir="rtl">
+        <div className="rounded-2xl px-2.5 py-3 flex flex-col items-center gap-0" style={{ background: 'rgba(11,19,38,0.92)', backdropFilter: 'blur(16px)', border: '1px solid rgba(91,221,166,0.12)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+          {[
+            { status: 'accepted', label: 'قَبِل', icon: UserCheck, num: 1 },
+            { status: 'arrived', label: 'وصل', icon: MapPinned, num: 2 },
+            { status: 'in_progress', label: 'بالطريق', icon: Route, num: 3 },
+            { status: 'completed', label: 'وصلنا', icon: CheckCircle, num: 4 },
+          ].map((step, idx, arr) => {
+            const statusOrder = ['accepted', 'arrived', 'in_progress', 'completed'];
+            const currentIdx = statusOrder.indexOf(ride.status);
+            const isActive = currentIdx === idx;
+            const isPassed = currentIdx > idx;
+            const StepIcon = step.icon;
 
-          return (
-            <div
-              key={step.status}
-              className={`flex items-center gap-2 backdrop-blur-xl rounded-lg px-2.5 py-1.5 shadow-md border transition-all duration-300 ${
-                isActive
-                  ? "bg-green-500/90 border-green-400 scale-105 shadow-lg shadow-green-500/20"
-                  : isPassed
-                  ? "bg-gray-400/70 border-gray-300/50"
-                  : isFuture
-                  ? `${step.color}/20 border-${step.color.replace(
-                      "bg-",
-                      ""
-                    )}/30 opacity-60`
-                  : "bg-card/70 border-border/20"
-              }`}
-            >
-              <div
-                className={`w-6 h-6 rounded-md flex items-center justify-center transition-all ${
-                  isActive
-                    ? "bg-white/20"
-                    : isPassed
-                    ? "bg-white/20"
-                    : isFuture
-                    ? step.color
-                    : "bg-muted"
-                }`}
-              >
-                <StepIcon
-                  className={`w-3 h-3 transition-all ${
-                    isActive
-                      ? "text-white"
-                      : isPassed
-                      ? "text-white"
-                      : isFuture
-                      ? "text-white"
-                      : "text-muted-foreground"
-                  }`}
-                />
-              </div>
-              <span
-                className={`text-[10px] font-bold whitespace-nowrap transition-all ${
-                  isActive
-                    ? "text-white"
-                    : isPassed
-                    ? "text-white"
-                    : isFuture
-                    ? "text-foreground/80"
-                    : "text-muted-foreground"
-                }`}
-              >
-                {step.label}
-              </span>
-            </div>
-          );
-        })}
+            return (
+              <React.Fragment key={step.status}>
+                {/* الخطوة */}
+                <div className="flex items-center gap-2 w-full">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 ${
+                      isPassed
+                        ? 'bg-[#5bdda6]'
+                        : isActive
+                        ? 'border-2 border-[#5bdda6]'
+                        : 'border border-white/10'
+                    }`}
+                    style={isActive ? { background: 'rgba(91,221,166,0.15)', boxShadow: '0 0 12px rgba(91,221,166,0.3)' } : isPassed ? { boxShadow: '0 0 8px rgba(91,221,166,0.25)' } : { background: '#151f30' }}
+                  >
+                    {isPassed ? (
+                      <Check className="w-3.5 h-3.5 text-[#0b1326]" />
+                    ) : (
+                      <StepIcon className={`w-3 h-3 ${isActive ? 'text-[#5bdda6]' : 'text-white/25'}`} />
+                    )}
+                  </div>
+                  <span className={`text-[10px] font-bold whitespace-nowrap transition-all ${
+                    isActive ? 'text-[#5bdda6]' : isPassed ? 'text-[#5bdda6]/50' : 'text-white/20'
+                  }`}>
+                    {step.label}
+                  </span>
+                </div>
+                {/* خط الربط */}
+                {idx < arr.length - 1 && (
+                  <div className="flex justify-start w-full pr-[13px]">
+                    <div className={`w-px h-3 transition-colors duration-500 ${
+                      isPassed ? 'bg-[#5bdda6]/40' : 'bg-white/6'
+                    }`} />
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
       </div>
 
       {/* Change Destination Sheet */}
@@ -1017,42 +1087,14 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         )}
       </div>
 
-      {/* In Progress Status - Outside Bottom Sheet */}
-      {ride.status === "in_progress" && (
-        <div className="px-4 pb-2">
-          <div className="bg-primary/10 backdrop-blur-2xl border border-primary/30 rounded-2xl p-4 shadow-xl">
-            <p className="font-bold text-sm text-primary text-center mb-3">
-              🚗 بالطريق لوجهتك • استمتع برحلتك
-            </p>
-            <div className="flex items-center justify-center gap-3">
-              <div className="flex items-center gap-1.5 bg-background rounded-full px-3 py-1 shadow-sm">
-                <Timer className="w-3.5 h-3.5 text-primary" />
-                <span className="font-bold text-sm text-foreground">
-                  {countdownSeconds !== null && countdownSeconds > 0
-                    ? `${Math.floor(countdownSeconds / 60)} دقيقة`
-                    : "0 دقيقة"}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-background rounded-full px-3 py-1 shadow-sm">
-                <Navigation className="w-3.5 h-3.5 text-primary" />
-                <span className="font-bold text-sm text-foreground">
-                  {remainingDistance
-                    ? remainingDistance < 1
-                      ? `${Math.round(remainingDistance * 1000)} م`
-                      : `${remainingDistance.toFixed(1)} كم`
-                    : "--"}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Bottom Sheet */}
       <motion.div
-        animate={{ height: lrtExpanded ? '85dvh' : 'auto' }}
+        animate={{ height: lrtExpanded ? '85dvh' : '50dvh' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="bg-card rounded-t-3xl shadow-xl border-t border-border overflow-hidden flex flex-col"
+        className="rounded-t-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col"
+        style={{ background: '#0b1326', borderTop: '1px solid rgba(91,221,166,0.15)' }}
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={0.2}
@@ -1066,7 +1108,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           onClick={() => setLrtExpanded(v => !v)}
           aria-label={lrtExpanded ? 'تصغير الورقة السفلية' : 'توسيع الورقة السفلية'}
           title={lrtExpanded ? 'تصغير' : 'توسيع'}
-          className="w-full pt-3 pb-1 flex justify-center cursor-grab active:cursor-grabbing shrink-0"
+          className="w-full pt-2 pb-1 flex justify-center cursor-grab active:cursor-grabbing shrink-0"
         >
           <motion.div
             className="rounded-full"
@@ -1079,147 +1121,195 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           />
         </button>
 
-        <div className={`p-4 space-y-3 ${lrtExpanded ? 'flex-1 overflow-y-auto' : ''}`}>
-        {/* Safety & Share Bar */}
-        <div className="flex items-center justify-between pb-3 border-b border-border">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Shield className="w-4 h-4 text-green-500" />
-            <span>رحلة مؤمّنة</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <EmergencyTriangleButton
-              rideId={ride.id}
-              currentLocation={driver?.current_location || ride.pickup_location}
-            />
-            <RideShareButton rideId={ride.id} />
-          </div>
-        </div>
+        <div className="flex-1 overflow-y-auto px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" dir="rtl" style={{ background: '#0b1326' }}>
 
-        {/* Driver Info - Using new component */}
-        <DriverInfoCard
-          driver={driver}
-          rideId={ride.id}
-          rideStatus={ride.status}
-          estimatedFare={ride.estimated_fare}
-        />
-
-        {/* Trip Info with Change Destination */}
-        <div className="space-y-2 pt-3 border-t border-border">
-          <div className="flex items-start gap-3">
-            <div className="w-3 h-3 mt-1.5 rounded-full bg-primary" />
-            <p className="text-sm text-foreground flex-1">
-              {ride.pickup_address || "موقع الانطلاق"}
+        {/* ── بطاقة حالة الرحلة (In Progress) ── */}
+        {ride.status === "in_progress" && (
+          <div className="rounded-xl p-3 mb-2" style={{ background: 'rgba(91,221,166,0.08)', border: '1px solid rgba(91,221,166,0.15)' }}>
+            <p className="font-bold text-[12px] text-center mb-2" style={{ color: '#5bdda6' }}>
+              🚗 بالطريق لوجهتك • استمتع برحلتك
             </p>
-          </div>
-          <div className="flex items-start gap-3">
-            <div className="w-3 h-3 mt-1.5 rounded-full bg-green-500" />
-            <p className="text-sm text-foreground flex-1">
-              {ride.dropoff_address || "الوجهة"}
-            </p>
-            {(ride.status === "in_progress" || ride.status === "accepted") && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-primary text-xs h-6 px-2"
-                onClick={() => {
-                  setShowDestinationChange(true);
-                }}
-              >
-                <Edit2 className="w-3 h-3 ml-1" />
-                تغيير
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Quick Reply Buttons for Accepted & Arrived Status */}
-        {(ride.status === "accepted" || ride.status === "arrived") && (
-          <div className="pt-3 border-t border-border">
-            <p className="text-xs text-muted-foreground mb-3 text-center font-semibold">
-              {ride.status === "accepted" ? "رسائل سريعة للسائق" : "تواصل مع السائق"}
-            </p>
-            <div className="space-y-2">
-              {ride.status === "accepted" && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full bg-blue-500/10 border-2 border-blue-400/50 text-blue-600 hover:bg-blue-500/20 font-medium shadow-sm h-12 rounded-none px-4"
-                    onClick={() =>
-                      sendQuickMessage(
-                        "rider_waiting",
-                        "✅ تم إبلاغ السائق",
-                        "السائق يعلم أنك بالانتظار"
-                      )
-                    }
-                  >
-                    👋 أنا بالانتظار
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full bg-amber-500/10 border-2 border-amber-400/50 text-amber-600 hover:bg-amber-500/20 font-medium shadow-sm h-12 rounded-none px-4"
-                    onClick={() =>
-                      sendQuickMessage(
-                        "rider_where_are_you",
-                        "✅ تم إرسال السؤال",
-                        "السائق سيوضح موقعه"
-                      )
-                    }
-                  >
-                    📍 أين وصلت؟
-                  </Button>
-                </>
-              )}
-              {ride.status === "arrived" && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full bg-purple-500/10 border-2 border-purple-400/50 text-purple-600 hover:bg-purple-500/20 font-medium shadow-sm h-12 rounded-none px-4"
-                    onClick={() =>
-                      sendQuickMessage(
-                        "rider_where_are_you",
-                        "✅ تم إرسال السؤال",
-                        "السائق سيوضح موقعه"
-                      )
-                    }
-                  >
-                    📍 أين موقعك؟
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full bg-orange-500/10 border-2 border-orange-400/50 text-orange-600 hover:bg-orange-500/20 font-medium shadow-sm h-12 rounded-none px-4"
-                    onClick={() =>
-                      sendQuickMessage(
-                        "rider_wait_moment",
-                        "✅ تم إبلاغ السائق",
-                        "السائق سينتظرك قليلاً"
-                      )
-                    }
-                  >
-                    ⏱️ انتظرني قليلاً
-                  </Button>
-                </>
-              )}
+            <div className="flex items-center justify-center gap-3">
+              <div className="flex items-center gap-1.5 rounded-full px-3 py-1" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <Timer className="w-3.5 h-3.5" style={{ color: '#5bdda6' }} />
+                <span className="font-bold text-[12px] text-white">
+                  {countdownSeconds !== null && countdownSeconds > 0
+                    ? `${Math.floor(countdownSeconds / 60)} دقيقة`
+                    : "0 دقيقة"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-full px-3 py-1" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <Navigation className="w-3.5 h-3.5" style={{ color: '#5bdda6' }} />
+                <span className="font-bold text-[12px] text-white">
+                  {remainingDistance
+                    ? remainingDistance < 1
+                      ? `${Math.round(remainingDistance * 1000)} م`
+                      : `${remainingDistance.toFixed(1)} كم`
+                    : "--"}
+                </span>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Fare Breakdown - Show for completed rides */}
-        {ride.status === "completed" && ride.final_fare ? (
-          <FareBreakdownCard
-            baseFare={2000}
-            distanceKm={ride.distance_km || 0}
-            perKmRate={500}
-            waitingMinutes={0}
-            waitingRatePerMin={100}
-            vehicleType={ride.vehicle_type}
-            vehicleMultiplier={1}
-            finalFare={ride.final_fare}
-          />
-        ) : null}
+
+
+        {/* ══════════════════════════════════════════════════ */}
+        {/* ══  بطاقة السائق الموحّدة (Premium Unified Card) ══ */}
+        {/* ══════════════════════════════════════════════════ */}
+        <div
+          className="rounded-2xl overflow-hidden mb-2"
+          style={{
+            background: 'linear-gradient(180deg, #111b2e 0%, #0d1525 100%)',
+            border: '1px solid rgba(91,221,166,0.12)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+          }}
+        >
+          {/* ─── 1. بيانات السائق (الأهمية القصوى) ─── */}
+          <DriverInfoCard
+            driver={driver}
+            rideId={ride.id}
+            rideStatus={ride.status}
+            estimatedFare={ride.estimated_fare}
+            currentLocation={driver?.current_location || ride.pickup_location}
+          >
+            {/* ─── 2. شريط الإجراءات السريعة ─── */}
+            <div
+              className="flex items-center gap-1.5 overflow-x-auto px-3 py-2"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
+            >
+              <RideChat
+                rideId={ride.id}
+                userType="rider"
+                rideStatus={ride.status}
+                driverPhone={driver?.phone ?? undefined}
+                pickupAddress={ride.pickup_address ?? undefined}
+              />
+              {driver?.phone && (
+                <a
+                  href={`tel:${driver.phone}`}
+                  className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95"
+                  style={{ background: 'rgba(34,197,94,0.08)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.15)' }}
+                >
+                  📞 اتصال
+                </a>
+              )}
+
+              {/* فاصل */}
+              <div className="w-px h-5 shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }} />
+
+              {/* رسائل سريعة سياقية */}
+              {(ride.status === "accepted" || ride.status === "arrived") && (
+                <>
+                  {ride.status === "accepted" && (
+                    <>
+                      <button
+                        onClick={() => sendQuickMessage("rider_waiting", "✅ تم إبلاغ السائق", "السائق يعلم أنك بالانتظار")}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95"
+                        style={{ background: 'rgba(59,130,246,0.08)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.15)' }}
+                      >
+                        👋 بالانتظار
+                      </button>
+                      <button
+                        onClick={() => sendQuickMessage("rider_where_are_you", "✅ تم إرسال السؤال", "السائق سيوضح موقعه")}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95"
+                        style={{ background: 'rgba(245,158,11,0.08)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.15)' }}
+                      >
+                        📍 أين وصلت؟
+                      </button>
+                    </>
+                  )}
+                  {ride.status === "arrived" && (
+                    <>
+                      <button
+                        onClick={() => sendQuickMessage("rider_where_are_you", "✅ تم إرسال السؤال", "السائق سيوضح موقعه")}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95"
+                        style={{ background: 'rgba(168,85,247,0.08)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.15)' }}
+                      >
+                        📍 أين موقعك؟
+                      </button>
+                      <button
+                        onClick={() => sendQuickMessage("rider_wait_moment", "✅ تم إبلاغ السائق", "السائق سينتظرك قليلاً")}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95"
+                        style={{ background: 'rgba(249,115,22,0.08)', color: '#fb923c', border: '1px solid rgba(249,115,22,0.15)' }}
+                      >
+                        ⏱️ انتظرني
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </DriverInfoCard>
+
+          {/* ─── 3. خط سير الرحلة (الانطلاق → الوجهة) ─── */}
+          <div style={{ borderTop: '1px solid rgba(91,221,166,0.06)' }}>
+            {/* الانطلاق */}
+            <div className="flex items-center gap-2.5 px-3 py-2">
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: 'rgba(91,221,166,0.1)', border: '1px solid rgba(91,221,166,0.18)' }}
+              >
+                <MapPin className="w-3 h-3" style={{ color: '#5bdda6' }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[8px] font-bold tracking-[0.15em] uppercase" style={{ color: 'rgba(91,221,166,0.7)' }}>الانطلاق</p>
+                <p className="text-[11px] font-semibold text-white/90 truncate">{ride.pickup_address || "موقع الانطلاق"}</p>
+              </div>
+            </div>
+
+            {/* الخط الواصل */}
+            <div className="flex items-center px-3">
+              <div className="w-7 flex justify-center">
+                <div className="flex flex-col items-center gap-px">
+                  <div className="w-px h-1" style={{ background: 'rgba(91,221,166,0.15)' }} />
+                  <div className="w-1 h-1 rounded-full" style={{ background: 'rgba(91,221,166,0.2)' }} />
+                  <div className="w-px h-1" style={{ background: 'rgba(91,221,166,0.15)' }} />
+                </div>
+              </div>
+            </div>
+
+            {/* الوجهة */}
+            <div className="flex items-center gap-2.5 px-3 py-2">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: 'rgba(91,221,166,0.1)', border: '1px solid rgba(91,221,166,0.18)' }}
+              >
+                <Navigation className="w-3 h-3 text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[8px] font-bold tracking-[0.15em] uppercase text-emerald-400/70">الوجهة</p>
+                <p className="text-[11px] font-semibold text-white/90 truncate">{ride.dropoff_address || "الوجهة"}</p>
+              </div>
+              {(ride.status === "in_progress" || ride.status === "accepted") && (
+                <button
+                  onClick={() => setShowDestinationChange(true)}
+                  className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95"
+                  style={{ background: 'rgba(91,221,166,0.08)', color: '#5bdda6', border: '1px solid rgba(91,221,166,0.15)' }}
+                >
+                  <Edit2 className="w-2.5 h-2.5" />
+                  تغيير
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ─── 4. تفاصيل الأجرة (للرحلات المكتملة فقط) ─── */}
+          {ride.status === "completed" && ride.final_fare ? (
+            <div style={{ borderTop: '1px solid rgba(91,221,166,0.06)' }}>
+              <FareBreakdownCard
+                baseFare={2000}
+                distanceKm={ride.distance_km || 0}
+                perKmRate={500}
+                waitingMinutes={0}
+                waitingRatePerMin={100}
+                vehicleType={ride.vehicle_type}
+                vehicleMultiplier={1}
+                finalFare={ride.final_fare}
+              />
+            </div>
+          ) : null}
+        </div>
         </div>
       </motion.div>
 

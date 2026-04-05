@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import SplashScreen from "@/components/common/SplashScreen";
-import { ArrowRight, Navigation, Loader2, MapPin, Target, AlertTriangle, AlertCircle, Check, Clock, ChevronDown, Zap, Menu, ArrowUpDown } from "lucide-react";
+import { Navigation, Loader2, MapPin, AlertTriangle, AlertCircle, Menu, Rocket, Bookmark, ArrowRight } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,15 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 import useRiderStore from "@/stores/riderStore";
 import { useFareCalculation } from "@/hooks/useFareCalculation";
 import { useOptimizedNearbyDrivers } from "@/hooks/useOptimizedNearbyDrivers";
-import CompactVehicleSelector from "@/components/rider/CompactVehicleSelector";
-import PaymentMethodSheet from "@/components/rider/PaymentMethodSheet";
-import VehicleTypeSheet, { VEHICLE_NAMES } from "@/components/rider/VehicleTypeSheet";
-import { ScheduleRideDialog } from "@/components/rider/ScheduleRideDialog";
+
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
-import StatusIcons from "@/components/common/StatusIcons";
 import NetworkStatusBar from "@/components/common/NetworkStatusBar";
 import StaticMapPlaceholder from "@/components/common/StaticMapPlaceholder";
-import RiderNotificationsBell from "@/components/rider/RiderNotificationsBell";
 import { motion, AnimatePresence } from "framer-motion";
 import { roundFare } from "@/lib/constants";
 import { logger } from "@/lib/logger";
@@ -42,13 +37,15 @@ import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { useRideTracking } from "@/hooks/useRideTracking";
 import { useLastLocation } from "@/hooks/useLastLocation";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { DynamicSearchHeader, DynamicSearchResults } from "@/components/rider/DynamicSearchResults";
+import { DynamicSearchHeader, DynamicSearchResults, SEARCH_CATEGORIES, type CategoryFilter } from "@/components/rider/DynamicSearchResults";
 import { LocationPermissionPrompt } from "@/components/rider/LocationPermissionPrompt";
-import LocationInputField from "@/components/rider/LocationInputField";
-import QuickAccessChips from "@/components/rider/QuickAccessChips";
+import { useVoiceSearch } from "@/hooks/useVoiceSearch";
+import { useUnifiedSearch } from "@/hooks/useUnifiedSearch";
+
 import FavoriteMarkersLayer from "@/components/rider/FavoriteMarkersLayer";
 import { useFavoritesStore } from "@/stores/useFavoritesStore";
 import SaveLocationModal from "@/components/rider/SaveLocationModal";
+import BookingConfirmationView from "@/components/rider/BookingConfirmationView";
 
 // Performance & Enhancement hooks
 import { usePerformanceMonitoring, useOperationTiming } from "@/hooks/usePerformanceMonitoring";
@@ -80,20 +77,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     toast
   } = useToast();
 
-  // Performance monitoring
-  const metrics = usePerformanceMonitoring("GoPage");
   const {
-    measureOperation
-  } = useOperationTiming();
-
-  // Local storage hooks
-  const {
-    lastRide,
     saveLastRide
   } = useLastRide();
-  const {
-    preferences
-  } = useRiderPreferences();
   const {
     lastLocation,
     saveLocation
@@ -156,6 +142,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   // Get bottom nav state from store
   const bottomNavEnabled = useRiderStore((state) => state.bottomNavEnabled);
 
+  // Core state - must be defined before useLocationPicker
+  const [currentMode, setCurrentMode] = useState<"pickup" | "dropoff" | "booking">("pickup");
+
   // Location picker
   const {
     mapContainer,
@@ -173,7 +162,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     checkServiceArea,
     reverseGeocode,
     setIsLoading,
-  } = useLocationPicker(mapToken, userLocation, mapReloadKey);
+  } = useLocationPicker(mapToken, userLocation, mapReloadKey, currentMode);
 
   // Booking flow
   const {
@@ -196,9 +185,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     cleanup: cleanupBooking
   } = useBookingFlow();
 
-  // Sheet لاختيار نوع السيارة
-  const [vehicleSheetOpen, setVehicleSheetOpen] = useState(false);
-
   // Search and places
   const {
     searchQuery,
@@ -206,9 +192,25 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     predictions,
     isSearching,
     isLoadingDetails,
+    isOffline: searchOffline,
     getPlaceDetails,
     clearSearch
   } = useSearchAndPlaces(userLocation);
+
+  // Voice search
+  const { isSupported: voiceSupported, voiceState, transcript: voiceTranscript, toggleListening } = useVoiceSearch({
+    onResult: (text) => {
+      setLocationSearchQuery(text);
+      setSearchQuery(text);
+      setIsLocationFocused(true);
+    },
+  });
+
+  // Unified search (merged sources)
+  const unified = useUnifiedSearch(userLocation, userId || undefined);
+
+  // Active search category filter
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   // Recent searches
   const {
@@ -395,17 +397,56 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   }, [getBestPosition, reverseGeocode, setIsLoading, setStoreUserLocation, shouldAcceptLocation, toast, userLocation]);
 
   // panToUserLocation: يسحب الخريطة للموقع الفعلي فقط — بدون setIsLoading أو قراءة store
+  const smoothZoomTo = useCallback((targetMap: google.maps.Map, targetZoom: number) => {
+    const currentZoom = targetMap.getZoom() ?? 14;
+    if (Math.abs(currentZoom - targetZoom) < 1) return;
+    const step = currentZoom < targetZoom ? 1 : -1;
+    const tick = () => {
+      const z = targetMap.getZoom() ?? currentZoom;
+      if ((step > 0 && z >= targetZoom) || (step < 0 && z <= targetZoom)) return;
+      targetMap.setZoom(z + step);
+      setTimeout(tick, 120);
+    };
+    setTimeout(tick, 350); // انتظر انتهاء panTo أولاً
+  }, []);
+
   const manualGeolocateMain = useCallback(() => {
-    // إذا كان userLocation معروفاً بالفعل، انتقل إليه فوراً
+    // إذا كان userLocation معروفاً بالفعل، انتقل إليه بسلاسة
     if (userLocation && map.current) {
       map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
-      map.current.setZoom(17);
+      smoothZoomTo(map.current, 17);
       reverseGeocode(userLocation.lat, userLocation.lng);
       return;
     }
-    // وإلا اطلب الموقع لمرة واحدة بدون updateStore
-    handleGeolocate(map, false);
-  }, [handleGeolocate, map, reverseGeocode, userLocation]);
+    // طلب إذن الموقع الجغرافي مباشرة
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          if (map.current) {
+            map.current.panTo({ lat: latitude, lng: longitude });
+            smoothZoomTo(map.current, 17);
+            reverseGeocode(latitude, longitude);
+          }
+        },
+        (error) => {
+          console.warn('⚠️ Geolocation error:', error.message);
+          toast({
+            title: '⚠️ لا يمكن تحديد موقعك',
+            description: 'يرجى تفعيل خدمة الموقع من إعدادات المتصفح',
+            variant: 'destructive',
+          });
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      );
+    } else {
+      toast({
+        title: '⚠️ الموقع الجغرافي غير مدعوم',
+        description: 'متصفحك لا يدعم خدمة الموقع',
+        variant: 'destructive',
+      });
+    }
+  }, [handleGeolocate, map, reverseGeocode, smoothZoomTo, toast, userLocation]);
   const manualGeolocateBooking = useCallback(() => handleGeolocate(bookingMap, false), [handleGeolocate, bookingMap]);
   
   // Layout management - Bottom panel height tracking
@@ -413,14 +454,40 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   const scheduleDialogRef = useRef<{ openDialog: () => void }>(null);
   const [bottomPanelHeight, setBottomPanelHeight] = useState(0);
   const [hasStartedDragging, setHasStartedDragging] = useState(false);
+  const [panelExpanded, setPanelExpanded] = useState(true); // القائمة السفلية مفتوحة افتراضياً
   
-  const [currentMode, setCurrentMode] = useState<"pickup" | "dropoff" | "booking">("pickup");
   const [pickupLocation, setPickupLocation] = useState<LocationType | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<LocationType | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [localServiceAreaStatus, setLocalServiceAreaStatus] = useState<any>(null);
   const [geofenceResult, setGeofenceResult] = useState<GeofenceResult | null>(null);
   const [showGeofenceAlert, setShowGeofenceAlert] = useState(false);
+
+  // ═══ استقبال البيانات من AIVoiceHome عبر navigation state ═══
+  const routerLocation = useLocation();
+  const navStateProcessed = useRef(false);
+  useEffect(() => {
+    if (navStateProcessed.current) return;
+    const state = routerLocation.state as { fromSavedPlace?: boolean; savedPickup?: LocationType; savedDropoff?: LocationType; preferredMode?: string } | null;
+    if (!state?.fromSavedPlace) return;
+    navStateProcessed.current = true;
+    if (state.savedPickup) {
+      setPickupLocation(state.savedPickup);
+      // نقل الخريطة لموقع الانطلاق
+      if (map.current) {
+        map.current.panTo({ lat: state.savedPickup.lat, lng: state.savedPickup.lng });
+        map.current.setZoom(16);
+      }
+    }
+    if (state.savedDropoff) {
+      setDropoffLocation(state.savedDropoff);
+    }
+    if (state.preferredMode === 'dropoff' || state.preferredMode === 'pickup') {
+      setCurrentMode(state.preferredMode);
+    }
+    // مسح الـ state حتى لا يتكرر عند الـ refresh
+    window.history.replaceState({}, '');
+  }, [routerLocation.state, map]);
   const [showRatingScreen, setShowRatingScreen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   // حقل البحث الأول (موقع الانطلاق / الوجهة من الخريطة)
@@ -430,6 +497,31 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   const [showSaveModal, setShowSaveModal] = useState(false);
   const { isFavorite, addFavorite, removeFavorite } = useFavoritesStore();
   const isFav = centerLat && centerLng ? isFavorite(centerLat, centerLng) : false;
+  const [showSavedPlacesDropdown, setShowSavedPlacesDropdown] = useState(false);
+  const [supabaseSavedPlaces, setSupabaseSavedPlaces] = useState<Array<{
+    id: string; name: string; address: string; lat: number; lng: number; icon: string; label: string;
+  }>>([]);
+  const [loadingSavedPlaces, setLoadingSavedPlaces] = useState(false);
+
+  // جلب الأماكن المحفوظة من Supabase
+  const fetchSavedPlaces = useCallback(async () => {
+    if (!userId) return;
+    setLoadingSavedPlaces(true);
+    try {
+      const { data, error } = await supabase
+        .from('saved_places')
+        .select('*')
+        .eq('user_id', userId as string)
+        .order('created_at', { ascending: true });
+      if (!error && data) {
+        setSupabaseSavedPlaces(data as unknown as Array<{ id: string; name: string; address: string; lat: number; lng: number; icon: string; label: string; }>);
+      }
+    } catch (e) {
+      console.error('Error fetching saved places:', e);
+    } finally {
+      setLoadingSavedPlaces(false);
+    }
+  }, [userId]);
 
   // Fare calculation
   const {
@@ -504,13 +596,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   useEffect(() => {
     if (map.current && window.google?.maps?.event) {
       window.google.maps.event.trigger(map.current, 'resize');
-      
-      // recenter the map
-      if (userLocation) {
-        map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
-      }
     }
-  }, [bottomPanelHeight, userLocation]);
+  }, [bottomPanelHeight]);
 
   // فتح dialog الحجز المتقدم تلقائياً عند الدخول عبر /rider/schedule
   useEffect(() => {
@@ -829,6 +916,21 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       // فحص منطقة الخدمة
       const serviceCheck = await checkServiceArea(actualLat, actualLng);
       setLocalServiceAreaStatus(serviceCheck);
+
+      // إذا الموقع خارج منطقة الخدمة — إظهار إشعار واضح
+      if (serviceCheck && serviceCheck.in_service === false) {
+        const modeLabel = currentMode === 'pickup' ? 'موقع الانطلاق' : 'الوجهة';
+        toast({
+          title: `⚠️ ${modeLabel} خارج نطاق الخدمة`,
+          description: serviceCheck.nearest_city
+            ? `أقرب مدينة مغطاة: ${serviceCheck.nearest_city}. حرّك الخريطة لاختيار موقع داخل منطقة الخدمة.`
+            : 'هذا الموقع غير مشمول بالخدمة حالياً. حرّك الخريطة لاختيار موقع آخر.',
+          variant: 'destructive',
+        });
+        setIsConfirming(false);
+        return;
+      }
+
       const location: LocationType = {
         lat: actualLat,
         lng: actualLng,
@@ -850,9 +952,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         if (dropoffLocation) {
           setCurrentMode("booking");
         } else {
-          // ✅ إعادة تهيئة الخريطة عند الانتقال من pickup إلى dropoff
           setCurrentMode("dropoff");
-          setMapReloadKey((prev) => prev + 1);
         }
         setCenterAddress("");
         setSearchQuery("");
@@ -1449,386 +1549,59 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
   // Booking confirmation screen
   if (isBookingMode && pickupLocation && dropoffLocation) {
-    return <motion.div initial={{
-      opacity: 0
-    }} animate={{
-      opacity: 1
-    }} className="h-[100dvh] bg-background flex flex-col overflow-hidden">
-        {/* Offline/Online status indicator */}
-        {!isOnline && <div className="absolute top-0 left-0 right-0 z-50 bg-destructive/90 backdrop-blur-md px-4 py-2 text-center text-sm font-medium text-destructive-foreground flex items-center justify-center gap-2">
-            <AlertTriangle className="w-4 h-4" />
-            <span>أنت بدون إنترنت - بعض الميزات قد لا تعمل</span>
-          </div>}
-
-        {/* Progress indicator - Top */}
-        <div className={`absolute left-0 right-0 z-50 px-4 pointer-events-none ${!isOnline ? "pt-14" : "pt-2"}`}>
-          <div className="flex gap-2">
-            <div className="flex-1 h-1 rounded-full bg-primary" />
-            <div className="flex-1 h-1 rounded-full bg-accent" />
-            <div className="flex-1 h-1 rounded-full bg-primary animate-pulse" />
-          </div>
-        </div>
-
-        {/* Header - Transparent over map */}
-        <div className={`absolute left-0 right-0 z-40 px-4 pointer-events-auto ${!isOnline ? "top-20" : "top-4"}`}>
-          <div className="flex items-center justify-between gap-2">
-            {/* Left spacer (keeps layout symmetric) */}
-            <div className="w-11" />
-
-            {/* Logo and Route info - Combined */}
-            <div className="flex-1 flex items-center justify-center gap-2">
-              {/* Logo removed */}
-
-              <motion.div initial={{
-              y: -20,
-              opacity: 0
-            }} animate={{
-              y: 0,
-              opacity: 1
-            }} transition={{
-              delay: 0.2
-            }} className="bg-card/70 backdrop-blur-xl rounded-md px-3 py-2 flex items-center gap-3 shadow-lg border border-white/10">
-                <div className="flex items-center gap-1.5">
-                  <Navigation className="w-3.5 h-3.5 text-primary" />
-                  <span className="text-sm font-bold">
-                    {routeDistance ? `${routeDistance.toFixed(1)} كم` : "---"}
-                  </span>
-                </div>
-                <div className="w-px h-4 bg-border/30" />
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" style={{color: '#2A6CD5'}} />
-                  <span className="text-sm font-bold">
-                    {routeDuration ? `${Math.round(routeDuration)} د` : "---"}
-                  </span>
-                </div>
-              </motion.div>
-            </div>
-
-            {/* Menu button on the RIGHT for RTL */}
-            <button onClick={() => setMenuOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-md bg-card/90 backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 flex-shrink-0" aria-label="القائمة">
-              <Menu className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Map - Top 40% */}
-        <div className="h-[40%] relative bg-gray-200">
-          <div ref={bookingMapContainer} className="absolute inset-0 bg-gray-100" />
-
-          {/* Floating manual geolocate button */}
-          <div className="absolute top-2 right-4 z-40 safe-area-top pointer-events-auto">
-            <button
-              onClick={manualGeolocateBooking}
-              className="w-11 h-11 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
-              title="تحديد موقعي"
-              aria-label="تحديد موقعي"
-            >
-              <Navigation className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Details - Bottom 60% — NO SCROLL */}
-        <div className="flex-1 bg-background rounded-t-2xl -mt-3 relative z-10 flex flex-col shadow-[0_-8px_30px_rgba(0,0,0,0.12)] overflow-hidden min-h-0">
-          {/* Drag handle */}
-          <div className="flex justify-center pt-2 pb-1 shrink-0">
-            <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
-          </div>
-
-          {/* Content — scrollable to fit small screens */}
-          <div className="flex-1 flex flex-col px-3 gap-2 min-h-0 pb-1 overflow-y-auto">
-            {/* Route summary - Modern vertical timeline */}
-            <motion.div initial={{
-            y: 20,
-            opacity: 0
-          }} animate={{
-            y: 0,
-            opacity: 1
-          }} className="bg-card rounded-2xl p-4 border border-border/30 shadow-sm">
-              <div className="flex gap-3">
-                {/* Vertical connecting line */}
-                <div className="flex flex-col items-center gap-0">
-                  <div className="w-3 h-3 rounded-full bg-primary ring-4 ring-primary/20" />
-                  <div className="w-0.5 flex-1 min-h-[32px]" style={{background: 'linear-gradient(to bottom, hsl(var(--primary)), hsl(var(--muted)), #2A6CD5)'}} />
-                  <div className="w-3 h-3 rounded-full ring-4" style={{backgroundColor: '#2A6CD5', '--tw-ring-color': 'rgba(42, 108, 213, 0.2)'} as any} />
-                </div>
-                
-                {/* Locations */}
-                <div className="flex-1 space-y-4">
-                  {/* Pickup */}
-                  <div className="min-h-[32px]">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <p className="text-[10px] uppercase tracking-wider text-primary font-bold">
-                        موقع الانطلاق
-                      </p>
-                      <button
-                        onClick={() => startLocationEdit("pickup")}
-                        className="text-[11px] font-bold text-primary hover:text-primary/80 transition-colors"
-                        aria-label="تغيير موقع الانطلاق"
-                      >
-                        تغيير
-                      </button>
-                    </div>
-                    <p className="text-sm font-semibold text-foreground line-clamp-1">
-                      {buildDescriptiveAddress(pickupLocation.address || "")}
-                    </p>
-                  </div>
-                  
-                  {/* Dropoff */}
-                  <div>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <p className="text-[10px] uppercase tracking-wider font-bold" style={{color: '#2A6CD5'}}>
-                        الوجهة
-                      </p>
-                      <button
-                        onClick={() => startLocationEdit("dropoff")}
-                        className="text-[11px] font-bold hover:opacity-80 transition-opacity"
-                        style={{color: '#2A6CD5'}}
-                        aria-label="تغيير الوجهة"
-                      >
-                        تغيير
-                      </button>
-                    </div>
-                    <p className="text-sm font-semibold text-foreground line-clamp-1">
-                      {buildDescriptiveAddress(dropoffLocation.address || "")}
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Swap button */}
-                <button
-                  onClick={() => {
-                    const temp = pickupLocation;
-                    setPickupLocation(dropoffLocation);
-                    setDropoffLocation(temp);
-                    toast({
-                      title: "تم عكس الاتجاه ✅",
-                      description: "تم تبديل موقع الانطلاق مع الوجهة",
-                      duration: 2000,
-                    });
-                  }}
-                  className="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-all duration-200 active:scale-95 shrink-0"
-                  aria-label="عكس الاتجاه"
-                >
-                  <ArrowUpDown className="w-5 h-5 text-primary" />
-                </button>
-              </div>
-            </motion.div>
-
-            {/* Trip Info - Distance, Time & Fare — 3 columns */}
-            <div className="shrink-0 grid grid-cols-3 gap-2">
-              {/* المسافة */}
-              <div className="bg-blue-500/10 rounded-xl p-3 border border-blue-500/20 flex flex-col items-center justify-center">
-                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide mb-1">المسافة</span>
-                <p className="text-base sm:text-lg font-bold text-blue-600 leading-none">
-                  {fareBreakdown ? fareBreakdown.distance_km.toFixed(1) : routeDistance?.toFixed(1) ?? '---'}
-                  <span className="text-xs font-medium"> كم</span>
-                </p>
-              </div>
-              {/* الوقت */}
-              <div className="bg-purple-500/10 rounded-xl p-3 border border-purple-500/20 flex flex-col items-center justify-center">
-                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide mb-1">الوقت</span>
-                <p className="text-base sm:text-lg font-bold text-purple-600 leading-none">
-                  {routeDuration ? Math.ceil(routeDuration) : fareBreakdown ? Math.ceil(fareBreakdown.distance_km * 2.5) : '---'}
-                  <span className="text-xs font-medium"> د</span>
-                </p>
-              </div>
-              {/* الأجرة */}
-              <div className="bg-primary/10 rounded-xl p-3 border border-primary/20 flex flex-col items-center justify-center">
-                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide mb-1">الأجرة</span>
-                <p className="text-base sm:text-lg font-bold text-primary leading-none">
-                  {fareBreakdown ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'}
-                </p>
-              </div>
-            </div>
-
-
-            {/* Vehicle + Payment — زرّان منسدلان جنب بعض */}
-            <div className="shrink-0 flex gap-2">
-              {/* زر نوع السيارة */}
-              <button
-                onClick={() => setVehicleSheetOpen(true)}
-                className="flex-1 bg-card rounded-xl px-3 py-2 border border-border/40 hover:border-primary/40 transition-colors flex items-center gap-2"
-              >
-                <div className="text-right flex-1">
-                  <p className="text-[9px] text-muted-foreground uppercase">السيارة</p>
-                  <p className="font-bold text-xs">{VEHICLE_NAMES[selectedVehicle] || 'اقتصادي'}</p>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-
-              {/* زر طريقة الدفع */}
-              <button
-                onClick={() => setPaymentSheetOpen(true)}
-                className="flex-1 bg-card rounded-xl px-3 py-2 border border-border/40 hover:border-primary/40 transition-colors flex items-center gap-2"
-              >
-                <div className="text-right flex-1">
-                  <p className="text-[9px] text-muted-foreground uppercase">الدفع</p>
-                  <p className="font-bold text-xs">{{cash:'نقداً',wallet:'المحفظة',card:'البطاقة',zain_cash:'زين كاش',super_key:'سوبر كي',nas_wallet:'ناس ولت'} [paymentMethod] || 'نقداً'}</p>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-
-              {/* جدولة الرحلة */}
-              <div className="flex-1">
-                <ScheduleRideDialog
-                  ref={scheduleDialogRef}
-                  pickup={pickupLocation}
-                  dropoff={dropoffLocation}
-                  vehicleType={selectedVehicle}
-                  paymentMethod={paymentMethod}
-                  estimatedFare={fareBreakdown?.total_fare || null}
-                  onScheduled={() => {
-                    toast({ title: "تم جدولة الرحلة ✅", description: "سيتم تذكيرك قبل الموعد" });
-                    resetBooking();
-                  }}
-                />
-              </div>
-            </div>
-
-          </div>
-
-          {/* زر الحجز — يعمل فور وجود تقدير (محلي أو سيرفر) */}
-          {!bottomNavEnabled && (
-            <button
-              onClick={handleBookRide}
-              disabled={!fareBreakdown || isBooking}
-              className="w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-50 active:brightness-90 transition-all shrink-0"
-              style={{ borderRadius: 0 }}
-            >
-              {isBooking ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>جاري إنشاء الحجز...</span>
-                </>
-              ) : (
-                <>
-                  <Navigation className="w-5 h-5" />
-                  <span>احجز الآن</span>
-                  <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold flex items-center gap-1">
-                    {fareLoading && <Loader2 className="w-3 h-3 animate-spin opacity-70" />}
-                    {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع
-                  </span>
-                </>
-              )}
-            </button>
-          )}
-        </div>
-
-          {/* زر الحجز الثابت لـ bottomNav — يعمل فور وجود تقدير */}
-          {bottomNavEnabled && (
-            <div className="fixed bottom-16 left-0 right-0 z-50">
-              <button
-                onClick={handleBookRide}
-                disabled={!fareBreakdown || isBooking}
-                className="w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-50 active:brightness-90 transition-all"
-                style={{ borderRadius: 0 }}
-              >
-                {isBooking ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>جاري إنشاء الحجز...</span>
-                  </>
-                ) : (
-                  <>
-                    <Navigation className="w-5 h-5" />
-                    <span>احجز الآن</span>
-                    <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold flex items-center gap-1">
-                      {fareLoading && <Loader2 className="w-3 h-3 animate-spin opacity-70" />}
-                      {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع
-                    </span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
-        {/* VehicleType Sheet */}
-        <VehicleTypeSheet
-          open={vehicleSheetOpen}
-          onOpenChange={setVehicleSheetOpen}
-          selectedVehicle={selectedVehicle}
-          onSelect={setSelectedVehicle}
-          baseFare={fareBreakdown?.total_fare}
-          availableDrivers={availableDriversByType}
-        />
-
-        {/* Payment Method Sheet */}
-        <PaymentMethodSheet open={paymentSheetOpen} onOpenChange={setPaymentSheetOpen} selectedMethod={paymentMethod} onSelect={setPaymentMethod} />
-
-        {/* Side Menu */}
-        <RiderSideMenu
-          user={user}
-          isOpen={menuOpen}
-          onClose={() => setMenuOpen(false)}
-          onLogout={async () => {
-            await supabase.auth.signOut();
-            if (navigate) {
-              navigate("/auth");
-            }
-          }}
-        />
-      </motion.div>
+    return (
+      <BookingConfirmationView
+        pickupLocation={pickupLocation}
+        dropoffLocation={dropoffLocation}
+        routeDistance={routeDistance}
+        routeDuration={routeDuration}
+        bookingMapContainerRef={bookingMapContainer}
+        onGeolocate={manualGeolocateBooking}
+        fareBreakdown={fareBreakdown}
+        fareLoading={fareLoading}
+        selectedVehicle={selectedVehicle}
+        onVehicleChange={setSelectedVehicle}
+        paymentMethod={paymentMethod}
+        onPaymentChange={setPaymentMethod}
+        isBooking={isBooking}
+        onBookRide={handleBookRide}
+        onEditLocation={startLocationEdit}
+        onSwapLocations={() => {
+          const temp = pickupLocation;
+          setPickupLocation(dropoffLocation);
+          setDropoffLocation(temp);
+          toast({
+            title: "تم عكس الاتجاه ✅",
+            description: "تم تبديل موقع الانطلاق مع الوجهة",
+            duration: 2000,
+          });
+        }}
+        scheduleDialogRef={scheduleDialogRef}
+        onScheduled={() => {
+          toast({ title: "تم جدولة الرحلة ✅", description: "سيتم تذكيرك قبل الموعد" });
+          resetBooking();
+        }}
+        isOnline={isOnline}
+        bottomNavEnabled={bottomNavEnabled}
+        buildDescriptiveAddress={buildDescriptiveAddress}
+        availableDriversByType={availableDriversByType}
+        user={user}
+        menuOpen={menuOpen}
+        onMenuToggle={setMenuOpen}
+        onLogout={async () => {
+          await supabase.auth.signOut();
+          if (navigate) navigate("/auth");
+        }}
+      />
+    );
   }
 
   // Location picker screen
   return (
     <div className="fixed inset-0 z-50 flex flex-col">
-      {/* Progress indicator - Top of screen */}
-      <motion.div initial={{
-      y: -10,
-      opacity: 0
-    }} animate={{
-      y: 0,
-      opacity: 1
-    }} className="absolute top-0 left-0 right-0 z-40 px-4 pt-2 pointer-events-none">
-        <div className="flex gap-2">
-          <div className={`flex-1 h-1 rounded-full transition-colors ${isPickup || pickupLocation ? "bg-primary" : "bg-muted/30"}`} />
-          <div className={`flex-1 h-1 rounded-full transition-colors ${isDropoff || dropoffLocation ? "bg-accent" : "bg-muted/30"}`} />
-        </div>
-      </motion.div>
-
-      {/* Header */}
-      <motion.div initial={{
-      y: -20,
-      opacity: 0
-    }} animate={{
-      y: 0,
-      opacity: 1
-    }} className="absolute top-4 left-0 right-0 z-30 pointer-events-auto">
-        <div className="flex items-center justify-between px-4 py-2">
-          {/* زر الرجوع يسار */}
-          {!isPickup ? (
-            <button
-              onClick={() => {
-                if (navigator.vibrate) navigator.vibrate(30);
-                setCurrentMode("pickup");
-              }}
-              className="w-10 h-10 rounded-xl bg-[#0b1326]/90 backdrop-blur-xl flex items-center justify-center shadow-lg border border-[#5bdda6]/20 hover:scale-105 transition-all"
-              aria-label="العودة لتحديد موقع الانطلاق"
-            >
-              <ArrowRight className="w-5 h-5 text-[#5bdda6]" />
-            </button>
-          ) : (
-            <div className="w-10" />
-          )}
-
-          {/* شعار RAAN في الوسط */}
-          <div className="flex items-center gap-2">
-            <img src={logo} alt="RAAN" className="w-8 h-8 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]" />
-          </div>
-
-          {/* زر القائمة يمين */}
-          <button onClick={() => setMenuOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-xl bg-[#0b1326]/90 backdrop-blur-xl shadow-lg hover:scale-105 transition-all duration-200 active:scale-95 border border-[#5bdda6]/20" aria-label="القائمة الرئيسية">
-            <Menu className="w-5 h-5 text-slate-300" />
-          </button>
-        </div>
-      </motion.div>
-
-      {/* Map Container - touch-action: pan-x pan-y to enable map dragging */}
+      {/* Map Container - لا نضع touchAction هنا حتى لا يتعارض مع Google Maps */}
       <div 
         className="flex-1 relative w-full h-full overflow-hidden"
-        style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
       >
         {/* Enhanced map loading placeholder - pointer-events-none when map is ready */}
         {(!mapToken || isLoading) && !mapError && (
@@ -1874,13 +1647,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           </div>
         )}
 
-        {/* Map container - MUST have pointer-events-auto and proper touch-action */}
+        {/* Map container - touch-action:none يسمح لـ Google Maps بالتحكم الكامل بالسحب */}
         <div 
           ref={mapContainer} 
           className="absolute inset-0 z-0"
           style={{ 
-            touchAction: 'none', // Let Google Maps handle all touch events
-            pointerEvents: 'auto'
+            touchAction: 'none',
+            pointerEvents: 'auto',
+            cursor: 'grab'
           }}
         />
 
@@ -1899,15 +1673,65 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           />
         )}
 
-        {/* Floating manual geolocate button — يسار الشاشة (right في CSS = يسار في RTL) */}
-        <div className="absolute top-20 right-4 z-40 safe-area-top pointer-events-auto">
+        {/* Header — نفس أسلوب السائق مع خلفية شفافة */}
+        <header
+          className="fixed top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top)] transition-colors duration-300"
+          style={{
+            background: 'rgba(11, 19, 38, 0.4)',
+            borderBottom: '1px solid rgba(91, 221, 166, 0.2)',
+            backdropFilter: 'blur(20px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
+          }}
+          dir="rtl"
+        >
+          <div className="flex items-center justify-between h-14 px-4">
+            {/* يسار: مساحة موازنة مثل هيدر الصفحات الجانبية */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-8" aria-hidden="true" />
+            </div>
+
+            {/* وسط: الشعار (نفس نمط RiderPageHeader) */}
+            <div className="flex items-center gap-2">
+
+            {/* الشعار في الوسط */}
+            <div className="pointer-events-none">
+              <img
+                src={logo}
+                alt="RAAN"
+                className="w-9 h-9 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]"
+              />
+            </div>
+            </div>
+
+            {/* يمين: زر القائمة (نفس نمط RiderPageHeader) */}
+            <button
+              onClick={() => setMenuOpen(true)}
+              className="backdrop-blur-md p-2.5 rounded-xl active:scale-95 transition-transform"
+              style={{
+                background: 'var(--raan-accent-dim)',
+                border: '1px solid var(--raan-border)',
+              }}
+              aria-label="القائمة الرئيسية"
+              title="القائمة الرئيسية"
+            >
+              <Menu className="w-5 h-5" style={{ color: 'var(--raan-text-sub)' }} />
+            </button>
+          </div>
+        </header>
+
+        {/* زر تحديد موقعي (ملتصق تحت الهيدر مباشرة) */}
+        <div 
+          className="fixed right-6 z-40 pointer-events-auto flex flex-col items-center"
+          style={{ top: 'calc(3.5rem + env(safe-area-inset-top))' }}
+        >
           <button
             onClick={manualGeolocateMain}
-            className="w-11 h-11 flex items-center justify-center rounded-full bg-background/90 text-primary shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 active:scale-95 border border-primary/20"
+            className="w-12 h-12 flex items-center justify-center rounded-b-xl bg-[rgba(11,19,38,0.7)] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.15)] border-b border-x border-[#5bdda6]/30 hover:bg-[rgba(11,19,38,0.9)] transition-colors duration-200 group"
             title="تحديد موقعي"
             aria-label="تحديد موقعي"
           >
-            <Navigation className="w-4 h-4" />
+            <Navigation className="w-5 h-5 text-[#5bdda6] group-active:scale-90 transition-transform" />
           </button>
         </div>
 
@@ -2009,43 +1833,150 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         {/* Network status bar */}
         <NetworkStatusBar />
 
-
       </div>
 
-      {/* 🟢 Bottom panel - Glassmorphism متكاملة مع شريط التنقل + safe-area-inset */}
+      {/* 🟢 Bottom panel - Premium Dark Glassmorphism — drag="y" like ActiveRideCard */}
       <motion.div 
         ref={bottomPanelRef}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={0.2}
         initial={{ y: 100 }}
-        animate={{ y: 0 }}
-        className="bg-[#0b1326]/98 backdrop-blur-xl border-t border-[#5bdda6]/10 shadow-[0_-10px_40px_rgba(11,19,38,0.6)] z-20 rounded-t-3xl transition-all duration-300 pointer-events-auto fixed left-0 right-0"
+        animate={{ y: 0, height: panelExpanded ? 'auto' : 'auto' }}
+        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        onDragEnd={(_, info) => {
+          if (info.offset.y > 50 && panelExpanded) {
+            // سحب للأسفل: تصغير
+            setPanelExpanded(false);
+          } else if (info.offset.y < -50 && !panelExpanded) {
+            // سحب للأعلى: توسيع
+            setPanelExpanded(true);
+          }
+        }}
+        className={`bg-[#0b1326]/98 backdrop-blur-xl border-t border-[#5bdda6]/10 shadow-[0_-10px_40px_rgba(11,19,38,0.6)] z-20 rounded-t-3xl pointer-events-auto fixed left-0 right-0 ${panelExpanded ? 'overflow-visible' : 'overflow-hidden'} flex flex-col`}
         style={{
-          bottom: bottomNavEnabled ? 'calc(env(safe-area-inset-bottom) + 65px)' : 'calc(env(safe-area-inset-bottom, 0px) + 64px)',
+          bottom: 'calc(env(safe-area-inset-bottom, 0px))',
           WebkitBackdropFilter: 'blur(20px)',
-          overflow: 'visible',
+          maxHeight: panelExpanded ? '72vh' : 'auto',
         }}
       >
-        {/* شعار RAAN + مؤشر الخطوة */}
-        <div className="flex flex-col items-center justify-center pt-4 pb-2 gap-1">
+        {/* خط توهج أعلى البانل */}
+        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#5bdda6]/30 to-transparent blur-sm" />
+
+        {/* Drag Handle — قابل للسحب */}
+        <div
+          className="flex flex-col items-center justify-center pt-3 pb-2 gap-1 cursor-grab active:cursor-grabbing touch-none select-none"
+          onClick={() => setPanelExpanded(prev => !prev)}
+        >
           {/* مؤشر السحب */}
-          <div className="w-10 h-1 rounded-full bg-[#5bdda6]/20 mb-2" />
-          {/* أيقونة الخطوة */}
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-[0_0_12px_rgba(91,221,166,0.25)] ${
-            isPickup
-              ? 'bg-[#5bdda6]/20 border border-[#5bdda6]/30'
-              : 'bg-[#5bdda6]/10 border border-[#5bdda6]/20'
-          }`}>
-            {isPickup
-              ? <Navigation className="w-4 h-4 text-[#5bdda6]" />
-              : <MapPin className="w-4 h-4 text-[#5bdda6]" />}
+          <motion.div
+            className="rounded-full"
+            animate={{
+              width: 48,
+              height: 4,
+              backgroundColor: panelExpanded ? '#5bdda6' : '#475569',
+            }}
+            transition={{ duration: 0.3 }}
+          />
+          {/* أيقونة الخطوة + النص */}
+          <div className="flex items-center gap-2">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center shadow-[0_0_12px_rgba(91,221,166,0.25)] ${
+              isPickup
+                ? 'bg-[#5bdda6]/20 border border-[#5bdda6]/30'
+                : 'bg-[#5bdda6]/10 border border-[#5bdda6]/20'
+            }`}>
+              {isPickup
+                ? <Rocket className="w-3.5 h-3.5 text-[#5bdda6]" />
+                : <MapPin className="w-3.5 h-3.5 text-[#5bdda6]" />}
+            </div>
+            <p className="text-[13px] font-bold tracking-widest text-[#5bdda6]/60 uppercase">
+              {isPickup ? 'موقع الانطلاق' : 'الوجهة'}
+            </p>
+
           </div>
-          <p className="text-[11px] font-bold tracking-widest text-[#5bdda6]/60 uppercase mt-0.5">
-            {isPickup ? 'موقع الانطلاق' : 'الوجهة'}
-          </p>
         </div>
 
-        <div className="px-4 pb-4 flex flex-col gap-3">
+        {/* ═══ الحالة المصغّرة — ملخص العنوان + زر التأكيد ═══ */}
+        {!panelExpanded && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="px-4 pb-3 flex flex-col gap-2"
+          >
+            {/* عرض العنوان المحدد */}
+            <div 
+              className="flex items-center gap-3 p-3 rounded-2xl bg-[#131d35] border border-[#5bdda6]/10 cursor-pointer active:scale-[0.98] transition-transform"
+              onClick={() => setPanelExpanded(true)}
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                isPickup 
+                  ? 'bg-green-500/20 border border-green-500/30' 
+                  : 'bg-sky-500/20 border border-sky-500/30'
+              }`}>
+                {isPickup 
+                  ? <Navigation className="w-4 h-4 text-green-400" /> 
+                  : <MapPin className="w-4 h-4 text-sky-400" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold tracking-wider text-[#5bdda6]/50 uppercase mb-0.5">
+                  {isPickup ? 'الموقع المحدد' : 'الوجهة المحددة'}
+                </p>
+                <p className="text-sm font-semibold text-slate-200 truncate leading-snug">
+                  {centerAddress ? buildDescriptiveAddress(centerAddress) : 'جاري تحديد العنوان...'}
+                </p>
+              </div>
+
+            </div>
+
+            {/* زر التأكيد المصغّر */}
+            <motion.button
+              onClick={() => {
+                if (navigator.vibrate) navigator.vibrate(50);
+                handleConfirm();
+              }}
+              disabled={!centerAddress || isCheckingService || isConfirming}
+              whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.95 }}
+              className={`w-full py-3.5 rounded-2xl font-bold text-[15px] flex items-center justify-center gap-2 transition-all duration-300 ${
+                centerAddress && !isCheckingService && !isConfirming
+                  ? isPickup
+                    ? 'bg-gradient-to-r from-[#5bdda6] to-[#27b481] text-[#003825] shadow-[0_8px_24px_rgba(39,180,129,0.25)]'
+                    : 'bg-gradient-to-r from-[#38bdf8] to-[#0ea5e9] text-white shadow-[0_8px_24px_rgba(14,165,233,0.25)]'
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+              }`}
+            >
+              {isCheckingService || isConfirming ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
+                </>
+              ) : !centerAddress ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
+                  <span>جاري تحديد العنوان...</span>
+                </>
+              ) : (
+                <>
+                  <span>تأكيد {isPickup ? 'موقع الانطلاق' : 'الوجهة'}</span>
+                  <Navigation className="w-4 h-4 -rotate-90" />
+                </>
+              )}
+            </motion.button>
+          </motion.div>
+        )}
+
+        {/* المحتوى القابل للتمرير — يظهر/يختفي حسب حالة التوسيع */}
+        <AnimatePresence>
+          {panelExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              style={{ overflow: 'visible' }}
+            >
+              <div className="px-4 pb-4 flex flex-col gap-3 overflow-visible" style={{ maxHeight: 'calc(72vh - 80px)' }}>
           {/* Service area warning */}
-          {localServiceAreaStatus && !localServiceAreaStatus.in_service && <div className="flex items-center gap-3 p-3 mb-3 rounded-2xl bg-red-500/10 border border-red-500/20">
+          {localServiceAreaStatus && !localServiceAreaStatus.in_service && <div className="flex items-center gap-3 p-3 mb-1 rounded-2xl bg-red-500/10 border border-red-500/20">
               <div className="w-8 h-8 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4 text-red-400" />
               </div>
@@ -2060,14 +1991,16 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               </div>
             </div>}
 
-          {/* حقل البحث */}
-          <div className="relative pointer-events-auto">
+          {/* حقل البحث — تصميم فاخر مطابق للصورة */}
+          <div className="relative pointer-events-auto -mx-4 overflow-visible z-50">
             <DynamicSearchHeader
               query={locationSearchQuery}
               onQueryChange={(v) => {
                 setLocationSearchQuery(v);
                 setSearchQuery(v);
                 if (v) setIsLocationFocused(true);
+                // إذا اختار المستخدم تصنيف سريع والآن يعدل النص يدوياً
+                if (!v) setActiveCategory(null);
               }}
               onClear={() => {
                 setLocationSearchQuery('');
@@ -2075,9 +2008,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 setIsLocationFocused(false);
                 setCenterAddress(null);
                 setManualAddress(null);
+                setActiveCategory(null);
               }}
               isSearching={isSearching}
-              placeholder={isPickup ? 'ابحث عن موقع الانطلاق...' : 'ابحث عن الوجهة...'}
+              isOffline={searchOffline}
+              placeholder={isPickup ? 'اختر موقع الانطلاق ....' : 'اختر جهة الوصول ....'}
               onFocus={() => setIsLocationFocused(true)}
               showAddress={!locationSearchQuery && centerAddress ? buildDescriptiveAddress(centerAddress) : undefined}
               onCurrentLocation={() => manualGeolocateMain()}
@@ -2092,15 +2027,41 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 setSearchQuery('');
                 setLocalServiceAreaStatus(null);
               }}
+              voiceSupported={voiceSupported}
+              voiceState={voiceState}
+              onVoiceToggle={toggleListening}
+              voiceTranscript={voiceTranscript}
             />
 
             <DynamicSearchResults
               query={locationSearchQuery}
               results={predictions}
+              unifiedResults={locationSearchQuery
+                ? unified.mergeResults(
+                    unified.searchLocal(locationSearchQuery, recentSearches),
+                    predictions ?? []
+                  )
+                : undefined}
               recentSearches={recentSearches}
+              smartSuggestions={unified.getSmartSuggestions()}
+              nearbyLandmarks={unified.getNearbyLandmarks(5)}
+              savedPlaces={supabaseSavedPlaces}
               isSearching={isSearching}
               isLoadingDetails={isLoadingDetails}
+              isOffline={searchOffline}
               isOpen={isLocationFocused}
+              activeCategory={activeCategory}
+              onCategorySelect={(cat: CategoryFilter) => {
+                if (activeCategory === cat.id) {
+                  setActiveCategory(null);
+                  setLocationSearchQuery('');
+                  setSearchQuery('');
+                } else {
+                  setActiveCategory(cat.id);
+                  setLocationSearchQuery(cat.keyword);
+                  setSearchQuery(cat.keyword);
+                }
+              }}
               onSelect={async (placeId) => {
                 const placeDetails = await getPlaceDetails(placeId);
                 if (!placeDetails) return;
@@ -2126,6 +2087,50 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 setLocationSearchQuery('');
                 setSearchQuery('');
                 setIsLocationFocused(false);
+                setActiveCategory(null);
+              }}
+              onSelectUnified={async (result) => {
+                if (result.lat && result.lng) {
+                  addRecentSearch({
+                    mainText: result.main_text,
+                    secondaryText: result.secondary_text || '',
+                    address: result.secondary_text || result.main_text,
+                    lat: result.lat,
+                    lng: result.lng,
+                  });
+                  const geofenceCheck = await checkDestinationGeofence(result.lat, result.lng, mapToken);
+                  if (!geofenceCheck.allowed) {
+                    setGeofenceResult(geofenceCheck);
+                    setShowGeofenceAlert(true);
+                    return;
+                  }
+                  if (map.current) {
+                    map.current.panTo({ lat: result.lat, lng: result.lng });
+                    map.current.setZoom(16);
+                  }
+                  setManualAddress(result.main_text);
+                  checkServiceArea(result.lat, result.lng);
+                } else if (result.place_id) {
+                  const placeDetails = await getPlaceDetails(result.place_id);
+                  if (!placeDetails) return;
+                  addRecentSearch({
+                    mainText: placeDetails.name,
+                    secondaryText: placeDetails.address,
+                    address: placeDetails.address,
+                    lat: placeDetails.lat,
+                    lng: placeDetails.lng,
+                  });
+                  if (map.current) {
+                    map.current.panTo({ lat: placeDetails.lat, lng: placeDetails.lng });
+                    map.current.setZoom(16);
+                  }
+                  setManualAddress(placeDetails.name || placeDetails.address);
+                  checkServiceArea(placeDetails.lat, placeDetails.lng);
+                }
+                setLocationSearchQuery('');
+                setSearchQuery('');
+                setIsLocationFocused(false);
+                setActiveCategory(null);
               }}
               onSelectRecent={async (search) => {
                 const geofenceCheck = await checkDestinationGeofence(search.lat, search.lng, mapToken);
@@ -2144,6 +2149,42 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 setSearchQuery('');
                 setIsLocationFocused(false);
               }}
+              onSelectSmart={async (suggestion) => {
+                if (suggestion.lat && suggestion.lng) {
+                  const geofenceCheck = await checkDestinationGeofence(suggestion.lat, suggestion.lng, mapToken);
+                  if (!geofenceCheck.allowed) {
+                    setGeofenceResult(geofenceCheck);
+                    setShowGeofenceAlert(true);
+                    return;
+                  }
+                  if (map.current) {
+                    map.current.panTo({ lat: suggestion.lat, lng: suggestion.lng });
+                    map.current.setZoom(16);
+                  }
+                  setManualAddress(suggestion.title);
+                  checkServiceArea(suggestion.lat, suggestion.lng);
+                  setLocationSearchQuery('');
+                  setSearchQuery('');
+                  setIsLocationFocused(false);
+                }
+              }}
+              onSelectSavedPlace={async (place) => {
+                const geofenceCheck = await checkDestinationGeofence(place.lat, place.lng, mapToken);
+                if (!geofenceCheck.allowed) {
+                  setGeofenceResult(geofenceCheck);
+                  setShowGeofenceAlert(true);
+                  return;
+                }
+                if (map.current) {
+                  map.current.panTo({ lat: place.lat, lng: place.lng });
+                  map.current.setZoom(16);
+                }
+                setManualAddress(place.name || place.address);
+                checkServiceArea(place.lat, place.lng);
+                setLocationSearchQuery('');
+                setSearchQuery('');
+                setIsLocationFocused(false);
+              }}
               onRemoveRecent={removeRecentSearch}
               maxResults={6}
               maxRecentResults={3}
@@ -2151,69 +2192,147 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             />
           </div>
 
-          <QuickAccessChips
-            onSelectLocation={(lat, lng, address) => {
-              if (map.current) {
-                map.current.panTo({ lat, lng });
-                map.current.setZoom(16);
-              }
-              setManualAddress(address);
-              checkServiceArea(lat, lng);
-            }}
-            className="pointer-events-auto"
-          />
+
+
+          {/* ═══ الأماكن المحفوظة — سلايدر أفقي ═══ */}
+          <AnimatePresence>
+            {showSavedPlacesDropdown && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="w-[calc(100%+2rem)] -mx-4 bg-[#0b1326]/95 border-t border-[#5bdda6]/10"
+              >
+                {loadingSavedPlaces ? (
+                  <div className="flex items-center justify-center py-4 gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#5bdda6]" />
+                    <span className="text-xs text-slate-400">جاري التحميل...</span>
+                  </div>
+                ) : supabaseSavedPlaces.length === 0 ? (
+                  <div className="flex items-center justify-center py-4 gap-2">
+                    <Bookmark className="w-4 h-4 text-[#5bdda6]/30" />
+                    <span className="text-xs text-slate-500">لا توجد أماكن محفوظة</span>
+                  </div>
+                ) : (
+                  <div
+                    className="flex gap-2.5 overflow-x-auto px-4 py-3 scrollbar-none"
+                    style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}
+                  >
+                    {supabaseSavedPlaces.map((place) => {
+                      const iconMap: Record<string, string> = {
+                        '🏠': '🏠', '💼': '💼', '⭐': '⭐', '❤️': '❤️',
+                        '🎓': '🎓', '💪': '💪', '🍽️': '🍽️', '🏥': '🏥',
+                        '🛍️': '🛍️', '🏢': '🏢', '📍': '📍',
+                        home: '🏠', work: '💼', cafe: '☕', gym: '🏋️',
+                        diwaniya: '🏛️', carwash: '🚗', other: '📍',
+                        favorite: '⭐', loved: '❤️', school: '🎓',
+                        restaurant: '🍽️', hospital: '🏥', shopping: '🛍️', office: '🏢',
+                      };
+                      const displayIcon = iconMap[place.icon] || iconMap[place.label] || '📍';
+                      return (
+                        <motion.button
+                          key={place.id}
+                          whileTap={{ scale: 0.93 }}
+                          onClick={() => {
+                            const location = { lat: place.lat, lng: place.lng, address: place.address || place.name };
+                            if (isPickup) {
+                              // وضع الانطلاق: تعيين كموقع انطلاق + التحول لاختيار الوجهة
+                              setPickupLocation(location);
+                              setCurrentMode('dropoff');
+                              toast({ title: 'تم تحديد موقع الانطلاق ✅', description: place.name });
+                            } else {
+                              // وضع الوجهة: تعيين كوجهة وصول + التحول للحجز
+                              setDropoffLocation(location);
+                              setCurrentMode('booking');
+                              toast({ title: 'تم تحديد الوجهة ✅', description: place.name });
+                            }
+                            if (map.current) {
+                              map.current.panTo({ lat: place.lat, lng: place.lng });
+                              map.current.setZoom(16);
+                            }
+                            setCenterAddress('');
+                            setSearchQuery('');
+                            setLocationSearchQuery('');
+                            setIsLocationFocused(false);
+                            setShowSavedPlacesDropdown(false);
+                          }}
+                          className="shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-[#151f30] border border-slate-700/50 hover:border-[#5bdda6]/30 hover:bg-[#5bdda6]/5 active:bg-[#5bdda6]/15 transition-all"
+                        >
+                          <span className="text-lg leading-none">{displayIcon}</span>
+                          <div className="text-right min-w-0 max-w-[120px]">
+                            <p className="text-[13px] font-bold text-slate-200 truncate leading-tight">{place.name}</p>
+                            <p className="text-[10px] text-slate-500 truncate leading-tight">{place.address}</p>
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* زر التأكيد + زر الأماكن المحفوظة */}
+          <div className="flex items-stretch w-[calc(100%+2rem)] -mx-4 mt-1">
+            {/* زر الأماكن المحفوظة */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                const willOpen = !showSavedPlacesDropdown;
+                setShowSavedPlacesDropdown(willOpen);
+                setIsLocationFocused(false);
+                if (willOpen) fetchSavedPlaces();
+              }}
+              className="w-14 shrink-0 flex items-center justify-center bg-[#0f1a2e] border-r border-[#5bdda6]/20 transition-all hover:bg-[#5bdda6]/10"
+              title="الأماكن المحفوظة"
+              aria-label="عرض الأماكن المحفوظة"
+            >
+              <Bookmark className={`w-5 h-5 transition-colors ${showSavedPlacesDropdown ? 'text-[#5bdda6] fill-[#5bdda6]/30' : 'text-[#5bdda6]/70'}`} />
+            </motion.button>
+
+            {/* زر التأكيد */}
+            <motion.button
+              onClick={() => {
+                if (navigator.vibrate) navigator.vibrate(50);
+                handleConfirm();
+              }}
+              disabled={!centerAddress || isCheckingService || isConfirming}
+              whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.95 }}
+              className={`flex-1 py-4 rounded-none font-bold text-[17px] flex items-center justify-center gap-3 transition-all duration-300 ${
+                centerAddress && !isCheckingService && !isConfirming
+                  ? isPickup
+                    ? 'bg-gradient-to-r from-[#5bdda6] to-[#27b481] text-[#003825] shadow-[0_10px_30px_rgba(39,180,129,0.3)] hover:scale-[0.98]'
+                    : 'bg-gradient-to-r from-[#38bdf8] to-[#0ea5e9] text-white shadow-[0_10px_30px_rgba(14,165,233,0.3)] hover:scale-[0.98]'
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed shadow-none'
+              }`}
+            >
+              {isCheckingService || isConfirming ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
+                </>
+              ) : !centerAddress ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
+                  <span>اختر جهة الوصول ....</span>
+                </>
+              ) : (
+                <>
+                  <span className="tracking-tight">تأكيد {isPickup ? 'موقع الانطلاق' : 'الوجهة'}</span>
+                  <div className="w-8 h-8 rounded-full bg-[#003825]/10 flex items-center justify-center">
+                    <Navigation className="w-4 h-4 -rotate-90" />
+                  </div>
+                </>
+              )}
+            </motion.button>
+          </div>
 
         </div>
-      </motion.div>
-
-      {/* ════════════════════════════════════════════
-           زر التأكيد — ثابت في أسفل الشاشة
-           بنفس نمط أزرار شاشة السائق تماماً
-           ════════════════════════════════════════════ */}
-      <div
-        className="fixed bottom-0 inset-x-0 z-30 bg-[#0b1326]/98 backdrop-blur-lg border-t border-[#5bdda6]/10"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-      >
-        <motion.button
-          onClick={() => {
-            if (navigator.vibrate) navigator.vibrate(50);
-            handleConfirm();
-          }}
-          disabled={!centerAddress || isCheckingService || isConfirming}
-          animate={centerAddress ? {
-            boxShadow: [
-              "0 0 0 0 rgba(91,221,166,0)",
-              "0 0 0 10px rgba(91,221,166,0.15)",
-              "0 0 0 0 rgba(91,221,166,0)"
-            ]
-          } : {}}
-          transition={{ duration: 2, repeat: Infinity }}
-          whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.98 }}
-          className={`w-full h-16 flex items-center justify-center gap-3 text-lg font-black rounded-none touch-manipulation transition-all duration-200 ${
-            centerAddress && !isCheckingService && !isConfirming
-              ? 'bg-[#5bdda6] hover:bg-[#4ecf99] text-[#0b1326]'
-              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-          }`}
-        >
-          {isCheckingService || isConfirming ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
-            </>
-          ) : !centerAddress ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>جاري تحديد العنوان...</span>
-            </>
-          ) : (
-            <>
-              <Check className="w-6 h-6" />
-              <span>تأكيد {isPickup ? 'موقع الانطلاق' : 'الوجهة'}</span>
-              {isPickup ? <Target className="w-5 h-5" /> : <MapPin className="w-5 h-5" />}
-            </>
+            </motion.div>
           )}
-        </motion.button>
-      </div>
+        </AnimatePresence>
+      </motion.div>
 
       {/* نافذة حفظ الموقع */}
       <SaveLocationModal

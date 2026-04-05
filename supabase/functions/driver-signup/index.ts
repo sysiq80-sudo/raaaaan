@@ -19,7 +19,7 @@ function formatPhoneNumber(phone: string): string {
   let cleaned = phone.replace(/\D/g, "");
   if (cleaned.startsWith("0")) cleaned = "964" + cleaned.substring(1);
   if (!cleaned.startsWith("964")) cleaned = "964" + cleaned;
-  return cleaned;
+  return `+${cleaned}`;
 }
 
 function getClientIP(req: Request): string {
@@ -82,14 +82,15 @@ serve(async (req) => {
     await supabase.rpc("record_ip_request", { p_ip: clientIP, p_action: "driver_signup" });
 
     const formattedPhone = formatPhoneNumber(body.phone);
-    const authEmail = `${formattedPhone}@driver.raan.app`;
+    // send-otp stores phone WITHOUT + prefix, so strip it for OTP lookup
+    const otpPhone = formattedPhone.replace(/^\+/, "");
 
     // Ensure OTP was verified very recently
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const { data: otpRecord } = await supabase
       .from("otp_verifications")
       .select("*")
-      .eq("phone", formattedPhone)
+      .eq("phone", otpPhone)
       .eq("purpose", "driver_registration")
       .eq("verified", true)
       .is("used_at", null)
@@ -105,13 +106,27 @@ serve(async (req) => {
       );
     }
 
-    // Block if driver already exists (covers most real cases)
-    const { data: existingDrivers, error: existingDriversError } = await supabase.rpc(
-      "find_driver_by_phone",
-      { p_phone: formattedPhone },
-    );
+    // Global uniqueness: block if phone already exists in rider/driver data
+    const { data: isRegistered } = await supabase.rpc("is_phone_registered", {
+      p_phone: formattedPhone,
+    });
 
-    if (!existingDriversError && Array.isArray(existingDrivers) && existingDrivers.length > 0) {
+    if (isRegistered) {
+      return new Response(
+        JSON.stringify({ error: "هذا الرقم مسجل مسبقاً. الرجاء تسجيل الدخول.", user_exists: true }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Extra safety: check auth.users directly for existing phone account
+    // Use profiles table instead of listUsers to scale beyond 1000 users
+    const { data: authUserData } = await supabase
+      .from('profiles')
+      .select('user_id')
+      .eq('phone', formattedPhone)
+      .maybeSingle();
+    
+    if (authUserData) {
       return new Response(
         JSON.stringify({ error: "هذا الرقم مسجل مسبقاً. الرجاء تسجيل الدخول.", user_exists: true }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -124,11 +139,11 @@ serve(async (req) => {
       .update({ used_at: new Date().toISOString() })
       .eq("id", otpRecord.id);
 
-    // Create auth user WITHOUT sending confirmation emails
+    // Create auth user with phone only (WhatsApp OTP verified)
     const { data: created, error: createError } = await supabase.auth.admin.createUser({
-      email: authEmail,
+      phone: formattedPhone,
       password: body.password,
-      email_confirm: true,
+      phone_confirm: true,
       user_metadata: {
         full_name: body.fullName,
         phone: formattedPhone,
@@ -158,7 +173,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         userId: created.user.id,
-        authEmail,
+        authPhone: formattedPhone,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

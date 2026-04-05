@@ -7,7 +7,7 @@ import { lazy, Suspense, useState, useEffect } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { RaanThemeProvider } from "@/contexts/RaanThemeContext";
@@ -16,6 +16,8 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import DevInspector from "@/components/DevInspector";
 import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
 import RiderNotificationBootstrap from "@/components/rider/RiderNotificationBootstrap";
+import { isNativePlatform } from "@/lib/capacitorBridge";
+import { capacitorStorageSync } from "@/lib/capacitorStorage";
 
 // صفحات أساسية
 import Auth from "@/pages/Auth";
@@ -38,6 +40,8 @@ const RiderPaymentsPage = lazy(() => import("@/pages/rider/RiderPaymentsPage"));
 const WalletTopupPage = lazy(() => import("@/pages/rider/WalletTopupPage"));
 const RiderSavedPlacesPage = lazy(() => import("@/pages/rider/RiderSavedPlacesPage"));
 const RiderSettingsPage = lazy(() => import("@/pages/rider/RiderSettingsPage"));
+const RiderProfileMigratedPage = lazy(() => import("@/pages/rider/RiderProfileMigratedPage"));
+const RiderGoMigrated = lazy(() => import("@/pages/rider/RiderGoMigrated"));
 const RiderLayout = lazy(() => import("@/components/rider/RiderLayout"));
 
 const queryClient = new QueryClient({
@@ -64,12 +68,21 @@ const RiderApp = () => {
             <ConnectionStatus />
             <PWAInstallPrompt />
             <RiderNotificationBootstrap />
-            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-              <Suspense fallback={<LoadingFallback />}>
-                <RiderRoutes />
-              </Suspense>
-              <DevInspector />
-            </BrowserRouter>
+            {isNativePlatform ? (
+              <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <RiderRoutes />
+                </Suspense>
+                <DevInspector />
+              </HashRouter>
+            ) : (
+              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <RiderRoutes />
+                </Suspense>
+                <DevInspector />
+              </BrowserRouter>
+            )}
           </AuthProvider>
         </QueryClientProvider>
       </TooltipProvider>
@@ -81,6 +94,11 @@ const RiderApp = () => {
 const RiderRoutes = () => {
   const { user, isLoading, isOnboardingComplete } = useAuth();
   const [minSplashDone, setMinSplashDone] = useState(false);
+
+  // ✅ فرض دور الراكب فوراً لمنع توجيه خاطئ إلى /driver
+  useEffect(() => {
+    capacitorStorageSync.setItem("raan_current_role", "rider");
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setMinSplashDone(true), 600);
@@ -146,6 +164,8 @@ const RiderRoutes = () => {
       <Route path="/rider/wallet-topup" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><WalletTopupPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
       <Route path="/rider/saved-places" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><RiderSavedPlacesPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
       <Route path="/rider/settings" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><RiderSettingsPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
+      <Route path="/rider/profile-v2" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><RiderProfileMigratedPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
+      <Route path="/rider/go-v2" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><RiderGoMigrated /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

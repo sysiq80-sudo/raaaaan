@@ -1,6 +1,6 @@
 /**
  * ران - الشاشة الرئيسية بالذكاء الاصطناعي الصوتي
- * Voice-First AI Home Screen — تصميم احترافي لتطبيق الجوال
+ * Voice-First AI Home Screen — تصميم فاخر مطابق للصورة المرجعية
  */
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -9,7 +9,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Mic, MicOff, MapPin, Shield, Sparkles, Volume2,
   Check, X, Map as MapIcon, Navigation, Send, Keyboard,
-  ChevronLeft,
+  ChevronLeft, Search, Clock, Home, Briefcase, Coffee,
+  Dumbbell, Landmark, Car, Zap, Leaf, ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useVoiceRecording, type VoiceResult, type VoiceState } from "@/hooks/useVoiceRecording";
@@ -33,6 +34,26 @@ const VOICE_HINTS = [
 
 const QUICK_PLACES = ["جامعة الأنبار", "شارع المستودع", "مستشفى الرمادي", "حي التأميم"];
 
+/* ────── أيقونات المفضلات ────── */
+const FAV_ICON_MAP: Record<string, React.ReactNode> = {
+  home: <Home className="w-5 h-5" />,
+  work: <Briefcase className="w-5 h-5" />,
+  cafe: <Coffee className="w-5 h-5" />,
+  gym: <Dumbbell className="w-5 h-5" />,
+  diwaniya: <Landmark className="w-5 h-5" />,
+  carwash: <Car className="w-5 h-5" />,
+  other: <MapPin className="w-5 h-5" />,
+};
+
+const FAV_NAMES: Record<string, string> = {
+  home: 'المنزل',
+  work: 'العمل',
+  cafe: 'كافيه',
+  gym: 'النادي',
+  diwaniya: 'الديوانية',
+  carwash: 'غسيل سيارات',
+  other: 'موقع',
+};
 
 /* ──────────────────────────────────────────
    مكون: تلميحات دوارة
@@ -248,6 +269,7 @@ const AIVoiceHome: React.FC = () => {
   const { toast } = useToast();
   const setPickupLocation = useRiderStore((s) => s.setPickupLocation);
   const setDropoffLocation = useRiderStore((s) => s.setDropoffLocation);
+  const pickupLocation = useRiderStore((s) => s.pickupLocation);
   const setVehicle = useRiderStore((s) => s.setVehicle);
 
   const voiceHook = useVoiceRecording();
@@ -261,11 +283,41 @@ const AIVoiceHome: React.FC = () => {
   const [isSubmittingText, setIsSubmittingText] = useState(false);
   const textInputRef = useRef<HTMLInputElement>(null);
   const [textResult, setTextResult] = useState<VoiceResult | null>(null);
+  const [activeSavedPlaceIndex, setActiveSavedPlaceIndex] = useState(0);
+  const [isSavedPlacesSliderPaused, setIsSavedPlacesSliderPaused] = useState(false);
+  const savedPlaceCardRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   const isMicAvailable =
     typeof navigator !== "undefined" &&
     !!navigator.mediaDevices &&
     typeof navigator.mediaDevices.getUserMedia === "function";
+
+  // المفضلات — جلب من قاعدة البيانات
+  const [dbFavorites, setDbFavorites] = useState<Array<{
+    id: string; name: string; address: string; lat: number; lng: number; icon: string | null;
+  }>>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchSavedPlaces = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const { data, error } = await supabase
+        .from('saved_places')
+        .select('id, name, address, lat, lng, icon')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
+      if (!error && data && !cancelled) {
+        setDbFavorites(data);
+      }
+    };
+    fetchSavedPlaces();
+    return () => { cancelled = true; };
+  }, []);
+
+  const normalizedFavorites = dbFavorites.filter(
+    (fav) => typeof fav.lat === "number" && typeof fav.lng === "number" && Number.isFinite(fav.lat) && Number.isFinite(fav.lng)
+  );
 
   // موقع الانطلاق
   const [pickupAddress, setPickupAddress] = useState<string | null>(null);
@@ -305,10 +357,31 @@ const AIVoiceHome: React.FC = () => {
   }, []);
 
   const activeResult = textResult || result;
+  const isProcessing = voiceState === "processing" || isSubmittingText;
 
   useEffect(() => {
     if (voiceState === "success" && result) setShowConfirmation(true);
   }, [voiceState, result]);
+
+  useEffect(() => {
+    if (activeSavedPlaceIndex >= normalizedFavorites.length) {
+      setActiveSavedPlaceIndex(0);
+    }
+  }, [activeSavedPlaceIndex, normalizedFavorites.length]);
+
+  useEffect(() => {
+    if (isProcessing || isSavedPlacesSliderPaused || normalizedFavorites.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveSavedPlaceIndex((prev) => (prev + 1) % normalizedFavorites.length);
+    }, 4200);
+    return () => clearInterval(timer);
+  }, [isProcessing, isSavedPlacesSliderPaused, normalizedFavorites.length]);
+
+  useEffect(() => {
+    const activeCard = savedPlaceCardRefs.current[activeSavedPlaceIndex];
+    if (!activeCard) return;
+    activeCard.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [activeSavedPlaceIndex]);
 
   useEffect(() => {
     if (error) {
@@ -355,6 +428,62 @@ const AIVoiceHome: React.FC = () => {
   const handleRetry = useCallback(() => { setShowConfirmation(false); setTextResult(null); resetVoice(); }, [resetVoice]);
   const handleCancel = useCallback(() => { setShowConfirmation(false); setTextResult(null); resetVoice(); }, [resetVoice]);
 
+  const buildCurrentLocationPickup = useCallback(async () => {
+    if (!navigator.geolocation) return null;
+
+    const coords = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+      );
+    });
+
+    if (!coords) return null;
+
+    try {
+      const address = await reverseGeocodeCoordinates(coords.lat, coords.lng);
+      return {
+        lat: coords.lat,
+        lng: coords.lng,
+        address: address || `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`,
+      };
+    } catch {
+      return {
+        lat: coords.lat,
+        lng: coords.lng,
+        address: `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`,
+      };
+    }
+  }, []);
+
+  const handleSavedPlaceFrom = useCallback((fav: (typeof normalizedFavorites)[number]) => {
+    // تعيين المكان المحفوظ كنقطة انطلاق → فتح الخريطة لاختيار الوجهة
+    setPickupLocation({ lat: fav.lat, lng: fav.lng, address: fav.address || fav.name });
+    navigate("/rider/go", {
+      state: {
+        fromVoice: true,
+        fromSavedPlace: true,
+        preferredMode: "dropoff",
+        savedPickup: { lat: fav.lat, lng: fav.lng, address: fav.address || fav.name },
+      },
+    });
+  }, [navigate, setPickupLocation]);
+
+  const handleSavedPlaceTo = useCallback(async (fav: (typeof normalizedFavorites)[number]) => {
+    // تعيين المكان المحفوظ كوجهة → فتح الخريطة لاختيار نقطة الانطلاق
+    setDropoffLocation({ lat: fav.lat, lng: fav.lng, address: fav.address || fav.name });
+
+    navigate("/rider/go", {
+      state: {
+        fromVoice: true,
+        fromSavedPlace: true,
+        preferredMode: "pickup",
+        savedDropoff: { lat: fav.lat, lng: fav.lng, address: fav.address || fav.name },
+      },
+    });
+  }, [navigate, setDropoffLocation]);
+
   const micBg = voiceState === "recording"
     ? "bg-emerald-500 shadow-[0_0_50px_rgba(52,211,153,0.55)] border-emerald-400/80"
     : voiceState === "processing"
@@ -363,55 +492,43 @@ const AIVoiceHome: React.FC = () => {
     ? "bg-red-500/20 border-red-500/40"
     : "bg-white/8 border-white/15 hover:bg-white/12 hover:border-emerald-500/40";
 
-  const isProcessing = voiceState === "processing" || isSubmittingText;
-
   return (
     <div
       className="fixed inset-0 flex flex-col overflow-hidden select-none"
       dir="rtl"
-      style={{ background: "linear-gradient(170deg, #061209 0%, #071a0b 40%, #050d07 100%)" }}
+      style={{ background: "linear-gradient(170deg, #060d18 0%, #0b1326 40%, #091120 100%)" }}
     >
-      {/* ── خلفية ديكورية ── */}
+      {/* ── خلفية ديكورية — شبكة خريطة ── */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-8%] right-[-15%] w-[320px] h-[320px] rounded-full bg-emerald-500/[0.06] blur-[90px]" />
-        <div className="absolute top-[30%] left-[-10%] w-[250px] h-[250px] rounded-full bg-emerald-400/[0.04] blur-[80px]" />
-        <div className="absolute bottom-[10%] right-[20%] w-[280px] h-[280px] rounded-full bg-emerald-600/[0.05] blur-[100px]" />
-        {/* شبكة نقاط */}
+        {/* تأثير التوهج */}
+        <div className="absolute top-[-8%] right-[-15%] w-[320px] h-[320px] rounded-full bg-[#5bdda6]/[0.04] blur-[90px]" />
+        <div className="absolute top-[30%] left-[-10%] w-[250px] h-[250px] rounded-full bg-[#5bdda6]/[0.03] blur-[80px]" />
+        <div className="absolute bottom-[10%] right-[20%] w-[280px] h-[280px] rounded-full bg-[#5bdda6]/[0.03] blur-[100px]" />
+        {/* شبكة — تمثل الخريطة */}
         <div
-          className="absolute inset-0 opacity-[0.025]"
-          style={{ backgroundImage: "radial-gradient(circle, #4ade80 1px, transparent 1px)", backgroundSize: "44px 44px" }}
+          className="absolute inset-0 opacity-[0.04]"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(91,221,166,0.3) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(91,221,166,0.3) 1px, transparent 1px)
+            `,
+            backgroundSize: "60px 60px",
+          }}
+        />
+        {/* خطوط قطرية — تمثل الطرق */}
+        <div
+          className="absolute inset-0 opacity-[0.02]"
+          style={{
+            backgroundImage: `
+              linear-gradient(45deg, rgba(91,221,166,0.4) 1px, transparent 1px),
+              linear-gradient(-45deg, rgba(91,221,166,0.4) 1px, transparent 1px)
+            `,
+            backgroundSize: "80px 80px",
+          }}
         />
       </div>
-
-      {/* ── الهيدر — وسط الشاشة ── */}
-      <motion.div
-        className="relative z-10 flex flex-col items-center justify-center pt-16 pb-5"
-        initial={{ opacity: 0, y: -16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.55 }}
-      >
-        {/* الشعار الدائري */}
-        <div className="relative mb-3">
-          {/* حلقة خارجية نابضة */}
-          <motion.div
-            className="absolute inset-[-6px] rounded-full border border-emerald-500/20"
-            animate={{ scale: [1, 1.08, 1], opacity: [0.2, 0.45, 0.2] }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-          />
-          <img
-            src={logo}
-            alt="RAAN"
-            className="w-20 h-20 rounded-full object-cover drop-shadow-2xl border-2 border-white/10"
-          />
-        </div>
-
-
-
-      </motion.div>
-
-
-      {/* ── المنطقة الوسطى ── */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-5 -mt-4">
+      {/* ── المنطقة الوسطى — الصوت / الكتابة ── */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-5">
         <AnimatePresence mode="wait">
           {isProcessing ? (
             <AIProcessingView key="processing" />
@@ -436,7 +553,7 @@ const AIVoiceHome: React.FC = () => {
 
               {/* حقل الإدخال */}
               <div className="w-full max-w-sm relative">
-                <div className="flex items-center bg-white/[0.07] border-2 border-white/10 rounded-2xl overflow-hidden focus-within:border-emerald-500/50 transition-all duration-300 focus-within:bg-white/10">
+                <div className="flex items-center bg-[#0f1a2e]/80 border-2 border-[#5bdda6]/15 rounded-2xl overflow-hidden focus-within:border-[#5bdda6]/50 transition-all duration-300 focus-within:bg-[#0f1a2e]">
                   <input
                     ref={textInputRef}
                     type="text"
@@ -452,10 +569,10 @@ const AIVoiceHome: React.FC = () => {
                   <motion.button
                     onClick={handleTextSubmit}
                     disabled={!textInput.trim() || textInput.trim().length < 2 || isSubmittingText}
-                    className="ml-2 mr-2.5 w-10 h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 disabled:bg-white/10 disabled:opacity-30 flex items-center justify-center transition-all"
+                    className="ml-2 mr-2.5 w-10 h-10 rounded-xl bg-[#5bdda6] hover:bg-[#4ecf99] active:bg-[#3dbe88] disabled:bg-white/10 disabled:opacity-30 flex items-center justify-center transition-all"
                     whileTap={{ scale: 0.92 }}
                   >
-                    <Send className="w-4.5 h-4.5 text-white" />
+                    <Send className="w-4.5 h-4.5 text-[#0b1326]" />
                   </motion.button>
                 </div>
               </div>
@@ -466,7 +583,7 @@ const AIVoiceHome: React.FC = () => {
                   <motion.button
                     key={place}
                     onClick={() => { setTextInput(place); textInputRef.current?.focus(); }}
-                    className="px-3.5 py-1.5 rounded-full bg-white/[0.06] border border-white/10 text-white/45 text-sm hover:bg-emerald-500/15 hover:border-emerald-500/30 hover:text-white/75 transition-all"
+                    className="px-3.5 py-1.5 rounded-full bg-[#0f1a2e]/80 border border-[#5bdda6]/15 text-white/45 text-sm hover:bg-[#5bdda6]/15 hover:border-[#5bdda6]/30 hover:text-white/75 transition-all"
                     whileTap={{ scale: 0.95 }}
                   >
                     {place}
@@ -478,7 +595,7 @@ const AIVoiceHome: React.FC = () => {
               {isMicAvailable && (
                 <motion.button
                   onClick={() => { setIsTextMode(false); setTextInput(""); }}
-                  className="flex items-center gap-1.5 text-sm text-emerald-400/45 hover:text-emerald-400/80 transition-colors"
+                  className="flex items-center gap-1.5 text-sm text-[#5bdda6]/45 hover:text-[#5bdda6]/80 transition-colors"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.4 }}
@@ -497,10 +614,24 @@ const AIVoiceHome: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.92 }}
             >
+              {/* الشعار */}
+              <div className="relative mb-2">
+                <motion.div
+                  className="absolute inset-[-6px] rounded-full border border-[#5bdda6]/20"
+                  animate={{ scale: [1, 1.08, 1], opacity: [0.2, 0.45, 0.2] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <img
+                  src={logo}
+                  alt="RAAN"
+                  className="w-16 h-16 rounded-full object-cover drop-shadow-2xl border-2 border-white/10"
+                />
+              </div>
+
               {/* العنوان */}
               <div className="text-center space-y-2.5 px-6">
                 <motion.h1
-                  className="text-4xl font-black text-white tracking-tight leading-tight"
+                  className="text-3xl font-black text-white tracking-tight leading-tight"
                   initial={{ y: 16, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.15 }}
@@ -528,12 +659,12 @@ const AIVoiceHome: React.FC = () => {
 
                 {/* حلقة نابضة */}
                 <motion.div
-                  className="absolute inset-[-18px] rounded-full border border-emerald-400/15"
+                  className="absolute inset-[-18px] rounded-full border border-[#5bdda6]/15"
                   animate={voiceState === "idle" ? { scale: [1, 1.12, 1], opacity: [0.15, 0.35, 0.15] } : { scale: 1, opacity: 0 }}
                   transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
                 />
                 <motion.div
-                  className="absolute inset-[-35px] rounded-full border border-emerald-400/8"
+                  className="absolute inset-[-35px] rounded-full border border-[#5bdda6]/8"
                   animate={voiceState === "idle" ? { scale: [1, 1.08, 1], opacity: [0.08, 0.2, 0.08] } : { scale: 1, opacity: 0 }}
                   transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
                 />
@@ -558,7 +689,7 @@ const AIVoiceHome: React.FC = () => {
                       </motion.div>
                     ) : (
                       <motion.div key="idle" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                        <Mic className="w-11 h-11 text-emerald-400" />
+                        <Mic className="w-11 h-11 text-[#5bdda6]" />
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -587,30 +718,112 @@ const AIVoiceHome: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* ── زرا الأسفل — متجاوران ── */}
+      {/* ══════════════════════════════════════
+         سلايدر المواقع المحفوظة فوق القائمة السفلية
+         ══════════════════════════════════════ */}
+      {normalizedFavorites.length > 0 && (
+        <motion.div
+          className="relative z-10 w-full max-w-none mx-auto px-4 pb-3"
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.34 }}
+          onPointerEnter={() => setIsSavedPlacesSliderPaused(true)}
+          onPointerLeave={() => setIsSavedPlacesSliderPaused(false)}
+          onPointerDown={() => setIsSavedPlacesSliderPaused(true)}
+          onPointerUp={() => setIsSavedPlacesSliderPaused(false)}
+        >
+          <div className="mb-2 px-1 text-[11px] text-[#5bdda6]/75 text-center">
+            اسحب يمين ويسار واختر المكان المناسب
+          </div>
+
+          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 px-0.5 scrollbar-hide">
+            {normalizedFavorites.map((fav, index) => (
+              <motion.div
+                key={fav.id}
+                ref={(el) => {
+                  savedPlaceCardRefs.current[index] = el;
+                }}
+                className="min-w-[280px] w-[280px] flex-shrink-0 snap-center rounded-3xl border border-[#5bdda6]/20 bg-[#0f1a2e]/75 backdrop-blur-xl px-4 py-4 shadow-[0_8px_30px_rgba(0,0,0,0.35)]"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.38 + index * 0.06 }}
+              >
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-2xl border border-[#5bdda6]/35 bg-[#5bdda6]/15 text-[#5bdda6] flex items-center justify-center">
+                    {FAV_ICON_MAP[fav.icon || "other"]}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white font-extrabold text-base leading-tight truncate">
+                      {fav.name || FAV_NAMES[fav.icon || "other"]}
+                    </p>
+                    <p className="text-white/50 text-xs truncate mt-1">
+                      {fav.address}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleSavedPlaceFrom(fav)}
+                    className="h-10 rounded-xl border border-[#5bdda6]/35 bg-[#5bdda6]/12 text-[#5bdda6] text-sm font-bold hover:bg-[#5bdda6]/20 active:scale-[0.98] transition-all"
+                  >
+                    انطلق من
+                  </button>
+                  <button
+                    onClick={() => {
+                      void handleSavedPlaceTo(fav);
+                    }}
+                    className="h-10 rounded-xl bg-[#5bdda6] text-[#071321] text-sm font-black hover:bg-[#4ed19b] active:scale-[0.98] transition-all"
+                  >
+                    الوصول إلى
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {normalizedFavorites.length > 1 && (
+            <div className="mt-1 flex items-center justify-center gap-1.5">
+              {normalizedFavorites.map((fav, index) => (
+                <button
+                  key={`dot-${fav.id}`}
+                  type="button"
+                  aria-label={`الانتقال إلى البطاقة ${index + 1}`}
+                  onClick={() => setActiveSavedPlaceIndex(index)}
+                  className={`h-1.5 rounded-full transition-all ${index === activeSavedPlaceIndex ? "w-5 bg-[#5bdda6]" : "w-1.5 bg-white/25"}`}
+                />
+              ))}
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* ══════════════════════════════════════
+         البانل السفلي — أزرار التنقل
+         ══════════════════════════════════════ */}
       <motion.div
-        className="relative z-10 flex border-t border-white/10"
+        className="relative z-10 flex border-t border-[#5bdda6]/10"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.7 }}
       >
-        {/* اكتب وجهتك — أخضر داكن */}
+        {/* اكتب وجهتك */}
         <button
           onClick={() => { setIsTextMode(true); }}
-          className="flex-1 flex items-center justify-center gap-2 py-4 bg-emerald-900/60 hover:bg-emerald-900/80 active:bg-emerald-900/40 border-l border-emerald-700/30 transition-colors duration-200"
+          className="flex-1 flex items-center justify-center gap-2 py-4 bg-[#0f1a2e]/80 hover:bg-[#0f1a2e] active:bg-[#0b1326] border-l border-[#5bdda6]/10 transition-colors duration-200"
         >
-          <Keyboard className="w-4 h-4 text-emerald-300" />
-          <span className="text-emerald-300 font-semibold text-sm">اكتب وجهتك</span>
+          <Keyboard className="w-4 h-4 text-[#5bdda6]" />
+          <span className="text-[#5bdda6] font-semibold text-sm">اكتب وجهتك</span>
         </button>
 
-        {/* استخدم الخريطة — أخضر فاتح */}
+        {/* استخدم الخريطة */}
         <button
           onClick={() => navigate("/rider/go")}
-          className="flex-1 flex items-center justify-center gap-2 py-4 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 transition-colors duration-200"
+          className="flex-1 flex items-center justify-center gap-2 py-4 bg-[#5bdda6] hover:bg-[#4ecf99] active:bg-[#3dbe88] transition-colors duration-200"
         >
-          <MapIcon className="w-4 h-4 text-white" />
-          <span className="text-white font-bold text-sm">استخدم الخريطة</span>
+          <MapIcon className="w-4 h-4 text-[#0b1326]" />
+          <span className="text-[#0b1326] font-bold text-sm">استخدم الخريطة</span>
         </button>
       </motion.div>
 

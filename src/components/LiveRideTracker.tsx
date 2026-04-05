@@ -598,7 +598,7 @@ export const LiveRideTracker = ({
       </motion.div>
 
       {/* Bottom Sheet */}
-      <div className="bg-background/90 backdrop-blur-xl rounded-t-lg shadow-2xl border-t border-border/20 pointer-events-auto w-full max-w-md mx-auto max-h-[85vh] overflow-y-auto">
+      <div className="bg-background/90 backdrop-blur-xl rounded-t-lg shadow-2xl border-t border-border/20 pointer-events-auto w-full max-w-md mx-auto max-h-[85vh] overflow-y-auto" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
         <motion.div
           initial={{ y: "100%" }}
           animate={{ y: 0 }}

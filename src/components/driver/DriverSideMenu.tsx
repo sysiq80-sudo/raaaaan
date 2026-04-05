@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DriverSideMenuProps {
   user: User | null;
@@ -68,6 +69,16 @@ const DriverSideMenu = ({
     user?.user_metadata?.full_name?.trim() ||
     driverPhone ||
     "كابتن";
+
+  const getAvatarSrc = () => {
+    if (!driverProfileImage) return logo;
+    if (driverProfileImage.startsWith("http") || driverProfileImage.startsWith("data:")) {
+      return driverProfileImage;
+    }
+    // Fallback: If it's a relative path, resolve it using Supabase storage
+    const { data } = supabase.storage.from("driver-documents").getPublicUrl(driverProfileImage);
+    return data.publicUrl || logo;
+  };
 
   // بناء قائمة العناصر مع الحفاظ على جميع الروابط الأصلية
   const gridItems = [
@@ -121,7 +132,7 @@ const DriverSideMenu = ({
               {/* الصورة الشخصية */}
               <div className="relative flex-shrink-0">
                 <img
-                  src={driverProfileImage || logo}
+                  src={getAvatarSrc()}
                   alt="السائق"
                   className="w-20 h-20 min-w-[80px] min-h-[80px] rounded-full object-cover ring-2 ring-[#5bdda6]/20 bg-[#2d3449]"
                   onError={(e) => {

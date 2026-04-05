@@ -50,33 +50,38 @@ export const DemandHeatMap = ({ isOnline }: DemandHeatMapProps) => {
 
   if (!isOnline) return null;
 
-  // زر التفعيل
+  // Temporarily disable the Demand Heatmap feature based on user request
+  return null;
+
   if (!visible) {
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        className="absolute top-20 left-4 z-30 bg-background/80 backdrop-blur-sm shadow-lg"
-        onClick={() => setVisible(true)}
-      >
-        <Flame className="w-4 h-4 ml-1 text-orange-500" />
-        مناطق الطلب
-      </Button>
+      <div className="absolute left-0 top-1/2 -translate-y-1/2 z-30">
+        <Button
+          size="sm"
+          variant="secondary"
+          className="shadow-lg rounded-none rounded-r-xl border-y border-r border-border/50 bg-background/90 hover:bg-background/100 h-12 px-3 transition-colors"
+          onClick={() => setVisible(true)}
+        >
+          <Flame className="w-5 h-5 ml-1.5 text-orange-500" />
+          <span className="font-bold text-sm">مناطق الطلب</span>
+        </Button>
+      </div>
     );
   }
 
   return (
     <>
-      {/* زر الإغلاق */}
-      <Button
-        variant="outline"
-        size="sm"
-        className="absolute top-20 left-4 z-30 bg-background/80 backdrop-blur-sm shadow-lg"
-        onClick={() => setVisible(false)}
-      >
-        <X className="w-4 h-4 ml-1" />
-        إخفاء
-      </Button>
+      <div className="absolute left-0 top-1/2 -translate-y-1/2 z-30">
+        <Button
+          size="sm"
+          variant="secondary"
+          className="shadow-lg rounded-none rounded-r-xl border-y border-r border-border/50 bg-background/90 hover:bg-background/100 h-12 px-3 transition-colors"
+          onClick={() => setVisible(false)}
+        >
+          <X className="w-5 h-5 ml-1.5 text-muted-foreground" />
+          <span className="font-bold text-sm">إخفاء</span>
+        </Button>
+      </div>
 
       {/* عرض المناطق كدوائر */}
       {loading ? (

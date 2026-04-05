@@ -197,6 +197,11 @@ async function getFirebaseAccessToken(): Promise<string | null> {
   }
 }
 
+function isNewRidePayload(payload: PushPayload): boolean {
+  const t = payload.data?.type;
+  return t === 'new_ride' || t === 'NEW_RIDE_REQUEST';
+}
+
 async function sendFCMNotification(
   fcmToken: string,
   payload: PushPayload,
@@ -218,6 +223,7 @@ async function sendFCMNotification(
       }
     }
 
+    const urgentRide = isNewRidePayload(payload);
     const message: Record<string, unknown> = {
       token: fcmToken,
       notification: {
@@ -232,7 +238,8 @@ async function sendFCMNotification(
           channel_id: channelId,
           sound: 'default',
           default_vibrate_timings: true,
-          notification_priority: 'PRIORITY_HIGH',
+          // طلب رحلة جديد: أقصى أولوية عند قفل الشاشة / إغلاق التطبيق
+          notification_priority: urgentRide ? 'PRIORITY_MAX' : 'PRIORITY_HIGH',
         },
       },
     };
@@ -289,10 +296,9 @@ async function sendPushNotificationWithRetry(
 ): Promise<SendResult> {
   const hasFcmEndpoint = subscription.endpoint?.includes('fcm.googleapis.com/fcm/send/');
 
-  // ═══ FCM path for native mobile ═══
+  // ═══ FCM path for native mobile (Capacitor stores fcm_token + fcm://<token>) ═══
   if (subscription.fcm_token) {
-    const channelId = (payload.data?.type === 'new_ride' || payload.data?.type === 'NEW_RIDE_REQUEST')
-      ? 'raan-rides' : 'raan-rider';
+    const channelId = isNewRidePayload(payload) ? 'raan-rides' : 'raan-rider';
     return sendFCMNotification(subscription.fcm_token, payload, channelId);
   }
 
@@ -302,16 +308,24 @@ async function sendPushNotificationWithRetry(
   if (hasFcmEndpoint) {
     const token = subscription.endpoint.split('/fcm/send/')[1];
     if (token) {
-      const channelId = (payload.data?.type === 'new_ride' || payload.data?.type === 'NEW_RIDE_REQUEST')
-        ? 'raan-rides' : 'raan-rider';
+      const channelId = isNewRidePayload(payload) ? 'raan-rides' : 'raan-rider';
       return sendFCMNotification(token, payload, channelId);
     }
 
     return { success: false, error: 'subscription_expired' };
   }
 
-  // Skip invalid endpoints (stale FCM-only records with fcm:// pseudo-URLs)
-  if (!subscription.endpoint || subscription.endpoint.startsWith('fcm://')) {
+  // Capacitor native: قد يُخزَّن endpoint كـ fcm://<token> دون عمود fcm_token (سجلات قديمة)
+  if (subscription.endpoint?.startsWith('fcm://')) {
+    const tokenFromEndpoint = subscription.endpoint.slice('fcm://'.length).trim();
+    if (tokenFromEndpoint) {
+      const channelId = isNewRidePayload(payload) ? 'raan-rides' : 'raan-rider';
+      return sendFCMNotification(tokenFromEndpoint, payload, channelId);
+    }
+    return { success: false, error: 'invalid_web_push_endpoint' };
+  }
+
+  if (!subscription.endpoint) {
     return { success: false, error: 'invalid_web_push_endpoint' };
   }
 

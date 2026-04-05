@@ -11,7 +11,7 @@ interface ResetPasswordRequest {
   newPassword: string;
 }
 
-// Format phone number to international format
+// Format phone number to international format (E.164: +964XXXXXXXXX)
 function formatPhoneNumber(phone: string): string {
   let cleaned = phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) {
@@ -20,39 +20,12 @@ function formatPhoneNumber(phone: string): string {
   if (!cleaned.startsWith('964')) {
     cleaned = '964' + cleaned;
   }
-  return cleaned;
+  return cleaned; // بدون + لأن جدول otp_verifications يحفظ بدون +
 }
 
-// Get all possible phone email formats for user lookup (riders and drivers)
-function getPhoneEmailFormats(phone: string): string[] {
-  const cleaned = phone.replace(/\D/g, '');
-  const formats: string[] = [];
-  const domains = ['@raan.app', '@driver.raan.app']; // Both rider and driver domains
-  
-  // Generate phone variants
-  const phoneVariants: string[] = [cleaned];
-  
-  if (cleaned.startsWith('964')) {
-    const withoutCode = cleaned.slice(3);
-    phoneVariants.push(withoutCode);
-    phoneVariants.push(`0${withoutCode}`);
-  } else if (cleaned.startsWith('0')) {
-    const withoutZero = cleaned.slice(1);
-    phoneVariants.push(withoutZero);
-    phoneVariants.push(`964${withoutZero}`);
-  } else {
-    phoneVariants.push(`0${cleaned}`);
-    phoneVariants.push(`964${cleaned}`);
-  }
-  
-  // Combine all phone variants with all domains
-  for (const variant of phoneVariants) {
-    for (const domain of domains) {
-      formats.push(`${variant}${domain}`);
-    }
-  }
-  
-  return formats;
+// Format with + prefix for auth.users comparison
+function formatPhoneE164(phone: string): string {
+  return `+${formatPhoneNumber(phone)}`;
 }
 
 // Get client IP from request headers
@@ -167,23 +140,16 @@ serve(async (req) => {
       throw new Error('فشل في البحث عن المستخدم');
     }
 
-    // Get all possible phone email formats
-    const phoneEmailFormats = getPhoneEmailFormats(phone);
-    console.log(`Searching for user with emails: ${phoneEmailFormats.join(', ')}`);
-
-    // Find user by any of the email formats
-    let user = null;
-    for (const email of phoneEmailFormats) {
-      const foundUser = userData.users.find((u: { email?: string }) => u.email === email);
-      if (foundUser) {
-        user = foundUser;
-        console.log(`Found user with email: ${email}`);
-        break;
-      }
-    }
+    // Find user by phone (phone-only auth model)
+    const normalizedDigits = formattedPhone.replace(/\D/g, '');
+    const user = userData.users.find((u: { phone?: string; user_metadata?: Record<string, unknown> }) => {
+      const phoneCandidate = (u.phone || '').replace(/\D/g, '');
+      const metaPhone = String(u.user_metadata?.phone || '').replace(/\D/g, '');
+      return phoneCandidate.endsWith(normalizedDigits) || metaPhone.endsWith(normalizedDigits);
+    });
 
     if (!user) {
-      console.log(`No user found for any of: ${phoneEmailFormats.join(', ')}`);
+      console.log(`No user found for phone: ${formattedPhone}`);
       return new Response(
         JSON.stringify({ error: 'لم يتم العثور على حساب بهذا الرقم' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

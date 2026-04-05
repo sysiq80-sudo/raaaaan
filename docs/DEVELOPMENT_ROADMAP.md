@@ -1,7 +1,7 @@
 # 🚕 خطة تطوير تطبيق رعان (Raan) للتاكسي
 
-> آخر تحديث: ديسمبر 2025
-> الإصدار: 1.0.0
+> آخر تحديث: مارس 2026
+> الإصدار: 1.1.0
 
 ---
 
@@ -28,8 +28,9 @@
 ### التقنيات المستخدمة
 - **Frontend**: React 18, TypeScript, Tailwind CSS, Vite
 - **Backend**: Supabase (PostgreSQL, Auth, Edge Functions, Realtime)
-- **Maps**: Mapbox GL
-- **Notifications**: Web Push API, OTPIQ (WhatsApp/SMS)
+- **Maps**: **Google Maps** (`@react-google-maps/api`, Directions/Geocoding/Static Maps؛ مفاتيح عبر الإعدادات/الوكيل حسب التطبيق)
+- **Mobile**: Capacitor 8 — بناءات منفصلة للراكب/السائق (انظر [BUILD_MATRIX.md](BUILD_MATRIX.md))
+- **Notifications**: Web Push API, FCM (Capacitor), OTPIQ (WhatsApp/SMS)
 
 ---
 
@@ -109,8 +110,9 @@
 - [x] إضافة فهرس على `drivers.is_available`
 
 ### 1.5 ⏳ تفعيل حماية كلمات المرور المسربة
-- [ ] تفعيل Leaked Password Protection من إعدادات Supabase Auth
+- [ ] تفعيل Leaked Password Protection من إعدادات Supabase Auth (يدوي من لوحة التحكم)
 - **الرابط**: [Supabase Auth Settings](https://supabase.com/dashboard/project/wgolkcztdrwdphwjvqxt/auth/providers)
+- **خطوات تفصيلية**: [SECURITY_OPS.md](SECURITY_OPS.md)
 
 ---
 
@@ -268,6 +270,10 @@ CREATE TABLE loyalty_transactions (
 - ✅ إضافة CMS لتسجيل السائقين
 - ✅ تحديث ملفات التوثيق الشاملة
 
+### الإصدار 1.1.1 (مارس 2026)
+- ✅ مواءقة التوثيق مع الواقع: **Google Maps** بدل Mapbox؛ **Capacitor** وبناءات منفصلة (راجع `BUILD_MATRIX.md`)
+- ✅ إزالة أسرار من migrations الحساسة؛ مرجع تشغيلي [SECURITY_OPS.md](SECURITY_OPS.md)
+
 ---
 
 ## 📋 المهام المتبقية للتطوير
@@ -312,14 +318,18 @@ src/
 
 ### أوامر مفيدة
 ```bash
-# تشغيل التطبيق محلياً
+# تشغيل التطبيق محلياً (واجهة موحّدة للتطوير)
 npm run dev
 
-# بناء للإنتاج
+# بناء راكب أو سائق للمتجر — راجع docs/BUILD_MATRIX.md
+npm run build:rider
+npm run build:driver
+
+# بناء افتراضي (مجلد dist/) — ليس بديلاً عن حزم المتجر المنفصلة
 npm run build
 
-# فحص TypeScript
-npm run typecheck
+# ويب منفصل (راكب + كابتن + سيارة) للنشر كـ PWA/روابط — راجع docs/WEB_DEPLOYMENT.md
+npm run build:web:all
 ```
 
 ### روابط مهمة

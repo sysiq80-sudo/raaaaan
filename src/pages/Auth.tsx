@@ -43,7 +43,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, User, Phone, ArrowLeft, Loader2 } from "lucide-react";
+import { Lock, User, Phone, ArrowLeft, Loader2, Eye, EyeOff } from "lucide-react";
 import logo from "@/assets/logo.png";
 import OTPVerification from "@/components/OTPVerification";
 import PasswordResetDialog from "@/components/PasswordResetDialog";
@@ -77,7 +77,6 @@ const Auth = () => {
   // Register step
   const [fullName, setFullName] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
-  const [optionalEmail, setOptionalEmail] = useState("");
 
   // Common
   const [loading, setLoading] = useState(false);
@@ -86,6 +85,8 @@ const Auth = () => {
   // Ghost account recovery
   const [ghostPassword, setGhostPassword] = useState("");
   const [ghostConfirmPassword, setGhostConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showGhostConfirmPassword, setShowGhostConfirmPassword] = useState(false);
 
   useEffect(() => {
     const {
@@ -135,6 +136,13 @@ const Auth = () => {
     return formats;
   };
 
+  const normalizePhoneForBlockCheck = (phone: string) => {
+    let cleaned = phone.replace(/\D/g, "");
+    if (cleaned.startsWith("0")) cleaned = `964${cleaned.substring(1)}`;
+    if (!cleaned.startsWith("964")) cleaned = `964${cleaned}`;
+    return cleaned;
+  };
+
   // Check if phone exists using secure RPC function
   const checkPhoneNumber = async () => {
     setErrors({});
@@ -150,6 +158,24 @@ const Auth = () => {
 
     try {
       console.log("Checking phone via RPC:", phoneInput);
+
+      const phoneForBlockCheck = normalizePhoneForBlockCheck(phoneInput);
+      const { data: isBlocked, error: blockCheckError } = await supabase.rpc(
+        "is_phone_blocked",
+        { p_phone: phoneForBlockCheck }
+      );
+
+      // لا نوقف التدفق عند خطأ الصلاحيات/الشبكة هنا، لكن نسجل الخطأ فقط
+      if (blockCheckError) {
+        console.warn("Phone block check failed:", blockCheckError.message);
+      } else if (isBlocked) {
+        toast({
+          title: "الحساب معطّل",
+          description: "هذا الرقم موقوف حالياً. يرجى التواصل مع الدعم.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       // Use the secure RPC function that bypasses RLS
       const { data: isRegistered, error: rpcError } = await supabase.rpc(
@@ -206,7 +232,7 @@ const Auth = () => {
     }
   };
 
-  // Handle login with password - rider domain only (@raan.app)
+  // Handle login with password (legacy email first for old accounts, then phone)
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
@@ -219,44 +245,42 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const cleanedPhone = phoneInput.replace(/\D/g, "");
-      // Normalize to single canonical format to avoid multiple auth attempts
-      let normalizedPhone = cleanedPhone;
-      if (cleanedPhone.startsWith("964")) {
-        normalizedPhone = cleanedPhone.slice(3);
-      } else if (cleanedPhone.startsWith("0")) {
-        normalizedPhone = cleanedPhone.slice(1);
+      const phoneToTry = normalizeIraqiPhoneToE164(phoneInput);
+      const phoneForBlockCheck = normalizePhoneForBlockCheck(phoneInput);
+
+      const { data: isBlocked, error: blockCheckError } = await supabase.rpc(
+        "is_phone_blocked",
+        { p_phone: phoneForBlockCheck }
+      );
+
+      if (!blockCheckError && isBlocked) {
+        toast({
+          title: "الحساب معطّل",
+          description: "لا يمكن تسجيل الدخول بهذا الرقم حالياً.",
+          variant: "destructive",
+        });
+        return;
       }
-      // الراكب يسجل دخول فقط عبر @raan.app
-      const emailToTry = `${normalizedPhone}@raan.app`;
 
-      let loginSuccess = false;
-      let lastError: any = null;
-
-      const { error } = await supabase.auth.signInWithPassword({
-        email: emailToTry,
+      // تسجيل الدخول عبر رقم الهاتف فقط (WhatsApp OTP)
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        phone: phoneToTry,
         password: loginPassword,
       });
 
-      if (!error) {
-        loginSuccess = true;
+      if (!loginError) {
         toast({
           title: "مرحباً بك! ✅",
           description: "تم تسجيل الدخول بنجاح",
         });
-      } else {
-        lastError = error;
-      }
-
-      if (loginSuccess) {
         // حفظ تفضيل تذكر الجلسة عبر Capacitor Preferences (آمن ولا ينمسح)
         if (rememberMe) {
           saveRememberMe(phoneInput, "rider");
         } else {
           clearRememberMe();
         }
-      } else if (lastError) {
-        if (lastError.message === "Invalid login credentials") {
+      } else {
+        if (loginError.message === "Invalid login credentials") {
           setErrors({ password: "كلمة المرور غير صحيحة" });
           toast({
             title: "خطأ في تسجيل الدخول",
@@ -266,7 +290,7 @@ const Auth = () => {
         } else {
           toast({
             title: "خطأ في تسجيل الدخول",
-            description: lastError.message,
+            description: loginError.message,
             variant: "destructive",
           });
         }
@@ -304,11 +328,6 @@ const Auth = () => {
       return;
     }
 
-    if (optionalEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(optionalEmail)) {
-      setErrors({ email: "البريد الإلكتروني غير صحيح" });
-      return;
-    }
-
     // إرسال OTP للتحقق من الرقم
     setStep("otp");
   };
@@ -319,32 +338,56 @@ const Auth = () => {
     setErrors({});
 
     try {
-      const phoneEmail = `${phoneInput.replace(/\D/g, "")}@raan.app`;
+      const normalizedPhone = normalizeIraqiPhoneToE164(phoneInput);
 
-      console.log("Creating user with email:", phoneEmail);
+      let signupData: any = null;
+      let error: any = null;
 
-      const { data, error } = await supabase.auth.signUp({
-        email: phoneEmail,
-        password: registerPassword,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            full_name: fullName,
-            phone: normalizeIraqiPhoneToE164(phoneInput),
-            auth_method: "phone",
-          },
+      // Primary path: edge function (enforces all server-side checks)
+      const invokeResult = await supabase.functions.invoke("rider-signup", {
+        body: {
+          phone: normalizedPhone,
+          password: registerPassword,
+          fullName,
         },
       });
+
+      signupData = invokeResult.data;
+      error = invokeResult.error;
+
+      if (
+        error &&
+        (String(error.message || "").includes("Failed to send a request") ||
+          String(error.name || "").includes("FunctionsFetchError"))
+      ) {
+        console.error("rider-signup function unavailable", error);
+        throw new Error("خدمة التسجيل غير متاحة حالياً. الرجاء المحاولة بعد قليل.");
+      }
 
       if (error) {
         console.error("SignUp error:", error);
 
+        // Extract the actual error body from the edge function response
+        let errorBody: any = null;
+        try {
+          // FunctionsHttpError stores parsed response in .context
+          if (error.context && typeof error.context.json === "function") {
+            errorBody = await error.context.json();
+          } else if (error.context) {
+            errorBody = error.context;
+          }
+        } catch (_) { /* ignore parse errors */ }
+        console.log("SignUp error body:", errorBody);
+
+        const errorMsg = errorBody?.error || error.message || "";
+        const userExists = errorBody?.user_exists ||
+          errorMsg.includes("مسجل مسبقاً") ||
+          errorMsg.includes("already registered") ||
+          errorMsg.includes("User already registered") ||
+          error.status === 422;
+
         // Check if user already exists
-        if (
-          error.message.includes("already registered") ||
-          error.message.includes("User already registered") ||
-          error.status === 422
-        ) {
+        if (userExists) {
           toast({
             title: "رقم الهاتف مسجل مسبقاً",
             description: "جاري تحويلك لتسجيل الدخول...",
@@ -356,8 +399,17 @@ const Auth = () => {
         throw error;
       }
 
-      if (data.user) {
-        console.log("User created successfully:", data.user.id);
+      if (signupData?.success && signupData?.authPhone) {
+        // Create session immediately after successful signup
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          phone: signupData.authPhone,
+          password: registerPassword,
+        });
+
+        if (signInError) throw signInError;
+        if (!signInData?.user) throw new Error("فشل إنشاء الجلسة بعد التسجيل");
+
+        console.log("User created successfully:", signInData.user.id);
 
         // تخزين الرقم بصيغة E.164 الموحدة لضمان المطابقة مع حسابات البوت (Omnichannel Sync)
         const e164Phone = normalizeIraqiPhoneToE164(phoneInput);
@@ -368,14 +420,16 @@ const Auth = () => {
           .update({
             phone: e164Phone,
             full_name: fullName,
-            email: optionalEmail || null,
           })
-          .eq("user_id", data.user.id);
+          .eq("user_id", signInData.user.id);
 
         if (profileError) {
           console.error("Profile update error:", profileError);
           // Don't throw - user is created, profile update is secondary
         }
+
+        // احفظ تفويضه بشكل افتراضي لكي لا يخرج عند الإغلاق
+        saveRememberMe(phoneInput, "rider");
 
         toast({
           title: "تم إنشاء الحساب! ✅",
@@ -425,19 +479,17 @@ const Auth = () => {
       if (data?.error) throw new Error(data.error);
 
       // محاولة تسجيل دخول تلقائي بكلمة المرور الجديدة
-      let normalizedPhone = phoneInput.replace(/\D/g, "");
-      if (normalizedPhone.startsWith("964")) {
-        normalizedPhone = normalizedPhone.slice(3);
-      } else if (normalizedPhone.startsWith("0")) {
-        normalizedPhone = normalizedPhone.slice(1);
-      }
+      const e164Phone = normalizeIraqiPhoneToE164(phoneInput);
 
+      // Phone-only login
       const { error: loginError } = await supabase.auth.signInWithPassword({
-        email: `${normalizedPhone}@raan.app`,
+        phone: e164Phone,
         password: ghostPassword,
       });
 
       if (!loginError) {
+        // الحساب الشبح المُفعل حديثاً يُحفظ المكوث تلقائياً
+        saveRememberMe(phoneInput, "rider");
         toast({
           title: "تم تفعيل حسابك! ✅",
           description: "مرحباً بك في تطبيق ران — رصيدك ورحلاتك السابقة بانتظارك",
@@ -468,7 +520,6 @@ const Auth = () => {
     setLoginPassword("");
     setFullName("");
     setRegisterPassword("");
-    setOptionalEmail("");
     setGhostPassword("");
     setGhostConfirmPassword("");
     setErrors({});
@@ -489,23 +540,23 @@ const Auth = () => {
   if (step === "otp") {
     return (
       <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
-        <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-6 pt-[8vh] pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-6 pt-[6vh] pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-[#111827] rounded-2xl flex items-center justify-center border border-slate-800/80">
+            <div className="w-16 h-16 bg-[#111827] rounded-3xl flex items-center justify-center border border-slate-800/80 shadow-[0_0_20px_rgba(0,0,0,0.5)]">
               <img src={logo} alt="RAAN" className="w-10 h-10" />
             </div>
           </div>
-          <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-slate-700/50 mb-4">
-            <h2 className="text-white font-bold text-[17px] mb-1">التحقق من رقم الهاتف</h2>
-            <p className="text-slate-400 text-[12px]">سيتم إرسال رمز تحقق إلى رقم واتساب الخاص بك</p>
-          </div>
-          <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-slate-700/50">
-            <OTPVerification
-              phone={phoneInput}
-              purpose="rider_registration"
-              onVerified={handleOTPVerified}
-              onBack={() => setStep("register")}
-            />
+          <div className="bg-[#151f30] rounded-[24px] px-6 py-8 border border-slate-800/80 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none" />
+            <div className="z-10 relative">
+              <OTPVerification
+                phone={phoneInput}
+                purpose="rider_registration"
+                onVerified={handleOTPVerified}
+                onBack={() => setStep("register")}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -516,23 +567,27 @@ const Auth = () => {
   if (step === "ghost-otp") {
     return (
       <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
-        <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-6 pt-[8vh] pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-6 pt-[6vh] pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-[#111827] rounded-2xl flex items-center justify-center border border-slate-800/80">
+            <div className="w-16 h-16 bg-[#111827] rounded-3xl flex items-center justify-center border border-slate-800/80 shadow-[0_0_20px_rgba(0,0,0,0.5)]">
               <img src={logo} alt="RAAN" className="w-10 h-10" />
             </div>
           </div>
-          <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-emerald-500/30 mb-4">
-            <h2 className="text-emerald-400 font-bold text-[17px] mb-1">وجدنا حسابك من واتساب/تلغرام! 🎉</h2>
-            <p className="text-slate-400 text-[12px]">تحقق من رقمك لتفعيل حسابك في التطبيق</p>
-          </div>
-          <div className="bg-[#151f30] rounded-2xl px-5 py-5 border border-slate-700/50">
-            <OTPVerification
-              phone={phoneInput}
-              purpose="password_reset"
-              onVerified={() => setStep("ghost-password")}
-              onBack={resetToPhoneStep}
-            />
+          <div className="bg-[#151f30] rounded-[24px] px-6 py-8 border border-slate-800/80 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+            <div className="text-center mb-6 z-10 relative bg-[#0d1321]/50 p-4 rounded-xl border border-emerald-500/20">
+              <h2 className="text-emerald-400 font-bold text-[17px] mb-1">وجدنا حسابك من واتساب! 🎉</h2>
+              <p className="text-slate-400 text-[13px]">أكمل التحقق لتفعيل الحساب في التطبيق</p>
+            </div>
+            
+            <div className="z-10 relative">
+              <OTPVerification
+                phone={phoneInput}
+                purpose="password_reset"
+                onVerified={() => setStep("ghost-password")}
+                onBack={resetToPhoneStep}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -555,25 +610,37 @@ const Auth = () => {
           </div>
           <form onSubmit={handleGhostPasswordSet} className="flex flex-col gap-4">
             {/* Phone Display */}
-            <div className="bg-[#1a2333] rounded-xl px-4 py-3 flex items-center justify-center gap-2 border border-slate-700/50">
-              <Phone className="h-4 w-4 text-emerald-400" />
-              <span className="text-white font-medium" dir="ltr">{formatPhoneDisplay(phoneInput)}</span>
+            <div className="relative flex items-center justify-center bg-[#1a2333] rounded-xl overflow-hidden h-14 border border-slate-700/50 mb-2">
+              <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
+                <Phone className="w-[18px] h-[18px] text-emerald-400" />
+              </div>
+              <div className="px-16 flex items-center w-full justify-center h-full">
+                <span className="text-white font-medium text-[15px] tracking-wide" dir="ltr">{formatPhoneDisplay(phoneInput)}</span>
+              </div>
             </div>
 
             {/* Password */}
             <div className="space-y-1.5">
               <label className="text-slate-300 text-[13px] font-medium">كلمة المرور الجديدة</label>
-              <div className="relative">
-                <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
-                  <Lock className="w-4 h-4 text-slate-500" />
+              <div className="relative flex items-center bg-[#1a2333] rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-emerald-500/50 transition-shadow">
+                <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
+                  <Lock className="w-[18px] h-[18px] text-emerald-400" />
                 </div>
                 <Input
-                  type="password" placeholder="••••••••"
+                  type={showPassword ? "text" : "password"} placeholder="••••••••"
                   value={ghostPassword}
                   onChange={(e) => setGhostPassword(e.target.value)}
-                  className={`h-12 bg-[#1a2333] border-slate-700/50 text-white placeholder:text-slate-500 rounded-xl pr-11 text-[14px] focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 ${errors.ghostPassword ? 'border-red-500/60' : ''}`}
+                  className={`h-12 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-center text-[14px] focus-visible:ring-0 w-full ${errors.ghostPassword ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
                   required minLength={6} dir="ltr" autoFocus
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center text-slate-400 hover:text-white transition-colors z-10 bg-[#0d1321] border-r border-slate-700/50"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+                </button>
               </div>
               {errors.ghostPassword && <p className="text-[11px] text-red-400">{errors.ghostPassword}</p>}
             </div>
@@ -581,22 +648,30 @@ const Auth = () => {
             {/* Confirm Password */}
             <div className="space-y-1.5">
               <label className="text-slate-300 text-[13px] font-medium">تأكيد كلمة المرور</label>
-              <div className="relative">
-                <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
-                  <Lock className="w-4 h-4 text-slate-500" />
+              <div className="relative flex items-center bg-[#1a2333] rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-emerald-500/50 transition-shadow">
+                <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
+                  <Lock className="w-[18px] h-[18px] text-emerald-400" />
                 </div>
                 <Input
-                  type="password" placeholder="••••••••"
+                  type={showGhostConfirmPassword ? "text" : "password"} placeholder="••••••••"
                   value={ghostConfirmPassword}
                   onChange={(e) => setGhostConfirmPassword(e.target.value)}
-                  className={`h-12 bg-[#1a2333] border-slate-700/50 text-white placeholder:text-slate-500 rounded-xl pr-11 text-[14px] focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 ${errors.ghostConfirmPassword ? 'border-red-500/60' : ''}`}
+                  className={`h-12 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-center text-[14px] focus-visible:ring-0 w-full ${errors.ghostConfirmPassword ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
                   required minLength={6} dir="ltr"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowGhostConfirmPassword(!showGhostConfirmPassword)}
+                  className="absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center text-slate-400 hover:text-white transition-colors z-10 bg-[#0d1321] border-r border-slate-700/50"
+                  tabIndex={-1}
+                >
+                  {showGhostConfirmPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+                </button>
               </div>
               {errors.ghostConfirmPassword && <p className="text-[11px] text-red-400">{errors.ghostConfirmPassword}</p>}
             </div>
 
-            <button type="submit" disabled={loading} className="w-full h-[54px] bg-[#34d399] hover:bg-[#10b981] text-[#064e3b] text-[16px] font-bold rounded-2xl shadow-[0_4px_20px_rgba(52,211,153,0.25)] transition-all mt-2 disabled:opacity-60">
+            <button type="submit" disabled={loading} className="w-full h-[54px] bg-[#34d399] hover:bg-[#10b981] text-black text-[16px] font-extrabold rounded-2xl shadow-[0_4px_20px_rgba(52,211,153,0.25)] transition-all mt-2 disabled:opacity-60">
               {loading ? 'جاري تفعيل الحساب...' : 'تفعيل الحساب'}
             </button>
           </form>
@@ -632,14 +707,14 @@ const Auth = () => {
               <div className="space-y-1.5">
                 <label className="text-slate-300 text-[13px] font-medium">رقم الهاتف (WhatsApp)</label>
                 <div className="relative flex items-center bg-[#1a2333] rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-emerald-500/50 transition-shadow">
-                  <div className="absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-r border-slate-700/50 pointer-events-none z-10 shadow-[2px_0_10px_rgba(0,0,0,0.2)]">
+                  <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
                     <Phone className="w-[18px] h-[18px] text-emerald-400" />
                   </div>
                   <Input
                     type="tel" placeholder="07xxxxxxxxx"
                     value={phoneInput}
                     onChange={(e) => setPhoneInput(e.target.value)}
-                    className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 rounded-none pl-16 pr-4 text-[16px] font-medium tracking-wide focus-visible:ring-0 w-full ${errors.phone ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
+                    className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-center text-[16px] font-medium tracking-wide focus-visible:ring-0 w-full ${errors.phone ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
                     dir="ltr"
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); checkPhoneNumber(); } }}
                   />
@@ -651,7 +726,7 @@ const Auth = () => {
               <button
                 onClick={checkPhoneNumber}
                 disabled={checkingPhone}
-                className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-[#064e3b] text-[16px] font-bold rounded-full mt-2 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60"
+                className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-black text-[16px] font-extrabold rounded-full mt-2 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60"
               >
                 {checkingPhone ? 'جاري التحقق...' : 'متابعة'}
               </button>
@@ -662,28 +737,38 @@ const Auth = () => {
           {step === 'login' && (
             <form onSubmit={handleLogin} className="flex flex-col gap-4">
               {/* Phone badge */}
-              <div className="bg-[#1a2333] rounded-xl px-4 py-3 flex items-center justify-between border border-slate-700/50">
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-emerald-400" />
-                  <span className="text-white font-medium text-[14px]" dir="ltr">{formatPhoneDisplay(phoneInput)}</span>
+              <div className="relative flex items-center justify-center bg-[#1a2333] rounded-xl overflow-hidden h-14 border border-slate-700/50">
+                <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
+                  <Phone className="w-[18px] h-[18px] text-emerald-400" />
                 </div>
-                <button type="button" onClick={resetToPhoneStep} className="text-[12px] text-slate-400 hover:text-emerald-400 transition-colors">تغيير</button>
+                <div className="px-16 flex items-center justify-center w-full h-full">
+                  <span className="text-white font-medium text-[15px] tracking-wide" dir="ltr">{formatPhoneDisplay(phoneInput)}</span>
+                </div>
+                <button type="button" onClick={resetToPhoneStep} className="absolute left-0 top-0 bottom-0 w-16 flex items-center justify-center text-[12px] font-bold text-slate-400 hover:text-emerald-400 transition-colors z-10 bg-[#0d1321] border-r border-slate-700/50">تغيير</button>
               </div>
 
               {/* Password */}
               <div className="space-y-1.5">
                 <label className="text-slate-300 text-[13px] font-medium">كلمة المرور</label>
-                <div className="relative">
-                  <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
+                <div className="relative flex items-center bg-[#1a2333] rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-emerald-500/50 transition-shadow">
+                  <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
                     <Lock className="w-[18px] h-[18px] text-emerald-400" />
                   </div>
                   <Input
-                    type="password" placeholder="••••••••"
+                    type={showPassword ? "text" : "password"} placeholder="••••••••"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    className={`h-14 bg-[#1a2333] border-0 text-white placeholder:text-slate-400 rounded-xl pr-12 pl-4 text-[15px] focus-visible:ring-1 focus-visible:ring-emerald-500/50 ${errors.password ? 'ring-1 ring-red-500/50' : ''}`}
+                    className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-center text-[15px] focus-visible:ring-0 w-full ${errors.password ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
                     required minLength={6} dir="ltr" autoFocus
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center text-slate-400 hover:text-white transition-colors z-10 bg-[#0d1321] border-r border-slate-700/50"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+                  </button>
                 </div>
                 {errors.password && <p className="text-[11px] text-red-400">{errors.password}</p>}
               </div>
@@ -696,19 +781,19 @@ const Auth = () => {
                   rememberMe ? 'border-emerald-500/40 bg-emerald-500/8 text-emerald-400' : 'border-slate-700/50 bg-[#1a2333] text-slate-400'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <div className={`p-1.5 rounded-lg transition-colors ${rememberMe ? 'bg-emerald-500/15' : 'bg-slate-800'}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${rememberMe ? 'text-emerald-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">ابقَني مسجلاً دخولي</p>
-                    <p className="text-xs text-slate-500">{rememberMe ? 'لن تحتاج لتسجيل دخول مجدداً' : 'ستُطلب كلمة المرور عند إعادة الفتح'}</p>
-                  </div>
+                <div className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${rememberMe ? 'bg-emerald-500/15' : 'bg-slate-800'}`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${rememberMe ? 'text-emerald-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
                 </div>
-                <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${rememberMe ? 'bg-emerald-500' : 'bg-slate-700'}`}>
-                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${rememberMe ? 'right-0.5' : 'left-0.5'}`} />
+                <div className="flex items-center gap-1.5 sm:gap-2 mr-auto" dir="rtl">
+                  <p className="text-sm font-medium whitespace-nowrap">ابقَني مسجلاً دخولي</p>
+                  <span className="text-[10px] sm:text-[11px] text-slate-500 hidden sm:inline-block">
+                    {rememberMe ? '(لن تحتاج لتسجيل دخول مجدداً)' : '(ستُطلب كلمة المرور للفتح)'}
+                  </span>
+                  <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ml-1 ${rememberMe ? 'bg-emerald-500' : 'bg-slate-700'}`}>
+                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${rememberMe ? 'right-0.5' : 'left-0.5'}`} />
+                  </div>
                 </div>
               </button>
 
@@ -717,7 +802,7 @@ const Auth = () => {
                 نسيت كلمة المرور؟
               </button>
 
-              <button type="submit" disabled={loading} className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-[#064e3b] text-[16px] font-bold rounded-full mt-1 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60">
+              <button type="submit" disabled={loading} className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-black text-[16px] font-extrabold rounded-full mt-1 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60">
                 {loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
               </button>
             </form>
@@ -727,26 +812,28 @@ const Auth = () => {
           {step === 'register' && (
             <div className="flex flex-col gap-4">
               {/* Phone badge */}
-              <div className="bg-[#1a2333] rounded-xl px-4 py-3 flex items-center justify-between border border-slate-700/50">
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-emerald-400" />
-                  <span className="text-white font-medium text-[14px]" dir="ltr">{formatPhoneDisplay(phoneInput)}</span>
+              <div className="relative flex items-center justify-center bg-[#1a2333] rounded-xl overflow-hidden h-14 border border-slate-700/50 mb-1">
+                <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
+                  <Phone className="w-[18px] h-[18px] text-emerald-400" />
                 </div>
-                <button type="button" onClick={resetToPhoneStep} className="text-[12px] text-slate-400 hover:text-emerald-400 transition-colors">تغيير</button>
+                <div className="px-16 flex items-center justify-center w-full h-full">
+                  <span className="text-white font-medium text-[15px] tracking-wide" dir="ltr">{formatPhoneDisplay(phoneInput)}</span>
+                </div>
+                <button type="button" onClick={resetToPhoneStep} className="absolute left-0 top-0 bottom-0 w-16 flex items-center justify-center text-[12px] font-bold text-slate-400 hover:text-emerald-400 transition-colors z-10 bg-[#0d1321] border-r border-slate-700/50">تغيير</button>
               </div>
 
               {/* Full Name */}
               <div className="space-y-1.5">
                 <label className="text-slate-300 text-[13px] font-medium">الاسم الكامل</label>
-                <div className="relative">
-                  <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
+                <div className="relative flex items-center bg-[#1a2333] rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-emerald-500/50 transition-shadow">
+                  <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
                     <User className="w-[18px] h-[18px] text-emerald-400" />
                   </div>
                   <Input
                     type="text" placeholder="أحمد محمد"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className={`h-14 bg-[#1a2333] border-0 text-white placeholder:text-slate-400 rounded-xl pr-12 pl-4 text-[15px] focus-visible:ring-1 focus-visible:ring-emerald-500/50 ${errors.fullName ? 'ring-1 ring-red-500/50' : ''}`}
+                    className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-center text-[15px] focus-visible:ring-0 w-full ${errors.fullName ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
                     required autoFocus
                   />
                 </div>
@@ -756,44 +843,34 @@ const Auth = () => {
               {/* Password */}
               <div className="space-y-1.5">
                 <label className="text-slate-300 text-[13px] font-medium">كلمة المرور</label>
-                <div className="relative">
-                  <div className="absolute right-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
+                <div className="relative flex items-center bg-[#1a2333] rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-emerald-500/50 transition-shadow">
+                  <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
                     <Lock className="w-[18px] h-[18px] text-emerald-400" />
                   </div>
                   <Input
-                    type="password" placeholder="••••••••"
+                    type={showPassword ? "text" : "password"} placeholder="••••••••"
                     value={registerPassword}
                     onChange={(e) => setRegisterPassword(e.target.value)}
-                    className={`h-14 bg-[#1a2333] border-0 text-white placeholder:text-slate-400 rounded-xl pr-12 pl-4 text-[15px] focus-visible:ring-1 focus-visible:ring-emerald-500/50 ${errors.password ? 'ring-1 ring-red-500/50' : ''}`}
+                    className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-center text-[15px] focus-visible:ring-0 w-full ${errors.password ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
                     required minLength={6} dir="ltr"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute left-0 top-0 bottom-0 w-14 flex items-center justify-center text-slate-400 hover:text-white transition-colors z-10"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+                  </button>
                 </div>
                 {errors.password && <p className="text-[11px] text-red-400">{errors.password}</p>}
-              </div>
-
-              {/* Optional Email */}
-              <div className="space-y-1.5">
-                <label className="text-slate-300 text-[13px] font-medium">البريد الإلكتروني <span className="text-slate-500 font-normal">(اختياري)</span></label>
-                <div className="relative">
-                  <div className="absolute left-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none">
-                    <Mail className="w-[18px] h-[18px] text-slate-500" />
-                  </div>
-                  <Input
-                    type="email" placeholder="example@email.com"
-                    value={optionalEmail}
-                    onChange={(e) => setOptionalEmail(e.target.value)}
-                    className={`h-14 bg-[#1a2333] border-0 text-white placeholder:text-slate-400 rounded-xl pr-4 pl-12 text-[14px] focus-visible:ring-1 focus-visible:ring-emerald-500/50 ${errors.email ? 'ring-1 ring-red-500/50' : ''}`}
-                    dir="ltr"
-                  />
-                </div>
-                {errors.email && <p className="text-[11px] text-red-400">{errors.email}</p>}
               </div>
 
               <button
                 type="button"
                 disabled={loading}
                 onClick={handleRegisterSubmit}
-                className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-[#064e3b] text-[16px] font-bold rounded-full mt-2 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60"
+                className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-black text-[16px] font-extrabold rounded-full mt-2 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60"
               >
                 {loading ? 'جاري إنشاء الحساب...' : 'إنشاء الحساب'}
               </button>
@@ -803,7 +880,7 @@ const Auth = () => {
           {/* Footer */}
           <div className="mt-auto pt-8 pb-2 text-center">
             <p className="text-slate-500 text-[11px]">
-              بالمتابعة، أنت توافق على <span className="border-b border-slate-600 pb-0.5">شروط الخدمة</span> و<span className="border-b border-slate-600 pb-0.5">سياسة الخصوصية</span>
+              بالمتابعة، أنت توافق على <Link to="/terms" className="border-b border-slate-600 pb-0.5 text-slate-300 hover:text-emerald-400 hover:border-emerald-400 transition-colors">شروط الخدمة</Link> و<Link to="/privacy" className="border-b border-slate-600 pb-0.5 text-slate-300 hover:text-emerald-400 hover:border-emerald-400 transition-colors">سياسة الخصوصية</Link>
             </p>
           </div>
         </div>

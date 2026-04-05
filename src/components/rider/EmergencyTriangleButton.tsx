@@ -224,7 +224,7 @@ export const EmergencyTriangleButton: React.FC<EmergencyTriangleButtonProps> = (
       >
         <div className="relative">
           <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-500 animate-pulse drop-shadow-lg" />
-          <span className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
+          <span className="absolute inset-0 rounded-full bg-red-950/50 animate-ping" />
         </div>
       </Button>
 

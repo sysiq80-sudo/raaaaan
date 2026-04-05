@@ -1,19 +1,24 @@
 import { useState, useEffect } from "react";
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Clock, DollarSign, Car, MapPin, HelpCircle, X, AlertTriangle } from "lucide-react";
+import {
+  Clock,
+  DollarSign,
+  Car,
+  MapPin,
+  HelpCircle,
+  X,
+  AlertTriangle,
+  MessageSquare,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+import logo from "@/assets/logo.png";
 
 interface CancellationReasonDialogProps {
   open: boolean;
@@ -120,116 +125,138 @@ export const CancellationReasonDialog = ({
     onOpenChange(false);
   };
 
+  const canSubmit = Boolean(selectedReason) && (selectedReason !== "other" || otherReason.trim().length >= 3);
+
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-w-md">
-        <AlertDialogHeader>
-          <AlertDialogTitle className="text-center text-xl">
-            لماذا تريد إلغاء الرحلة؟
-          </AlertDialogTitle>
-          <AlertDialogDescription className="text-center">
-            اختر سبب الإلغاء لمساعدتنا في تحسين الخدمة
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-
-        {/* Cancellation Fee Warning */}
-        {driverAccepted && feeEnabled && cancellationFee > 0 && (
-          <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 mb-2">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-destructive/20 rounded-full">
-                <AlertTriangle className="w-5 h-5 text-destructive" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-bold text-destructive text-sm mb-1">
-                  تنبيه: غرامة إلغاء
-                </h4>
-                <p className="text-sm text-muted-foreground">
-                  بما أن السائق قَبِل الطلب، سيتم خصم غرامة إلغاء بقيمة:
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-destructive" />
-                  <span className="text-lg font-bold text-destructive">
-                    {cancellationFee.toLocaleString()} د.ع
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  سيتم إضافة هذا المبلغ تلقائياً لحساب السائق كتعويض
-                </p>
-              </div>
+    <AlertDialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          handleClose();
+          return;
+        }
+        onOpenChange(nextOpen);
+      }}
+    >
+      <AlertDialogContent className="max-w-md border border-emerald-500/25 bg-[#070d1a] text-white rounded-3xl p-0 overflow-visible" dir="rtl">
+        <div className="p-4 sm:p-5 space-y-3">
+          {/* Header */}
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-400/35 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.22)]">
+              <img src={logo} alt="RAAN" className="w-8 h-8" />
             </div>
+            <h2 className="text-xl font-black tracking-wide text-center">سبب إلغاء الرحلة</h2>
+            <p className="text-xs text-slate-400 text-center">ساعدنا بفهم السبب لنحسن تجربتك القادمة</p>
           </div>
-        )}
 
-        <div className="py-4">
-          <RadioGroup
-            value={selectedReason}
-            onValueChange={setSelectedReason}
-            className="space-y-3"
-          >
-            {CANCELLATION_REASONS.map((reason) => {
-              const Icon = reason.icon;
-              return (
-                <div
-                  key={reason.id}
-                  className={`flex items-center space-x-3 space-x-reverse p-3 rounded-xl border transition-all duration-200 cursor-pointer ${
-                    selectedReason === reason.id
-                      ? "border-primary bg-primary/10 shadow-[0_0_15px_rgba(var(--primary)/0.2)]"
-                      : "border-border hover:border-primary/50 hover:bg-secondary/50"
-                  }`}
-                  onClick={() => setSelectedReason(reason.id)}
-                >
-                  <RadioGroupItem value={reason.id} id={reason.id} />
-                  <Icon className={`w-5 h-5 ${reason.color}`} />
-                  <Label
-                    htmlFor={reason.id}
-                    className="flex-1 cursor-pointer font-medium"
-                  >
-                    {reason.label}
-                  </Label>
+          {/* Cancellation Fee Warning */}
+          {driverAccepted && feeEnabled && cancellationFee > 0 && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-red-500/20 rounded-xl">
+                  <AlertTriangle className="w-5 h-5 text-red-400" />
                 </div>
-              );
-            })}
-          </RadioGroup>
-
-          {/* Other reason textarea */}
-          {selectedReason === "other" && (
-            <div className="mt-4 animate-fade-in">
-              <Textarea
-                placeholder="اكتب سبب الإلغاء..."
-                value={otherReason}
-                onChange={(e) => setOtherReason(e.target.value)}
-                className="min-h-[80px] resize-none"
-                maxLength={200}
-              />
-              <p className="text-xs text-muted-foreground mt-1 text-left">
-                {otherReason.length}/200
-              </p>
+                <div className="flex-1">
+                  <h4 className="font-bold text-red-300 text-sm mb-1">تنبيه: غرامة إلغاء</h4>
+                  <p className="text-sm text-slate-300">بعد قبول السائق سيتم خصم:</p>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <DollarSign className="w-4 h-4 text-red-300" />
+                    <span className="text-base font-black text-red-300">{cancellationFee.toLocaleString()} د.ع</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
-        </div>
 
-        <AlertDialogFooter className="flex-row-reverse gap-2">
-          <AlertDialogCancel
-            onClick={handleClose}
-            className="flex-1"
-          >
-            تراجع
-          </AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleConfirm}
-            disabled={!selectedReason || isLoading}
-            className="flex-1 bg-destructive hover:bg-destructive/90"
-          >
-            {isLoading ? (
-              <span className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                جاري الإلغاء...
-              </span>
-            ) : (
-              "تأكيد الإلغاء"
+          {/* Form Card */}
+          <div className="rounded-2xl bg-[#111827] border border-slate-700/60 p-3 space-y-2.5">
+            <div className="space-y-3">
+              <RadioGroup value={selectedReason} onValueChange={setSelectedReason} className="grid grid-cols-2 gap-2">
+                {CANCELLATION_REASONS.map((reason) => {
+                  const Icon = reason.icon;
+                  return (
+                    <label
+                      key={reason.id}
+                      htmlFor={reason.id}
+                      className={cn(
+                        "block cursor-pointer rounded-xl border p-2.5 transition-all min-h-[72px]",
+                        selectedReason === reason.id
+                          ? "border-emerald-400 bg-emerald-500/10 shadow-[0_0_16px_rgba(16,185,129,0.2)]"
+                          : "border-slate-700 bg-slate-900/60 hover:border-emerald-500/45"
+                      )}
+                    >
+                      <div className="flex items-center gap-2.5 h-full">
+                        <RadioGroupItem value={reason.id} id={reason.id} className="border-slate-500" />
+                        <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                          <Icon className="w-4 h-4 text-emerald-300" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-[12px] font-semibold text-slate-100 leading-tight">{reason.label}</p>
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </RadioGroup>
+              <p className="text-[11px] text-slate-400">اختر السبب الأقرب لحالتك الحالية.</p>
+            </div>
+
+            {selectedReason === "other" && (
+              <div className="space-y-2.5 pt-1">
+                <div className="relative">
+                  <MessageSquare className="w-4 h-4 text-slate-400 absolute right-3 top-3.5" />
+                  <Textarea
+                    placeholder="اكتب سبب الإلغاء بالتفصيل..."
+                    value={otherReason}
+                    onChange={(e) => setOtherReason(e.target.value)}
+                    className="min-h-[90px] resize-none pr-10 rounded-xl bg-slate-900/70 border-slate-700 text-slate-100 placeholder:text-slate-500"
+                    maxLength={200}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>الحد الأدنى 3 أحرف.</span>
+                  <span>{otherReason.length}/200</span>
+                </div>
+              </div>
             )}
-          </AlertDialogAction>
-        </AlertDialogFooter>
+          </div>
+
+          {/* Footer actions */}
+          <div className="flex items-center gap-2 pt-0.5" dir="rtl">
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={isLoading || !canSubmit}
+              className="flex-1 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_16px_rgba(16,185,129,0.35)]"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {isLoading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    جاري الإلغاء...
+                  </>
+                ) : (
+                  <>
+                    تأكيد الإلغاء
+                  </>
+                )}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleClose}
+              className="flex-1 h-11 rounded-xl bg-slate-700/70 hover:bg-slate-600 text-slate-100 font-bold transition-all border border-slate-600"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <>
+                  إغلاق
+                  <X className="w-4 h-4" />
+                </>
+              </span>
+            </button>
+          </div>
+        </div>
       </AlertDialogContent>
     </AlertDialog>
   );

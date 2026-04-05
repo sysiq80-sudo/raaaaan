@@ -10,7 +10,7 @@
 
 | # | الوصف | الملف | السطور/المرجع | التوصية |
 |---|--------|-------|----------------|----------|
-| C1 | تخزين قيم حساسة (SUPABASE_URL، SUPABASE_ANON_KEY) داخل migration — عرضة للتسرب عند مشاركة المستودع أو النسخ. | `supabase/migrations/20260301000000_production_fixes_sms.sql` | 92–95 (INSERT INTO system_configs بقيم حقيقية) | إزالة القيم الحقيقية من الملف؛ استخدام placeholders أو إدراج القيم عبر لوحة إدارة فقط. |
+| C1 | تخزين قيم حساسة داخل migration (anon JWT / بدائل مضمّنة). | `supabase/migrations/20260301000000_production_fixes_sms.sql` و`20260802000000_remove_secrets_whatsapp_sms_ride_triggers.sql` | — | **مُعالَج في المستودع:** إزالة المفاتيح المضمّنة؛ الاعتماد على `system_configs` فقط. راجع [SECURITY_OPS.md](SECURITY_OPS.md). |
 
 ### عيوب متوسطة (Medium)
 
