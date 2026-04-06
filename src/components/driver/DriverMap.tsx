@@ -2,70 +2,161 @@ import { useEffect, useRef, useState } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { getMarkerIcon, getDarkMapStyle } from "@/lib/googleMapService";
-import { MapPin, Loader2, AlertCircle, RefreshCw, Navigation, Zap, SlidersHorizontal, ShieldAlert } from "lucide-react";
+import { MapPin, Loader2, AlertCircle, RefreshCw, Navigation, Zap, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+// متغير على مستوى الوحدة — يبقى حتى بعد unmount/remount للمكون
+let googleMapsAuthFailedGlobal = false;
 
 interface DriverMapProps {
   driverLocation: { lat: number; lng: number } | null;
   isOnline: boolean;
   onLocationUpdate?: () => void;
+  hasActiveRide?: boolean;
 }
 
-// خريطة بديلة عند فشل Google Maps — تعرض موقع السائق بدون تفاعل
-const FallbackMapView = ({ location, isOnline }: { location: { lat: number; lng: number } | null; isOnline: boolean }) => {
+// خريطة بديلة تفاعلية باستخدام Leaflet + OpenStreetMap — بدون API key
+const FallbackMapView = ({ location, isOnline, onCenterRequest }: { location: { lat: number; lng: number } | null; isOnline: boolean; onCenterRequest?: (fn: () => void) => void }) => {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const leafletMap = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+  const circleRef = useRef<L.Circle | null>(null);
+  const pulseCircleRef = useRef<L.Circle | null>(null);
+  const pulseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const center = location || { lat: 33.4279, lng: 43.3070 };
-  const zoom = 14;
-  // استخدام OpenStreetMap tile كخلفية ثابتة
-  const tileUrl = `https://tile.openstreetmap.org/${zoom}/${Math.floor((center.lng + 180) / 360 * Math.pow(2, zoom))}/${Math.floor((1 - Math.log(Math.tan(center.lat * Math.PI / 180) + 1 / Math.cos(center.lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom))}.png`;
+
+  useEffect(() => {
+    if (!mapRef.current || leafletMap.current) return;
+
+    // إنشاء خريطة Leaflet تفاعلية مع ستايل داكن
+    const map = L.map(mapRef.current, {
+      center: [center.lat, center.lng],
+      zoom: 15,
+      zoomControl: false,
+      attributionControl: false,
+    });
+
+    // طبقة خرائط داكنة (CartoDB Dark Matter)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+    }).addTo(map);
+
+    // زر التقريب في أسفل اليسار
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+    // إضافة علامة موقع السائق
+    if (location) {
+      const driverIcon = L.divIcon({
+        className: 'driver-leaflet-marker',
+        html: `<div style="
+          width: 18px; height: 18px; border-radius: 50%;
+          background: #5bdda6;
+          border: 3px solid #0b1326;
+          box-shadow: 0 0 12px rgba(91,221,166,0.6);
+        "></div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+      });
+      markerRef.current = L.marker([location.lat, location.lng], { icon: driverIcon, zIndexOffset: 1000 }).addTo(map);
+
+      // دائرة داخلية ثابتة حول موقع السائق
+      circleRef.current = L.circle([location.lat, location.lng], {
+        radius: 60,
+        color: '#5bdda6',
+        fillColor: '#5bdda6',
+        fillOpacity: 0.18,
+        weight: 1,
+        opacity: 0.4,
+      }).addTo(map);
+
+      // دائرة خارجية نابضة (تتمدد وتتلاشى مثل sonar)
+      pulseCircleRef.current = L.circle([location.lat, location.lng], {
+        radius: 60,
+        color: '#5bdda6',
+        fillColor: '#5bdda6',
+        fillOpacity: 0.12,
+        weight: 1,
+        opacity: 0.3,
+      }).addTo(map);
+
+      const minRadius = 60;
+      const maxRadius = 600;
+      const step = 6;
+      pulseIntervalRef.current = setInterval(() => {
+        if (!pulseCircleRef.current) return;
+        let r = pulseCircleRef.current.getRadius();
+        r += step;
+        if (r >= maxRadius) r = minRadius;
+        const opacity = 0.15 * (1 - (r - minRadius) / (maxRadius - minRadius));
+        pulseCircleRef.current.setRadius(r);
+        pulseCircleRef.current.setStyle({ fillOpacity: Math.max(opacity, 0), opacity: Math.max(opacity * 2, 0) });
+      }, 40);
+    }
+
+    leafletMap.current = map;
+
+    // تصحيح حجم الخريطة بعد التحميل
+    setTimeout(() => map.invalidateSize(), 200);
+
+    return () => {
+      if (pulseIntervalRef.current) clearInterval(pulseIntervalRef.current);
+      map.remove();
+      leafletMap.current = null;
+      markerRef.current = null;
+      circleRef.current = null;
+      pulseCircleRef.current = null;
+    };
+  }, []);
+
+  // تسجيل دالة التوسيط للاستخدام الخارجي
+  useEffect(() => {
+    if (onCenterRequest) {
+      onCenterRequest(() => {
+        if (leafletMap.current && location) {
+          leafletMap.current.setView([location.lat, location.lng], 15, { animate: true });
+        }
+      });
+    }
+  }, [onCenterRequest, location]);
+
+  // تحديث موقع السائق عند تغيره
+  useEffect(() => {
+    if (!leafletMap.current || !location) return;
+    
+    const latlng: L.LatLngExpression = [location.lat, location.lng];
+    leafletMap.current.setView(latlng, leafletMap.current.getZoom(), { animate: true });
+
+    if (markerRef.current) {
+      markerRef.current.setLatLng(latlng);
+    }
+    if (circleRef.current) {
+      circleRef.current.setLatLng(latlng);
+    }
+    if (pulseCircleRef.current) {
+      pulseCircleRef.current.setLatLng(latlng);
+    }
+  }, [location?.lat, location?.lng]);
 
   return (
-    <div className="relative h-full bg-gradient-to-b from-gray-900 to-gray-800 flex flex-col items-center justify-center overflow-hidden">
-      {/* خلفية OSM tiles */}
-      <div className="absolute inset-0 opacity-30">
-        <img src={tileUrl} className="w-full h-full object-cover" alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-      </div>
-      
-      {/* محتوى الموقع */}
-      <div className="relative z-10 text-center">
-        {/* أيقونة الموقع */}
-        <div className={`w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center ${isOnline ? 'bg-emerald-500/20 border-2 border-emerald-500' : 'bg-gray-500/20 border-2 border-gray-500'}`}>
-          <Navigation className={`w-8 h-8 ${isOnline ? 'text-emerald-400' : 'text-gray-400'}`} />
-        </div>
-        
-        {location ? (
-          <>
-            <p className="text-white/80 text-sm font-medium mb-1">
-              {isOnline ? '📍 موقعك الحالي' : '📍 آخر موقع معروف'}
-            </p>
-            <p className="text-white/50 text-xs font-mono">
-              {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
-            </p>
-          </>
-        ) : (
-          <p className="text-white/60 text-sm">جاري تحديد الموقع...</p>
-        )}
-      </div>
-      
-      {/* شريط التحذير */}
-      <div className="absolute bottom-0 left-0 right-0 bg-amber-500/10 border-t border-amber-500/30 px-3 py-2">
-        <p className="text-amber-400/80 text-[10px] text-center">
-          ⚠️ خريطة Google Maps غير متاحة — تحقق من مفتاح API وإعدادات Google Cloud Console
-        </p>
-      </div>
+    <div className="relative h-full">
+      <div ref={mapRef} className="absolute inset-0" />
     </div>
   );
 };
 
-export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: DriverMapProps) => {
+export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiveRide }: DriverMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
   const driverMarker = useRef<google.maps.Marker | null>(null);
   const pulseCircles = useRef<google.maps.Circle[]>([]);
   const hasLoadedTilesOnceRef = useRef(false);
-  const [loading, setLoading] = useState(true);
+  const fallbackCenterFnRef = useRef<(() => void) | null>(null);
+  const [loading, setLoading] = useState(!googleMapsAuthFailedGlobal);
   const [error, setError] = useState<string | null>(null);
-  const [authFailed, setAuthFailed] = useState(false);
+  const [authFailed, setAuthFailed] = useState(googleMapsAuthFailedGlobal);
   const [isMapReady, setIsMapReady] = useState(false);
   const [autoAccept, setAutoAccept] = useState(false);
   const { apiKey, isLoading: isApiKeyLoading } = useGoogleMapsApiKey();
@@ -74,16 +165,21 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
   // Initialize map
   useEffect(() => {
     if (!mapContainer.current || isApiKeyLoading) return;
-    // لا يوجد مفتاح API — نعرض الخريطة البديلة مباشرة
-    if (!apiKey) {
-      console.warn("⚠️ Google Maps API key is empty. Check app_settings table or VITE_GOOGLE_MAPS_API_KEY env var.");
-      console.warn("💡 For Capacitor apps, ensure the API key is stored in Supabase app_settings table (key: google_maps_api_key)");
+    // إذا فشل سابقاً (متغير عالمي) — لا نحاول مجدداً
+    if (googleMapsAuthFailedGlobal) {
       setAuthFailed(true);
       setLoading(false);
       return;
     }
-    // إذا فشل المصادقة سابقاً، لا نعيد المحاولة (نعرض الخريطة البديلة)
-    if (authFailed) return;
+    // لا يوجد مفتاح API — نعرض الخريطة البديلة مباشرة
+    if (!apiKey) {
+      console.warn("⚠️ Google Maps API key is empty. Check app_settings table or VITE_GOOGLE_MAPS_API_KEY env var.");
+      console.warn("💡 For Capacitor apps, ensure the API key is stored in Supabase app_settings table (key: google_maps_api_key)");
+      googleMapsAuthFailedGlobal = true;
+      setAuthFailed(true);
+      setLoading(false);
+      return;
+    }
 
     // If map already exists, avoid reinitialization churn (e.g., frequent re-renders)
     if (map.current) {
@@ -102,10 +198,10 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
 
         // معالجة أخطاء Google Maps مثل RefererNotAllowedMapError
         window.gm_authFailure = () => {
+          if (googleMapsAuthFailedGlobal) return; // منع التكرار
           const currentUrl = window.location.href;
           console.error(`❌ Google Maps auth failure — URL rejected: ${currentUrl}`);
-          console.error(`💡 Fix: Go to Google Cloud Console → Credentials → API Key → Add "${window.location.hostname}/*" to allowed HTTP referrers`);
-          console.error(`💡 For Capacitor (mobile), also add: https://localhost/* and capacitor://localhost/*`);
+          googleMapsAuthFailedGlobal = true;
           setAuthFailed(true);
           setLoading(false);
         };
@@ -129,7 +225,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
           // Detect silent tile failure with timeout
           let tilesLoaded = false;
           google.maps.event.addListenerOnce(map.current, 'tilesloaded', () => {
-            if (!isActive) return;
+            if (!isActive || googleMapsAuthFailedGlobal) return; // لا نعيد التعيين بعد فشل المصادقة
             tilesLoaded = true;
             hasLoadedTilesOnceRef.current = true;
             if (tileTimeout) {
@@ -163,6 +259,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
               }
 
               console.warn('⚠️ DriverMap: Tiles did not load within 15s — showing fallback');
+              googleMapsAuthFailedGlobal = true;
               setAuthFailed(true);
               setLoading(false);
             }
@@ -219,7 +316,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
         setIsMapReady(false);
       }
     };
-  }, [apiKey, isApiKeyLoading, authFailed]);
+  }, [apiKey, isApiKeyLoading]);
 
   // Update driver marker when location changes — SAFE: checks google.maps exists
   useEffect(() => {
@@ -344,28 +441,65 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
   };
 
 
-  // عند فشل مصادقة Google Maps — عرض خريطة بديلة تعمل بشكل كامل
+  // عند فشل مصادقة Google Maps — عرض خريطة Leaflet تفاعلية بديلة مع كل أزرار التحكم
   if (authFailed) {
-    console.warn('⚠️ DriverMap: Showing fallback — authFailed=true');
     return (
-      <div className="relative h-full">
-        <FallbackMapView location={driverLocation} isOnline={isOnline} />
-        <div className="absolute top-3 left-3 z-10">
-          <Button
-            size="sm"
-            variant="secondary"
-            className="shadow-lg"
-            onClick={() => {
-              setAuthFailed(false);
-              setLoading(true);
-              setIsMapReady(false);
-              map.current = null;
-            }}
+      <div className="absolute inset-0 overflow-hidden">
+        <FallbackMapView location={driverLocation} isOnline={isOnline} onCenterRequest={(fn) => { fallbackCenterFnRef.current = fn; }} />
+
+        {/* Safety Shield - Top Right */}
+        <div className="absolute top-24 right-4 z-[9999]">
+          <button
+            className="w-12 h-12 flex items-center justify-center rounded-full border-none outline-none ring-0 shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)] transition-all bg-red-500 hover:bg-red-600 backdrop-blur group"
+            title="الطوارئ والدعم"
+            onClick={() => toast.error("تنبيه طوارئ: تم إشعار فريق الدعم الأمني", { description: "سنقوم بالتواصل معك فوراً" })}
           >
-            <RefreshCw className="w-4 h-4 ml-1" />
-            إعادة المحاولة
-          </Button>
+            <ShieldAlert className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
+          </button>
         </div>
+
+        {/* Right Edge Contextual Actions */}
+        {!hasActiveRide && (
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 z-[9999] flex flex-col gap-3 pointer-events-none">
+            {/* Auto-Accept Toggle */}
+            <Button
+              size="sm"
+              variant="secondary"
+              className={`pointer-events-auto shadow-[0_4px_20px_-4px_rgba(0,0,0,0.8)] rounded-none rounded-l-2xl border-y border-l border-r-0 h-12 sm:h-14 px-3 sm:px-4 transition-colors group relative ${
+                autoAccept 
+                  ? 'bg-[#5bdda6] text-black border-[#5bdda6] hover:bg-[#4acc95]' 
+                  : 'bg-black/95 border-border/50 text-white hover:bg-black'
+              }`}
+              title="القبول التلقائي"
+              onClick={() => {
+                setAutoAccept(!autoAccept);
+                if (!autoAccept) {
+                  toast.success("تم تفعيل القبول التلقائي للطلبات");
+                } else {
+                  toast.info("تم إيقاف القبول التلقائي");
+                }
+              }}
+            >
+              <Zap className={`w-5 h-5 ml-1.5 transition-colors ${autoAccept ? 'text-black' : 'text-slate-400 group-hover:text-white'}`} />
+              <span className={`font-bold text-sm ${autoAccept ? 'text-black' : 'text-slate-300 group-hover:text-white'}`}>تلقائي</span>
+            </Button>
+
+            {/* My Location */}
+            <Button
+              size="sm"
+              variant="secondary"
+              className="pointer-events-auto shadow-[0_4px_20px_-4px_rgba(0,0,0,0.8)] rounded-none rounded-l-2xl border-y border-l border-r-0 border-border/50 bg-black/90 hover:bg-black text-white h-12 sm:h-14 px-3 sm:px-4 transition-colors"
+              onClick={() => fallbackCenterFnRef.current?.()}
+              disabled={!driverLocation}
+              title="موقعي"
+            >
+              <MapPin className="w-5 h-5 ml-1.5 text-primary" />
+              <span className="font-bold text-sm">موقعي</span>
+            </Button>
+
+
+          </div>
+        )}
       </div>
     );
   }
@@ -403,71 +537,61 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate }: Driver
         </div>
       )}
       
-      <div ref={mapContainer} className="absolute inset-0 bg-gray-100 dark:bg-gray-800" />
+      <div ref={mapContainer} className={`absolute inset-0 bg-gray-100 dark:bg-gray-800 ${isMapReady ? 'visible' : 'invisible'}`} />
       
       {/* Safety Shield - Top Right */}
-      <div className="absolute top-24 right-4 z-30">
-        <Button
-          variant="destructive"
-          size="icon"
-          className="w-12 h-12 rounded-full shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)] transition-all bg-red-500/90 hover:bg-red-600 backdrop-blur"
+      <div className="absolute top-24 right-4 z-[9999]">
+        <button
+          className="w-12 h-12 flex items-center justify-center rounded-full border-none outline-none ring-0 shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)] transition-all bg-red-500 hover:bg-red-600 backdrop-blur group"
           title="الطوارئ والدعم"
           onClick={() => toast.error("تنبيه طوارئ: تم إشعار فريق الدعم الأمني", { description: "سنقوم بالتواصل معك فوراً" })}
         >
-          <ShieldAlert className="w-6 h-6 text-white" />
-        </Button>
+          <ShieldAlert className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
+        </button>
       </div>
 
       {/* Right Edge Contextual Actions */}
-      <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-3">
-        {/* Auto-Accept Toggle */}
-        <Button
-          size="sm"
-          variant="secondary"
-          className={`shadow-lg rounded-none rounded-l-xl border-y border-l h-12 px-3 transition-colors group relative ${
-            autoAccept 
-              ? 'bg-[#5bdda6] text-black border-[#5bdda6] hover:bg-[#4acc95]' 
-              : 'bg-black/80 border-border/50 text-white hover:bg-black'
-          }`}
-          title="القبول التلقائي"
-          onClick={() => {
-            setAutoAccept(!autoAccept);
-            if (!autoAccept) {
-              toast.success("تم تفعيل القبول التلقائي للطلبات");
-            } else {
-              toast.info("تم إيقاف القبول التلقائي");
-            }
-          }}
-        >
-          <Zap className={`w-5 h-5 ml-1.5 transition-colors ${autoAccept ? 'text-black' : 'text-slate-400 group-hover:text-white'}`} />
-          <span className={`font-bold text-sm ${autoAccept ? 'text-black' : 'text-slate-300 group-hover:text-white'}`}>تلقائي</span>
-        </Button>
+      {!hasActiveRide && (
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 z-[9999] flex flex-col gap-3 pointer-events-none">
+          {/* Auto-Accept Toggle */}
+          <Button
+            size="sm"
+            variant="secondary"
+            className={`pointer-events-auto shadow-[0_4px_20px_-4px_rgba(0,0,0,0.8)] rounded-none rounded-l-2xl border-y border-l border-r-0 h-12 sm:h-14 px-3 sm:px-4 transition-colors group relative ${
+              autoAccept 
+                ? 'bg-[#5bdda6] text-black border-[#5bdda6] hover:bg-[#4acc95]' 
+                : 'bg-black/95 border-border/50 text-white hover:bg-black'
+            }`}
+            title="القبول التلقائي"
+            onClick={() => {
+              setAutoAccept(!autoAccept);
+              if (!autoAccept) {
+                toast.success("تم تفعيل القبول التلقائي للطلبات");
+              } else {
+                toast.info("تم إيقاف القبول التلقائي");
+              }
+            }}
+          >
+            <Zap className={`w-5 h-5 ml-1.5 transition-colors ${autoAccept ? 'text-black' : 'text-slate-400 group-hover:text-white'}`} />
+            <span className={`font-bold text-sm ${autoAccept ? 'text-black' : 'text-slate-300 group-hover:text-white'}`}>تلقائي</span>
+          </Button>
 
-        {/* My Location */}
-        <Button
-          size="sm"
-          variant="secondary"
-          className="shadow-lg rounded-none rounded-l-xl border-y border-l border-border/50 bg-background/90 hover:bg-background/100 h-12 px-3 transition-colors"
-          onClick={handleCenterOnDriver}
-          disabled={!driverLocation}
-          title="موقعي"
-        >
-          <MapPin className="w-5 h-5 ml-1.5 text-primary" />
-          <span className="font-bold text-sm">موقعي</span>
-        </Button>
+          {/* My Location */}
+          <Button
+            size="sm"
+            variant="secondary"
+            className="pointer-events-auto shadow-[0_4px_20px_-4px_rgba(0,0,0,0.8)] rounded-none rounded-l-2xl border-y border-l border-r-0 border-border/50 bg-black/90 hover:bg-black text-white h-12 sm:h-14 px-3 sm:px-4 transition-colors"
+            onClick={handleCenterOnDriver}
+            disabled={!driverLocation}
+            title="موقعي"
+          >
+            <MapPin className="w-5 h-5 ml-1.5 text-primary" />
+            <span className="font-bold text-sm">موقعي</span>
+          </Button>
 
-        {/* Service Filter */}
-        <Button
-          size="sm"
-          variant="secondary"
-          className="shadow-lg rounded-none rounded-l-xl border-y border-l border-border/50 bg-background/90 hover:bg-sky-500/20 h-12 px-3 transition-colors group relative"
-          title="نوع الخدمة"
-          onClick={() => toast.info("فلاتر الخدمة", { description: "هذه الميزة ستتوفر قريباً لتحديد نوع الطلبات (اقتصادي، VIP)" })}
-        >
-          <SlidersHorizontal className="w-5 h-5 group-hover:text-sky-400 text-muted-foreground ml-1.5 transition-colors" />
-          <span className="font-bold text-sm">الخدمة</span>
-        </Button>
-      </div>
+
+        </div>
+      )}
     </div>
   );
 };
