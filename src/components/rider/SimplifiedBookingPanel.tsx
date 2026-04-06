@@ -256,10 +256,10 @@ const SimplifiedBookingPanel = ({
         </AnimatePresence>
 
         {/* Book Button + Schedule Button */}
-        <div className="flex w-[calc(100%+2.5rem)] -mx-5 mt-2 shrink-0 bg-[#131b2e] pt-1" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
+        <div className="flex w-[calc(100%+2.5rem)] -mx-5 shrink-0 bg-[#131b2e]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
           {/* Main Action Button */}
           <button
-            className={`flex-auto h-[72px] rounded-t-xl rounded-b-none border-t flex items-center justify-center gap-3 text-[18px] font-black transition-all touch-manipulation ${
+            className={`flex-auto h-[72px] rounded-none border-t flex items-center justify-center gap-3 text-[18px] font-black transition-all touch-manipulation ${
               !isLoggedIn || bookingLoading || fareLoading 
                 ? "bg-[#171f33] border-white/5 text-slate-500 cursor-not-allowed shadow-none" 
                 : "bg-gradient-to-r from-[#5bdda6] to-[#27b481] border-[#5bdda6]/30 text-[#003825] active:bg-[#3eba89] shadow-[0_-4px_24px_rgba(91,221,166,0.25)]"
@@ -293,7 +293,7 @@ const SimplifiedBookingPanel = ({
           {/* Advanced Schedule Button */}
           {isLoggedIn && pickupCoords && dropoffCoords && (
             <button
-              className="h-[72px] w-[80px] shrink-0 flex items-center justify-center rounded-t-xl rounded-b-none border-t border-white/10 bg-[#171f33] hover:bg-[#222a3d] text-[#5bdda6] transition-all touch-manipulation ml-1"
+              className="h-[72px] w-[80px] shrink-0 flex items-center justify-center rounded-none border-t border-white/10 bg-[#171f33] hover:bg-[#222a3d] text-[#5bdda6] transition-all touch-manipulation ml-1"
               onClick={() => scheduleDialogRef.current?.openDialog()}
               title="احجز رحلة متقدمة με تحديد التاريخ والوقت"
             >

@@ -818,14 +818,14 @@ export const RideWaitingScreen = ({
         </div>
 
         {/* زر تتبع الرحلة */}
-        <div className="flex w-full mt-auto shrink-0 bg-[#0b1326] pt-1" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
+        <div className="flex w-full mt-auto shrink-0 bg-[#0b1326]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
           <motion.button
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             onClick={handleContinueToTracking}
             whileTap={{ scale: 0.97 }}
-            className="flex-auto h-[72px] rounded-t-xl rounded-b-none border-t border-[#5bdda6]/30 flex items-center justify-center gap-2 text-[18px] font-black transition-all shadow-[0_-4px_24px_rgba(91,221,166,0.25)] touch-manipulation"
+            className="flex-auto h-[72px] rounded-none border-t border-[#5bdda6]/30 flex items-center justify-center gap-2 text-[18px] font-black transition-all shadow-[0_-4px_24px_rgba(91,221,166,0.25)] touch-manipulation"
             style={{ background: "#5bdda6", color: "#0b1326" }}
           >
             <Navigation className="w-6 h-6 ml-1" />
@@ -1093,11 +1093,11 @@ export const RideWaitingScreen = ({
       </div>
 
       {/* زر الإلغاء */}
-      <div className="flex w-full mt-auto shrink-0 bg-[#0b1326]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)', zIndex: 10 }}>
+      <div className="flex w-full mt-auto shrink-0 bg-[#0b1326]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
         <button
           onClick={handleCancelClick}
           disabled={cancelling}
-          className="flex-auto h-[56px] rounded-t-xl rounded-b-none flex items-center justify-center gap-2 text-[15px] font-black transition-all disabled:opacity-40 shadow-[0_-4px_24px_rgba(185,28,28,0.3)] touch-manipulation active:scale-[0.98]"
+          className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-[17px] font-black transition-all disabled:opacity-40 shadow-[0_-4px_24px_rgba(185,28,28,0.3)] touch-manipulation active:scale-[0.98]"
           style={{ background: "linear-gradient(135deg, #b91c1c, #991b1b)", color: "#ffffff" }}
         >
           {cancelling ? (

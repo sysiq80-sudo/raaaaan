@@ -1050,7 +1050,7 @@ export const RideRequestCard = ({
           </div>
 
           {/* ═══ أزرار الإجراءات ═══ */}
-          <div className="flex w-full mt-auto shrink-0 bg-[#0b1326] pt-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
+          <div className="flex w-full mt-auto shrink-0 bg-[#0b1326]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
             {/* تخطي — Style Dark Luxury */}
             <Button
               variant="outline"

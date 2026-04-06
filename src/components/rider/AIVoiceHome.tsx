@@ -457,32 +457,28 @@ const AIVoiceHome: React.FC = () => {
     }
   }, []);
 
-  const handleSavedPlaceFrom = useCallback((fav: (typeof normalizedFavorites)[number]) => {
-    // تعيين المكان المحفوظ كنقطة انطلاق → فتح الخريطة لاختيار الوجهة
-    setPickupLocation({ lat: fav.lat, lng: fav.lng, address: fav.address || fav.name });
+  const handleSavedPlaceTo = useCallback(async (fav: (typeof normalizedFavorites)[number]) => {
+    // الوجهة = المكان المحفوظ، الانطلاق = الموقع الحالي (GPS)
+    const savedDropoff = { lat: fav.lat, lng: fav.lng, address: fav.address || fav.name };
+    setDropoffLocation(savedDropoff);
+
+    // استخدام الموقع الحالي كنقطة انطلاق إذا كان متاحاً
+    if (pickupCoords && pickupAddress) {
+      setPickupLocation({ lat: pickupCoords.lat, lng: pickupCoords.lng, address: pickupAddress });
+    }
+
     navigate("/rider/go", {
       state: {
         fromVoice: true,
         fromSavedPlace: true,
         preferredMode: "dropoff",
-        savedPickup: { lat: fav.lat, lng: fav.lng, address: fav.address || fav.name },
+        savedDropoff,
+        savedPickup: pickupCoords && pickupAddress
+          ? { lat: pickupCoords.lat, lng: pickupCoords.lng, address: pickupAddress }
+          : null,
       },
     });
-  }, [navigate, setPickupLocation]);
-
-  const handleSavedPlaceTo = useCallback(async (fav: (typeof normalizedFavorites)[number]) => {
-    // تعيين المكان المحفوظ كوجهة → فتح الخريطة لاختيار نقطة الانطلاق
-    setDropoffLocation({ lat: fav.lat, lng: fav.lng, address: fav.address || fav.name });
-
-    navigate("/rider/go", {
-      state: {
-        fromVoice: true,
-        fromSavedPlace: true,
-        preferredMode: "pickup",
-        savedDropoff: { lat: fav.lat, lng: fav.lng, address: fav.address || fav.name },
-      },
-    });
-  }, [navigate, setDropoffLocation]);
+  }, [navigate, setDropoffLocation, setPickupLocation, pickupCoords, pickupAddress]);
 
   const micBg = voiceState === "recording"
     ? "bg-emerald-500 shadow-[0_0_50px_rgba(52,211,153,0.55)] border-emerald-400/80"
@@ -762,22 +758,12 @@ const AIVoiceHome: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => handleSavedPlaceFrom(fav)}
-                    className="h-10 rounded-xl border border-[#5bdda6]/35 bg-[#5bdda6]/12 text-[#5bdda6] text-sm font-bold hover:bg-[#5bdda6]/20 active:scale-[0.98] transition-all"
-                  >
-                    انطلق من
-                  </button>
-                  <button
-                    onClick={() => {
-                      void handleSavedPlaceTo(fav);
-                    }}
-                    className="h-10 rounded-xl bg-[#5bdda6] text-[#071321] text-sm font-black hover:bg-[#4ed19b] active:scale-[0.98] transition-all"
-                  >
-                    الوصول إلى
-                  </button>
-                </div>
+                <button
+                  onClick={() => { void handleSavedPlaceTo(fav); }}
+                  className="w-full h-10 rounded-xl bg-[#5bdda6] text-[#071321] text-sm font-black hover:bg-[#4ed19b] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  <span>الوصول إلى {fav.name || FAV_NAMES[fav.icon || "other"]}</span>
+                </button>
               </motion.div>
             ))}
           </div>
