@@ -55,7 +55,8 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const {
+    const body = await req.json();
+    let {
       pickup_lat,
       pickup_lng,
       dropoff_lat,
@@ -63,20 +64,35 @@ serve(async (req) => {
       distance_km,
       vehicle_type = "economy",
       waiting_minutes = 0,
-      driver_id = null, // Optional: for calculating with driver discounts
+      driver_id = null,
+    } = body;
+
+    let {
+      pickup_lat,
+      pickup_lng,
+      dropoff_lat,
+      dropoff_lng,
+      distance_km,
+      vehicle_type = "economy",
+      waiting_minutes = 0,
+      driver_id = null,
     } = await req.json();
+
+    pickup_lat = parseFloat(pickup_lat);
+    pickup_lng = parseFloat(pickup_lng);
+    dropoff_lat = parseFloat(dropoff_lat);
+    dropoff_lng = parseFloat(dropoff_lng);
+    distance_km = parseFloat(distance_km);
 
     // ═══ Input Validation ═══
     // التحقق من أن الإحداثيات ضمن حدود العراق (lat ~29-37, lng ~38-49)
-    const IRAQ_BOUNDS = { minLat: 29.0, maxLat: 37.5, minLng: 38.0, maxLng: 49.0 };
+    const IRAQ_BOUNDS = { minLat: 29.0, maxLat: 38.0, minLng: 38.0, maxLng: 49.0 };
 
     if (
-      typeof pickup_lat !== "number" || typeof pickup_lng !== "number" ||
-      typeof dropoff_lat !== "number" || typeof dropoff_lng !== "number" ||
       isNaN(pickup_lat) || isNaN(pickup_lng) || isNaN(dropoff_lat) || isNaN(dropoff_lng)
     ) {
       return new Response(
-        JSON.stringify({ error: "إحداثيات غير صالحة — يجب أن تكون أرقاماً" }),
+        JSON.stringify({ error: "إحداثيات غير صالحة — يجب أن تكون أرقاماً", details: { pickup_lat, pickup_lng, dropoff_lat, dropoff_lng } }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -86,7 +102,7 @@ serve(async (req) => {
       pickup_lng < IRAQ_BOUNDS.minLng || pickup_lng > IRAQ_BOUNDS.maxLng
     ) {
       return new Response(
-        JSON.stringify({ error: "نقطة الانطلاق خارج نطاق الخدمة" }),
+        JSON.stringify({ error: `نقطة الانطلاق خارج نطاق الخدمة: lat ${pickup_lat}, lng ${pickup_lng}` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -96,15 +112,15 @@ serve(async (req) => {
       dropoff_lng < IRAQ_BOUNDS.minLng || dropoff_lng > IRAQ_BOUNDS.maxLng
     ) {
       return new Response(
-        JSON.stringify({ error: "نقطة الوصول خارج نطاق الخدمة" }),
+        JSON.stringify({ error: `نقطة الوصول خارج نطاق الخدمة: lat ${dropoff_lat}, lng ${dropoff_lng}` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     // التحقق من المسافة — الحد الأقصى 500 كم (عبر العراق كاملاً)، الحد الأدنى 0.1 كم
-    if (typeof distance_km !== "number" || isNaN(distance_km) || distance_km < 0.1 || distance_km > 500) {
+    if (isNaN(distance_km) || distance_km < 0.1 || distance_km > 2000) {
       return new Response(
-        JSON.stringify({ error: "المسافة غير صالحة — يجب أن تكون بين 0.1 و 500 كم" }),
+        JSON.stringify({ error: `المسافة غير صالحة — يجب أن تكون بين 0.1 و 2000 كم (استلمنا ${distance_km})` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }

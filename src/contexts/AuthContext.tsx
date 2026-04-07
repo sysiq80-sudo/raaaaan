@@ -69,7 +69,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const stored = capacitorStorageSync.getItem("raan_device_id");
     if (stored) return stored;
     
-    const newId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const array = new Uint8Array(12);
+    crypto.getRandomValues(array);
+    const hex = Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+    const newId = `device_${Date.now()}_${hex}`;
     capacitorStorageSync.setItem("raan_device_id", newId);
     return newId;
   }, []);

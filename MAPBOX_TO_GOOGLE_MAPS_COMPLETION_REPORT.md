@@ -171,7 +171,7 @@ supabase/
 VITE_MAPBOX_TOKEN="pk_test_..."
 
 # بعد
-VITE_GOOGLE_MAPS_API_KEY="AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk"
+VITE_GOOGLE_MAPS_API_KEY="YOUR_GOOGLE_MAPS_API_KEY"
 VITE_SUPABASE_PROJECT_ID="wgolkcztdrwdphwjvqxt"
 VITE_SUPABASE_PUBLISHABLE_KEY="eyJ..."
 VITE_SUPABASE_URL="https://wgolkcztdrwdphwjvqxt.supabase.co"
@@ -233,7 +233,7 @@ DELETE FROM app_settings WHERE key = 'google_maps_api_key';
 INSERT INTO app_settings (key, value, description)
 VALUES (
   'google_maps_api_key',
-  '{"api_key": "AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk", ...}'::jsonb,
+  '{"api_key": "YOUR_GOOGLE_MAPS_API_KEY", ...}'::jsonb,
   'Google Maps API Key - Includes Maps JavaScript API, Directions API, ...'
 );
 ```

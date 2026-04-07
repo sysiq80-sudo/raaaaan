@@ -218,7 +218,7 @@ export const useBroadcastChannel = ({
       broadcastChannel.current = null;
       setIsConnected(false);
     };
-  }, [ride.id, driver?.full_name]);
+  }, [ride.id]);
 
   // Fallback: Database subscription for ride status changes
   useEffect(() => {

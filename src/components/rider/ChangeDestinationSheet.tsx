@@ -85,7 +85,7 @@ const ChangeDestinationSheet: React.FC<ChangeDestinationSheetProps> = ({
     try {
       // Search using Mapbox geocoding
       const response = await fetch(
-        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/search-places?query=${encodeURIComponent(query)}&lat=${currentPosition.lat}&lng=${currentPosition.lng}`
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-places?query=${encodeURIComponent(query)}&lat=${currentPosition.lat}&lng=${currentPosition.lng}`
       );
       const data = await response.json();
       

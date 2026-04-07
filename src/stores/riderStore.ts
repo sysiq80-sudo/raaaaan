@@ -162,10 +162,16 @@ export const useRiderStore = create<RiderState & RiderActions>()(
 
             setPayment: (payment) => set({ selectedPayment: payment }),
 
-            setRoute: (distance, duration) => set({
-                routeDistance: distance,
-                routeDuration: duration
-            }),
+            setRoute: (distance, duration) => {
+                if (!isFinite(distance) || distance < 0 || !isFinite(duration) || duration < 0) {
+                    console.warn('[riderStore] Invalid route values rejected:', { distance, duration });
+                    return;
+                }
+                set({
+                    routeDistance: distance,
+                    routeDuration: duration
+                });
+            },
 
             setFare: (fare) => set({ estimatedFare: fare }),
 

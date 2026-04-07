@@ -32,12 +32,14 @@ export const sanitizeText = (input: string): string => {
   // Remove null bytes and other dangerous characters
   let sanitized = input.replace(/\0/g, "");
 
-  // Remove potential script injections
+  // Remove dangerous HTML tags (script, iframe, object, embed, svg, base, form)
   sanitized = sanitized.replace(
-    /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+    /<\/?(?:script|iframe|object|embed|svg|base|form|link|meta|style)\b[^>]*>/gi,
     "",
   );
-  sanitized = sanitized.replace(/javascript:/gi, "");
+  // Remove dangerous URI schemes
+  sanitized = sanitized.replace(/(?:javascript|vbscript|data\s*:[^,]*text\/html)\s*:/gi, "");
+  // Remove inline event handlers (onclick=, onerror=, onload=, etc.)
   sanitized = sanitized.replace(/on\w+\s*=/gi, "");
 
   // Remove excessive whitespace

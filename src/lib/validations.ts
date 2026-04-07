@@ -8,7 +8,7 @@ export const validationMessages = {
   required: "هذا الحقل مطلوب",
   invalidEmail: "البريد الإلكتروني غير صحيح",
   invalidPhone: "رقم الهاتف غير صحيح (07xxxxxxxxx)",
-  passwordMin: "كلمة المرور يجب أن تكون 6 أحرف على الأقل",
+  passwordMin: "كلمة المرور يجب أن تكون 8 أحرف على الأقل، مع رقم وحرف",
   nameMin: "الاسم يجب أن يكون 3 أحرف على الأقل",
   nameMax: "الاسم يجب أن يكون أقل من 100 حرف",
 };
@@ -26,10 +26,20 @@ export const emailSchema = z
   .email(validationMessages.invalidEmail)
   .max(255);
 
-// Password schema
+// Password schema — 8+ أحرف مع رقم واحد على الأقل وحرف واحد
 export const passwordSchema = z
   .string()
-  .min(6, validationMessages.passwordMin);
+  .min(8, validationMessages.passwordMin)
+  .regex(/[A-Za-z\u0600-\u06FF]/, "يجب أن تحتوي على حرف واحد على الأقل")
+  .regex(/[0-9]/, "يجب أن تحتوي على رقم واحد على الأقل");
+
+// دالة مساعدة للتحقق من كلمة المرور (تُستخدم في الصفحات)
+export const validatePassword = (password: string): string | null => {
+  if (!password || password.length < 8) return "كلمة المرور يجب أن تكون 8 أحرف على الأقل";
+  if (!/[0-9]/.test(password)) return "يجب أن تحتوي على رقم واحد على الأقل";
+  if (!/[A-Za-z\u0600-\u06FF]/.test(password)) return "يجب أن تحتوي على حرف واحد على الأقل";
+  return null;
+};
 
 // Full name schema
 export const fullNameSchema = z
@@ -97,8 +107,10 @@ export const driverPersonalInfoSchema = z.object({
 // Driver password schema
 export const driverPasswordSchema = z.object({
   password: z.string()
-    .min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل")
-    .max(50, "كلمة المرور طويلة جداً"),
+    .min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل")
+    .max(50, "كلمة المرور طويلة جداً")
+    .regex(/[A-Za-z\u0600-\u06FF]/, "يجب أن تحتوي على حرف واحد على الأقل")
+    .regex(/[0-9]/, "يجب أن تحتوي على رقم واحد على الأقل"),
   confirmPassword: z.string().min(1, "يرجى تأكيد كلمة المرور"),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "كلمات المرور غير متطابقة",

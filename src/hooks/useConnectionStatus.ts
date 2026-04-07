@@ -1,16 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export const useConnectionStatus = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [wasOffline, setWasOffline] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      if (wasOffline) {
-        // Show reconnected message briefly
-        setTimeout(() => setWasOffline(false), 3000);
-      }
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => setWasOffline(false), 3000);
     };
 
     const handleOffline = () => {
@@ -24,8 +23,9 @@ export const useConnectionStatus = () => {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [wasOffline]);
+  }, []);
 
   return { isOnline, wasOffline };
 };

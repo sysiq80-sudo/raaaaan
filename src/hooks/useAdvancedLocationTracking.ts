@@ -54,9 +54,11 @@ export const useAdvancedLocationTracking = (
   // Initialize broadcast channel for cross-tab sync
   useEffect(() => {
     if (typeof BroadcastChannel !== 'undefined') {
+      let isActive = true;
       broadcastChannelRef.current = new BroadcastChannel('location_sync');
 
       broadcastChannelRef.current.onmessage = (event) => {
+        if (!isActive) return;
         if (event.data.type === 'LOCATION_BATCH') {
           const locations: LocationData[] = event.data.payload;
 
@@ -83,6 +85,7 @@ export const useAdvancedLocationTracking = (
       };
 
       return () => {
+        isActive = false;
         if (broadcastChannelRef.current) {
           broadcastChannelRef.current.close();
           broadcastChannelRef.current = null;

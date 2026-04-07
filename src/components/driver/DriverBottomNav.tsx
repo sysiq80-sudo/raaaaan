@@ -1,9 +1,11 @@
 /**
  * ران - شريط التنقل السفلي للسائق
- * Bottom Navigation Bar for Driver — Clean & Minimal RTL
+ * shrink-0 — لا fixed، لا تراكب، يدفع المحتوى للأعلى طبيعياً
+ * مطابق لتصميم RiderBottomNav في الأبعاد والارتفاع والـ safe-area
  */
 
 import { useLocation, Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Home, Car, Wallet, User, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,71 +68,57 @@ const DriverBottomNav = () => {
   }
 
   return (
-    <>
-      {/* Spacer */}
-      <div className="h-[72px]" />
-
-      <nav
-        className="fixed bottom-0 left-0 right-0 z-50 safe-area-pb"
-        dir="rtl"
-        role="navigation"
-        aria-label="القائمة الرئيسية للسائق"
+    <div
+      dir="rtl"
+      className="shrink-0 w-full transition-colors duration-300 border-t border-[#5bdda6]/10"
+      role="navigation"
+      aria-label="القائمة الرئيسية للسائق"
+    >
+      <div
+        className="backdrop-blur-xl flex items-center h-[68px] transition-colors duration-300 bg-[#0b1326]"
+        style={{
+          paddingBottom: 'max(env(safe-area-inset-bottom, 24px), 24px)'
+        }}
       >
-        {/* الشريط الرئيسي */}
-        <div className="bg-card/95 backdrop-blur-xl border-t border-border/50 shadow-lg">
-          <div className="flex items-center justify-around">
-            {navItems.map((item, index) => {
-              const isActive = index === activeIndex;
-              const Icon = item.icon;
+        {navItems.map((item, index) => {
+          const isActive = index === activeIndex;
+          const Icon = item.icon;
 
-              return (
-                <Link
-                  key={item.id}
-                  to={item.path}
-                  className={cn(
-                    "flex flex-col items-center justify-center flex-1 py-2.5 relative min-h-[56px] transition-colors duration-200 outline-none focus:outline-none focus-visible:outline-none select-none",
-                    isActive
-                      ? "text-primary"
-                      : "text-muted-foreground/60 active:text-foreground/80"
-                  )}
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                  aria-label={item.label}
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  {/* Active indicator dot */}
-                  {isActive && (
-                    <div className="absolute top-1.5 w-1 h-1 rounded-full bg-primary shadow-[0_0_6px_rgba(var(--primary-rgb),0.8)]" />
-                  )}
-
-                  {/* Icon */}
-                  <Icon
-                    className={cn(
-                      "w-5.5 h-5.5 mb-0.5 transition-all duration-200",
-                      isActive
-                        ? "stroke-[2.5px] drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.6)]"
-                        : "stroke-[1.8px]"
-                    )}
-                    style={{ width: 22, height: 22 }}
-                  />
-
-                  {/* Label */}
-                  <span
-                    className={cn(
-                      "text-[10px] leading-tight transition-all duration-200",
-                      isActive
-                        ? "font-bold opacity-100"
-                        : "font-medium opacity-60"
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </nav>
-    </>
+          return (
+            <Link
+              key={item.id}
+              to={item.path}
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
+              className="relative flex flex-col items-center justify-center flex-1 h-full gap-1 group"
+            >
+              {isActive && (
+                <motion.div
+                  layoutId="driver-nav-indicator"
+                  className="absolute top-0 inset-x-3 h-0.5 rounded-full bg-[#5bdda6]"
+                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                />
+              )}
+              <Icon
+                className={cn(
+                  "w-5 h-5 transition-all duration-200",
+                  isActive
+                    ? "stroke-[2.5px] drop-shadow-[0_0_8px_rgba(91,221,166,0.6)]"
+                    : "stroke-[1.8px]"
+                )}
+                style={{ color: isActive ? '#5bdda6' : '#475569' }}
+              />
+              <span
+                className={cn("text-[10px] font-semibold leading-none transition-colors")}
+                style={{ color: isActive ? '#5bdda6' : '#475569' }}
+              >
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 

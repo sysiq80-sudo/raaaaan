@@ -47,7 +47,7 @@ import { Lock, User, Phone, ArrowLeft, Loader2, Eye, EyeOff } from "lucide-react
 import logo from "@/assets/logo.png";
 import OTPVerification from "@/components/OTPVerification";
 import PasswordResetDialog from "@/components/PasswordResetDialog";
-import { phoneSignupSchema } from "@/lib/validations";
+import { phoneSignupSchema, validatePassword } from "@/lib/validations";
 import { normalizeIraqiPhoneToE164 } from "@/lib/phoneUtils";
 import { saveRememberMe, clearRememberMe, getRememberMe } from "@/services/rememberMeService";
 
@@ -237,8 +237,8 @@ const Auth = () => {
     e.preventDefault();
     setErrors({});
 
-    if (!loginPassword || loginPassword.length < 6) {
-      setErrors({ password: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" });
+    if (!loginPassword || loginPassword.length < 8) {
+      setErrors({ password: "كلمة المرور يجب أن تكون 8 أحرف على الأقل، مع رقم وحرف" });
       return;
     }
 
@@ -308,10 +308,13 @@ const Auth = () => {
   };
 
   // Handle registration form submission - go to OTP or direct register
-  const handleRegisterSubmit = async () => {
+  const handleRegisterSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setErrors({});
 
-    const result = phoneSignupSchema.safeParse({ fullName, phone: phoneInput });
+    // تنظيف رقم الهاتف من الفراغات والرموز قبل التحقق
+    const cleanedPhone = phoneInput.replace(/[^0-9+]/g, '');
+    const result = phoneSignupSchema.safeParse({ fullName, phone: cleanedPhone });
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
       result.error.errors.forEach((err) => {
@@ -323,8 +326,9 @@ const Auth = () => {
       return;
     }
 
-    if (!registerPassword || registerPassword.length < 6) {
-      setErrors({ password: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" });
+    const passwordError = validatePassword(registerPassword);
+    if (passwordError) {
+      setErrors({ password: passwordError });
       return;
     }
 
@@ -458,8 +462,8 @@ const Auth = () => {
     e.preventDefault();
     setErrors({});
 
-    if (!ghostPassword || ghostPassword.length < 6) {
-      setErrors({ ghostPassword: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" });
+    if (!ghostPassword || ghostPassword.length < 8) {
+      setErrors({ ghostPassword: "كلمة المرور يجب أن تكون 8 أحرف على الأقل، مع رقم وحرف" });
       return;
     }
 
@@ -539,7 +543,7 @@ const Auth = () => {
   // Render OTP verification step
   if (step === "otp") {
     return (
-      <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
+      <div className="h-[100dvh] w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
         <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-6 pt-[6vh] pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex justify-center mb-6">
             <div className="w-16 h-16 bg-[#111827] rounded-3xl flex items-center justify-center border border-slate-800/80 shadow-[0_0_20px_rgba(0,0,0,0.5)]">
@@ -566,7 +570,7 @@ const Auth = () => {
   // Render ghost account OTP verification step
   if (step === "ghost-otp") {
     return (
-      <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
+      <div className="h-[100dvh] w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
         <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-6 pt-[6vh] pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex justify-center mb-6">
             <div className="w-16 h-16 bg-[#111827] rounded-3xl flex items-center justify-center border border-slate-800/80 shadow-[0_0_20px_rgba(0,0,0,0.5)]">
@@ -597,7 +601,7 @@ const Auth = () => {
   // Render ghost account password setup step
   if (step === "ghost-password") {
     return (
-      <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
+      <div className="h-[100dvh] w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
         <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto px-6 pt-[8vh] pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex justify-center mb-6">
             <div className="w-16 h-16 bg-[#111827] rounded-2xl flex items-center justify-center border border-slate-800/80">
@@ -631,7 +635,7 @@ const Auth = () => {
                   value={ghostPassword}
                   onChange={(e) => setGhostPassword(e.target.value)}
                   className={`h-12 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-center text-[14px] focus-visible:ring-0 w-full ${errors.ghostPassword ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
-                  required minLength={6} dir="ltr" autoFocus
+                  required minLength={8} dir="ltr" autoFocus
                 />
                 <button
                   type="button"
@@ -657,7 +661,7 @@ const Auth = () => {
                   value={ghostConfirmPassword}
                   onChange={(e) => setGhostConfirmPassword(e.target.value)}
                   className={`h-12 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-center text-[14px] focus-visible:ring-0 w-full ${errors.ghostConfirmPassword ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
-                  required minLength={6} dir="ltr"
+                  required minLength={8} dir="ltr"
                 />
                 <button
                   type="button"
@@ -682,7 +686,7 @@ const Auth = () => {
 
   // ── Main Return (Phone / Login / Register steps) ──
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
+    <div className="h-[100dvh] w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
       <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex flex-col min-h-full px-6 pt-[7vh] pb-8">
 
@@ -758,8 +762,14 @@ const Auth = () => {
                     type={showPassword ? "text" : "password"} placeholder="••••••••"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
+                    onFocus={(e) => {
+                      setTimeout(() => {
+                        const btn = document.getElementById('login-btn');
+                        if (btn) btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }, 300);
+                    }}
                     className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-center text-[15px] focus-visible:ring-0 w-full ${errors.password ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
-                    required minLength={6} dir="ltr" autoFocus
+                    required minLength={8} dir="ltr" autoFocus
                   />
                   <button
                     type="button"
@@ -773,36 +783,28 @@ const Auth = () => {
                 {errors.password && <p className="text-[11px] text-red-400">{errors.password}</p>}
               </div>
 
-              {/* Remember Me */}
-              <button
-                type="button"
-                onClick={() => setRememberMe(!rememberMe)}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all duration-200 ${
-                  rememberMe ? 'border-emerald-500/40 bg-emerald-500/8 text-emerald-400' : 'border-slate-700/50 bg-[#1a2333] text-slate-400'
-                }`}
-              >
-                <div className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${rememberMe ? 'bg-emerald-500/15' : 'bg-slate-800'}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${rememberMe ? 'text-emerald-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                </div>
-                <div className="flex items-center gap-1.5 sm:gap-2 mr-auto" dir="rtl">
-                  <p className="text-sm font-medium whitespace-nowrap">ابقَني مسجلاً دخولي</p>
-                  <span className="text-[10px] sm:text-[11px] text-slate-500 hidden sm:inline-block">
-                    {rememberMe ? '(لن تحتاج لتسجيل دخول مجدداً)' : '(ستُطلب كلمة المرور للفتح)'}
-                  </span>
-                  <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ml-1 ${rememberMe ? 'bg-emerald-500' : 'bg-slate-700'}`}>
-                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${rememberMe ? 'right-0.5' : 'left-0.5'}`} />
+              {/* Compact Options Row */}
+              <div className="flex items-center justify-between pt-1 pb-2">
+                {/* Remember Me */}
+                <button
+                  type="button"
+                  onClick={() => setRememberMe(!rememberMe)}
+                  className="flex items-center gap-2"
+                  aria-label="تذكرني"
+                >
+                  <div className={`relative w-10 h-5 rounded-full transition-colors ${rememberMe ? 'bg-emerald-500' : 'bg-slate-700'}`}>
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${rememberMe ? 'right-0.5' : 'left-0.5'}`} />
                   </div>
-                </div>
-              </button>
+                  <span className="text-sm text-slate-300 font-medium">تذكرني</span>
+                </button>
 
-              {/* Forgot password */}
-              <button type="button" onClick={() => setShowPasswordReset(true)} className="text-start text-[13px] text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
-                نسيت كلمة المرور؟
-              </button>
+                {/* Forgot password */}
+                <button type="button" onClick={() => setShowPasswordReset(true)} className="text-[13px] text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
+                  نسيت كلمة المرور؟
+                </button>
+              </div>
 
-              <button type="submit" disabled={loading} className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-black text-[16px] font-extrabold rounded-full mt-1 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60">
+              <button id="login-btn" type="submit" disabled={loading} className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-black text-[16px] font-extrabold rounded-3xl shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60">
                 {loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
               </button>
             </form>
@@ -810,7 +812,7 @@ const Auth = () => {
 
           {/* ── Step: Register ── */}
           {step === 'register' && (
-            <div className="flex flex-col gap-4">
+            <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-4">
               {/* Phone badge */}
               <div className="relative flex items-center justify-center bg-[#1a2333] rounded-xl overflow-hidden h-14 border border-slate-700/50 mb-1">
                 <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
@@ -852,7 +854,7 @@ const Auth = () => {
                     value={registerPassword}
                     onChange={(e) => setRegisterPassword(e.target.value)}
                     className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-center text-[15px] focus-visible:ring-0 w-full ${errors.password ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
-                    required minLength={6} dir="ltr"
+                    required minLength={8} dir="ltr"
                   />
                   <button
                     type="button"
@@ -866,15 +868,17 @@ const Auth = () => {
                 {errors.password && <p className="text-[11px] text-red-400">{errors.password}</p>}
               </div>
 
+              {errors.phone && <p className="text-[11px] text-red-400 text-center">{errors.phone}</p>}
+              {errors.general && <p className="text-[11px] text-red-400 text-center">{errors.general}</p>}
+
               <button
-                type="button"
+                type="submit"
                 disabled={loading}
-                onClick={handleRegisterSubmit}
                 className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-black text-[16px] font-extrabold rounded-full mt-2 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60"
               >
                 {loading ? 'جاري إنشاء الحساب...' : 'إنشاء الحساب'}
               </button>
-            </div>
+            </form>
           )}
 
           {/* Footer */}

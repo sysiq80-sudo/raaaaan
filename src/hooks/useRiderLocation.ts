@@ -89,22 +89,22 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
     };
   }, [enabled, updateLocation, handleError]);
 
-  // Clear location when component unmounts or user leaves
+  // Clear location when user closes the app
   useEffect(() => {
+    const clearLocation = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('profiles')
+          .update({ current_location: null })
+          .eq('user_id', user.id);
+      }
+    };
+
+    window.addEventListener('beforeunload', clearLocation);
+
     return () => {
-      // Optionally clear location when user closes the app
-      const clearLocation = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase
-            .from('profiles')
-            .update({ current_location: null })
-            .eq('user_id', user.id);
-        }
-      };
-      
-      // Only clear on actual page unload, not on re-renders
-      window.addEventListener('beforeunload', clearLocation);
+      window.removeEventListener('beforeunload', clearLocation);
     };
   }, []);
 

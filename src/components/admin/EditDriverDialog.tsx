@@ -118,7 +118,7 @@ export const EditDriverDialog = ({
       if (error) throw error;
 
       // 2. تغيير كلمة المرور إذا تم إدخالها
-      if (newPassword && newPassword.length >= 6 && driver.user_id) {
+      if (newPassword && newPassword.length >= 8 && driver.user_id) {
         const { data: sessionData } = await supabase.auth.getSession();
 
         const response = await fetch(

@@ -103,7 +103,7 @@ const DirectSearchInput: React.FC<DirectSearchInputProps> = ({
       }
 
       const response = await fetch(
-        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/search-places?${params}`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-places?${params}`,
         { headers: { 'Content-Type': 'application/json' } }
       );
       const data = await response.json();

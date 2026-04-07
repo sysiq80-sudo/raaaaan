@@ -105,7 +105,13 @@ export function ScheduledRidesList() {
         .order('scheduled_at', { ascending: true });
 
       if (error) throw error;
-      setScheduledRides(data || []);
+      // تجنب إعادة الرسم إذا نفس البيانات
+      setScheduledRides(prev => {
+        const newIds = (data || []).map(r => r.id).join();
+        const prevIds = prev.map(r => r.id).join();
+        if (newIds === prevIds) return prev;
+        return data || [];
+      });
     } catch (error) {
       console.error('Error fetching scheduled rides:', error);
     } finally {

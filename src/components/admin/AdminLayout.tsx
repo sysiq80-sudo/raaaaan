@@ -49,6 +49,7 @@ import {
   TrendingUp,
   Menu,
   Bell,
+  ClipboardList,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdminNotificationsBell } from "./AdminNotificationsBell";
@@ -211,6 +212,7 @@ const AdminLayout = ({
       label: "التقارير والمالية",
       items: [
         { icon: DollarSign, label: "التقارير المالية", href: "/admin/reports" },
+        { icon: CreditCard, label: "الخدمات والتكاليف", href: "/admin/cost-controls" },
         { icon: DollarSign, label: "تقارير العمولات", href: "/admin/commission-reports" },
         { icon: Wallet, label: "طلبات المحفظة", href: "/admin/wallet-requests" },
         { icon: DollarSign, label: "طلبات السحب", href: "/admin/withdrawals" },
@@ -261,7 +263,9 @@ const AdminLayout = ({
       icon: Shield,
       label: "الأمان والنظام",
       items: [
+        { icon: ClipboardList, label: "التطوير والمهام", href: "/admin/development-tasks" },
         { icon: UserCog, label: "مدراء النظام", href: "/admin/controller-users" },
+        { icon: Shield, label: "سجل الأمان والتدقيق", href: "/admin/audit-logs" },
         { icon: Shield, label: "الأمان والحدود", href: "/admin/security-settings" },
         { icon: BookOpen, label: "التوثيق", href: "/admin/documentation" },
         { icon: Code, label: "ران المطور", href: "/admin/developer-settings" },

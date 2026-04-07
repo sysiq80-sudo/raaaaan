@@ -46,7 +46,7 @@
 - تحديث defaults في stores
 
 ### ✅ 7. إضافة Google Maps API Key
-- المفتاح: `AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk`
+- المفتاح: `YOUR_GOOGLE_MAPS_API_KEY`
 - إنشاء SQL script للإضافة
 - توثيق كامل للإعداد
 
@@ -117,7 +117,7 @@ DELETE FROM app_settings WHERE key = 'google_maps_api_key';
 INSERT INTO app_settings (key, value, description)
 VALUES (
   'google_maps_api_key',
-  '{"api_key": "AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk"}'::jsonb,
+  '{"api_key": "YOUR_GOOGLE_MAPS_API_KEY"}'::jsonb,
   'Google Maps API Key - Maps JavaScript API, Directions API, Geocoding API, Static Maps API'
 );
 
@@ -164,7 +164,7 @@ npm run dev
 
 1. اذهب إلى [Google Cloud Console](https://console.cloud.google.com/)
 2. اختر المشروع → **Credentials**
-3. اختر المفتاح `AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk`
+3. اختر المفتاح `YOUR_GOOGLE_MAPS_API_KEY`
 
 #### أضف القيود:
 

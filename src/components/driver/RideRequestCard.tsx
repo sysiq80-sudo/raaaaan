@@ -24,6 +24,7 @@ import {
   Layers,
 } from "lucide-react";
 import { useAutoAccept } from "@/stores/driverStore";
+import { useVehicleTypes } from "@/hooks/useVehicleTypes";
 
 interface PendingRide {
   id: string;
@@ -53,27 +54,21 @@ interface RideRequestCardProps {
   onDeepLinkResolved?: (rideId: string, found: boolean) => void;
 }
 
-const getVehicleTypeName = (type: string) => {
-  const types: Record<string, string> = {
-    economy: "اقتصادي",
-    comfort: "مريح",
-    premium: "فاخر",
-    women_only: "نسائي",
-  };
-  return types[type] || type;
+// أسماء أنواع السيارات وأيقوناتها تأتي ديناميكياً من قاعدة البيانات عبر useVehicleTypes
+// Fallback للحالات التي تكون فيها البيانات غير محملة بعد
+// مثل: economy -> اقتصادي | premium -> فاخر
+const VEHICLE_NAME_FALLBACK: Record<string, string> = {
+  economy: "اقتصادي",
+  comfort: "مريح",
+  premium: "فاخر",
+  women_only: "نسائي",
 };
 
-const getVehicleIcon = (type: string) => {
-  switch (type) {
-    case "premium":
-      return "🚘";
-    case "comfort":
-      return "🚗";
-    case "women_only":
-      return "👩‍💼";
-    default:
-      return "🚙";
-  }
+const VEHICLE_ICON_FALLBACK: Record<string, string> = {
+  economy: "🚙",
+  comfort: "🚗",
+  premium: "🚘",
+  women_only: "👩‍💼",
 };
 
 // صوت الإشعار يتم تشغيله من audioContext.ts المركزي
@@ -92,6 +87,12 @@ export const RideRequestCard = ({
 }: RideRequestCardProps) => {
   const { toast } = useToast();
   const autoAccept = useAutoAccept();
+  // ═══ أنواع السيارات الديناميكية من قاعدة البيانات ═══
+  const { getVehicleTypeName, getVehicleTypeIcon } = useVehicleTypes();
+  const getVehicleName = (type: string) =>
+    getVehicleTypeName(type) || VEHICLE_NAME_FALLBACK[type] || type;
+  const getVehicleIcon = (type: string) =>
+    getVehicleTypeIcon(type) || VEHICLE_ICON_FALLBACK[type] || "🚗";
   // ═══ Multi-ride state ═══
   const [pendingRides, setPendingRides] = useState<PendingRide[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -381,6 +382,8 @@ export const RideRequestCard = ({
           } else if (prevIds !== newIds) {
             setCurrentIndex(0);
           }
+          // تجنب إعادة الرسم إذا نفس الرحلات (يمنع الوميض)
+          if (prevIds === newIds && targetIndex < 0) return prev;
           return collected;
         });
         setTimeLeft(calcTimeLeft(collected[0].created_at));
@@ -869,6 +872,7 @@ export const RideRequestCard = ({
     setActionType("reject");
 
     const rejectedRideId = pendingRide.id;
+    const wasLastRide = pendingRides.length <= 1;
     skippedRidesRef.current[rejectedRideId] = Date.now();
     try { localStorage.setItem('raan_skipped_rides', JSON.stringify(skippedRidesRef.current)); } catch {}
 
@@ -880,7 +884,7 @@ export const RideRequestCard = ({
       return next;
     });
     // إذا كانت هذه آخر رحلة → أبلغ الأب الفوري
-    if (pendingRides.length <= 1) onRideRequestVisible?.(false);
+    if (wasLastRide) onRideRequestVisible?.(false);
 
     try {
       await supabase.rpc("update_driver_response", {
@@ -890,11 +894,12 @@ export const RideRequestCard = ({
       });
     } catch { /* غير مؤثر */ }
 
-    toast({ title: "تم التخطي", description: pendingRides.length > 1 ? `تبقى ${pendingRides.length - 1} طلب` : "سيتم البحث عن طلبات جديدة" });
+    toast({ title: "تم التخطي", description: !wasLastRide ? `تبقى ${pendingRides.length - 1} طلب` : "سيتم البحث عن طلبات جديدة" });
     actionInProgressRef.current = false;
     setLoading(false);
     setActionType(null);
-    if (pendingRides.length <= 1) fetchPendingRidesRef.current();
+    // تأخير البحث عن طلبات جديدة لمنع الوميض (يتيح استقرار الحالة)
+    if (wasLastRide) setTimeout(() => fetchPendingRidesRef.current(), 800);
   };
 
   const handleAcceptClick = () => {
@@ -993,8 +998,9 @@ export const RideRequestCard = ({
                     <Car className="w-4 h-4 text-[#5bdda6]/70" />
                     <span className="text-xs font-semibold text-slate-400">نوع السيارة</span>
                   </div>
-                  <span className="text-xl font-black text-[#5bdda6] tracking-wide mt-1" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                    {getVehicleTypeName(pendingRide.vehicle_type)}
+                  <span className="text-2xl mt-1">{getVehicleIcon(pendingRide.vehicle_type)}</span>
+                  <span className="text-xl font-black text-[#5bdda6] tracking-wide mt-0.5" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                    {getVehicleName(pendingRide.vehicle_type)}
                   </span>
                 </div>
               </div>
@@ -1050,21 +1056,21 @@ export const RideRequestCard = ({
           </div>
 
           {/* ═══ أزرار الإجراءات ═══ */}
-          <div className="flex w-full mt-auto shrink-0 bg-[#0b1326]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
-            {/* تخطي — Style Dark Luxury */}
+          <div className="flex w-full mt-auto shrink-0 bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
+            {/* تخطي — Style Dark Luxury Secondary */}
             <Button
               variant="outline"
-              className="flex-1 max-w-[120px] h-[72px] rounded-none font-bold bg-red-600 text-white hover:bg-red-700 hover:text-white border-none transition-all active:bg-red-800"
+              className="flex-1 max-w-[120px] h-[72px] rounded-none flex items-center justify-center text-sm font-bold text-emerald-300 bg-[#0f2922] hover:bg-[#163d30] transition-colors disabled:opacity-50 touch-manipulation border-none border-t border-l border-emerald-500/20"
               onClick={handleRejectClick}
               disabled={loading}
               style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
             >
               {loading && actionType === "reject" ? (
-                <Loader2 className="w-5 h-5 animate-spin mx-auto text-white" />
+                <Loader2 className="w-5 h-5 animate-spin mx-auto" />
               ) : (
-                <div className="flex flex-col items-center gap-0.5 mt-1">
-                  <X className="w-5 h-5" />
-                  <span className="text-xs">تخطي</span>
+                <div className="flex items-center gap-1">
+                  <X className="w-4 h-4" />
+                  <span>تخطي</span>
                 </div>
               )}
             </Button>

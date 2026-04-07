@@ -185,9 +185,14 @@ const DriverHome = () => {
   const { isWakeLockActive, requestWakeLock, releaseWakeLock } = useWakeLock();
 
   // Enable real-time notifications for new rides
-  // إيقاف الإشعارات عند وضع الإيقاف المؤقت
+  // إيقاف الإشعارات عند وضع الإيقاف المؤقت، وتمرير الموقع ونصف القطر للفلترة المحلية
   const { notificationPermission, requestNotificationPermission } =
-    useDriverNotifications(isOnline && !isPaused ? driverId : null, vehicleType);
+    useDriverNotifications(
+      isOnline && !isPaused ? driverId : null, 
+      vehicleType,
+      currentLocation,
+      maxPickupRadius
+    );
 
   const clearDriverNotificationParams = useCallback(() => {
     const params = new URLSearchParams(location.search);
@@ -1006,10 +1011,13 @@ const DriverHome = () => {
           : -1;
 
   return (
-    <div className="h-[100dvh] bg-[#0b1326] flex flex-col overflow-hidden font-sans" dir="rtl">
+    <div 
+      className="h-full bg-[#0b1326] flex flex-col overflow-hidden font-sans" 
+      dir="rtl"
+    >
       {/* ═══ Header — Dark Luxury with emerald glow ═══ */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-[#0b1326] border-b border-[#5bdda6]/10 shadow-[0_4px_30px_rgba(91,221,166,0.05)]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        <div className="container relative flex items-center justify-between h-16">
+      <header className="relative shrink-0 z-50 bg-[#0b1326] border-b border-[#5bdda6]/10 shadow-[0_4px_30px_rgba(91,221,166,0.05)] w-full">
+        <div className="container relative flex items-center justify-between h-16 w-full">
           {/* ═══ Left: Notification Icons ═══ */}
           <div className="flex items-center gap-3 z-10">
             <NotificationsBell driverId={driverId} isOpen={notificationsOpen} onToggle={() => { setNotificationsOpen(!notificationsOpen); setRewardsOpen(false); setMenuOpen(false); }} />
@@ -1058,41 +1066,24 @@ const DriverHome = () => {
       />
 
       {/* Main Content - Full Screen Map Layout */}
-      <main className="flex-1 flex flex-col relative overflow-hidden" style={{ paddingTop: 'calc(56px + env(safe-area-inset-top, 0px))' }}>
-        <div className="driver-stepper-shell">
-          <div className="driver-stepper" dir="ltr" role="list" aria-label="مراحل تشغيل السائق">
-            {driverFlowSteps.map((step, index) => (
-              <div key={step} className="flex items-center gap-2" role="listitem">
-                <div
-                  className={`driver-stepper-node ${index <= driverFlowStepIndex ? "driver-stepper-node-active" : ""}`}
-                  aria-hidden="true"
-                >
-                  {index + 1}
-                </div>
-                <span className={`text-[11px] font-bold ${index <= driverFlowStepIndex ? "text-[#5bdda6]" : "text-slate-500"}`}>
-                  {step}
-                </span>
-                {index < driverFlowSteps.length - 1 ? <span className="driver-stepper-link" aria-hidden="true" /> : null}
-              </div>
-            ))}
-          </div>
-        </div>
-
+      <main className="flex-1 flex flex-col relative overflow-hidden w-full">
+    
         {driverId && adminActivated && driverStatus === "approved" && (
           <>
             {/* Dashboard — الخريطة تظهر دائماً مع تأثيرات مختلفة حسب الحالة */}
-            <div className="flex-1 relative min-h-0">
+            <div className="flex-1 relative min-h-0 z-0">
               {/* الخريطة دائماً مُهيَّأة لتجنب التأخير عند بدء الرحلة */}
               <DriverMap
                 driverLocation={currentLocation}
                 isOnline={isOnline}
+                hasActiveRide={hasActiveRide}
               />
 
               {hasActiveRide ? (
                 /* تأثير التدرج فوق الخريطة أثناء الرحلة */
                 <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at center, transparent 0%, rgba(11,19,38,0.7) 85%)' }} />
               ) : (
-                /* تأثيرات محيطية فوق الخريطة عند الانتظار — النقطة النابضة الآن داخل DriverMap */
+                /* تأثيرات محيطية فوق الخريطة عند الانتظار */
                 <div className="absolute inset-0 pointer-events-none" />
               )}
               {/* خريطة مناطق الطلب الحرارية */}
@@ -1101,7 +1092,7 @@ const DriverHome = () => {
 
             {/* ═══ Driver Control Center — Centered DutyToggle ═══ */}
             {!hasRideRequest && !hasActiveRide && (
-              <div className="absolute inset-x-0 bottom-[22vh] z-20 pointer-events-none flex justify-center">
+              <div className="absolute inset-x-0 top-[55%] -translate-y-1/2 z-30 pointer-events-none flex justify-center">
                 <div className="relative flex flex-col items-center gap-3 w-full max-w-2xl px-5">
                   <div className="pointer-events-auto w-full max-w-[calc(100%-1rem)] sm:max-w-sm mx-auto">
                     <DutyToggle
@@ -1122,8 +1113,8 @@ const DriverHome = () => {
               </div>
             )}
 
-            {/* ═══ Bottom Sheet Cards — positioned absolutely within map area ═══ */}
-            {!isMinimized && (
+            {/* ═══ Bottom Sheet Cards — positioned absolutely over the full main area ═══ */}
+            {!isMinimized && hasActiveRide && (
               <ActiveRideCard
                 driverId={driverId}
                 driverLocation={currentLocation}
@@ -1152,7 +1143,7 @@ const DriverHome = () => {
                     "[DriverHome] Ride accepted — triggering ActiveRideCard refresh"
                   );
                   setIsPaused(false);
-                  setHasActiveRide(true); // إخفاء DutyToggle فوراً
+                  setHasActiveRide(true);
                   setRideAcceptedTrigger(prev => prev + 1);
                 }}
               />
@@ -1160,7 +1151,7 @@ const DriverHome = () => {
 
             {/* ═══ Dashboard Stats Summary — Floating top cards (just below header) ═══ */}
             {!hasRideRequest && !hasActiveRide && isOnline && driverId && (
-              <div className="absolute top-[calc(3.5rem+env(safe-area-inset-top))] left-0 right-0 z-30 pointer-events-auto transition-all duration-300 ease-in-out">
+              <div className="absolute top-0 left-0 right-0 z-30 pointer-events-auto transition-all duration-300 ease-in-out">
                 <DriverQuickStats driverId={driverId} />
               </div>
             )}
@@ -1173,7 +1164,6 @@ const DriverHome = () => {
               lng={navigationDestination?.lng || 0}
               onInternalNavigation={() => {
                 setIsMinimized(true);
-                // Maximize map and focus on navigation
               }}
               destinationLabel="الوجهة"
             />

@@ -169,7 +169,12 @@ export const useRideNotifications = (userId: string | null) => {
           const permResult = await PushNotifications.requestPermissions();
           if (permResult.receive !== 'granted') return;
 
-          await PushNotifications.register();
+          try {
+            await PushNotifications.register();
+          } catch (regErr) {
+            console.warn('⚠️ PushNotifications.register() failed:', regErr);
+            return;
+          }
 
           // Wait briefly for token
           token = await new Promise<string | null>((resolve) => {

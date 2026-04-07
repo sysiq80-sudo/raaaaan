@@ -22,7 +22,7 @@ const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
   }
 
   return (
-    <div className="rider-premium flex flex-col h-[100dvh] overflow-hidden">
+    <div className="rider-premium flex flex-col h-[100dvh] overflow-hidden safe-area-inset">
       {/* المحتوى الرئيسي — يملأ المساحة المتبقية ويدعم السكرول */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {children}

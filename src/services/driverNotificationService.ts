@@ -219,10 +219,15 @@ export const registerFCMToken = async (driverId: string): Promise<boolean> => {
           }
           resolve(t.value);
         });
-        void PushNotifications.register();
+        PushNotifications.register().catch((e: unknown) => {
+          console.warn('⚠️ PushNotifications.register() failed:', e);
+          resolve(readStoredToken());
+        });
       });
     } else {
-      void PushNotifications.register();
+      PushNotifications.register().catch((e: unknown) => {
+        console.warn('⚠️ PushNotifications.register() failed:', e);
+      });
     }
 
     if (!token) {

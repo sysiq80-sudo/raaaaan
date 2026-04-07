@@ -1566,11 +1566,11 @@ serve(async (req) => {
             console.error(`[telegram] Direct insert also FAILED:`, insertError.message);
           } else {
             token = fallbackToken;
-            console.log(`[telegram] ✅ Fallback token created: ${token}`);
+            console.log(`[telegram] ✅ Fallback token created: ${token?.slice(0, 8)}...`);
           }
         } else {
           token = rpcResult;
-          console.log(`[telegram] ✅ RPC token: ${token}`);
+          console.log(`[telegram] ✅ RPC token: ${token?.slice(0, 8)}...`);
         }
 
         if (token) {

@@ -15,12 +15,21 @@ export interface SupabaseConfig {
   projects: SupabaseProject[];
 }
 
-// الإعدادات الافتراضية للمشروع الحالي — تقرأ من متغيرات البيئة أولاً
+// الإعدادات الافتراضية للمشروع الحالي — تقرأ من متغيرات البيئة فقط
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error(
+    '[Supabase] متغيرات البيئة مفقودة: VITE_SUPABASE_URL و VITE_SUPABASE_PUBLISHABLE_KEY مطلوبة في ملف .env'
+  );
+}
+
 const DEFAULT_PROJECT: SupabaseProject = {
   id: 'default',
   name: 'المشروع الرئيسي',
-  url: import.meta.env.VITE_SUPABASE_URL || 'https://wgolkcztdrwdphwjvqxt.supabase.co',
-  anonKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo',
+  url: SUPABASE_URL,
+  anonKey: SUPABASE_ANON_KEY,
   isDefault: true,
   createdAt: new Date().toISOString(),
 };

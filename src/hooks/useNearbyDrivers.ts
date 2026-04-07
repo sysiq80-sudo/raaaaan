@@ -19,6 +19,7 @@ export const useNearbyDrivers = (
   const [driversError, setDriversError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isCancelled = false;
     let consecutiveErrors = 0;
 
     const fetchNearbyDrivers = async () => {
@@ -35,6 +36,8 @@ export const useNearbyDrivers = (
           .from('available_drivers_safe')
           .select('id, vehicle_type, current_location')
           .not('current_location', 'is', null);
+
+        if (isCancelled) return;
 
         if (error) {
           consecutiveErrors++;
@@ -75,6 +78,7 @@ export const useNearbyDrivers = (
           setNearbyDriverLocations(locations);
         }
       } catch (error) {
+        if (isCancelled) return;
         consecutiveErrors++;
         console.error('Error fetching nearby drivers:', error);
         if (consecutiveErrors >= 3) {
@@ -86,7 +90,10 @@ export const useNearbyDrivers = (
     fetchNearbyDrivers();
     
     const interval = setInterval(fetchNearbyDrivers, 15000);
-    return () => clearInterval(interval);
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
   }, [pickupCoords, selectedVehicle]);
 
   return {

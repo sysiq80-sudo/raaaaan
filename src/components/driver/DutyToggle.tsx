@@ -114,7 +114,7 @@ const DutyToggle = ({
       };
 
   return (
-    <div className="flex flex-row items-center justify-center gap-4 w-full max-w-md mx-auto px-2">
+    <div className="flex flex-col items-center justify-center gap-4 w-full max-w-md mx-auto px-2">
 
       {/* ═══ الزر الرئيسي — يختفي عند وجود رحلة نشطة ═══ */}
       {!hasActiveRide && (

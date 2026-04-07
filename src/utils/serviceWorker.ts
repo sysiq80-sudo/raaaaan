@@ -395,7 +395,7 @@ export const getNotificationAnalytics = async (days: number = 30): Promise<{
 
     // Use URL params for GET-like request
     const response = await fetch(
-      `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/notification-analytics?action=summary&days=${days}`,
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notification-analytics?action=summary&days=${days}`,
       {
         method: 'GET',
         headers: {
@@ -421,7 +421,7 @@ export const getNotificationAnalytics = async (days: number = 30): Promise<{
 export const getAnalyticsByType = async (days: number = 30): Promise<unknown[]> => {
   try {
     const response = await fetch(
-      `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/notification-analytics?action=by_type&days=${days}`,
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notification-analytics?action=by_type&days=${days}`,
       {
         method: 'GET',
         headers: {
@@ -450,7 +450,7 @@ export const getSubscriptionStats = async (): Promise<{
 } | null> => {
   try {
     const response = await fetch(
-      `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/notification-analytics?action=subscription_stats`,
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notification-analytics?action=subscription_stats`,
       {
         method: 'GET',
         headers: {

@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import {
   AlertDialog,
   AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
 } from "@/components/ui/alert-dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -139,6 +141,8 @@ export const CancellationReasonDialog = ({
       }}
     >
       <AlertDialogContent className="max-w-md border border-emerald-500/25 bg-[#070d1a] text-white rounded-3xl p-0 overflow-visible" dir="rtl">
+        <AlertDialogTitle className="sr-only">سبب الإلغاء</AlertDialogTitle>
+        <AlertDialogDescription className="sr-only">مربع حوار لاختيار سبب إلغاء الرحلة الحالي.</AlertDialogDescription>
         <div className="p-4 sm:p-5 space-y-3">
           {/* Header */}
           <div className="flex flex-col items-center gap-2">

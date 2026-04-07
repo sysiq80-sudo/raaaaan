@@ -151,142 +151,14 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
 
   // البحث الأساسي باستخدام AutocompleteSuggestion API الجديد + Cache + Cancellation
   const performSearch = useCallback(
-    async (query: string) => {
-      if (!query.trim() || query.trim().length < 2) {
-        setPredictions([]);
-        return;
-      }
-
-      // Request cancellation ID
-      const currentSearchId = ++searchIdRef.current;
-
-      // ─── تحقق من الكاش أولاً ───
-      const cached = searchCache.get(query, userLocation?.lat, userLocation?.lng);
-      if (cached) {
-        setPredictions(cached.data);
-        if (!cached.isStale) {
-          return; // كاش طازج — لا حاجة لاستدعاء API
-        }
-        // كاش قديم — نعرض الكاش ونحدث بالخلفية
-      }
-
-      if (!apiReadyRef.current) {
-        // أوفلاين أو API غير جاهز
-        setIsOffline(true);
-        if (!cached) setPredictions([]);
-        return;
-      }
-
-      setIsOffline(false);
-      if (!cached) setIsSearching(true);
-      
-      try {
-        // ✨ بحث مع نطاقات متزايدة
-        const radiuses = userLocation ? [5000, 10000, 20000] : [20000];
-        let formattedPredictions: PlacePrediction[] = [];
-
-        // مركز الرمادي الافتراضي للتحيز الجغرافي
-        const ramadiCenter = new google.maps.LatLng(33.4233, 43.2974);
-        
-        for (const radius of radiuses) {
-          if (formattedPredictions.length > 0) break;
-          
-          console.log(`🔍 Search attempt with ${radius / 1000}km radius...`);
-          
-          const request: any = {
-            input: query,
-            language: "ar",
-            sessionToken: sessionTokenRef.current,
-            includedRegionCodes: ["iq"],
-          };
-
-          // تحيز البحث نحو الرمادي — حتى لو لم يتوفر موقع المستخدم
-          const biasCenter = userLocation
-            ? new google.maps.LatLng(userLocation.lat, userLocation.lng)
-            : ramadiCenter;
-          request.locationBias = { center: biasCenter, radius };
-          request.origin = biasCenter;
-
-          const { suggestions } = await google.maps.places.AutocompleteSuggestion
-            .fetchAutocompleteSuggestions(request);
-
-          if (suggestions && suggestions.length > 0) {
-            formattedPredictions = suggestions
-              .filter(s => s.placePrediction)
-              .map((s) => {
-                const pred = s.placePrediction!;
-                const distMeters = pred.distanceMeters ?? undefined;
-                return {
-                  place_id: pred.placeId,
-                  main_text: pred.mainText.text,
-                  secondary_text: pred.secondaryText?.text,
-                  description: pred.text.text,
-                  distance_meters: distMeters,
-                  distance_text: distMeters != null ? formatDistance(distMeters) : undefined,
-                };
-              });
-            
-            console.log(`✅ Found ${formattedPredictions.length} results at ${radius / 1000}km radius`);
-            break;
-          }
-        }
-
-        // فرز وفلترة حسب المسافة (إذا متوفرة من API)
-        if (userLocation && formattedPredictions.length > 0) {
-          // فرز حسب المسافة (الأقرب أولاً)
-          formattedPredictions.sort((a, b) => {
-            const da = a.distance_meters ?? Number.POSITIVE_INFINITY;
-            const db = b.distance_meters ?? Number.POSITIVE_INFINITY;
-            return da - db;
-          });
-
-          // فلترة النتائج البعيدة جداً
-          const hasNearby = formattedPredictions.some(p => (p.distance_meters ?? Infinity) <= 5000);
-          if (hasNearby) {
-            formattedPredictions = formattedPredictions.filter(p => {
-              if ((p.distance_meters ?? Infinity) > 5000) {
-                console.log(`🚫 Filtered out distant result: ${p.main_text} (${p.distance_text})`);
-                return false;
-              }
-              return true;
-            });
-          }
-
-          console.log(`✅ Results after distance sorting:`);
-          formattedPredictions.slice(0, 5).forEach((p, i) => {
-            console.log(`  ${i + 1}. ${p.main_text} - ${p.distance_text ?? 'N/A'}`);
-          });
-        }
-
-        console.log(`✅ Found ${formattedPredictions.length} results (sorted by distance)`);
-        
-        // ─── Cancellation check — تجاهل إذا هناك بحث أحدث ───
-        if (currentSearchId !== searchIdRef.current) return;
-        
-        // ─── حفظ في الكاش ───
-        searchCache.set(query, formattedPredictions, userLocation?.lat, userLocation?.lng);
-        
-        setPredictions(formattedPredictions);
-      } catch (error: any) {
-        console.error("❌ Search error:", error);
-        
-        if (error.message?.includes('REQUEST_DENIED')) {
-          console.error("⚠️ Places API: REQUEST_DENIED - تحقق من Google Cloud Console");
-          toast({
-            title: "⚠️ خطأ في الاتصال",
-            description: "تعذر الاتصال بخدمة البحث، حاول مرة أخرى",
-            variant: "destructive",
-          });
-        } else if (!error.message?.includes('ZERO_RESULTS')) {
-          console.error("⚠️ Unexpected search error:", error.message);
-        }
-        
-        setPredictions([]);
-      } finally {
-        setIsSearching(false);
-      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async (_query: string) => {
+      // 🛑 تم إيقاف الميزة بالكامل بناءً على طلبك لتجنب أي تكاليف إضافية من Google Places API
+      setPredictions([]);
+      return;
     },
-    [userLocation, toast, formatDistance]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   // Adaptive debounce search
@@ -337,53 +209,12 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
 
   // جلب تفاصيل المكان باستخدام Place (New) API
   const getPlaceDetails = useCallback(
-    async (placeId: string): Promise<PlaceDetails | null> => {
-      if (!apiReadyRef.current) {
-        console.error("Places API (New) not ready");
-        return null;
-      }
-
-      setIsLoadingDetails(true);
-      try {
-        const place = new google.maps.places.Place({ id: placeId });
-        await place.fetchFields({
-          fields: ["formattedAddress", "location", "displayName", "id"],
-        });
-
-        if (place.location && place.formattedAddress) {
-          // تجديد session token بعد الاختيار
-          sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
-
-          return {
-            lat: place.location.lat(),
-            lng: place.location.lng(),
-            address: place.formattedAddress,
-            name: place.displayName || "",
-            placeId: place.id || placeId,
-          };
-        }
-        return null;
-      } catch (error: any) {
-        console.error("Error getting place details:", error);
-        
-        let errorMessage = "حدث خطأ أثناء جلب تفاصيل الموقع";
-        
-        if (error.message?.includes('REQUEST_DENIED')) {
-          errorMessage = "API Key غير مصرح له باستخدام Places API";
-          console.error("⚠️ Places Details: REQUEST_DENIED - Check API Restrictions");
-        }
-        
-        toast({
-          title: "خطأ في جلب التفاصيل",
-          description: errorMessage,
-          variant: "destructive",
-        });
-        return null;
-      } finally {
-        setIsLoadingDetails(false);
-      }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async (_placeId: string): Promise<PlaceDetails | null> => {
+      // 🛑 تم إيقاف الميزة لتجنب تكاليف تفاصيل الأماكن
+      return null;
     },
-    [toast]
+    []
   );
 
   // Clear search

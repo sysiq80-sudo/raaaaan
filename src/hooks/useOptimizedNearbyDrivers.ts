@@ -397,7 +397,11 @@ export const useOptimizedNearbyDrivers = (
           setNearbyDriverLocations((prev) => {
             const existing = prev.findIndex((d) => d.id === updatedDriver.id);
             if (existing >= 0) {
-              // Update existing driver's position
+              // تجنب إعادة الرسم إذا نفس الموقع
+              const prevDriver = prev[existing];
+              if (prevDriver.lat === driverData.lat && prevDriver.lng === driverData.lng) {
+                return prev;
+              }
               const updated = [...prev];
               updated[existing] = driverData;
               return updated;

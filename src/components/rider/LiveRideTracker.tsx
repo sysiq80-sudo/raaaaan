@@ -629,28 +629,18 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   }, [ride.driver_id, ride.status, driver?.current_location]);
 
   // Fetch and draw route from driver to pickup
+  // Fetch and draw route from driver to pickup (Optimized to reduce API costs)
   const fetchDriverToPickupRoute = async (driverLocation: {
     lat: number;
     lng: number;
   }) => {
-    if (!map.current || !directionsServiceRef.current || ride.status === "in_progress") return;
+    if (!map.current || ride.status === "in_progress") return;
 
     try {
-      const result = await directionsServiceRef.current.route({
-        origin: driverLocation,
-        destination: ride.pickup_location,
-        travelMode: google.maps.TravelMode.DRIVING,
-      });
-
-      if (result.routes?.[0]) {
-        const path = result.routes[0].overview_path;
-
-        // تحديث أو إنشاء خط مسار السائق (أزرق متقطع)
-        driverRouteRef.current?.setMap(null);
-        driverRouteRef.current = drawPolyline(path, "#3b82f6", 4, 1, true);
-      }
+      // 🛑 بناءً على طلبك، تم إلغاء رسم مَسار السائق والخط المستقيم بالكامل، فقط نظهر السيارة.
+      driverRouteRef.current?.setMap(null);
     } catch (error) {
-      console.error("Error fetching driver route:", error);
+      console.error("Error drawing driver route:", error);
     }
   };
 
@@ -799,24 +789,17 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
   // Calculate ETA using Google Directions
   const calculateETA = async (driverLocation: { lat: number; lng: number }) => {
-    if (!directionsServiceRef.current) return;
-    
     const targetLocation =
       ride.status === "in_progress"
         ? ride.dropoff_location
         : ride.pickup_location;
 
     try {
-      const result = await directionsServiceRef.current.route({
-        origin: driverLocation,
-        destination: targetLocation,
-        travelMode: google.maps.TravelMode.DRIVING,
-      });
-      
-      if (result.routes?.[0]?.legs?.[0]) {
-        const durationSec = result.routes[0].legs[0].duration?.value || 0;
-        setEstimatedArrival(Math.round(durationSec / 60));
-      }
+      // 🚫 STOPPED using Directions API for real-time ETA to prevent massive cost.
+      // Fallback: Haversine distance with assumed 30km/h average city speed (8.33 m/s).
+      const distanceMeters = calculateDistanceMeters(driverLocation, targetLocation);
+      const durationSec = distanceMeters / 8.33; 
+      setEstimatedArrival(Math.max(1, Math.round(durationSec / 60)));
     } catch (error) {
       console.error("Error calculating ETA:", error);
     }

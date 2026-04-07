@@ -114,6 +114,7 @@ const DriverStatistics = () => {
 
   const fetchStatistics = useCallback(async () => {
     if (!driver) return;
+    const driverId = driver.driverId; // إصلاح: كان undefined سابقاً ويسبب خطأ في الاستعلام
     try {
       // Determine date range
       const now = new Date();
@@ -128,7 +129,8 @@ const DriverStatistics = () => {
       }
 
       // Fetch all rides for the driver within the period
-      const { data: rides, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rides, error } = await (supabase as any)
         .from("rides")
         .select("*")
         .eq("driver_id", driverId)
@@ -137,7 +139,7 @@ const DriverStatistics = () => {
 
       if (error) throw error;
 
-      if (rides && rides.length > 0) {
+      if (rides && (rides as unknown[]).length > 0) {
         processRidesData(rides as RideData[], startDate, now);
       } else {
         // Reset stats if no rides

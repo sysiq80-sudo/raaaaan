@@ -7,6 +7,7 @@
 import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { swInjectPlugin } from "./vite-sw-plugin";
 
 function htmlEntryPlugin(entryHtml: string): Plugin {
   return {
@@ -34,7 +35,7 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8084,
   },
-  plugins: [react(), htmlEntryPlugin("car.html")],
+  plugins: [react(), htmlEntryPlugin("car.html"), swInjectPlugin()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

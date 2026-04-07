@@ -14,10 +14,11 @@ import { RaanThemeProvider } from "@/contexts/RaanThemeContext";
 import SplashScreen from "@/components/SplashScreen";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import DevInspector from "@/components/DevInspector";
-import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
 import RiderNotificationBootstrap from "@/components/rider/RiderNotificationBootstrap";
 import { isNativePlatform } from "@/lib/capacitorBridge";
 import { capacitorStorageSync } from "@/lib/capacitorStorage";
+import { useForceUpdate } from "@/hooks/useForceUpdate";
+import { ForceUpdateScreen } from "@/components/ForceUpdateScreen";
 
 // صفحات أساسية
 import Auth from "@/pages/Auth";
@@ -66,7 +67,6 @@ const RiderApp = () => {
           <AuthProvider>
             <Sonner />
             <ConnectionStatus />
-            <PWAInstallPrompt />
             <RiderNotificationBootstrap />
             {isNativePlatform ? (
               <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -94,6 +94,7 @@ const RiderApp = () => {
 const RiderRoutes = () => {
   const { user, isLoading, isOnboardingComplete } = useAuth();
   const [minSplashDone, setMinSplashDone] = useState(false);
+  const { updateRequired, currentVersion, minVersion } = useForceUpdate();
 
   // ✅ فرض دور الراكب فوراً لمنع توجيه خاطئ إلى /driver
   useEffect(() => {
@@ -114,6 +115,8 @@ const RiderRoutes = () => {
   }, []);
 
   if (isLoading || !minSplashDone) return <LoadingFallback />;
+
+  if (updateRequired) return <ForceUpdateScreen currentVersion={currentVersion} minVersion={minVersion} />;
 
   if (!user) {
     return (

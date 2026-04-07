@@ -14,15 +14,15 @@ import { RaanThemeProvider } from "@/contexts/RaanThemeContext";
 import SplashScreen from "@/components/SplashScreen";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import DevInspector from "@/components/DevInspector";
-import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
 import { isNativePlatform } from "@/lib/capacitorBridge";
 import { capacitorStorageSync } from "@/lib/capacitorStorage";
+import { useForceUpdate } from "@/hooks/useForceUpdate";
+import { ForceUpdateScreen } from "@/components/ForceUpdateScreen";
 
 // صفحات أساسية
 import NotFound from "@/pages/NotFound";
 import DriverHome from "@/pages/driver/DriverHome";
 import DriverAuth from "@/pages/driver/DriverAuth";
-import { preloadGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 
 // صفحات عامة
 const Onboarding = lazy(() => import("@/pages/Onboarding"));
@@ -69,7 +69,6 @@ const DriverApp = () => {
           <AuthProvider>
             <Sonner />
             <ConnectionStatus />
-            <PWAInstallPrompt />
             {isNativePlatform ? (
               <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                 <Suspense fallback={<LoadingFallback />}>
@@ -96,6 +95,7 @@ const DriverApp = () => {
 const DriverRoutes = () => {
   const { user, isLoading, isOnboardingComplete } = useAuth();
   const [minSplashDone, setMinSplashDone] = useState(false);
+  const { updateRequired, currentVersion, minVersion } = useForceUpdate();
 
   // ✅ فرض دور السائق فوراً لمنع توجيه خاطئ إلى /rider
   useEffect(() => {
@@ -107,13 +107,6 @@ const DriverRoutes = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // تحميل مسبق لمفتاح Google Maps عند تسجيل الدخول
-  useEffect(() => {
-    if (user) {
-      preloadGoogleMapsApiKey();
-    }
-  }, [user]);
-
   useEffect(() => {
     const timer = setTimeout(() => {
       import("@/pages/driver/DriverRides");
@@ -123,6 +116,8 @@ const DriverRoutes = () => {
   }, []);
 
   if (isLoading || !minSplashDone) return <LoadingFallback />;
+
+  if (updateRequired) return <ForceUpdateScreen currentVersion={currentVersion} minVersion={minVersion} />;
 
   if (!user) {
     return (

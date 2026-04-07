@@ -1093,17 +1093,16 @@ export const RideWaitingScreen = ({
       </div>
 
       {/* زر الإلغاء */}
-      <div className="flex w-full mt-auto shrink-0 bg-[#0b1326]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
+      <div className="flex w-full mt-auto shrink-0 bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
         <button
           onClick={handleCancelClick}
           disabled={cancelling}
-          className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-[17px] font-black transition-all disabled:opacity-40 shadow-[0_-4px_24px_rgba(185,28,28,0.3)] touch-manipulation active:scale-[0.98]"
-          style={{ background: "linear-gradient(135deg, #b91c1c, #991b1b)", color: "#ffffff" }}
+          className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-bold text-emerald-300 bg-[#0f2922] hover:bg-[#163d30] transition-colors disabled:opacity-50 touch-manipulation border-t border-emerald-500/20 active:scale-[0.98]"
         >
           {cancelling ? (
-            <><Loader2 className="w-6 h-6 animate-spin ml-1" />جاري الإلغاء...</>
+            <><Loader2 className="w-6 h-6 animate-spin ml-1 text-emerald-400" />جاري الإلغاء...</>
           ) : (
-            <><X className="w-6 h-6 ml-1" />إلغاء الطلب</>
+            <><X className="w-5 h-5 ml-1 text-emerald-400" />إلغاء الطلب</>
           )}
         </button>
       </div>

@@ -162,7 +162,8 @@ const RiderSavedPlacesPage: React.FC = () => {
 
       const { latitude, longitude } = position.coords;
 
-      // Reverse geocode using Supabase function
+      // تم إيقاف طلب الـ Reverse Geocoding لتجنب تكاليف API المكانية
+      /*
       const { data, error } = await supabase.functions.invoke("search-places", {
         body: {
           action: "reverse",
@@ -172,6 +173,9 @@ const RiderSavedPlacesPage: React.FC = () => {
       });
 
       if (error) throw error;
+      */
+      
+      const data: any = null;
 
       const address =
         data?.address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
@@ -196,40 +200,11 @@ const RiderSavedPlacesPage: React.FC = () => {
   }, [toast]);
 
   // Search for places
-  const searchPlaces = useCallback(async (query: string) => {
-    if (!query || query.length < 2) {
-      setSearchResults([]);
-      setShowSearchResults(false);
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("search-places", {
-        body: {
-          query,
-          lat: 33.3, // Default Iraq coordinates
-          lng: 44.4,
-        },
-      });
-
-      if (error) throw error;
-
-      const results: SearchResult[] = (data?.results || []).map((r: any) => ({
-        id: r.id || Math.random().toString(),
-        name: r.name || r.address,
-        address: r.address || r.name,
-        lat: r.lat,
-        lng: r.lng,
-      }));
-
-      setSearchResults(results);
-      setShowSearchResults(true);
-    } catch (error) {
-      console.error("Search error:", error);
-    } finally {
-      setIsSearching(false);
-    }
+  const searchPlaces = useCallback(async (_query: string) => {
+    // 🛑 تم إيقاف ميزة البحث لتجنب تكاليف API
+    setSearchResults([]);
+    setShowSearchResults(false);
+    return;
   }, []);
 
   // Handle search input change with debounce
@@ -794,4 +769,54 @@ const RiderSavedPlacesPage: React.FC = () => {
   );
 };
 
+
+
 export default RiderSavedPlacesPage;
+
+/*
+// TODO: Future Implementation (moved from AIVoiceHome)
+// This slider component was removed from AIVoiceHome.tsx and should be integrated here or reconstructed:
+      {/* ══════════════════════════════════════
+         سلايدر المواقع المحفوظة
+         ══════════════════════════════════════ *\/}
+      {normalizedFavorites.length > 0 && (
+        <motion.div
+          className="relative z-10 w-full max-w-none mx-auto px-4 pb-3"
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.34 }}
+        >
+          <div className="mb-2 px-1 text-[11px] text-[#5bdda6]/75 text-center">
+            اسحب يمين ويسار واختر المكان المناسب
+          </div>
+
+          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 px-0.5 scrollbar-hide">
+            {normalizedFavorites.map((fav, index) => (
+              <motion.div
+                key={fav.id}
+                className="min-w-[280px] w-[280px] flex-shrink-0 snap-center rounded-3xl border border-[#5bdda6]/20 bg-[#0f1a2e]/75 backdrop-blur-xl px-4 py-4 shadow-[0_8px_30px_rgba(0,0,0,0.35)]"
+              >
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-2xl border border-[#5bdda6]/35 bg-[#5bdda6]/15 text-[#5bdda6] flex items-center justify-center">
+                    {FAV_ICON_MAP[fav.icon || 'other']}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white font-extrabold text-base leading-tight truncate">
+                      {fav.name || FAV_NAMES[fav.icon || 'other']}
+                    </p>
+                    <p className="text-white/50 text-xs truncate mt-1">
+                      {fav.address}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  className="w-full h-10 rounded-xl bg-[#5bdda6] text-[#071321] text-sm font-black hover:bg-[#4ed19b] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                  <span>الوصول إلى {fav.name || FAV_NAMES[fav.icon || 'other']}</span>
+                </button>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+*/

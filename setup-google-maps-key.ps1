@@ -5,7 +5,7 @@ Write-Host "   Google Maps API Key Setup" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-$API_KEY = "AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk"
+$API_KEY = "YOUR_GOOGLE_MAPS_API_KEY"
 $SUPABASE_URL = "https://wgolkcztdrwdphwjvqxt.supabase.co"
 
 Write-Host "API Key: " -NoNewline -ForegroundColor Yellow

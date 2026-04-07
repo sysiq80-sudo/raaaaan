@@ -34,7 +34,7 @@
 # 1. اذهب إلى Google Cloud Console:
 # https://console.cloud.google.com/apis/credentials
 
-# 2. ابحث عن مفتاح API: AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk
+# 2. ابحث عن مفتاح API: YOUR_GOOGLE_MAPS_API_KEY
 
 # 3. في قسم "Application restrictions":
 #    - غير من "HTTP referrers" إلى "None" (للتطوير فقط)
@@ -98,7 +98,7 @@ Please use google.maps.places.Place instead.
 ### الطريقة الأسرع (للتطوير الفوري):
 
 1. **اذهب إلى:** [Google Cloud Console - API Credentials](https://console.cloud.google.com/apis/credentials)
-2. **ابحث عن المفتاح:** `AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk`
+2. **ابحث عن المفتاح:** `YOUR_GOOGLE_MAPS_API_KEY`
 3. **في "Application restrictions":**
    - غير من "HTTP referrers" إلى **"None"**
    - هذا يسمح بأي referrer (غير آمن للإنتاج لكن جيد للتطوير)

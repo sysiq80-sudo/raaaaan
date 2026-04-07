@@ -85,105 +85,52 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (isAdmin) {
-      // تحميل الإحصائيات على دفعتين: الأساسية أولاً ثم التفصيلية
-      fetchCriticalStats().then(() => fetchDetailStats());
+      fetchDashboardStats();
       fetchRecentActivity();
     }
   }, [isAdmin]);
 
-  // الدفعة الأولى: الإحصائيات الأساسية (5 استعلامات فقط)
-  const fetchCriticalStats = async () => {
-    try {
-      const today = new Date();
-      const todayStart = startOfDay(today).toISOString();
-
-      const [
-        ridesResult,
-        activeDriversResult,
-        activeRidesResult,
-        todayRidesResult,
-        todayEarningsResult,
-      ] = await Promise.all([
-        supabase.from("rides").select("id", { count: "exact", head: true }),
-        supabase.from("drivers").select("id", { count: "exact", head: true }).eq("is_online", true),
-        supabase.from("rides").select("id", { count: "exact", head: true }).in("status", ["pending", "accepted", "arrived", "in_progress"]),
-        supabase.from("rides").select("id", { count: "exact", head: true }).gte("created_at", todayStart),
-        supabase.from("rides").select("final_fare").eq("status", "completed").gte("created_at", todayStart),
-      ]);
-
-      const todayEarnings = todayEarningsResult.data?.reduce((sum, ride) => sum + (ride.final_fare || 0), 0) || 0;
-
-      setStats(prev => ({
-        ...prev,
-        totalRides: ridesResult.count || 0,
-        activeDrivers: activeDriversResult.count || 0,
-        activeRides: activeRidesResult.count || 0,
-        todayRides: todayRidesResult.count || 0,
-        todayEarnings,
-      }));
-    } catch (error) {
-      console.error("Error fetching critical stats:", error);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
-
-  // الدفعة الثانية: الإحصائيات التفصيلية (11 استعلام)
-  const fetchDetailStats = async () => {
+  const fetchDashboardStats = async () => {
     try {
       const today = new Date();
       const todayStart = startOfDay(today).toISOString();
       const weekAgo = subDays(today, 7);
       const weekAgoStart = startOfDay(weekAgo).toISOString();
 
-      const [
-        pendingDriversResult,
-        usersResult,
-        completedRidesResult,
-        cancelledRidesResult,
-        incentivesResult,
-        totalDriversResult,
-        driverRatingsResult,
-        weeklyRidesResult,
-        weeklyEarningsResult,
-        regionsResult,
-        landmarksResult,
-      ] = await Promise.all([
-        supabase.from("drivers").select("id", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("profiles").select("id", { count: "exact", head: true }),
-        supabase.from("rides").select("id", { count: "exact", head: true }).eq("status", "completed"),
-        supabase.from("rides").select("id", { count: "exact", head: true }).eq("status", "cancelled"),
-        supabase.from("driver_incentive_claims").select("bonus_earned"),
-        supabase.from("drivers").select("id", { count: "exact", head: true }),
-        supabase.from("drivers").select("rating").not("rating", "is", null),
-        supabase.from("rides").select("id", { count: "exact", head: true }).gte("created_at", weekAgoStart),
-        supabase.from("rides").select("final_fare").eq("status", "completed").gte("created_at", weekAgoStart),
-        supabase.from("regions").select("id", { count: "exact", head: true }).eq("is_active", true),
-        supabase.from("landmarks").select("id", { count: "exact", head: true }).eq("is_active", true),
-      ]);
+      const { data, error } = await supabase.rpc("get_admin_dashboard_stats", {
+        p_today_start: todayStart,
+        p_week_ago_start: weekAgoStart,
+      });
 
-      const totalIncentives = incentivesResult.data?.reduce((sum, claim) => sum + (claim.bonus_earned || 0), 0) || 0;
-      const avgRating = driverRatingsResult.data?.length 
-        ? driverRatingsResult.data.reduce((sum, d) => sum + (Number(d.rating) || 0), 0) / driverRatingsResult.data.length 
-        : 0;
-      const weeklyEarnings = weeklyEarningsResult.data?.reduce((sum, ride) => sum + (ride.final_fare || 0), 0) || 0;
+      if (error) {
+        console.error("RPC Error fetching admin stats:", error);
+        return;
+      }
 
-      setStats(prev => ({
-        ...prev,
-        pendingDrivers: pendingDriversResult.count || 0,
-        totalUsers: usersResult.count || 0,
-        completedRides: completedRidesResult.count || 0,
-        cancelledRides: cancelledRidesResult.count || 0,
-        totalIncentivesPaid: totalIncentives,
-        totalDrivers: totalDriversResult.count || 0,
-        avgDriverRating: avgRating,
-        weeklyRides: weeklyRidesResult.count || 0,
-        weeklyEarnings,
-        regionsCount: regionsResult.count || 0,
-        landmarksCount: landmarksResult.count || 0,
-      }));
+      if (data) {
+        setStats({
+          totalRides: data.totalRides || 0,
+          activeDrivers: data.activeDrivers || 0,
+          pendingDrivers: data.pendingDrivers || 0,
+          todayEarnings: data.todayEarnings || 0,
+          totalUsers: data.totalUsers || 0,
+          activeRides: data.activeRides || 0,
+          completedRides: data.completedRides || 0,
+          cancelledRides: data.cancelledRides || 0,
+          totalIncentivesPaid: data.totalIncentivesPaid || 0,
+          totalDrivers: data.totalDrivers || 0,
+          avgDriverRating: data.avgDriverRating || 0,
+          weeklyRides: data.weeklyRides || 0,
+          weeklyEarnings: data.weeklyEarnings || 0,
+          todayRides: data.todayRides || 0,
+          regionsCount: data.regionsCount || 0,
+          landmarksCount: data.landmarksCount || 0,
+        });
+      }
     } catch (error) {
-      console.error("Error fetching detail stats:", error);
+      console.error("Error fetching dashboard stats:", error);
+    } finally {
+      setStatsLoading(false);
     }
   };
 

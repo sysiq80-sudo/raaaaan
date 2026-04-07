@@ -179,7 +179,7 @@ const LocationSearchInput = forwardRef<
         }
 
         const response = await fetch(
-          `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/search-places?${params}`,
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-places?${params}`,
           { headers: { "Content-Type": "application/json" } }
         );
 
@@ -235,7 +235,7 @@ const LocationSearchInput = forwardRef<
       setIsLoading(true);
       try {
         const response = await fetch(
-          `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=reverse-geocode&lat=${lat}&lng=${lng}`,
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mapbox-proxy?action=reverse-geocode&lat=${lat}&lng=${lng}`,
           { headers: { "Content-Type": "application/json" } }
         );
 
@@ -271,7 +271,7 @@ const LocationSearchInput = forwardRef<
     const checkServiceArea = async (lat: number, lng: number) => {
       try {
         const response = await fetch(
-          `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/check-service-area?lat=${lat}&lng=${lng}`
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-service-area?lat=${lat}&lng=${lng}`
         );
         return await response.json();
       } catch {

@@ -85,6 +85,8 @@ export const useFareCalculation = (
       clearTimeout(timeoutRef.current);
     }
 
+    let isCancelled = false;
+
     const calculateFare = async () => {
       // ⚠️ Early return if missing coordinates
       if (!pickupCoords || !dropoffCoords) {
@@ -160,6 +162,8 @@ export const useFareCalculation = (
 
         const data = await Promise.race([invokePromise, timeoutPromise]);
         
+        if (isCancelled) return;
+
         if (data) {
           setFareBreakdown(data);
           lastSuccessfulFareRef.current = data as FareBreakdown;
@@ -187,6 +191,7 @@ export const useFareCalculation = (
 
     // Cleanup on unmount
     return () => {
+      isCancelled = true;
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }

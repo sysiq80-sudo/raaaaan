@@ -21,7 +21,12 @@ export const useRiderFCMRegistration = (userId: string | null) => {
 
         // Always request fresh registration from OS/Firebase.
         // Cached tokens in localStorage can become stale and get cleaned as expired.
-        await PushNotifications.register();
+        try {
+          await PushNotifications.register();
+        } catch (regErr) {
+          console.warn('⚠️ PushNotifications.register() failed:', regErr);
+          return;
+        }
 
         const token = await new Promise<string | null>((resolve) => {
           const timeout = setTimeout(() => {

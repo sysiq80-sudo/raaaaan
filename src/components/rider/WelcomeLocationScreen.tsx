@@ -220,7 +220,7 @@ const WelcomeLocationScreen = ({
         params.append('lng', userLocation.lng.toString());
         params.append('lat', userLocation.lat.toString());
       }
-      const response = await fetch(`https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/search-places?${params}`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-places?${params}`, {
         headers: {
           'Content-Type': 'application/json'
         }

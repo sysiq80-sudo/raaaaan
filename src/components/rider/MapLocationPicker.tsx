@@ -129,7 +129,7 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
     try {
       setIsCheckingService(true);
       const response = await fetch(
-        `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/check-service-area?lat=${lat}&lng=${lng}`
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-service-area?lat=${lat}&lng=${lng}`
       );
       const data = await response.json();
       setServiceAreaStatus(data);

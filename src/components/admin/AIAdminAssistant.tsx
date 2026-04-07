@@ -119,7 +119,7 @@ const AIAdminAssistant = () => {
 
             // Call Edge Function
             const response = await fetch(
-                `${import.meta.env.VITE_SUPABASE_URL || "https://wgolkcztdrwdphwjvqxt.supabase.co"}/functions/v1/super-function`,
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/super-function`,
                 {
                     method: "POST",
                     headers: {

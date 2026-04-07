@@ -95,7 +95,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="h-[100dvh] bg-background flex flex-col overflow-hidden"
+      className="fixed inset-0 z-50 bg-background flex flex-col overflow-hidden touch-none overscroll-none"
     >
       {/* Offline status indicator */}
       {!isOnline && (
@@ -154,32 +154,6 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
           </div>
         </header>
 
-        {/* Route quick stats under header */}
-        <div className={`absolute left-0 right-0 z-40 px-4 pointer-events-none ${!isOnline ? "top-24" : "top-16"}`}>
-          <div className="flex items-center justify-center">
-            <motion.div
-              initial={{ y: -10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.15 }}
-              className="bg-card/80 backdrop-blur-xl rounded-md px-3 py-2 flex items-center gap-3 shadow-lg border border-white/10"
-            >
-              <div className="flex items-center gap-1.5">
-                <Navigation className="w-3.5 h-3.5 text-primary" />
-                <span className="text-sm font-bold">
-                  {routeDistance ? `${routeDistance.toFixed(1)} كم` : "---"}
-                </span>
-              </div>
-              <div className="w-px h-4 bg-border/30" />
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" style={{ color: '#2A6CD5' }} />
-                <span className="text-sm font-bold">
-                  {routeDuration ? `${Math.round(routeDuration)} د` : "---"}
-                </span>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-
       {/* Map - Top 40% */}
       <div className="h-[40%] relative bg-[#1a1a1a]">
         <div ref={bookingMapContainerRef} className="absolute inset-0 bg-[#212121]" />
@@ -202,64 +176,73 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
         </div>
 
         <div className="flex-1 flex flex-col px-3 gap-2 min-h-0 pb-1 overflow-y-auto">
-          {/* Route summary */}
+          {/* Route summary — Premium Dark Luxury Design */}
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="bg-card rounded-2xl p-4 border border-border/30 shadow-sm"
+            className="relative bg-[#101a2c]/80 backdrop-blur-xl rounded-2xl p-4 border border-white/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.5)] overflow-hidden"
           >
-            <div className="flex gap-3">
-              <div className="flex flex-col items-center gap-0">
-                <div className="w-3 h-3 rounded-full bg-primary ring-4 ring-primary/20" />
-                <div
-                  className="w-0.5 flex-1 min-h-[32px]"
-                  style={{ background: 'linear-gradient(to bottom, hsl(var(--primary)), hsl(var(--muted)), #2A6CD5)' }}
-                />
-                <div
-                  className="w-3 h-3 rounded-full ring-4"
-                  style={{ backgroundColor: '#2A6CD5', '--tw-ring-color': 'rgba(42, 108, 213, 0.2)' } as any}
-                />
+            {/* الخلفية المضيئة بلمسة خفيفة */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#5bdda6]/5 rounded-full blur-[40px] -z-10 -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#0ea5e9]/5 rounded-full blur-[40px] -z-10 translate-y-1/2 -translate-x-1/2" />
+
+            <div className="flex gap-3 w-full items-center">
+              {/* الخط العمودي والدوائر الزرقاء/الخضراء */}
+              <div className="flex flex-col items-center gap-1.5 shrink-0">
+                <div className="w-3.5 h-3.5 rounded-full bg-[#5bdda6] shadow-[0_0_12px_rgba(91,221,166,0.6)] border-[2.5px] border-[#0b1326] relative z-10">
+                  <div className="absolute inset-0 rounded-full animate-ping opacity-40 bg-[#5bdda6]" style={{ animationDuration: '2.5s' }} />
+                </div>
+                <div className="w-[2px] h-9 bg-gradient-to-b from-[#5bdda6]/60 via-slate-600/30 to-[#0ea5e9]/60 rounded-full my-0.5" />
+                <div className="w-3.5 h-3.5 rounded-full bg-[#0ea5e9] shadow-[0_0_12px_rgba(14,165,233,0.6)] border-[2.5px] border-[#0b1326] relative z-10" />
               </div>
-              <div className="flex-1 space-y-4">
-                <div className="min-h-[32px]">
+
+              {/* تفاصيل المواقع */}
+              <div className="flex-1 space-y-4 min-w-0 pr-1">
+                {/* الانطلاق */}
+                <div className="relative group">
                   <div className="flex items-center justify-between mb-0.5">
-                    <p className="text-[10px] uppercase tracking-wider text-primary font-bold">موقع الانطلاق</p>
+                    <p className="text-[10px] uppercase tracking-widest text-[#5bdda6]/80 font-bold">موقع الانطلاق</p>
                     <button
                       onClick={() => onEditLocation("pickup")}
-                      className="text-sm font-bold text-primary hover:text-primary/80 transition-colors"
+                      className="px-2.5 py-1 text-[9px] font-bold tracking-wider rounded-lg bg-white/[0.04] hover:bg-[#5bdda6]/10 text-white/50 hover:text-[#5bdda6] transition-colors border border-white/[0.06] hover:border-[#5bdda6]/20 shadow-sm"
                       aria-label="تغيير موقع الانطلاق"
                     >
                       تغيير
                     </button>
                   </div>
-                  <p className="text-sm font-semibold text-foreground line-clamp-1">
+                  <p className="text-[14px] font-bold text-white/95 line-clamp-1 leading-snug drop-shadow-sm pr-1">
                     {buildDescriptiveAddress(pickupLocation.address || "")}
                   </p>
                 </div>
-                <div>
+                
+                {/* الوجهة */}
+                <div className="relative group">
                   <div className="flex items-center justify-between mb-0.5">
-                    <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: '#2A6CD5' }}>الوجهة</p>
+                    <p className="text-[10px] uppercase tracking-widest text-[#0ea5e9]/80 font-bold">الوجهة</p>
                     <button
                       onClick={() => onEditLocation("dropoff")}
-                      className="text-sm font-bold hover:opacity-80 transition-opacity"
-                      style={{ color: '#2A6CD5' }}
+                      className="px-2.5 py-1 text-[9px] font-bold tracking-wider rounded-lg bg-white/[0.04] hover:bg-[#0ea5e9]/10 text-white/50 hover:text-[#0ea5e9] transition-colors border border-white/[0.06] hover:border-[#0ea5e9]/20 shadow-sm"
                       aria-label="تغيير الوجهة"
                     >
                       تغيير
                     </button>
                   </div>
-                  <p className="text-sm font-semibold text-foreground line-clamp-1">
+                  <p className="text-[14px] font-bold text-white/95 line-clamp-1 leading-snug drop-shadow-sm pr-1">
                     {buildDescriptiveAddress(dropoffLocation.address || "")}
                   </p>
                 </div>
               </div>
-              <button
-                onClick={onSwapLocations}
-                className="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-all duration-200 active:scale-95 shrink-0"
-                aria-label="عكس الاتجاه"
-              >
-                <ArrowUpDown className="w-5 h-5 text-primary" />
-              </button>
+
+              {/* زر العكس */}
+              <div className="shrink-0 flex items-center justify-center pl-1">
+                <button
+                  onClick={onSwapLocations}
+                  className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] hover:border-white/[0.15] flex items-center justify-center transition-all duration-200 active:scale-95 group shadow-inner"
+                  aria-label="عكس الاتجاه"
+                >
+                  <ArrowUpDown className="w-4.5 h-4.5 text-white/40 group-hover:text-white transition-colors" />
+                </button>
+              </div>
             </div>
           </motion.div>
 
@@ -327,89 +310,89 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
 
         {/* Book button */}
         {!bottomNavEnabled && (
-          <button
-            onClick={() => {
-              if (isBooking) return;
-              if (fareLoading) {
-                toast({
-                  title: "جاري حساب المسار ⏳",
-                  description: "يرجى الانتظار لحظة بينما نقوم بتهيئة رحلتك",
-                });
-                return;
-              }
-              if (!fareBreakdown) {
-                toast({
-                  title: "عذراً، تعذر الحجز 😔",
-                  description: "النقطة المحددة خارج منطقة التغطية أو المسافة بعيدة جداً",
-                  variant: "destructive"
-                });
-                return;
-              }
-              onBookRide();
-            }}
-            className={`w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold active:brightness-90 transition-all shrink-0 ${
-              (!fareBreakdown || isBooking) ? 'opacity-50' : 'hover:bg-primary/95'
-            }`}
-            style={{ borderRadius: 0 }}
-          >
-            {isBooking ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>جاري إنشاء الحجز...</span>
-              </>
-            ) : (
-              <>
-                <Navigation className="w-5 h-5" />
-                <span>احجز الآن</span>
-                <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold flex items-center gap-1">
-                  {fareLoading && <Loader2 className="w-3 h-3 animate-spin opacity-70" />}
-                  {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع
-                </span>
-              </>
-            )}
-          </button>
+          <div className="flex w-full mt-auto shrink-0 z-[100] bg-[#163d30]" style={{ paddingBottom: "max(env(safe-area-inset-bottom, 32px), 32px)" }}>
+            <button
+              onClick={() => {
+                if (isBooking) return;
+                if (fareLoading) {
+                  toast({
+                    title: "جاري حساب المسار ⏳",
+                    description: "يرجى الانتظار لحظة",
+                  });
+                  return;
+                }
+                if (!fareBreakdown) {
+                  toast({
+                    title: "عذراً، تعذر الحجز 😔",
+                    description: "النقطة المحددة خارج التغطية",
+                    variant: "destructive"
+                  });
+                  return;
+                }
+                onBookRide();
+              }}
+              disabled={(!fareBreakdown || isBooking)}
+              style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+              className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation active:scale-[0.98] transition-colors disabled:opacity-50 border-t border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]`}
+            >
+              {isBooking ? (
+                <>
+                  <Loader2 className="w-6 h-6 animate-spin text-[#064e3b]" />
+                  <span>جاري إنشاء الحجز...</span>
+                </>
+              ) : (
+                <>
+                  <Navigation className="w-5 h-5 ml-1" />
+                  <span>احجز الآن</span>
+                  <span className="bg-[#0b1326]/10 border border-[#0b1326]/10 px-3 py-1 rounded-xl text-base font-black flex items-center gap-1 shadow-sm mr-2">
+                    {fareLoading && <Loader2 className="w-4 h-4 animate-spin opacity-70" />}
+                    {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
         )}
       </div>
 
       {/* Bottom nav book button */}
       {bottomNavEnabled && (
-        <div className="fixed bottom-16 left-0 right-0 z-50">
+        <div className="absolute bottom-0 left-0 right-0 w-full flex z-[100] bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
           <button
             onClick={() => {
               if (isBooking) return;
               if (fareLoading) {
                 toast({
                   title: "جاري حساب المسار ⏳",
-                  description: "يرجى الانتظار لحظة بينما نقوم بتهيئة رحلتك",
+                  description: "يرجى الانتظار لحظة",
                 });
                 return;
               }
               if (!fareBreakdown) {
                 toast({
                   title: "عذراً، تعذر الحجز 😔",
-                  description: "النقطة المحددة خارج منطقة التغطية أو المسافة بعيدة جداً",
+                  description: "النقطة المحددة خارج التغطية",
                   variant: "destructive"
                 });
                 return;
               }
               onBookRide();
             }}
-            className={`w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold active:brightness-90 transition-all ${
-              (!fareBreakdown || isBooking) ? 'opacity-50' : 'hover:bg-primary/95'
-            }`}
-            style={{ borderRadius: 0 }}
+            disabled={(!fareBreakdown || isBooking)}
+            style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+            className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation active:scale-[0.98] transition-colors disabled:opacity-50 border-t border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]`}
           >
             {isBooking ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-6 h-6 animate-spin text-[#064e3b]" />
                 <span>جاري إنشاء الحجز...</span>
               </>
             ) : (
               <>
-                <Navigation className="w-5 h-5" />
+                <Navigation className="w-5 h-5 ml-1" />
                 <span>احجز الآن</span>
-                <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold flex items-center gap-1">
-                  {fareLoading && <Loader2 className="w-3 h-3 animate-spin opacity-70" />}
+                <span className="bg-[#0b1326]/10 border border-[#0b1326]/10 px-3 py-1 rounded-xl text-base font-black flex items-center gap-1 shadow-sm mr-2">
+                  {fareLoading && <Loader2 className="w-4 h-4 animate-spin opacity-70" />}
                   {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع
                 </span>
               </>

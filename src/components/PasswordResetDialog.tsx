@@ -65,8 +65,8 @@ const PasswordResetDialog = ({ open, onOpenChange, userType }: PasswordResetDial
     e.preventDefault();
     setErrors({});
 
-    if (!newPassword || newPassword.length < 6) {
-      setErrors({ newPassword: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' });
+    if (!newPassword || newPassword.length < 8) {
+      setErrors({ newPassword: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' });
       return;
     }
 
@@ -193,7 +193,7 @@ const PasswordResetDialog = ({ open, onOpenChange, userType }: PasswordResetDial
                     onChange={(e) => setNewPassword(e.target.value)}
                     className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-[15px] focus-visible:ring-0 w-full text-center ${errors.newPassword ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
                     required
-                    minLength={6}
+                    minLength={8}
                     dir="ltr"
                   />
                 </div>
@@ -213,7 +213,7 @@ const PasswordResetDialog = ({ open, onOpenChange, userType }: PasswordResetDial
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-[15px] focus-visible:ring-0 w-full text-center ${errors.confirmPassword ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
                     required
-                    minLength={6}
+                    minLength={8}
                     dir="ltr"
                   />
                 </div>

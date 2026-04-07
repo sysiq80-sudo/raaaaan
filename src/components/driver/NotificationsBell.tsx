@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Check, Trash2, Gift, AlertCircle, Info, Car, X, CheckCheck, Trash, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -24,20 +25,19 @@ interface NotificationsBellProps {
   onToggle?: () => void;
 }
 
-const getNotificationIcon = (type: string) => {
+const getNotificationIconConfig = (type: string) => {
   switch (type) {
     case 'bonus':
-      return <Gift className="h-4 w-4 text-yellow-500" />;
+      return { icon: Gift, color: "text-amber-400", bg: "bg-amber-400/10", border: "border-amber-400/20" };
     case 'ride':
     case 'ride_completed':
-      return <Car className="h-4 w-4 text-blue-500" />;
+      return { icon: Car, color: "text-[#5bdda6]", bg: "bg-[#5bdda6]/10", border: "border-[#5bdda6]/20" };
     case 'ride_cancelled':
-      return <AlertCircle className="h-4 w-4 text-red-500" />;
     case 'alert':
     case 'application_rejected':
-      return <AlertCircle className="h-4 w-4 text-red-500" />;
+      return { icon: AlertCircle, color: "text-rose-400", bg: "bg-rose-400/10", border: "border-rose-400/20" };
     default:
-      return <Info className="h-4 w-4 text-muted-foreground" />;
+      return { icon: Info, color: "text-sky-400", bg: "bg-sky-400/10", border: "border-sky-400/20" };
   }
 };
 
@@ -285,145 +285,157 @@ export function NotificationsBell({ driverId, isOpen: externalOpen, onToggle }: 
         )}
       </button>
 
-      {/* Side Panel — slides from LEFT (Portal to escape header stacking context) */}
-      {isOpen && createPortal(
-        <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm" onClick={handleClose}>
-          <div
-            className="absolute top-0 left-0 h-full w-80 bg-card shadow-xl animate-slide-in-left overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <Bell className="h-5 w-5 text-primary" />
-                <h4 className="font-bold text-lg">الإشعارات</h4>
-                {unreadCount > 0 && (
-                  <span className="min-w-[20px] h-5 bg-red-500 text-white font-bold rounded-full text-[11px] flex items-center justify-center px-1.5">
-                    {unreadCount}
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={handleClose}
-                className="p-2 rounded-full hover:bg-accent transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Action Buttons — قراءة الكل + حذف الكل */}
-            {notifications.length > 0 && (
-              <div className="px-3 py-2 border-b border-border flex-shrink-0 flex items-center gap-2">
-                {unreadCount > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-8 flex-1 gap-1.5"
-                    onClick={markAllAsRead}
-                    disabled={actionLoading === 'all-read'}
-                  >
-                    {actionLoading === 'all-read' ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <CheckCheck className="h-3.5 w-3.5" />
-                    )}
-                    قراءة الكل
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs h-8 flex-1 gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
-                  onClick={deleteAllNotifications}
-                  disabled={actionLoading === 'all-delete'}
-                >
-                  {actionLoading === 'all-delete' ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Trash className="h-3.5 w-3.5" />
-                  )}
-                  حذف الكل
-                </Button>
-              </div>
-            )}
-
-            {/* Notifications List */}
-            <ScrollArea className="flex-1">
-              {notifications.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 text-muted-foreground p-4">
-                  <Bell className="h-12 w-12 mb-3 opacity-30" />
-                  <p className="text-sm">لا توجد إشعارات</p>
+      {/* Full Screen Panel — slides up from bottom (Portal to escape header stacking context) */}
+      {createPortal(
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ y: "100%", opacity: 0.5 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: "100%", opacity: 0.5 }}
+              transition={{ type: "spring", damping: 28, stiffness: 240 }}
+              className="fixed inset-0 z-[100] bg-[#0b1326] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+              dir="rtl"
+            >
+              {/* Header */}
+              <div className="relative flex items-center justify-between px-6 py-5 border-b border-white/5 bg-[#0b1326] z-10 shrink-0 shadow-[0_4px_30px_rgba(91,221,166,0.05)]">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-[#151f30] flex items-center justify-center border border-[#5bdda6]/20 shadow-[0_0_15px_rgba(91,221,166,0.1)]">
+                    <Bell className="h-6 w-6 text-[#5bdda6]" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black text-white leading-none mb-1">الإشعارات</h2>
+                    <p className="text-sm font-medium text-slate-400">
+                      {unreadCount > 0 ? `لديك ${unreadCount} إشعار جديد` : 'لا توجد إشعارات جديدة'}
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div className="divide-y">
-                  {notifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={`p-3 transition-all ${
-                        !notification.is_read 
-                          ? 'bg-primary/5 border-r-2 border-r-primary' 
-                          : 'hover:bg-muted/50'
-                      } ${actionLoading === notification.id ? 'opacity-50' : ''}`}
+                {/* Close Button */}
+                <button
+                  onClick={handleClose}
+                  className="w-10 h-10 rounded-full bg-slate-800/40 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 flex items-center justify-center transition-all border border-transparent hover:border-rose-500/20 active:scale-90"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Action Buttons — قراءة الكل + حذف الكل */}
+              {notifications.length > 0 && (
+                <div className="px-6 py-4 flex items-center gap-3 shrink-0 bg-[#0b1326]">
+                  {unreadCount > 0 && (
+                    <button
+                      className="flex-1 h-12 rounded-xl bg-[#5bdda6]/10 text-[#5bdda6] font-bold flex items-center justify-center gap-2 border border-[#5bdda6]/20 hover:bg-[#5bdda6]/20 active:scale-95 transition-all"
+                      onClick={markAllAsRead}
+                      disabled={actionLoading === 'all-read'}
                     >
-                      <div className="flex gap-3">
-                        <div className="flex-shrink-0 mt-0.5">
-                          {getNotificationIcon(notification.type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm truncate ${!notification.is_read ? 'font-bold' : 'font-medium'}`}>
-                            {notification.title}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                            {notification.body}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground/70 mt-1">
-                            {formatDistanceToNow(new Date(notification.created_at), {
-                              addSuffix: true,
-                              locale: ar,
-                            })}
-                          </p>
-                        </div>
-                        {/* Action buttons */}
-                        <div className="flex flex-col gap-1 flex-shrink-0">
-                          {!notification.is_read && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 hover:bg-primary/10"
-                              onClick={() => markAsRead(notification.id)}
-                              disabled={actionLoading === notification.id}
-                              title="تعليم كمقروء"
-                            >
-                              {actionLoading === notification.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Check className="h-3.5 w-3.5 text-primary" />
-                              )}
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => deleteNotification(notification.id)}
-                            disabled={actionLoading === notification.id}
-                            title="حذف نهائي"
-                          >
-                            {actionLoading === notification.id && notification.is_read ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                      {actionLoading === 'all-read' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCheck className="h-5 w-5" />
+                      )}
+                      قراءة الكل
+                    </button>
+                  )}
+                  <button
+                    className="flex-1 h-12 rounded-xl bg-rose-500/10 text-rose-400 font-bold flex items-center justify-center gap-2 border border-rose-500/20 hover:bg-rose-500/20 active:scale-95 transition-all"
+                    onClick={deleteAllNotifications}
+                    disabled={actionLoading === 'all-delete'}
+                  >
+                    {actionLoading === 'all-delete' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash className="h-5 w-5" />
+                    )}
+                    حذف الكل
+                  </button>
                 </div>
               )}
-            </ScrollArea>
-          </div>
-        </div>,
+
+              {/* Notifications List */}
+              <ScrollArea className="flex-1 px-4">
+                {notifications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground pt-32 pb-20">
+                    <div className="w-24 h-24 rounded-full bg-[#151f30] flex items-center justify-center mb-6">
+                      <Bell className="h-10 w-10 text-slate-500 opacity-50" />
+                    </div>
+                    <p className="text-xl font-bold text-slate-300">لا توجد إشعارات</p>
+                    <p className="text-sm text-slate-500 mt-2">ستظهر إشعارات الرحلات والتحديثات هنا</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3 pb-8 pt-2">
+                    {notifications.map((notification) => {
+                      const iconConfig = getNotificationIconConfig(notification.type);
+                      const Icon = iconConfig.icon;
+                      return (
+                        <div
+                          key={notification.id}
+                          className={`group relative overflow-hidden rounded-2xl p-5 transition-all duration-300 ${
+                            !notification.is_read 
+                              ? 'bg-[#151f30] border border-[#5bdda6]/20 shadow-[0_4px_20px_rgba(91,221,166,0.05)]' 
+                              : 'bg-[#111827]/50 border border-slate-800/50'
+                          } ${actionLoading === notification.id ? 'opacity-50 scale-[0.98]' : ''}`}
+                        >
+                          {/* Glow effect for unread */}
+                          {!notification.is_read && (
+                            <div className="absolute top-0 right-0 w-1.5 h-full bg-gradient-to-b from-[#5bdda6] to-emerald-600 shadow-[0_0_10px_rgba(91,221,166,0.5)]" />
+                          )}
+                          
+                          <div className="flex gap-4 items-start">
+                            <div className={`flex-shrink-0 mt-0.5 flex items-center justify-center w-12 h-12 rounded-full border ${iconConfig.bg} ${iconConfig.border}`}>
+                              <Icon className={`h-5 w-5 ${iconConfig.color}`} />
+                            </div>
+                            
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-[16px] mb-1.5 truncate ${!notification.is_read ? 'font-black text-white' : 'font-bold text-slate-200'}`}>
+                                {notification.title}
+                              </p>
+                              <p className="text-[13px] leading-relaxed text-slate-400 line-clamp-2">
+                                {notification.body}
+                              </p>
+                              <p className="text-[11px] font-bold tracking-wider text-slate-500 mt-3 flex items-center gap-1.5">
+                                <span className={`w-1.5 h-1.5 rounded-full ${!notification.is_read ? 'bg-[#5bdda6] animate-pulse' : 'bg-slate-600'}`}></span>
+                                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true, locale: ar })}
+                              </p>
+                            </div>
+
+                            {/* Action buttons */}
+                            <div className="flex flex-col gap-2 flex-shrink-0">
+                              {!notification.is_read && (
+                                <button
+                                  className="h-9 w-9 flex items-center justify-center rounded-full bg-emerald-500/10 text-[#5bdda6] active:bg-emerald-500/20 active:scale-95 transition-all border border-emerald-500/20"
+                                  onClick={() => markAsRead(notification.id)}
+                                  disabled={actionLoading === notification.id}
+                                >
+                                  {actionLoading === notification.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Check className="h-4 w-4" />
+                                  )}
+                                </button>
+                              )}
+                              <button
+                                className="h-9 w-9 flex items-center justify-center rounded-full bg-rose-500/10 text-rose-400 active:bg-rose-500/20 active:scale-95 transition-all border border-rose-500/20"
+                                onClick={() => deleteNotification(notification.id)}
+                                disabled={actionLoading === notification.id}
+                              >
+                                {actionLoading === notification.id && notification.is_read ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </ScrollArea>
+            </motion.div>
+          )}
+        </AnimatePresence>,
         document.body
       )}
     </>

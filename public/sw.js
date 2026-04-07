@@ -1,7 +1,8 @@
 // Service Worker for RAAN - Push Notifications + Advanced Caching
-// v4 - Fixed stale cache issues that caused white screen on mobile after deployments
+// يتم حقن CACHE_VERSION و SUPABASE_URL تلقائياً أثناء البناء عبر vite plugin
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = '__SW_CACHE_VERSION__';
+const SUPABASE_FUNCTIONS_URL = '__SW_SUPABASE_URL__';
 const STATIC_CACHE = `raan-static-${CACHE_VERSION}`;
 const API_CACHE = `raan-api-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `raan-runtime-${CACHE_VERSION}`;
@@ -112,7 +113,7 @@ async function trackNotificationOpen(notificationId) {
   if (!notificationId) return;
   
   try {
-    const response = await fetch('https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/send-push-notification', {
+    const response = await fetch(`${SUPABASE_FUNCTIONS_URL}/send-push-notification`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -148,7 +149,7 @@ async function processOfflineQueue() {
   for (const item of queue) {
     try {
       if (item.type === 'open_tracking') {
-        await fetch('https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/send-push-notification', {
+        await fetch(`${SUPABASE_FUNCTIONS_URL}/send-push-notification`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -160,7 +161,7 @@ async function processOfflineQueue() {
       }
     } catch (error) {
       console.error('[SW] Failed to process queued item:', error);
-      return;
+      continue;
     }
   }
   
@@ -222,7 +223,7 @@ function isStaticAsset(url) {
 
 // Install event - pre-cache static assets
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing v3 with enhanced caching...');
+  console.log(`[SW] Installing ${CACHE_VERSION} with enhanced caching...`);
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
       console.log('[SW] Pre-caching static assets');
@@ -268,7 +269,7 @@ async function periodicCacheCleanup() {
 
 // Activate event - clean up old caches and expired entries
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating v3...');
+  console.log(`[SW] Activating ${CACHE_VERSION}...`);
   event.waitUntil(
     Promise.all([
       // Clean up old version caches

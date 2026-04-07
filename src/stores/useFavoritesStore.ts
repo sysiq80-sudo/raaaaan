@@ -30,9 +30,17 @@ export const useFavoritesStore = create<FavoritesStore>()(
       favorites: [],
       
       addFavorite: (location: FavoriteLocation) => {
-        set((state) => ({
-          favorites: [...state.favorites, location],
-        }));
+        const MAX_FAVORITES = 50;
+        set((state) => {
+          let updated = [...state.favorites, location];
+          // LRU eviction: remove oldest if exceeding limit
+          if (updated.length > MAX_FAVORITES) {
+            updated = updated
+              .sort((a, b) => b.createdAt - a.createdAt)
+              .slice(0, MAX_FAVORITES);
+          }
+          return { favorites: updated };
+        });
       },
       
       removeFavorite: (id: string) => {

@@ -11,6 +11,7 @@
 import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { swInjectPlugin } from "./vite-sw-plugin";
 
 // يوجه كل الطلبات إلى driver.html بدلاً من index.html
 function htmlEntryPlugin(entryHtml: string): Plugin {
@@ -42,7 +43,7 @@ export default defineConfig(({ mode }) => ({
   optimizeDeps: {
     include: ["react-day-picker"],
   },
-  plugins: [react(), htmlEntryPlugin('driver.html')],
+  plugins: [react(), htmlEntryPlugin('driver.html'), swInjectPlugin()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

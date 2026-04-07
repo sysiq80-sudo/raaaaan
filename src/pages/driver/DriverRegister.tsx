@@ -66,7 +66,7 @@ const DriverRegister = () => {
     
     const result = driverPersonalInfoSchema.safeParse({
       fullName: fullName.trim(),
-      phone: phone.trim(),
+      phone: phone.replace(/[^0-9+]/g, ''),
       gender,
       email: email.trim() || undefined,
       workCity: workCity || undefined,
@@ -610,7 +610,7 @@ const DriverRegister = () => {
           {errors.password ? (
             <p className="text-[11px] text-red-400 flex items-center gap-1"><span className="w-1 h-1 bg-red-400 rounded-full"/>{errors.password}</p>
           ) : (
-            <p className="text-[11px] text-slate-500">6 أحرف على الأقل</p>
+            <p className="text-[11px] text-slate-500">8 أحرف على الأقل، مع رقم وحرف</p>
           )}
         </div>
 

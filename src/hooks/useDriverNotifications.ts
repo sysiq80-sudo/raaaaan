@@ -37,13 +37,39 @@ const vibrateDevice = () => {
   }).catch(() => { /* ignore */ });
 };
 
-export const useDriverNotifications = (driverId: string | null, vehicleType: string | null) => {
+// دالة رياضية لحساب المسافة الجغرافية السريعة (Haversine) للفلترة المحلية
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
+  const R = 6371; // نصف قطر الأرض بالكيلومتر
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  return R * c;
+}
+
+export const useDriverNotifications = (
+  driverId: string | null, 
+  vehicleType: string | null,
+  driverLocation?: { lat: number; lng: number } | null,
+  maxPickupRadius: number = 10
+) => {
   const { toast } = useToast();
   const DRIVER_NOTIFICATION_DEDUPE_TTL_MS = 90_000;
   const CHANNEL_STALE_MS = 120_000;
   const dedupeMapRef = useRef<Map<string, number>>(new Map());
   const lastRealtimeEventAtRef = useRef<number>(Date.now());
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
+
+  // ═══ Refs لتثبيت handleNewRide — تمنع إعادة إنشاء الاشتراك عند تغيير الموقع ═══
+  const driverLocationRef = useRef(driverLocation);
+  driverLocationRef.current = driverLocation;
+  const maxPickupRadiusRef = useRef(maxPickupRadius);
+  maxPickupRadiusRef.current = maxPickupRadius;
+  const showPushNotificationRef = useRef<((ride: Record<string, unknown>) => void) | null>(null);
 
   const openRideRequestFromNotification = useCallback((rideId: string) => {
     if (!rideId) return;
@@ -211,6 +237,9 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     }
   }, [toast, openRideRequestFromNotification]);
 
+  // تحديث ref لتجنب إعادة إنشاء handleNewRide عند تغير showPushNotification
+  showPushNotificationRef.current = showPushNotification;
+
   // دالة للتحقق من مطابقة نوع السيارة
   // السائق يمكنه خدمة رحلات من نفس نوعه أو أقل
   const canDriverServeRide = useCallback((driverType: string | null, rideType: string): boolean => {
@@ -269,6 +298,21 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
       return;
     }
     
+    // 🛡️ فلترة جغرافية (Distance check) محلياً لتجنب الـ Phantom Notifications
+    // إذا كان السائق ضمن مسافة maxPickupRadius، نُشعره، وإلا يتم تجاهله
+    const loc = driverLocationRef.current;
+    const radius = maxPickupRadiusRef.current;
+    if (loc && ride.pickup_location) {
+      const pLoc = ride.pickup_location as { lat: number; lng: number };
+      const distance = calculateDistance(loc.lat, loc.lng, pLoc.lat, pLoc.lng);
+      
+      // زيادة استثنائية 2 كم تعويضاً للطوارئ أو الحوافز
+      if (distance > radius + 2) {
+        console.log(`🔇 تم تخطي إشعار الرحلة ${rideId} — خارج النطاق (${distance.toFixed(1)} كم > ${radius} كم)`);
+        return;
+      }
+    }
+    
     // Prevent duplicate notifications with TTL window
     const now = Date.now();
     const lastShownAt = dedupeMapRef.current.get(rideId);
@@ -285,8 +329,8 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     }
 
     console.log('New ride notification:', ride);
-    showPushNotification(ride);
-  }, [vehicleType, showPushNotification, canDriverServeRide]);
+    showPushNotificationRef.current?.(ride);
+  }, [vehicleType, canDriverServeRide]);
 
   // Subscribe to new rides with INSTANT realtime + Capacitor reconnection
   useEffect(() => {
@@ -506,10 +550,13 @@ export const useDriverNotifications = (driverId: string | null, vehicleType: str
     
     setupAppStateListener();
 
-    // Web/Hybrid visibility recovery
+    // Web/Hybrid visibility recovery — فقط إذا مر وقت كافٍ (تجنب إعادة الإنشاء المتكررة)
     visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
-        recreateChannel('visibility_visible');
+        const staleForMs = Date.now() - lastRealtimeEventAtRef.current;
+        if (staleForMs > 10000) {
+          recreateChannel('visibility_visible');
+        }
       }
     };
     document.addEventListener('visibilitychange', visibilityHandler);

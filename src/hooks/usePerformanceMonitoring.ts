@@ -44,6 +44,8 @@ export const usePerformanceMonitoring = (pageName: string) => {
     };
 
     // قياس Web Vitals
+    const observers: PerformanceObserver[] = [];
+
     const measureWebVitals = () => {
       // Largest Contentful Paint (LCP)
       if ("PerformanceObserver" in window) {
@@ -63,8 +65,7 @@ export const usePerformanceMonitoring = (pageName: string) => {
           });
 
           lcpObserver.observe({ entryTypes: ["largest-contentful-paint"] });
-
-          return () => lcpObserver.disconnect();
+          observers.push(lcpObserver);
         } catch (error) {
           console.warn("LCP measurement not supported:", error);
         }
@@ -94,8 +95,7 @@ export const usePerformanceMonitoring = (pageName: string) => {
         });
 
         fidObserver.observe({ entryTypes: ["first-input"] });
-
-        return () => fidObserver.disconnect();
+        observers.push(fidObserver);
       } catch (error) {
         console.warn("FID measurement not supported:", error);
       }
@@ -126,8 +126,7 @@ export const usePerformanceMonitoring = (pageName: string) => {
         });
 
         clsObserver.observe({ entryTypes: ["layout-shift"] });
-
-        return () => clsObserver.disconnect();
+        observers.push(clsObserver);
       } catch (error) {
         console.warn("CLS measurement not supported:", error);
       }
@@ -135,11 +134,11 @@ export const usePerformanceMonitoring = (pageName: string) => {
 
     // قياس الوقت الإجمالي عند تحميل الصفحة
     window.addEventListener("load", measurePageLoad);
-    const cleanup = measureWebVitals();
+    measureWebVitals();
 
     return () => {
       window.removeEventListener("load", measurePageLoad);
-      if (cleanup) cleanup();
+      observers.forEach(obs => obs.disconnect());
     };
   }, [pageName]);
 

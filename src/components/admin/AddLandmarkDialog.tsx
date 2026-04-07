@@ -73,7 +73,7 @@ export const AddLandmarkDialog = ({
     const fetchToken = async () => {
       try {
         const response = await fetch(
-          "https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/mapbox-proxy?action=token"
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mapbox-proxy?action=token`
         );
         const data = await response.json();
         if (data.token) setMapToken(data.token);

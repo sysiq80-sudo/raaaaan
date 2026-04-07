@@ -147,7 +147,7 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
       setIsCheckingServiceArea(true);
       try {
         const response = await fetch(
-          `https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/check-service-area?lat=${lat}&lng=${lng}`,
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-service-area?lat=${lat}&lng=${lng}`,
           { method: "GET", headers: { "Content-Type": "application/json" } }
         );
 

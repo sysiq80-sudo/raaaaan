@@ -52,3 +52,8 @@ keystore.properties
 
 # Local Netlify folder
 .netlify
+
+# Temp scripts and results
+_replace_key.ps1
+_replace_results.txt
+run-*-mobile*.bat

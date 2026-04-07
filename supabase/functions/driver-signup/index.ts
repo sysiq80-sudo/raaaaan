@@ -57,9 +57,9 @@ serve(async (req) => {
       );
     }
 
-    if (body.password.length < 6) {
+    if (body.password.length < 8) {
       return new Response(
-        JSON.stringify({ error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" }),
+        JSON.stringify({ error: "كلمة المرور يجب أن تكون 8 أحرف على الأقل" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }

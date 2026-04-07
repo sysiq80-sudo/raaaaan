@@ -59,7 +59,7 @@ const checkGoogleMaps = setInterval(() => {
 ### 3️⃣ **إضافة Google Maps API Key إلى `.env`**
 
 ```env
-VITE_GOOGLE_MAPS_API_KEY="AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk"
+VITE_GOOGLE_MAPS_API_KEY="YOUR_GOOGLE_MAPS_API_KEY"
 ```
 
 **الفائدة**: Fallback في حالة عدم توفر Supabase
@@ -71,7 +71,7 @@ VITE_GOOGLE_MAPS_API_KEY="AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk"
 INSERT INTO app_settings (key, value, description)
 VALUES (
   'google_maps_api_key',
-  '{"api_key": "AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk", ...}'::jsonb,
+  '{"api_key": "YOUR_GOOGLE_MAPS_API_KEY", ...}'::jsonb,
   'Google Maps API Key for the application'
 );
 ```

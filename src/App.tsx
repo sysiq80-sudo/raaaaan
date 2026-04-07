@@ -11,7 +11,6 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { RaanThemeProvider } from "@/contexts/RaanThemeContext";
 import SplashScreen from "@/components/SplashScreen";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
-import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
 
 // ØµÙØ­Ø§Øª Ø£Ø³Ø§Ø³ÙŠØ© (Ù…Ø­Ù…Ù„Ø© Ù…Ø¨Ø§Ø´Ø±Ø© - ÙŠØ­ØªØ§Ø¬Ù‡Ø§ Ø§Ù„Ø¬Ù…ÙŠØ¹)
 import Index from "./pages/Index";
@@ -113,6 +112,9 @@ const AdminNotificationGroups = lazy(() => import("./pages/admin/AdminNotificati
 const AdminDevInspector = lazy(() => import("./pages/admin/AdminDevInspector"));
 const AdminReferralCodes = lazy(() => import("./pages/admin/AdminReferralCodes"));
 const AdminFraudAlerts = lazy(() => import("./pages/admin/AdminFraudAlerts"));
+const AdminCostControls = lazy(() => import("./pages/admin/AdminCostControls"));
+const AdminDevelopmentTasks = lazy(() => import("./pages/admin/AdminDevelopmentTasks"));
+const AdminAuditLogs = lazy(() => import("./pages/admin/AdminAuditLogs"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -150,7 +152,6 @@ const App = () => {
             <AuthProvider>
               <Sonner />
               <ConnectionStatus />
-              <PWAInstallPrompt />
               <DevInspector />
               {isNativePlatform ? (
                 <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -800,11 +801,41 @@ const AppRoutes = () => {
               }
             />
             <Route
+              path="/admin/development-tasks"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminDevelopmentTasks />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/audit-logs"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminAuditLogs />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
               path="/admin/fraud-alerts"
               element={
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminFraudAlerts />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/cost-controls"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminCostControls />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }

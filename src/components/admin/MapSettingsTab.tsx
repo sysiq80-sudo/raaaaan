@@ -22,7 +22,7 @@ const MapSettingsTab = ({ onSettingsChange }: MapSettingsTabProps) => {
     setGoogleStatus('checking');
     try {
       const response = await fetch(
-        'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/google-maps-proxy?action=check'
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-maps-proxy?action=check`
       );
       const data = await response.json();
       if (data.configured) {
@@ -46,7 +46,7 @@ const MapSettingsTab = ({ onSettingsChange }: MapSettingsTabProps) => {
     setTesting(true);
     try {
       const response = await fetch(
-        'https://wgolkcztdrwdphwjvqxt.supabase.co/functions/v1/google-maps-proxy?action=reverse-geocode&lat=33.4262&lng=43.2954'
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-maps-proxy?action=reverse-geocode&lat=33.4262&lng=43.2954`
       );
       const data = await response.json();
       if (data.error) {

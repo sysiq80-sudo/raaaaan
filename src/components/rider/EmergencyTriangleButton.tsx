@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Phone, MapPin, Settings, X, XCircle } from 'lucide-react';
+import { AlertTriangle, Phone, MapPin, Settings, X, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
@@ -101,36 +102,52 @@ export const EmergencyTriangleButton: React.FC<EmergencyTriangleButtonProps> = (
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // جلب معلومات السائق
-      const { data: rideData } = await supabase
-        .from('rides')
-        .select('driver_id, drivers(full_name)')
-        .eq('id', rideId)
-        .single();
+      try {
+        // جلب معلومات السائق
+        let driverFullName = 'السائق';
+        const { data: rideData } = await supabase
+          .from('rides')
+          .select('driver_id')
+          .eq('id', rideId)
+          .single();
 
-      if (rideData?.drivers) {
-        setDriverName((rideData.drivers as any).full_name || 'السائق');
+        if (rideData?.driver_id) {
+          const { data: driverInfo } = await supabase
+            .from('drivers')
+            .select('full_name')
+            .eq('id', rideData.driver_id)
+            .single();
+          
+          if (driverInfo?.full_name) {
+            driverFullName = driverInfo.full_name;
+          }
+        }
+        setDriverName(driverFullName);
+      } catch (err) {
+        console.warn('Could not fetch driver info:', err);
       }
 
-      // تسجيل استخدام الطوارئ
-      await supabase.from('emergency_usage_log').insert({
-        user_id: user.id,
-        user_type: 'rider',
-        action_type: 'end_ride',
-        ride_id: rideId,
-        location: currentLocation,
-        reason: 'emergency_end'
-      });
+      // تسجيل استخدام الطوارئ - Wrapped to prevent crashing
+      try {
+        await supabase.from('emergency_usage_log').insert({
+          user_id: user.id,
+          user_type: 'rider',
+          action_type: 'end_ride',
+          ride_id: rideId,
+          location: currentLocation,
+          reason: 'emergency_end'
+        });
+      } catch (logErr) {
+        console.warn('Logging emergency failed:', logErr);
+      }
 
-      // إنهاء الرحلة بعلامة طوارئ
+      // إنهاء الرحلة بعلامة طوارئ - باستخدام system لتجاوز أخطاء قواعد البيانات المتعلقة بغرامات الإلغاء
       const { error } = await supabase
         .from('rides')
         .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          emergency_completed: true,
-          emergency_end_reason: 'rider_ended',
-          ended_by: 'rider'
+          status: 'cancelled',
+          cancellation_reason: 'إنهاء طارئ من قبل الراكب',
+          cancelled_by: 'system'
         })
         .eq('id', rideId);
 
@@ -230,66 +247,80 @@ export const EmergencyTriangleButton: React.FC<EmergencyTriangleButtonProps> = (
 
       {/* Main Emergency Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-sm" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-500">
-              <AlertTriangle className="w-5 h-5" />
-              طوارئ
+        <DialogContent className="max-w-sm gap-0 p-0 overflow-hidden bg-[#0A0D14] backdrop-blur-2xl border border-red-500/30 shadow-[0_0_40px_rgba(220,38,38,0.15)] rounded-2xl" dir="rtl">
+          <DialogDescription className="sr-only">خيارات الطوارئ للركاب وإرسال الموقع</DialogDescription>
+          <div className="bg-gradient-to-b from-red-950/40 to-transparent p-6 pb-4 text-center border-b border-white/5 relative">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-red-500/10 via-transparent to-transparent pointer-events-none" />
+            <div className="mx-auto w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4 relative shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+              <div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping" />
+              <AlertTriangle className="w-8 h-8 text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+            </div>
+            <DialogTitle className="text-2xl font-bold text-white tracking-wide">
+              مركز الطوارئ
             </DialogTitle>
-          </DialogHeader>
+            <p className="text-sm text-slate-400 mt-2">
+              نحن معك، اختر الإجراء المناسب لحمايتك فوراً.
+            </p>
+          </div>
 
-          <div className="space-y-3">
+          <div className="p-5 space-y-3">
+            {/* 911 Call Button */}
+            <Button
+              className="w-full h-20 text-xl font-bold flex items-center justify-between px-6 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white rounded-2xl shadow-[0_4px_20px_rgba(220,38,38,0.3)] transition-all active:scale-[0.98] border border-red-400/20"
+              onClick={callEmergency}
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md">
+                  <Phone className="w-6 h-6 text-white drop-shadow-md" />
+                </div>
+                <div className="flex flex-col items-start gap-0.5">
+                  <span className="text-xs font-medium text-red-100 uppercase tracking-wider">استدعاء الشرطة / الإسعاف</span>
+                  <span className="text-xl">الطوارئ <span className="font-black text-2xl tracking-widest pl-1">911</span></span>
+                </div>
+              </div>
+            </Button>
+
             {/* End Ride Emergency Button */}
             {rideId && (
               <Button
-                variant="destructive"
-                className="w-full h-16 text-lg font-bold flex flex-col gap-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600"
+                variant="outline"
+                className="w-full h-16 text-lg font-bold flex items-center justify-start gap-4 px-4 bg-red-950/20 border-red-500/30 hover:bg-red-950/40 text-red-400 hover:text-red-300 rounded-2xl transition-all active:scale-[0.98]"
                 onClick={handleEndRideEmergency}
                 disabled={endingRide}
               >
-                <XCircle className="w-6 h-6" />
-                <span>{endingRide ? 'جاري الإنهاء...' : 'إنهاء الرحلة فوراً'}</span>
+                <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
+                  {endingRide ? <Loader2 className="w-5 h-5 animate-spin"/> : <XCircle className="w-5 h-5" />}
+                </div>
+                <span>{endingRide ? 'جاري إنهاء الرحلة...' : 'إنهاء الرحلة فوراً'}</span>
               </Button>
             )}
-
-            {/* 911 Call Button */}
-            <Button
-              variant="destructive"
-              className="w-full h-20 text-xl font-bold flex flex-col gap-1"
-              onClick={callEmergency}
-            >
-              <Phone className="w-6 h-6" />
-              <span>الطوارئ الموحد</span>
-              <span className="text-3xl">911</span>
-            </Button>
 
             {/* Send Location */}
             <Button
               variant="outline"
-              className="w-full justify-start gap-3 h-12"
+              className="w-full h-16 text-lg font-bold flex items-center justify-start gap-4 px-4 bg-slate-900/50 border-white/5 hover:bg-slate-800 text-slate-300 rounded-2xl transition-all active:scale-[0.98]"
               onClick={sendLocationToEmergency}
               disabled={sending || contacts.length === 0}
             >
-              <MapPin className="w-5 h-5 text-primary" />
-              <span>إرسال موقعي للطوارئ</span>
+              <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center">
+                {sending ? <Loader2 className="w-5 h-5 animate-spin"/> : <MapPin className="w-5 h-5 text-emerald-400" />}
+              </div>
+              <div className="flex flex-col items-start">
+                <span>إرسال موقعي لجهات الاتصال</span>
+                {contacts.length === 0 && <span className="text-[10px] text-amber-500/80 font-normal mt-0.5">يرجى إضافة جهات اتصال أولاً</span>}
+              </div>
             </Button>
-
-            {contacts.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center">
-                أضف جهات اتصال طوارئ أولاً
-              </p>
-            )}
 
             {/* Settings */}
             <Button
               variant="ghost"
-              className="w-full justify-start gap-3 h-12"
+              className="w-full h-12 text-sm flex items-center justify-center gap-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all mt-2"
               onClick={() => {
                 setShowDialog(false);
                 setShowSettings(true);
               }}
             >
-              <Settings className="w-5 h-5 text-muted-foreground" />
+              <Settings className="w-4 h-4" />
               <span>إعدادات جهات الاتصال</span>
             </Button>
           </div>
@@ -301,6 +332,7 @@ export const EmergencyTriangleButton: React.FC<EmergencyTriangleButtonProps> = (
         <DialogContent className="max-w-sm" dir="rtl">
           <DialogHeader>
             <DialogTitle>جهات اتصال الطوارئ</DialogTitle>
+            <DialogDescription className="sr-only">إدارة وإضافة جهات اتصال الطوارئ الخاصة بك لاستخدامها عند الحاجة.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">

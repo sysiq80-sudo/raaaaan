@@ -575,19 +575,19 @@ export const DynamicSearchHeader: React.FC<{
       {/* ─── حاوية الشريط الرئيسية — Premium Search Bar ─── */}
       <div
         className={cn(
-          "relative flex items-center gap-1.5 px-3 py-1.5 rounded-2xl transition-all duration-300",
-          "bg-[#0f1a2e]",
+          "relative flex items-center gap-2 px-3.5 py-2.5 rounded-2xl transition-all duration-300",
+          "bg-gradient-to-l from-[#0b1326] to-[#121e36]",
           isListening
-            ? "shadow-[0_0_0_2px_rgba(239,68,68,0.3),0_8px_32px_rgba(0,0,0,0.5)] border border-red-500/30"
+            ? "shadow-[0_0_20px_rgba(239,68,68,0.2),0_8px_32px_rgba(0,0,0,0.6)] border border-red-500/40"
             : isFocused || isSearching
-              ? "shadow-[0_0_0_2px_rgba(91,221,166,0.2),0_8px_32px_rgba(0,0,0,0.5)] border border-[#5bdda6]/25"
-              : "shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-white/[0.06]"
+              ? "shadow-[0_0_20px_rgba(91,221,166,0.15),0_8px_32px_rgba(0,0,0,0.6)] border border-[#5bdda6]/30"
+              : "shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/[0.08] hover:border-white/[0.12]"
         )}
       >
         {/* ── أيقونة البحث / حذف العنوان / أوفلاين ── */}
         {isOffline ? (
-          <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-            <WifiOff className="w-4 h-4 text-amber-400" />
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 shadow-inner">
+            <WifiOff className="w-4.5 h-4.5 text-amber-400 drop-shadow-sm" />
           </div>
         ) : !query && showAddress && onClearAddress ? (
           <motion.button
@@ -596,32 +596,32 @@ export const DynamicSearchHeader: React.FC<{
             exit={{ opacity: 0, scale: 0.7 }}
             whileTap={{ scale: 0.85 }}
             onClick={onClearAddress}
-            className="w-9 h-9 rounded-xl bg-red-500/12 hover:bg-red-500/20 flex items-center justify-center transition-colors shrink-0"
+            className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 flex items-center justify-center transition-all shrink-0 shadow-inner group"
             aria-label="حذف الموقع"
             title="حذف الموقع المحدد"
           >
-            <X className="w-4 h-4 text-red-400" />
+            <X className="w-4.5 h-4.5 text-red-400 group-hover:scale-110 transition-transform" />
           </motion.button>
         ) : (
-          <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
-            isListening ? "bg-red-500/10" : "bg-[#5bdda6]/8"
+          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-inner transition-colors",
+            isListening ? "bg-red-500/10 border-red-500/20" : "bg-[#5bdda6]/5 border-[#5bdda6]/10"
           )}>
             {isSearching ? (
               <motion.div
                 animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
               >
-                <Loader2 className="w-4.5 h-4.5 text-[#5bdda6]" />
+                <Loader2 className="w-5 h-5 text-[#5bdda6]" />
               </motion.div>
             ) : isListening ? (
               <motion.div
                 animate={{ scale: [1, 1.2, 1] }}
                 transition={{ duration: 1, repeat: Infinity }}
               >
-                <Mic className="w-4.5 h-4.5 text-red-400" />
+                <Mic className="w-5 h-5 text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
               </motion.div>
             ) : (
-              <Search className="w-4.5 h-4.5 text-[#5bdda6]/60" />
+              <Search className="w-5 h-5 text-[#5bdda6]/70 drop-shadow-[0_0_8px_rgba(91,221,166,0.2)]" />
             )}
           </div>
         )}
@@ -638,12 +638,21 @@ export const DynamicSearchHeader: React.FC<{
 
           {/* عرض العنوان المحدد — يختفي عند التركيز */}
           {!isListening && showAddress && !query && !isFocused && (
-            <div className="pointer-events-none">
-              <p className="text-[10px] text-[#5bdda6]/50 font-semibold tracking-wide leading-tight mb-0.5 uppercase">
-                الموقع المحدد
-              </p>
-              <p className="text-[14px] text-white/90 font-bold truncate leading-tight">{showAddress}</p>
-            </div>
+            <motion.div 
+              initial={{ opacity: 0, y: 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="pointer-events-none flex flex-col justify-center h-full"
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <div className="w-4 h-4 rounded-full bg-[#5bdda6]/15 flex items-center justify-center">
+                  <MapPin className="w-2.5 h-2.5 text-[#5bdda6] drop-shadow-[0_0_5px_rgba(91,221,166,0.5)]" />
+                </div>
+                <p className="text-[10.5px] text-[#5bdda6]/80 font-bold tracking-wider leading-none uppercase">
+                  الموقع المحدد
+                </p>
+              </div>
+              <p className="text-[15px] text-white/95 font-bold truncate leading-tight pr-1 drop-shadow-sm">{showAddress}</p>
+            </motion.div>
           )}
 
           {/* Placeholder الافتراضي — يختفي عند التركيز */}
@@ -676,7 +685,7 @@ export const DynamicSearchHeader: React.FC<{
         </div>
 
         {/* ── أيقونات الإجراءات ── */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 pl-1">
 
           {/* مسح نص البحث */}
           <AnimatePresence>
@@ -687,10 +696,10 @@ export const DynamicSearchHeader: React.FC<{
                 exit={{ opacity: 0, scale: 0.7 }}
                 whileTap={{ scale: 0.85 }}
                 onClick={onClear}
-                className="w-9 h-9 rounded-xl bg-white/6 hover:bg-white/12 flex items-center justify-center transition-colors"
+                className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 flex items-center justify-center transition-all group"
                 aria-label="مسح البحث"
               >
-                <X className="w-4 h-4 text-slate-400" />
+                <X className="w-4.5 h-4.5 text-slate-400 group-hover:text-white transition-colors" />
               </motion.button>
             )}
           </AnimatePresence>
@@ -701,10 +710,10 @@ export const DynamicSearchHeader: React.FC<{
               whileTap={{ scale: 0.85 }}
               onClick={onVoiceToggle}
               className={cn(
-                "w-9 h-9 rounded-xl flex items-center justify-center transition-all relative overflow-hidden",
+                "w-10 h-10 rounded-xl flex items-center justify-center transition-all relative overflow-hidden border",
                 isListening
-                  ? "bg-red-500/20 hover:bg-red-500/30"
-                  : "bg-[#5bdda6]/8 hover:bg-[#5bdda6]/15"
+                  ? "bg-red-500/20 hover:bg-red-500/30 border-red-500/30"
+                  : "bg-[#5bdda6]/5 hover:bg-[#5bdda6]/15 border-[#5bdda6]/10"
               )}
               title={isListening ? 'إيقاف الاستماع' : 'بحث صوتي'}
               aria-label={isListening ? 'إيقاف الاستماع' : 'بحث صوتي'}
@@ -712,15 +721,15 @@ export const DynamicSearchHeader: React.FC<{
               {/* حلقة نبض أثناء الاستماع */}
               {isListening && (
                 <motion.div
-                  className="absolute inset-0 rounded-xl border-2 border-red-400/30"
+                  className="absolute inset-0 rounded-xl border-2 border-red-400/40"
                   animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
                 />
               )}
               {isListening ? (
-                <MicOff className="w-4 h-4 text-red-400 relative z-10" />
+                <MicOff className="w-4.5 h-4.5 text-red-400 relative z-10" />
               ) : (
-                <Mic className="w-4 h-4 text-[#5bdda6]/50 relative z-10" />
+                <Mic className="w-4.5 h-4.5 text-[#5bdda6]/60 relative z-10" />
               )}
             </motion.button>
           )}
@@ -731,17 +740,17 @@ export const DynamicSearchHeader: React.FC<{
               whileTap={{ scale: 0.85 }}
               onClick={onSaveLocation}
               className={cn(
-                "w-9 h-9 rounded-xl flex items-center justify-center transition-all",
+                "w-10 h-10 rounded-xl flex items-center justify-center transition-all border",
                 isFavorite
-                  ? "bg-[#5bdda6]/20 hover:bg-[#5bdda6]/30 shadow-[0_0_10px_rgba(91,221,166,0.35)]"
-                  : "bg-[#5bdda6]/8 hover:bg-[#5bdda6]/15"
+                  ? "bg-[#5bdda6]/20 hover:bg-[#5bdda6]/30 border-[#5bdda6]/30 shadow-[0_0_12px_rgba(91,221,166,0.3)]"
+                  : "bg-[#5bdda6]/5 hover:bg-[#5bdda6]/15 border-[#5bdda6]/10"
               )}
               title={isFavorite ? 'إزالة من المفضلة' : 'حفظ الموقع'}
               aria-label={isFavorite ? 'إزالة من المفضلة' : 'حفظ الموقع'}
             >
               <Heart
                 className={cn(
-                  'w-4 h-4 transition-all',
+                  'w-4.5 h-4.5 transition-all',
                   isFavorite
                     ? 'text-[#5bdda6] fill-[#5bdda6]'
                     : 'text-[#5bdda6]/50'
@@ -755,11 +764,11 @@ export const DynamicSearchHeader: React.FC<{
             <motion.button
               whileTap={{ scale: 0.85 }}
               onClick={onCurrentLocation}
-              className="w-9 h-9 rounded-xl bg-[#5bdda6]/8 hover:bg-[#5bdda6]/15 flex items-center justify-center transition-all"
+              className="w-10 h-10 rounded-xl bg-[#5bdda6]/5 border border-[#5bdda6]/10 hover:bg-[#5bdda6]/15 flex items-center justify-center transition-all group"
               title="موقعي الحالي"
               aria-label="تحديد موقعي الحالي"
             >
-              <Navigation className="w-4 h-4 text-[#5bdda6]/60" />
+              <Navigation className="w-4.5 h-4.5 text-[#5bdda6]/70 group-hover:text-[#5bdda6] transition-colors" />
             </motion.button>
           )}
         </div>

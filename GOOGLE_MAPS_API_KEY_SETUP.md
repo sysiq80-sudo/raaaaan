@@ -3,7 +3,7 @@
 ## المفتاح المستخدم
 
 ```
-AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk
+YOUR_GOOGLE_MAPS_API_KEY
 ```
 
 ---
@@ -36,7 +36,7 @@ DELETE FROM app_settings WHERE key = 'google_maps_api_key';
 INSERT INTO app_settings (key, value, description)
 VALUES (
   'google_maps_api_key',
-  '{"api_key": "AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk"}'::jsonb,
+  '{"api_key": "YOUR_GOOGLE_MAPS_API_KEY"}'::jsonb,
   'Google Maps API Key - Maps JavaScript API, Directions API, Geocoding API, Static Maps API'
 );
 
@@ -53,7 +53,7 @@ SELECT * FROM app_settings WHERE key = 'google_maps_api_key';
 1. اذهب إلى [Google Cloud Console](https://console.cloud.google.com/)
 2. اختر المشروع
 3. **APIs & Services** → **Credentials**
-4. اختر المفتاح `AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk`
+4. اختر المفتاح `YOUR_GOOGLE_MAPS_API_KEY`
 5. أضف القيود التالية:
 
 #### Application Restrictions
@@ -88,7 +88,7 @@ YOUR_PRODUCTION_DOMAIN/*
 ```javascript
 // اختبار تحميل Google Maps
 const script = document.createElement('script');
-script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk&libraries=places';
+script.src = 'https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places';
 script.onload = () => console.log('✅ Google Maps loaded successfully');
 script.onerror = () => console.error('❌ Failed to load Google Maps');
 document.head.appendChild(script);

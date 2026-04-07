@@ -145,6 +145,7 @@ export const ActiveRideCard = ({
   const [waitingWarningShown, setWaitingWarningShown] = useState(false);
   const [waitingCriticalShown, setWaitingCriticalShown] = useState(false);
   const [showCompletedScreen, setShowCompletedScreen] = useState(false);
+  const showingCompletedRef = useRef(false);
   const [showCancellationNotice, setShowCancellationNotice] = useState(false);
   const [cancellationInfo, setCancellationInfo] =
     useState<CancellationInfo | null>(null);
@@ -222,6 +223,8 @@ export const ActiveRideCard = ({
   }, []);
 
   const fetchActiveRide = useCallback(async () => {
+    // 🛡️ لا تعيد الجلب أثناء عرض شاشة التقييم
+    if (showingCompletedRef.current) return;
     const { data, error } = await supabase
       .from("rides")
       .select("*")
@@ -307,6 +310,7 @@ export const ActiveRideCard = ({
                   rider_id: updatedRide.rider_id,
                 });
                 setShowCompletedScreen(true);
+                showingCompletedRef.current = true;
               }
 
               // Handle cancellation by rider - show compensation notice
@@ -361,8 +365,8 @@ export const ActiveRideCard = ({
             });
           }
 
-          // Also re-fetch for complete data
-          fetchActiveRide();
+          // Also re-fetch for complete data (skip if rating screen is open)
+          if (!showingCompletedRef.current) fetchActiveRide();
         },
       )
       .subscribe((status) => {
@@ -375,9 +379,9 @@ export const ActiveRideCard = ({
         }
       });
 
-    // Fallback polling every 3 seconds
+    // Fallback polling every 3 seconds (skip if rating screen is open)
     const pollInterval = setInterval(() => {
-      fetchActiveRide();
+      if (!showingCompletedRef.current) fetchActiveRide();
     }, 3000);
 
     return () => {
@@ -1184,6 +1188,7 @@ export const ActiveRideCard = ({
         rider_id: activeRide.rider_id,
       });
       setShowCompletedScreen(true);
+      showingCompletedRef.current = true;
       setActiveRide(null);
     } catch (error: any) {
       toast({
@@ -1315,6 +1320,7 @@ export const ActiveRideCard = ({
         ride={completedRideData}
         riderName={riderInfo?.full_name || "الراكب"}
         onClose={() => {
+          showingCompletedRef.current = false;
           setShowCompletedScreen(false);
           setCompletedRideData(null);
           onRideComplete?.();
@@ -1626,37 +1632,37 @@ export const ActiveRideCard = ({
         </div>
 
         {/* ═══ Action Buttons ═══ */}
-        <div className="flex w-full mt-auto shrink-0 bg-[#0b1326]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
+        <div className="flex w-full mt-auto shrink-0 bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
           {activeRide.status === "accepted" && (
             <motion.button
-              animate={isNearPickup ? { boxShadow: ["0 0 0px 0px rgba(59,130,246,0)", "0 0 20px 2px rgba(59,130,246,0.4)", "0 0 0px 0px rgba(59,130,246,0)"] } : {}}
+              animate={isNearPickup ? { boxShadow: ["0 0 0px 0px rgba(52,211,153,0)", "0 0 20px 2px rgba(52,211,153,0.4)", "0 0 0px 0px rgba(52,211,153,0)"] } : {}}
               transition={isNearPickup ? { duration: 1.8, repeat: Infinity } : {}}
               style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-              className="flex-auto h-[72px] rounded-none border-t border-blue-500/30 flex items-center justify-center gap-2 font-bold text-lg text-[#0b1326] bg-gradient-to-r from-blue-400 to-blue-500 active:bg-blue-600 disabled:opacity-60 transition-all shadow-[0_-4px_20px_rgba(59,130,246,0.2)] touch-manipulation"
+              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black text-[#064e3b] bg-[#34d399] shadow-[0_-5px_30px_rgba(52,211,153,0.25)] hover:bg-[#2dd392] active:bg-[#10b981] transition-colors disabled:opacity-50 touch-manipulation border-t border-[#34d399]"
               onClick={handleArrived} disabled={loading}>
-              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (<><MapPin className="w-5 h-5 ml-1" /><span>وصلت للعميل</span></>)}
+              {loading ? <Loader2 className="w-6 h-6 animate-spin text-[#064e3b]" /> : (<><MapPin className="w-5 h-5 ml-1" /><span>وصلت للعميل</span></>)}
             </motion.button>
           )}
 
           {activeRide.status === "arrived" && (
             <motion.button
-              animate={{ boxShadow: ["0 0 0px 0px rgba(245,158,11,0)", "0 0 20px 2px rgba(245,158,11,0.4)", "0 0 0px 0px rgba(245,158,11,0)"] }}
+              animate={{ boxShadow: ["0 0 0px 0px rgba(52,211,153,0)", "0 0 20px 2px rgba(52,211,153,0.4)", "0 0 0px 0px rgba(52,211,153,0)"] }}
               transition={{ duration: 2, repeat: Infinity }}
               style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-              className="flex-auto h-[72px] rounded-none border-t border-amber-500/30 flex items-center justify-center gap-2 font-bold text-lg text-[#0b1326] bg-gradient-to-r from-amber-400 to-amber-500 active:bg-amber-600 disabled:opacity-60 transition-all shadow-[0_-4px_20px_rgba(245,158,11,0.2)] touch-manipulation"
+              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black text-[#064e3b] bg-[#34d399] shadow-[0_-5px_30px_rgba(52,211,153,0.25)] hover:bg-[#2dd392] active:bg-[#10b981] transition-colors disabled:opacity-50 touch-manipulation border-t border-[#34d399]"
               onClick={handleStartRide} disabled={loading}>
-              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (<><CheckCircle className="w-6 h-6 ml-1" /><span>ركب العميل — بدء الرحلة</span></>)}
+              {loading ? <Loader2 className="w-6 h-6 animate-spin text-[#064e3b]" /> : (<><CheckCircle className="w-6 h-6 ml-1" /><span>ركب العميل — بدء الرحلة</span></>)}
             </motion.button>
           )}
 
           {activeRide.status === "in_progress" && (
             <motion.button
-              animate={{ boxShadow: ["0 0 0px 0px rgba(91,221,166,0)", "0 0 20px 2px rgba(91,221,166,0.4)", "0 0 0px 0px rgba(91,221,166,0)"] }}
+              animate={{ boxShadow: ["0 0 0px 0px rgba(52,211,153,0)", "0 0 20px 2px rgba(52,211,153,0.4)", "0 0 0px 0px rgba(52,211,153,0)"] }}
               transition={{ duration: 2, repeat: Infinity }}
               style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 font-bold text-lg text-[#0b1326] bg-[#5bdda6] active:bg-[#3eba89] disabled:opacity-60 transition-all shadow-[0_-4px_20px_rgba(91,221,166,0.2)] touch-manipulation"
+              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black text-[#064e3b] bg-[#34d399] shadow-[0_-5px_30px_rgba(52,211,153,0.25)] hover:bg-[#2dd392] active:bg-[#10b981] transition-colors disabled:opacity-50 touch-manipulation border-t border-[#34d399]"
               onClick={handleCompleteRide} disabled={loading}>
-              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (<><Flag className="w-5 h-5 ml-1" /><span>إنهاء الرحلة</span></>)}
+              {loading ? <Loader2 className="w-6 h-6 animate-spin text-[#064e3b]" /> : (<><Flag className="w-5 h-5 ml-1" /><span>إنهاء الرحلة</span></>)}
             </motion.button>
           )}
         </div>

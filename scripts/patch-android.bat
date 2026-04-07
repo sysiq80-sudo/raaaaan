@@ -35,7 +35,7 @@ if "%TARGET%"=="driver" (
 if "%TARGET%"=="car" (
     echo [PATCH] Patching Android for CAR ^(com.raan.car^) ...
     copy /Y "scripts\strings-car.xml" "%STRINGS%" >nul
-    if exist "%GSERVICES%" del /Q "%GSERVICES%"
+    copy /Y "scripts\google-services-car.json" "%GSERVICES%" >nul
     call :COPY_ICONS car
     powershell -NoProfile -Command "$f='%GRADLE%'; $c=Get-Content $f -Raw -Encoding UTF8; if(-not $c){Write-Error 'Empty file'; exit 1}; $c=$c -replace 'applicationId\s*\"com\.raan\.\w+\"','applicationId \"com.raan.car\"'; $c=$c -replace 'namespace\s*\"com\.raan\.\w+\"','namespace \"com.raan.car\"'; [System.IO.File]::WriteAllText($f, $c)"
     echo [PATCH] Done: com.raan.car

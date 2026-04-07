@@ -412,7 +412,12 @@ export const initNativePushNotifications = async (): Promise<void> => {
       console.error('❌ FCM Registration error:', error);
     });
 
-    await PushNotifications.register();
+    try {
+      await PushNotifications.register();
+    } catch (regErr) {
+      console.warn('⚠️ PushNotifications.register() failed (Firebase may not be configured):', regErr);
+      return;
+    }
     
     // إشعار وصل والتطبيق في المقدمة — عرض إشعار محلي + إبلاغ التطبيق
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {

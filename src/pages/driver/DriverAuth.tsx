@@ -141,9 +141,9 @@ const DriverAuth = () => {
       return;
     }
 
-    if (!loginPhonePassword || loginPhonePassword.length < 6) {
+    if (!loginPhonePassword || loginPhonePassword.length < 8) {
       setErrors({
-        loginPhonePassword: "كلمة المرور يجب أن تكون 6 أحرف على الأقل",
+        loginPhonePassword: "كلمة المرور يجب أن تكون 8 أحرف على الأقل",
       });
       return;
     }
@@ -370,7 +370,7 @@ const DriverAuth = () => {
                 onChange={(e) => setLoginPhonePassword(e.target.value)}
                 className={`w-full h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-[15px] text-center focus-visible:ring-0 ${errors.loginPhonePassword ? "shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]" : ""}`}
                 required
-                minLength={6}
+                minLength={8}
                 dir="ltr"
               />
               <button 
@@ -435,46 +435,6 @@ const DriverAuth = () => {
           </form>
 
 
-
-          {/* Info Section */}
-          <div className="mt-14 mb-8">
-            <h2 className="text-white font-bold text-[18px] mb-4 text-center">لماذا تقود مع <span className="text-white">raan</span>؟</h2>
-            <div className="grid grid-cols-2 gap-3" dir="rtl">
-              {/* Right column -> Instant Payouts */}
-              <div className="col-span-1 bg-[#151c2b] rounded-2xl p-4 flex flex-col justify-end relative overflow-hidden h-36">
-                {/* Background icon watermark */}
-                <div className="absolute -left-4 -bottom-4 text-slate-800/40">
-                  <svg className="w-28 h-28" fill="currentColor" viewBox="0 0 24 24"><path d="M21 18v1a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v1h-9a2 2 0 00-2 2v8a2 2 0 002 2h9zm-9-2h10V8H12v8zm4-2.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg>
-                </div>
-                {/* Small Icon top right */}
-                <div className="absolute top-4 right-4 text-emerald-400">
-                  <Wallet className="w-5 h-5" />
-                </div>
-                <h3 className="text-white font-bold text-[15px] z-10 mb-1 drop-shadow-sm">دفعات فورية</h3>
-                <p className="text-slate-400 text-[11px] leading-tight z-10 px-1">الأرباح متاحة على مدار الساعة</p>
-              </div>
-              
-              {/* Left column -> Two stacked cards */}
-              <div className="col-span-1 flex flex-col gap-3">
-                <div className="bg-[#1a2333] rounded-2xl p-3 px-4 flex items-center justify-between flex-1">
-                  <div>
-                    <h3 className="text-white font-bold text-[13px]">عضوية النخبة</h3>
-                  </div>
-                  <div className="bg-[#0f2922] p-1.5 rounded-lg text-emerald-400 border border-emerald-500/10">
-                    <BadgeCheck className="w-[18px] h-[18px]" />
-                  </div>
-                </div>
-                <div className="bg-[#101421] rounded-2xl p-3 px-4 flex items-center justify-between flex-1 border border-slate-800/60">
-                  <div>
-                    <h3 className="text-white font-bold text-[13px] leading-tight mt-1">خدمة المساعدة<br/>24/7</h3>
-                  </div>
-                  <div className="bg-[#2a1e1d] p-1.5 rounded-lg text-rose-400 border border-rose-500/10">
-                    <Headphones className="w-[18px] h-[18px]" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
 
           <div className="mt-auto pt-6 pb-2 text-center">
             <p className="text-slate-500 text-[11px]">

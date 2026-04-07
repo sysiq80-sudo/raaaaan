@@ -82,9 +82,9 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
                 <DollarSign className="w-3.5 h-3.5 text-[#5bdda6]" />
                 <p className="text-slate-400 text-[10px] font-bold tracking-wider">الأرباح اليوم</p>
               </div>
-              <p className="text-xl font-black text-white leading-none" style={{ fontFamily: "Inter, sans-serif" }}>
-                {todayEarnings.toLocaleString('en-US')}{" "}
-                <span className="text-xs font-bold text-[#5bdda6]" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>د.ع</span>
+              <p className="text-xl font-black text-white leading-none whitespace-nowrap" style={{ fontFamily: "Inter, sans-serif" }}>
+                {todayEarnings.toLocaleString('en-US')}
+                <span className="text-xs font-bold text-[#5bdda6] mr-1" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>د.ع</span>
               </p>
             </div>
 
@@ -106,7 +106,7 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
       {/* زر إخفاء وإظهار التفاصيل */}
       <button
         onClick={() => setIsVisible(!isVisible)}
-        className="w-14 h-6 flex items-center justify-center bg-[#171f33]/90 backdrop-blur-xl border border-t-0 border-[#5bdda6]/20 rounded-b-2xl shadow-[0_4px_12px_rgba(0,0,0,0.3)] hover:bg-[#1a253c] transition-colors focus:outline-none z-30 pointer-events-auto -translate-y-[1px]"
+        className="w-14 h-6 flex items-center justify-center bg-[#22c55e]/90 backdrop-blur-xl border border-t-0 border-[#5bdda6]/40 rounded-b-2xl shadow-[0_4px_12px_rgba(0,0,0,0.3)] hover:bg-[#16a34a] transition-colors focus:outline-none z-30 pointer-events-auto -translate-y-[1px]"
         aria-label={isVisible ? "إخفاء التفاصيل" : "إظهار التفاصيل"}
       >
         <motion.div

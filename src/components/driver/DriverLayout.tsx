@@ -1,7 +1,8 @@
 /**
  * ران - Layout للسائق
- * Wrapper component لجميع صفحات السائق مع شريط التنقل السفلي
- * يتحقق من وضع الصيانة من إعدادات الأدمن
+ * flex flex-col h-[100dvh] — No-Overlap Architecture
+ * الشريط السفلي shrink-0 يدفع المحتوى للأعلى طبيعياً بدون fixed/padding hacks
+ * مطابق لمعمارية RiderLayout
  */
 
 import React, { useEffect } from "react";
@@ -10,11 +11,10 @@ import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import useCarMode from "@/hooks/useCarMode";
 import CarModeQuickDock from "@/components/driver/CarModeQuickDock";
 
+
 interface DriverLayoutProps {
   children: React.ReactNode;
 }
-
-import { motion } from "framer-motion";
 
 const DriverLayout: React.FC<DriverLayoutProps> = ({ children }) => {
   const { isMaintenanceMode } = useMaintenanceMode();
@@ -33,18 +33,18 @@ const DriverLayout: React.FC<DriverLayoutProps> = ({ children }) => {
   }
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, x: -20, scale: 0.99 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: 20 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-      className={`driver-luxury driver-page-shell w-full min-h-screen overflow-y-auto ${isCarMode ? "car-mode-layout" : ""}`}
+    <div
+      className={`driver-luxury driver-page-shell pb-[env(safe-area-inset-bottom)] flex flex-col h-[100dvh] overflow-hidden ${isCarMode ? "car-mode-layout" : ""}`}
       data-driver-theme="dark-luxury-geometric"
+      dir="rtl"
     >
-      {children}
+      {/* المحتوى الرئيسي — يملأ المساحة المتبقية */}
+      <div className="flex-1 overflow-hidden">
+        {children}
+      </div>
+
       {isCarMode && <CarModeQuickDock />}
-      {/* <DriverBottomNav /> — مخفية مؤقتاً */}
-    </motion.div>
+    </div>
   );
 };
 

@@ -57,7 +57,7 @@ supabase db push
 INSERT INTO app_settings (key, value, description)
 VALUES (
   'google_maps_api_key',
-  '{"api_key": "AIzaSyAYunRwU6ZASnx640BIVymHqtUEnh0aPKk"}'::jsonb,
+  '{"api_key": "YOUR_GOOGLE_MAPS_API_KEY"}'::jsonb,
   'Google Maps API Key'
 );
 ```
