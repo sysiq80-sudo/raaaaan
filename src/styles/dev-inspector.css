@@ -210,6 +210,24 @@
   font-weight: 600;
 }
 
+.dev-inspector-sentry-button {
+  width: 100%;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: #dc2626;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.dev-inspector-sentry-button:hover {
+  background: #b91c1c;
+}
+
 .dev-inspector-panel-footer {
   padding: 6px 14px;
   border-top: 1px solid #374151;

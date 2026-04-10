@@ -14,14 +14,9 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders } from "../_shared/utils.ts";
 
 const INFOBIP_API_URL = "https://rkgdry.api.infobip.com/sms/3/messages";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
 // ════════════════════════════════════════════════════════════
 // Infobip SMS Sender (Exclusive for Bot & Ride Updates)
 // ════════════════════════════════════════════════════════════

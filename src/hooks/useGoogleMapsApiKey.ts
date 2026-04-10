@@ -1,13 +1,24 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-// Default public API key as fallback (restricted to your domain in Google Cloud Console)
+// Default public API key as fallback (from .env)
 const DEFAULT_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
 // Cache the API key in memory
 let cachedApiKey: string | null = null;
 let cacheTimestamp: number = 0;
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in ms
+const CACHE_DURATION = 60 * 60 * 1000; // 1 hour (was 24h - shorter to pick up changes faster)
+
+/**
+ * Validate that an API key is a real Google Maps key (not "none", empty, or placeholder)
+ */
+const isValidApiKey = (key: unknown): key is string => {
+  if (!key || typeof key !== 'string') return false;
+  const trimmed = key.trim().toLowerCase();
+  if (trimmed === '' || trimmed === 'none' || trimmed === 'null' || trimmed === 'undefined') return false;
+  if (!trimmed.startsWith('aizasy') && !trimmed.startsWith('AIzaSy')) return false;
+  return trimmed.length >= 30;
+};
 
 export const useGoogleMapsApiKey = () => {
   const [apiKey, setApiKey] = useState<string>(cachedApiKey || DEFAULT_API_KEY);
@@ -45,14 +56,23 @@ export const useGoogleMapsApiKey = () => {
         // If value is JSONB object with api_key property
         if (typeof data.value === 'object' && !Array.isArray(data.value)) {
           const valueObj = data.value as Record<string, unknown>;
-          if (valueObj.api_key) {
-            fetchedApiKey = valueObj.api_key as string;
+          const candidate = valueObj.api_key;
+          if (isValidApiKey(candidate)) {
+            fetchedApiKey = candidate;
+          } else {
+            console.warn('[Maps] Supabase api_key field is invalid/none — using .env fallback:', candidate);
           }
         }
         // If value is a plain string
         else if (typeof data.value === 'string') {
-          fetchedApiKey = data.value;
+          if (isValidApiKey(data.value)) {
+            fetchedApiKey = data.value;
+          } else {
+            console.warn('[Maps] Supabase value is invalid/none — using .env fallback:', data.value);
+          }
         }
+      } else {
+        console.log('[Maps] No google_maps_api_key found in app_settings — using .env fallback');
       }
 
       // Update cache
@@ -112,13 +132,15 @@ export const preloadGoogleMapsApiKey = async (): Promise<string> => {
       // If value is JSONB object with api_key property
       if (typeof data.value === 'object' && !Array.isArray(data.value)) {
         const valueObj = data.value as Record<string, unknown>;
-        if (valueObj.api_key) {
+        if (isValidApiKey(valueObj.api_key)) {
           cachedApiKey = valueObj.api_key as string;
         }
       }
       // If value is a plain string
       else if (typeof data.value === 'string') {
-        cachedApiKey = data.value;
+        if (isValidApiKey(data.value)) {
+          cachedApiKey = data.value;
+        }
       }
     }
 

@@ -136,7 +136,36 @@ serve(async (req) => {
       );
     }
 
-    console.log("[zaincash-callback] Payment result:", JSON.stringify(paymentResult));
+    console.log("[zaincash-callback] Payment result:", JSON.stringify({
+      status: paymentResult.status,
+      orderId: paymentResult.orderId,
+      amount: paymentResult.amount,
+    }));
+
+    // ════════════════════════════════════════
+    // التحقق من انتهاء صلاحية الـ JWT (منع إعادة الاستخدام)
+    // ════════════════════════════════════════
+
+    if (paymentResult.exp) {
+      const now = Math.floor(Date.now() / 1000);
+      if (now > paymentResult.exp) {
+        console.error("[zaincash-callback] ⛔ JWT expired — possible replay attack");
+        await supabase.from("api_usage_logs").insert({
+          api_type: "zaincash_security",
+          endpoint: "/zaincash-callback",
+          metadata: {
+            orderId: paymentResult.orderId,
+            error: "JWT_EXPIRED_REPLAY",
+            exp: paymentResult.exp,
+            now,
+          },
+        });
+        return Response.redirect(
+          `${siteUrl}/payment/result?status=error&error_message=expired_token`,
+          302
+        );
+      }
+    }
 
     const isSuccess = paymentResult.status === "success";
     const orderId = paymentResult.orderId;
@@ -182,29 +211,31 @@ serve(async (req) => {
         console.error("[zaincash-callback] Transaction update error:", updateError);
       }
 
-      // إذا نجح الدفع → إضافة الرصيد
+      // إذا نجح الدفع → إضافة الرصيد بشكل آمن
       if (isSuccess && transaction.user_id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("wallet_balance")
-          .eq("user_id", transaction.user_id)
-          .single();
-
-        if (profile) {
-          const newBalance = (profile.wallet_balance || 0) + transaction.amount;
-
-          const { error: walletError } = await supabase
-            .from("profiles")
-            .update({ wallet_balance: newBalance })
-            .eq("user_id", transaction.user_id);
-
-          if (walletError) {
-            console.error("[zaincash-callback] Wallet update error:", walletError);
-          } else {
-            console.log(
-              `[zaincash-callback] ✅ Wallet updated for ${transaction.user_id}: ${newBalance} IQD`
-            );
+        const idempotencyKey = `zaincash_${orderId}`;
+        const { data: walletResult, error: walletRpcError } = await supabase.rpc(
+          'credit_wallet_safely',
+          {
+            p_user_id: transaction.user_id,
+            p_amount: transaction.amount,
+            p_transaction_id: transaction.id,
+            p_idempotency_key: idempotencyKey,
           }
+        );
+
+        if (walletRpcError) {
+          console.error("[zaincash-callback] Wallet credit RPC error:", walletRpcError);
+        } else if (walletResult?.already_processed) {
+          console.log(
+            `[zaincash-callback] Transaction ${orderId} already credited — idempotency guard`
+          );
+        } else if (walletResult?.success) {
+          console.log(
+            `[zaincash-callback] ✅ Wallet updated for ${transaction.user_id}: ${walletResult.new_balance} IQD`
+          );
+        } else {
+          console.error("[zaincash-callback] Wallet credit failed:", walletResult?.error);
         }
       }
     } else if (transaction) {

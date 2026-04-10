@@ -122,6 +122,12 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
   const driverMarkersRef = useRef(new globalThis.Map<string, google.maps.Marker>());
   const prevDriverLocationRef = useRef<{ lat: number; lng: number } | null>(null);
   const driverAnimationRef = useRef<number | null>(null);
+  // ═══ إصلاح تسرب الذاكرة: InfoWindow مشترك واحد فقط ═══
+  const sharedInfoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  // Refs مستقرة لمنع إعادة إنشاء الخريطة عند كل drag
+  const isDraggingRef = useRef(false);
+  const reverseGeocodeCenterRef = useRef(reverseGeocodeCenter);
+  reverseGeocodeCenterRef.current = reverseGeocodeCenter;
 
   // State
   const [isLoading, setIsLoading] = useState(true);
@@ -261,16 +267,23 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
   }));
 
   // Initialize Map
+  // ═══ إصلاح حرج: إزالة isDragging و reverseGeocodeCenter من deps ═══
+  // كانت تُعيد إنشاء الخريطة بالكامل عند كل عملية سحب!
+  // الآن نستخدم Refs مستقرة للمستمعات ونُنظف كل شيء عند unmount.
   useEffect(() => {
     if (!mapContainer.current || isApiKeyLoading) return;
     if (!apiKey) {
       console.warn("⚠️ Google Maps API key is empty — map will not load");
       return;
     }
+    // تجنب إعادة الإنشاء إذا الخريطة موجودة
+    if (map.current) return;
+
+    let isMounted = true;
 
     // Load Google Maps via centralized loader
     loadGoogleMaps(apiKey).then(() => {
-      if (!window.google || !mapContainer.current) return;
+      if (!isMounted || !window.google || !mapContainer.current) return;
 
       map.current = new google.maps.Map(mapContainer.current!, {
         center: new google.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng),
@@ -282,14 +295,18 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
         gestureHandling: "greedy",
       });
 
-      // Add map listeners
-      map.current.addListener("dragstart", () => setIsDragging(true));
+      // Add map listeners — باستخدام Refs مستقرة
+      map.current.addListener("dragstart", () => {
+        isDraggingRef.current = true;
+        setIsDragging(true);
+      });
       map.current.addListener("dragend", async () => {
+        isDraggingRef.current = false;
         setIsDragging(false);
-        await reverseGeocodeCenter();
+        await reverseGeocodeCenterRef.current();
       });
       map.current.addListener("center_changed", async () => {
-        if (!isDragging) await reverseGeocodeCenter();
+        if (!isDraggingRef.current) await reverseGeocodeCenterRef.current();
       });
 
       // Center on user location if available
@@ -305,8 +322,45 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
       setIsLoading(false);
     });
 
-    return () => {};
-  }, [apiKey, isApiKeyLoading, isDragging, userLocation, reverseGeocodeCenter]);
+    // ═══ إصلاح تسرب الذاكرة: تنظيف كامل عند unmount ═══
+    return () => {
+      isMounted = false;
+      if (map.current) {
+        // إزالة جميع المستمعات
+        google.maps.event.clearInstanceListeners(map.current);
+        // تنظيف جميع العلامات
+        [pickupMarkerRef, dropoffMarkerRef, driverMarkerRef, userMarkerRef].forEach(ref => {
+          if (ref.current) {
+            google.maps.event.clearInstanceListeners(ref.current);
+            ref.current.setMap(null);
+            ref.current = null;
+          }
+        });
+        // تنظيف المسار
+        if (routePolylineRef.current) {
+          routePolylineRef.current.setMap(null);
+          routePolylineRef.current = null;
+        }
+        // تنظيف علامات السائقين القريبين
+        driverMarkersRef.current.forEach(m => {
+          google.maps.event.clearInstanceListeners(m);
+          m.setMap(null);
+        });
+        driverMarkersRef.current.clear();
+        // تنظيف InfoWindow المشترك
+        if (sharedInfoWindowRef.current) {
+          sharedInfoWindowRef.current.close();
+          sharedInfoWindowRef.current = null;
+        }
+        // تنظيف الرسوم المتحركة
+        if (driverAnimationRef.current) {
+          cancelAnimationFrame(driverAnimationRef.current);
+          driverAnimationRef.current = null;
+        }
+        map.current = null;
+      }
+    };
+  }, [apiKey, isApiKeyLoading]);
 
   // Handle user location
   useEffect(() => {
@@ -519,12 +573,21 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
   }, [driverLocation, centerOnDriver]);
 
   // Handle nearby drivers
+  // ═══ إصلاح تسرب الذاكرة: إعادة استخدام InfoWindow واحد ═══
   useEffect(() => {
     if (!map.current || !nearbyDrivers.length) return;
 
-    // Remove old markers
-    driverMarkersRef.current.forEach((marker) => marker.setMap(null));
+    // Remove old markers + listeners
+    driverMarkersRef.current.forEach((marker) => {
+      google.maps.event.clearInstanceListeners(marker);
+      marker.setMap(null);
+    });
     driverMarkersRef.current.clear();
+
+    // إنشاء InfoWindow مشترك واحد (أو إعادة استخدام الموجود)
+    if (!sharedInfoWindowRef.current) {
+      sharedInfoWindowRef.current = new google.maps.InfoWindow();
+    }
 
     // Add new markers
     nearbyDrivers.forEach((driver) => {
@@ -537,16 +600,16 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
       });
 
       marker.addListener("click", () => {
-        new google.maps.InfoWindow({
-          content: `
-            <div style="text-align: right; direction: rtl; padding: 10px;">
-              <h3>${driver.vehicle_model}</h3>
-              <p>النوع: ${driver.vehicle_type}</p>
-              <p>التقييم: ${driver.rating}⭐</p>
-            </div>
-          `,
-          position: new google.maps.LatLng(driver.lat, driver.lng),
-        }).open(map.current);
+        // إعادة استخدام نفس الـ InfoWindow بدل إنشاء واحد جديد كل مرة
+        sharedInfoWindowRef.current!.setContent(`
+          <div style="text-align: right; direction: rtl; padding: 10px;">
+            <h3>${driver.vehicle_model}</h3>
+            <p>النوع: ${driver.vehicle_type}</p>
+            <p>التقييم: ${driver.rating}⭐</p>
+          </div>
+        `);
+        sharedInfoWindowRef.current!.setPosition(new google.maps.LatLng(driver.lat, driver.lng));
+        sharedInfoWindowRef.current!.open(map.current);
       });
 
       driverMarkersRef.current.set(driver.id, marker);

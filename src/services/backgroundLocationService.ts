@@ -37,7 +37,7 @@ export interface BackgroundLocationOptions {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Supabase upsert helper — uses fetch directly to avoid import cycles
+// Supabase upsert helper — uses authenticated client for RLS compliance
 // ─────────────────────────────────────────────────────────────────
 
 async function upsertLiveLocation(
@@ -46,19 +46,16 @@ async function upsertLiveLocation(
   loc:       LocationData,
   isOffline  = false,
 ): Promise<boolean> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return false;
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/driver_live_locations`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'apikey':         SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Prefer':         'resolution=merge-duplicates',
-        },
-        body: JSON.stringify({
+    // ═══ إصلاح أمني: استخدام Supabase client بدل fetch مع anon key ═══
+    // الـ client يرسل JWT المستخدم المسجّل → RLS يتحقق من الهوية
+    // ويمنع تزوير مواقع سائقين آخرين
+    const { supabase } = await import('@/integrations/supabase/client');
+    
+    const { error } = await supabase
+      .from('driver_live_locations' as any)
+      .upsert(
+        {
           ride_id:    rideId,
           driver_id:  driverId,
           location:   { lat: loc.lat, lng: loc.lng },
@@ -67,10 +64,15 @@ async function upsertLiveLocation(
           accuracy:   loc.accuracy,
           is_offline: isOffline,
           updated_at: new Date(loc.timestamp).toISOString(),
-        }),
-      },
-    );
-    return res.ok;
+        },
+        { onConflict: 'ride_id' }
+      );
+
+    if (error) {
+      console.error('[BgLocation] Supabase upsert error:', error.message);
+      return false;
+    }
+    return true;
   } catch {
     return false;
   }

@@ -31,19 +31,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Lock, User, Phone, ArrowLeft, Loader2, Eye, EyeOff } from "lucide-react";
+import { Lock, User, Phone, Eye, EyeOff } from "lucide-react";
 import logo from "@/assets/logo.png";
 import OTPVerification from "@/components/OTPVerification";
 import PasswordResetDialog from "@/components/PasswordResetDialog";
@@ -91,7 +81,7 @@ const Auth = () => {
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         navigate(redirectTo, { replace: true });
       }
@@ -116,25 +106,7 @@ const Auth = () => {
     });
   }, []);
 
-  // Format phone for database lookup
-  const formatPhoneForLookup = (phone: string) => {
-    const cleaned = phone.replace(/\D/g, "");
-    // Return multiple formats for searching
-    const formats = [cleaned];
 
-    if (cleaned.startsWith("964")) {
-      formats.push(cleaned.slice(3)); // Remove 964
-      formats.push("0" + cleaned.slice(3)); // Add leading 0
-    } else if (cleaned.startsWith("0")) {
-      formats.push(cleaned.slice(1)); // Remove leading 0
-      formats.push("964" + cleaned.slice(1)); // Add 964
-    } else {
-      formats.push("0" + cleaned); // Add leading 0
-      formats.push("964" + cleaned); // Add 964
-    }
-
-    return formats;
-  };
 
   const normalizePhoneForBlockCheck = (phone: string) => {
     let cleaned = phone.replace(/\D/g, "");
@@ -145,6 +117,7 @@ const Auth = () => {
 
   // Check if phone exists using secure RPC function
   const checkPhoneNumber = async () => {
+    console.log("📞 checkPhoneNumber called with:", { phoneInput, checkingPhone });
     setErrors({});
 
     const cleanedPhone = phoneInput.replace(/\D/g, "");
@@ -157,18 +130,26 @@ const Auth = () => {
     setCheckingPhone(true);
 
     try {
-      console.log("Checking phone via RPC:", phoneInput);
+      console.log("🔍 Checking phone via RPC:", phoneInput);
 
-      const phoneForBlockCheck = normalizePhoneForBlockCheck(phoneInput);
-      const { data: isBlocked, error: blockCheckError } = await supabase.rpc(
-        "is_phone_blocked",
-        { p_phone: phoneForBlockCheck }
+      // إضافة timeout للـ RPC calls
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Request timeout")), 8000) // تقليل المهلة إلى 8 ثوانٍ
       );
 
-      // لا نوقف التدفق عند خطأ الصلاحيات/الشبكة هنا، لكن نسجل الخطأ فقط
+      const phoneForBlockCheck = normalizePhoneForBlockCheck(phoneInput);
+      console.log("🔒 Checking if phone is blocked:", phoneForBlockCheck);
+
+      const blockCheckPromise = supabase.rpc("is_phone_blocked", { p_phone: phoneForBlockCheck });
+      const blockCheckResult = await Promise.race([blockCheckPromise, timeoutPromise]);
+
+      const { data: isBlocked, error: blockCheckError } = blockCheckResult as any;
+
       if (blockCheckError) {
-        console.warn("Phone block check failed:", blockCheckError.message);
+        console.warn("⚠️ Phone block check failed:", blockCheckError.message);
+        // لا نوقف التدفق، نستمر
       } else if (isBlocked) {
+        console.log("🚫 Phone is blocked");
         toast({
           title: "الحساب معطّل",
           description: "هذا الرقم موقوف حالياً. يرجى التواصل مع الدعم.",
@@ -177,27 +158,40 @@ const Auth = () => {
         return;
       }
 
+      console.log("📞 Checking if phone is registered:", phoneInput);
+
       // Use the secure RPC function that bypasses RLS
-      const { data: isRegistered, error: rpcError } = await supabase.rpc(
-        "is_phone_registered",
-        { p_phone: phoneInput }
-      );
+      const registerCheckPromise = supabase.rpc("is_phone_registered", { p_phone: phoneInput });
+      const registerCheckResult = await Promise.race([registerCheckPromise, timeoutPromise]);
+
+      const { data: isRegistered, error: rpcError } = registerCheckResult as any;
 
       if (rpcError) {
-        console.error("RPC error:", rpcError);
-        throw rpcError;
+        console.error("❌ RPC error:", rpcError);
+        // Fallback: اذهب إلى تسجيل الدخول مباشرة إذا فشل الـ RPC
+        console.log("🔄 RPC failed, going to login step as fallback");
+        setStep("login");
+        toast({
+          title: "تحقق من الاتصال",
+          description: "تعذر التحقق من حالة الحساب. جرب تسجيل الدخول مباشرة",
+          variant: "default",
+        });
+        return;
       }
 
-      console.log("Phone registration check result:", isRegistered);
+      console.log("✅ Phone registration check result:", isRegistered);
 
       if (isRegistered) {
+        console.log("👤 Phone is registered, checking if ghost account");
+
         // تحقق إذا كان حساب شبح (Ghost Account) من بوت واتساب/تلغرام
-        const { data: isGhost } = await supabase.rpc(
-          "check_ghost_account",
-          { p_phone: phoneInput }
-        );
+        const ghostCheckPromise = supabase.rpc("check_ghost_account", { p_phone: phoneInput });
+        const ghostCheckResult = await Promise.race([ghostCheckPromise, timeoutPromise]);
+
+        const { data: isGhost } = ghostCheckResult as any;
 
         if (isGhost) {
+          console.log("👻 Ghost account detected");
           // حساب شبح — توجيه لتفعيل الحساب عبر OTP
           setStep("ghost-otp");
           toast({
@@ -205,6 +199,7 @@ const Auth = () => {
             description: "حسابك من واتساب/تلغرام جاهز. فعّله الآن بخطوة بسيطة",
           });
         } else {
+          console.log("🔑 Regular account, going to login step");
           // Phone exists - go to login
           setStep("login");
           toast({
@@ -213,6 +208,7 @@ const Auth = () => {
           });
         }
       } else {
+        console.log("🆕 New phone, going to register step");
         // New phone - go to register
         setStep("register");
         toast({
@@ -220,32 +216,36 @@ const Auth = () => {
           description: "أكمل بياناتك لإنشاء حساب جديد",
         });
       }
-    } catch (error) {
-      console.error("Check phone error:", error);
+    } catch (error: any) {
+      console.error("❌ Check phone error:", error);
+
+      // Fallback: اذهب إلى تسجيل الدخول في حالة أي خطأ
+      console.log("🔄 Error occurred, going to login step as fallback");
+      setStep("login");
       toast({
-        title: "خطأ",
-        description: "حدث خطأ غير متوقع",
-        variant: "destructive",
+        title: "تحقق من الاتصال",
+        description: "تعذر التحقق من حالة الحساب. جرب تسجيل الدخول مباشرة",
+        variant: "default",
       });
     } finally {
+      console.log("🔄 Setting checkingPhone to false");
       setCheckingPhone(false);
     }
   };
 
-  // Handle login with password (legacy email first for old accounts, then phone)
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Handle login form submission - sign in with password
+  const handleLogin = async () => {
+    console.log("🔐 handleLogin called with:", { phoneInput, loginPassword, loading });
     setErrors({});
 
-    if (!loginPassword || loginPassword.length < 8) {
-      setErrors({ password: "كلمة المرور يجب أن تكون 8 أحرف على الأقل، مع رقم وحرف" });
+    if (!loginPassword) {
+      setErrors({ password: "أدخل كلمة المرور" });
       return;
     }
 
     setLoading(true);
 
     try {
-      const phoneToTry = normalizeIraqiPhoneToE164(phoneInput);
       const phoneForBlockCheck = normalizePhoneForBlockCheck(phoneInput);
 
       const { data: isBlocked, error: blockCheckError } = await supabase.rpc(
@@ -262,39 +262,38 @@ const Auth = () => {
         return;
       }
 
-      // تسجيل الدخول عبر رقم الهاتف فقط (WhatsApp OTP)
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        phone: phoneToTry,
+      const e164Phone = normalizeIraqiPhoneToE164(phoneInput);
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        phone: e164Phone,
         password: loginPassword,
       });
 
-      if (!loginError) {
-        toast({
-          title: "مرحباً بك! ✅",
-          description: "تم تسجيل الدخول بنجاح",
-        });
-        // حفظ تفضيل تذكر الجلسة عبر Capacitor Preferences (آمن ولا ينمسح)
-        if (rememberMe) {
-          saveRememberMe(phoneInput, "rider");
-        } else {
-          clearRememberMe();
-        }
-      } else {
-        if (loginError.message === "Invalid login credentials") {
+      if (signInError) {
+        if (signInError.message?.includes("Invalid login credentials")) {
           setErrors({ password: "كلمة المرور غير صحيحة" });
-          toast({
-            title: "خطأ في تسجيل الدخول",
-            description: "كلمة المرور غير صحيحة",
-            variant: "destructive",
-          });
         } else {
           toast({
             title: "خطأ في تسجيل الدخول",
-            description: loginError.message,
+            description: signInError.message || "تحقق من البيانات وحاول مرة أخرى",
             variant: "destructive",
           });
         }
+        return;
       }
+
+      // حفظ تفضيل تذكر الجلسة
+      if (rememberMe) {
+        saveRememberMe(phoneInput, "rider");
+      } else {
+        clearRememberMe();
+      }
+
+      toast({
+        title: "مرحباً بك! ✅",
+        description: "تم تسجيل الدخول بنجاح",
+      });
+
     } catch (error: any) {
       console.error("Login error:", error);
       toast({
@@ -458,8 +457,7 @@ const Auth = () => {
   };
 
   // تفعيل حساب شبح — تعيين كلمة مرور بعد التحقق من OTP
-  const handleGhostPasswordSet = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGhostPasswordSet = async () => {
     setErrors({});
 
     if (!ghostPassword || ghostPassword.length < 8) {
@@ -612,7 +610,7 @@ const Auth = () => {
             <h1 className="text-[24px] font-bold text-white mb-2">تعيين كلمة مرور</h1>
             <p className="text-[13px] text-slate-400">اختر كلمة مرور لتسجيل الدخول من التطبيق</p>
           </div>
-          <form onSubmit={handleGhostPasswordSet} className="flex flex-col gap-4">
+          <form noValidate onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
             {/* Phone Display */}
             <div className="relative flex items-center justify-center bg-[#1a2333] rounded-xl overflow-hidden h-14 border border-slate-700/50 mb-2">
               <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
@@ -675,7 +673,7 @@ const Auth = () => {
               {errors.ghostConfirmPassword && <p className="text-[11px] text-red-400">{errors.ghostConfirmPassword}</p>}
             </div>
 
-            <button type="submit" disabled={loading} className="w-full h-[54px] bg-[#34d399] hover:bg-[#10b981] text-black text-[16px] font-extrabold rounded-2xl shadow-[0_4px_20px_rgba(52,211,153,0.25)] transition-all mt-2 disabled:opacity-60">
+            <button type="button" onClick={() => handleGhostPasswordSet()} disabled={loading} className="w-full h-[54px] bg-[#34d399] hover:bg-[#10b981] text-black text-[16px] font-extrabold rounded-2xl shadow-[0_4px_20px_rgba(52,211,153,0.25)] transition-all mt-2 disabled:opacity-60">
               {loading ? 'جاري تفعيل الحساب...' : 'تفعيل الحساب'}
             </button>
           </form>
@@ -739,7 +737,7 @@ const Auth = () => {
 
           {/* ── Step: Login ── */}
           {step === 'login' && (
-            <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4">
               {/* Phone badge */}
               <div className="relative flex items-center justify-center bg-[#1a2333] rounded-xl overflow-hidden h-14 border border-slate-700/50">
                 <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
@@ -762,14 +760,9 @@ const Auth = () => {
                     type={showPassword ? "text" : "password"} placeholder="••••••••"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    onFocus={(e) => {
-                      setTimeout(() => {
-                        const btn = document.getElementById('login-btn');
-                        if (btn) btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }, 300);
-                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleLogin(); } }}
                     className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-center text-[15px] focus-visible:ring-0 w-full ${errors.password ? 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]' : ''}`}
-                    required minLength={8} dir="ltr" autoFocus
+                    dir="ltr"
                   />
                   <button
                     type="button"
@@ -804,15 +797,19 @@ const Auth = () => {
                 </button>
               </div>
 
-              <button id="login-btn" type="submit" disabled={loading} className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-black text-[16px] font-extrabold rounded-3xl shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60">
+              <button
+                onClick={() => handleLogin()}
+                disabled={loading}
+                className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-black text-[16px] font-extrabold rounded-full mt-2 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60"
+              >
                 {loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
               </button>
-            </form>
+            </div>
           )}
 
           {/* ── Step: Register ── */}
           {step === 'register' && (
-            <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-4">
+            <form noValidate onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
               {/* Phone badge */}
               <div className="relative flex items-center justify-center bg-[#1a2333] rounded-xl overflow-hidden h-14 border border-slate-700/50 mb-1">
                 <div className="absolute right-0 top-0 bottom-0 w-14 flex items-center justify-center bg-[#0d1321] border-l border-slate-700/50 pointer-events-none z-10 shadow-[-2px_0_10px_rgba(0,0,0,0.2)]">
@@ -872,7 +869,8 @@ const Auth = () => {
               {errors.general && <p className="text-[11px] text-red-400 text-center">{errors.general}</p>}
 
               <button
-                type="submit"
+                type="button"
+                onClick={() => handleRegisterSubmit()}
                 disabled={loading}
                 className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-black text-[16px] font-extrabold rounded-full mt-2 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all disabled:opacity-60"
               >

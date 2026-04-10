@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import '@/styles/dev-inspector.css';
+import * as Sentry from "@sentry/react";
 
 interface ElementInfo {
   element: HTMLElement;
@@ -699,6 +700,20 @@ function DevInspectorInner() {
             <button data-dev-inspector="true" className={`dev-inspector-copy-button${copied ? ' is-copied' : ''}`} onClick={handleCopy}>
               {copied ? '✅ تم النسخ!' : '📋 نسخ للبرومبت'}
             </button>
+            <button 
+              data-dev-inspector="true" 
+              className="dev-inspector-sentry-button"
+              onClick={() => {
+                try {
+                  throw new Error('Sentry Test Error - هذا خطأ تجريبي من DevInspector');
+                } catch (error) {
+                  console.error('Sentry Test Error:', error);
+                  alert('تم إرسال خطأ تجريبي إلى Sentry! تحقق من لوحة التحكم.');
+                }
+              }}
+            >
+              🐛 اختبار Sentry
+            </button>
             {copyError && <div className="dev-inspector-copy-error">{copyError}</div>}
           </div>
 
@@ -717,4 +732,4 @@ export function DevInspector() {
   return <DevInspectorInner />;
 }
 
-export default DevInspector;
+export default DevInspector;

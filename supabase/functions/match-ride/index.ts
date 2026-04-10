@@ -20,16 +20,17 @@ interface MatchingConfig {
   max_drivers_notify: number;
   sequential_delay_ms: number;
   fairness_weight: number;
+  admin_default_radius: number; // النطاق الافتراضي من لوحة التحكم (للسائقين بدون max_pickup_radius)
 }
 
 async function getMatchingConfig(supabase: any): Promise<MatchingConfig> {
   try {
-    const { data } = await supabase
-      .from("app_settings")
-      .select("value")
-      .eq("key", "matching_settings")
-      .maybeSingle();
-    const v = data?.value || {};
+    const [matchingResult, ridesResult] = await Promise.all([
+      supabase.from("app_settings").select("value").eq("key", "matching_settings").maybeSingle(),
+      supabase.from("app_settings").select("value").eq("key", "rides").maybeSingle(),
+    ]);
+    const v = matchingResult.data?.value || {};
+    const r = ridesResult.data?.value || {};
     return {
       matching_mode: v.matching_mode || DEFAULT_MATCHING_MODE,
       max_retry_rounds: v.max_retry_rounds ?? DEFAULT_MAX_RETRY_ROUNDS,
@@ -38,6 +39,7 @@ async function getMatchingConfig(supabase: any): Promise<MatchingConfig> {
       max_drivers_notify: v.max_drivers_notify ?? DEFAULT_MAX_DRIVERS_NOTIFY,
       sequential_delay_ms: v.sequential_delay_ms ?? DEFAULT_SEQUENTIAL_DELAY_MS,
       fairness_weight: v.fairness_weight ?? DEFAULT_FAIRNESS_WEIGHT,
+      admin_default_radius: r.max_search_radius ?? 10,
     };
   } catch {
     return {
@@ -48,6 +50,7 @@ async function getMatchingConfig(supabase: any): Promise<MatchingConfig> {
       max_drivers_notify: DEFAULT_MAX_DRIVERS_NOTIFY,
       sequential_delay_ms: DEFAULT_SEQUENTIAL_DELAY_MS,
       fairness_weight: DEFAULT_FAIRNESS_WEIGHT,
+      admin_default_radius: 10,
     };
   }
 }
@@ -341,7 +344,7 @@ serve(async (req) => {
         );
         const eta = calculateETA(distance);
         const maxRadius =
-          (driver.max_pickup_radius || 10) + (ride.high_priority ? 5 : 0) + radiusBonus;
+          (driver.max_pickup_radius || matchConfig.admin_default_radius) + (ride.high_priority ? 5 : 0) + radiusBonus;
 
         // Weighted dispatch: distance + rating + fairness + experience tie-breaker
         const normalizedDistance = Math.max(0, 1 - distance / maxRadius);

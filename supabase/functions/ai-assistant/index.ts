@@ -4,6 +4,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
+import { corsHeaders } from "../_shared/utils.ts";
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -24,12 +25,6 @@ async function loadDynamicConfig() {
     console.warn("[ai-assistant] ⚠️ Config load failed, using env fallback:", e);
   }
 }
-
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
 // System prompt للمساعد الذكي
 const SYSTEM_PROMPT = `أنت مساعد ذكي لتطبيق "ران RAAN" - تطبيق تاكسي عراقي.
 

@@ -181,7 +181,7 @@ export const ScheduleRideDialog = forwardRef<
       <DialogTrigger asChild>
         <div className="hidden" />
       </DialogTrigger>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="text-right flex items-center gap-2 justify-end">
             <span>جدولة رحلة متقدمة</span>

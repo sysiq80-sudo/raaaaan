@@ -4,13 +4,22 @@
  * يوفر واجهة موحدة للتعامل مع إضافات Capacitor الأصلية
  * يعمل في كلا البيئتين: المتصفح (web) و التطبيق الأصلي (native)
  * 
- * الإضافات المدعومة:
+ * الإضافات المدعومة (15 إضافة):
  * - Geolocation: تتبع GPS في الخلفية
- * - PushNotifications: إشعارات أصلية
- * - LocalNotifications: إشعارات محلية
- * - Haptics: اهتزاز متقدم
+ * - PushNotifications: إشعارات FCM أصلية
+ * - LocalNotifications: إشعارات محلية فورية
+ * - Haptics: اهتزاز متقدم (خفيف/متوسط/قوي)
  * - App: أحداث التطبيق (foreground/background)
  * - StatusBar: تخصيص شريط الحالة
+ * - Keyboard: التحكم بسلوك لوحة المفاتيح
+ * - Device: معلومات الجهاز والبطارية
+ * - Network: مراقبة حالة الاتصال
+ * - SplashScreen: إدارة شاشة البداية
+ * - Preferences: تخزين محلي أصلي
+ * - Browser: فتح روابط خارجية
+ * - KeepAwake: إبقاء الشاشة مضاءة (للسائق)
+ * - TextToSpeech: نطق صوتي عربي
+ * - SpeechRecognition: تعرف صوتي أصلي
  */
 
 import { Capacitor } from '@capacitor/core';
@@ -144,9 +153,9 @@ export const showNativeNotification = async (
         const reqPerm = await LocalNotifications.requestPermissions();
         permGranted = reqPerm.display === 'granted';
       }
-    } catch {
-      // افتراض الإذن ممنوح إذا فشل الفحص
-      permGranted = true;
+    } catch (permError) {
+      console.warn('⚠️ Permission check failed, assuming denied:', permError);
+      permGranted = false;
     }
     if (!permGranted) {
       console.warn('⚠️ LocalNotifications permission denied — cannot show notification');
@@ -303,8 +312,9 @@ export const initCapacitorPlugins = async (): Promise<void> => {
 
   console.log(`📱 تطبيق Capacitor — المنصة: ${Capacitor.getPlatform()}`);
   
-  // تخصيص شريط الحالة
+  // تخصيص شريط الحالة ولوحة المفاتيح
   await configureStatusBar();
+  await configureKeyboard();
 
   // إنشاء قنوات إشعارات لـ Android + طلب الإذن مبكراً
   try {
@@ -369,6 +379,32 @@ export const initCapacitorPlugins = async (): Promise<void> => {
   
   // تسجيل إشعارات FCM Push (لاستقبال الإشعارات حتى مع إغلاق الشاشة)
   await initNativePushNotifications();
+
+  // مراقبة تغييرات الشبكة في الوقت الفعلي
+  onNetworkStatusChange((connected, type) => {
+    console.log(`🌐 تغيير الشبكة: ${connected ? '✅ متصل' : '❌ غير متصل'} (${type})`);
+  });
+
+  // مراقبة حالة التطبيق (نشط ↔ خلفية)
+  onAppStateChange((isActive) => {
+    console.log(`📱 التطبيق: ${isActive ? '▶️ نشط' : '⏸️ خلفية'}`);
+  });
+
+  // معلومات الجهاز عند البدء
+  try {
+    const { Device } = await import('@capacitor/device');
+    const info = await Device.getInfo();
+    console.log(`📱 الجهاز: ${info.manufacturer} ${info.model} | ${info.operatingSystem} ${info.osVersion}`);
+  } catch { /* صامت */ }
+
+  // حالة الشبكة الحالية عند البدء
+  const netStatus = await getNetworkStatus();
+  console.log(`🌐 الشبكة: ${netStatus.connected ? '✅ متصل' : '❌ غير متصل'} (${netStatus.connectionType})`);
+
+  // إخفاء شاشة البداية بعد اكتمال التهيئة
+  setTimeout(() => hideSplashScreen(), 500);
+
+  console.log('✅ جميع إضافات Capacitor مُهيأة بنجاح');
 };
 
 /**
@@ -492,5 +528,291 @@ export const initNativePushNotifications = async (): Promise<void> => {
     console.log('✅ FCM Push Notifications initialized');
   } catch (error) {
     console.log('FCM initialization skipped:', error);
+  }
+};
+
+// ═══ لوحة المفاتيح ═══
+
+/**
+ * ضبط سلوك لوحة المفاتيح لمنع تشويه الخريطة عند فتحها
+ * تُستدعى تلقائياً في initCapacitorPlugins
+ */
+export const configureKeyboard = async (): Promise<void> => {
+  if (!isNativePlatform) return;
+
+  try {
+    const { Keyboard, KeyboardResize } = await import('@capacitor/keyboard');
+    // منع الكيبورد من دفع الـ WebView للأعلى (يحافظ على الخريطة)
+    await Keyboard.setResizeMode({ mode: KeyboardResize.None });
+    await Keyboard.setAccessoryBarVisible({ isVisible: false });
+    await Keyboard.setScroll({ isDisabled: false });
+    console.log('⌨️ Keyboard configured');
+  } catch {
+    // صامت — الإضافة غير متوفرة
+  }
+};
+
+// ═══ إبقاء الشاشة مضاءة (للسائق) ═══
+
+/**
+ * إبقاء الشاشة مضاءة أثناء الرحلة النشطة
+ * يُستدعى عند بدء رحلة السائق ويُلغى عند انتهائها
+ */
+export const setKeepAwake = async (keepAwake: boolean): Promise<void> => {
+  if (!isNativePlatform) return;
+
+  try {
+    const { KeepAwake } = await import('@capacitor-community/keep-awake');
+    if (keepAwake) {
+      await KeepAwake.keepAwake();
+      console.log('💡 الشاشة ستبقى مضاءة');
+    } else {
+      await KeepAwake.allowSleep();
+      console.log('💡 السماح للشاشة بالنوم');
+    }
+  } catch {
+    // صامت
+  }
+};
+
+// ═══ معلومات الجهاز والبطارية ═══
+
+/**
+ * قراءة مستوى البطارية — يُستخدم لتقليل تكرار GPS عند انخفاض الشحن
+ */
+export const getDeviceBatteryInfo = async (): Promise<{
+  batteryLevel?: number;
+  isCharging?: boolean;
+}> => {
+  if (!isNativePlatform) return {};
+
+  try {
+    const { Device } = await import('@capacitor/device');
+    const info = await Device.getBatteryInfo();
+    return {
+      batteryLevel: info.batteryLevel,
+      isCharging: info.isCharging,
+    };
+  } catch {
+    return {};
+  }
+};
+
+/**
+ * قراءة معلومات الجهاز (الطراز، المنصة، إصدار النظام)
+ */
+export const getDeviceInfo = async (): Promise<{
+  model?: string;
+  platform?: string;
+  osVersion?: string;
+  manufacturer?: string;
+}> => {
+  if (!isNativePlatform) return {};
+
+  try {
+    const { Device } = await import('@capacitor/device');
+    const info = await Device.getInfo();
+    return {
+      model: info.model,
+      platform: info.platform,
+      osVersion: info.osVersion,
+      manufacturer: info.manufacturer,
+    };
+  } catch {
+    return {};
+  }
+};
+
+// ═══ تحويل النص إلى كلام (Text-to-Speech) ═══
+
+/**
+ * نطق نص صوتي — مفيد لتطبيق الراكب والسائق
+ * أمثلة: "تم حجز رحلتك" — "طلب جديد، يبعد 2 كم"
+ */
+export const speakText = async (
+  text: string,
+  lang: string = 'ar-SA'
+): Promise<void> => {
+  if (!isNativePlatform) {
+    // Fallback للمتصفح
+    try {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = lang;
+      utterance.rate = 1.0;
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      // صامت
+    }
+    return;
+  }
+
+  try {
+    const { TextToSpeech } = await import('@capacitor-community/text-to-speech');
+    await TextToSpeech.speak({
+      text,
+      lang,
+      rate: 1.0,
+      pitch: 1.0,
+      volume: 1.0,
+      category: 'ambient',
+    });
+  } catch (err) {
+    console.error('TTS Error:', err);
+  }
+};
+
+/**
+ * إيقاف أي نطق جارٍ
+ */
+export const stopSpeaking = async (): Promise<void> => {
+  if (!isNativePlatform) {
+    window.speechSynthesis?.cancel();
+    return;
+  }
+
+  try {
+    const { TextToSpeech } = await import('@capacitor-community/text-to-speech');
+    await TextToSpeech.stop();
+  } catch {
+    // صامت
+  }
+};
+
+// ═══ التعرف على الصوت الأصلي (Speech Recognition) ═══
+
+/**
+ * بدء الاستماع الصوتي الأصلي — أدق من Web Speech API
+ * يُستخدم في AIVoiceHome للتعرف على أوامر الراكب
+ */
+export const startNativeSpeechRecognition = async (
+  onResult: (text: string) => void,
+  onError: (err: string) => void,
+  lang: string = 'ar-SA'
+): Promise<boolean> => {
+  if (!isNativePlatform) {
+    // على الويب نستخدم Web Speech API (موجود بالفعل في AIVoiceHome)
+    return false;
+  }
+
+  try {
+    const { SpeechRecognition } = await import(
+      '@capacitor-community/speech-recognition'
+    );
+
+    // التحقق من الإذن
+    const permStatus = await SpeechRecognition.hasPermission();
+    if (!permStatus.permission) {
+      const req = await SpeechRecognition.requestPermission();
+      if (!req.permission) {
+        onError('إذن الميكروفون مرفوض');
+        return false;
+      }
+    }
+
+    // الاستماع للنتائج الجزئية
+    SpeechRecognition.addListener('partialResults', (data: { matches: string[] }) => {
+      if (data.matches?.length > 0) {
+        onResult(data.matches[0]);
+      }
+    });
+
+    await SpeechRecognition.start({
+      language: lang,
+      maxResults: 1,
+      prompt: 'تحدث الآن...',
+      partialResults: true,
+      popup: false,
+    });
+
+    console.log('🎙️ Native speech recognition started');
+    return true;
+  } catch (err) {
+    onError(String(err));
+    return false;
+  }
+};
+
+/**
+ * إيقاف الاستماع الصوتي الأصلي
+ */
+export const stopNativeSpeechRecognition = async (): Promise<void> => {
+  if (!isNativePlatform) return;
+
+  try {
+    const { SpeechRecognition } = await import(
+      '@capacitor-community/speech-recognition'
+    );
+    await SpeechRecognition.stop();
+    await SpeechRecognition.removeAllListeners();
+  } catch {
+    // صامت
+  }
+};
+
+// ═══ مراقبة الشبكة ═══
+
+/**
+ * الاستماع لتغيرات حالة الاتصال بالإنترنت
+ * يُستخدم لتحويل التطبيق لوضع Offline بسلاسة
+ */
+export const onNetworkStatusChange = async (
+  callback: (isConnected: boolean, connectionType: string) => void
+): Promise<(() => void) | null> => {
+  if (!isNativePlatform) {
+    // Fallback: استخدام navigator.onLine
+    const onlineHandler = () => callback(true, 'wifi');
+    const offlineHandler = () => callback(false, 'none');
+    window.addEventListener('online', onlineHandler);
+    window.addEventListener('offline', offlineHandler);
+    return () => {
+      window.removeEventListener('online', onlineHandler);
+      window.removeEventListener('offline', offlineHandler);
+    };
+  }
+
+  try {
+    const { Network } = await import('@capacitor/network');
+    const listener = await Network.addListener('networkStatusChange', (status) => {
+      callback(status.connected, status.connectionType);
+    });
+    return () => listener.remove();
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * قراءة حالة الشبكة الحالية
+ */
+export const getNetworkStatus = async (): Promise<{
+  connected: boolean;
+  connectionType: string;
+}> => {
+  if (!isNativePlatform) {
+    return { connected: navigator.onLine, connectionType: 'unknown' };
+  }
+
+  try {
+    const { Network } = await import('@capacitor/network');
+    const status = await Network.getStatus();
+    return { connected: status.connected, connectionType: status.connectionType };
+  } catch {
+    return { connected: navigator.onLine, connectionType: 'unknown' };
+  }
+};
+
+// ═══ شاشة البداية (Splash Screen) ═══
+
+/**
+ * إخفاء شاشة البداية — تُستدعى بعد اكتمال تحميل التطبيق
+ */
+export const hideSplashScreen = async (): Promise<void> => {
+  if (!isNativePlatform) return;
+
+  try {
+    const { SplashScreen } = await import('@capacitor/splash-screen');
+    await SplashScreen.hide({ fadeOutDuration: 300 });
+  } catch {
+    // صامت
   }
 };

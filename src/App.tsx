@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { RaanThemeProvider } from "@/contexts/RaanThemeContext";
 import SplashScreen from "@/components/SplashScreen";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import * as Sentry from "@sentry/react";
 
 // ØµÙØ­Ø§Øª Ø£Ø³Ø§Ø³ÙŠØ© (Ù…Ø­Ù…Ù„Ø© Ù…Ø¨Ø§Ø´Ø±Ø© - ÙŠØ­ØªØ§Ø¬Ù‡Ø§ Ø§Ù„Ø¬Ù…ÙŠØ¹)
 import Index from "./pages/Index";
@@ -147,28 +148,43 @@ const App = () => {
   return (
     <RaanThemeProvider>
       <ErrorBoundary>
-        <TooltipProvider>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              <Sonner />
-              <ConnectionStatus />
-              <DevInspector />
-              {isNativePlatform ? (
-                <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                  <Suspense fallback={<LoadingFallback />}>
-                    <AppRoutes />
-                  </Suspense>
-                </HashRouter>
-              ) : (
-                <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                  <Suspense fallback={<LoadingFallback />}>
-                    <AppRoutes />
-                  </Suspense>
-                </BrowserRouter>
-              )}
-            </AuthProvider>
-          </QueryClientProvider>
-        </TooltipProvider>
+        <Sentry.ErrorBoundary
+          fallback={({ error, resetError }) => (
+            <div className="min-h-screen flex items-center justify-center bg-background p-4">
+              <div className="text-center space-y-4">
+                <h2 className="text-2xl font-bold text-destructive">حدث خطأ غير متوقع</h2>
+                <p className="text-muted-foreground">
+                  تم الإبلاغ عن هذا الخطأ تلقائياً لفريق التطوير
+                </p>
+                <Button onClick={resetError} variant="outline">
+                  إعادة المحاولة
+                </Button>
+              </div>
+            </div>
+          )}
+        >
+          <TooltipProvider>
+            <QueryClientProvider client={queryClient}>
+              <AuthProvider>
+                <Sonner />
+                <ConnectionStatus />
+                {isNativePlatform ? (
+                  <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                    <Suspense fallback={<LoadingFallback />}>
+                      <AppRoutes />
+                    </Suspense>
+                  </HashRouter>
+                ) : (
+                  <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                    <Suspense fallback={<LoadingFallback />}>
+                      <AppRoutes />
+                    </Suspense>
+                  </BrowserRouter>
+                )}
+              </AuthProvider>
+            </QueryClientProvider>
+          </TooltipProvider>
+        </Sentry.ErrorBoundary>
       </ErrorBoundary>
     </RaanThemeProvider>
   );

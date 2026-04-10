@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">ران سيارة</string>
-    <string name="title_activity_main">ران سيارة</string>
-    <string name="package_name">com.raan.car</string>
-    <string name="custom_url_scheme">com.raan.car</string>
+    <string name="app_name">ران</string>
+    <string name="title_activity_main">ران</string>
+    <string name="package_name">com.raan.rider</string>
+    <string name="custom_url_scheme">com.raan.rider</string>
 </resources>

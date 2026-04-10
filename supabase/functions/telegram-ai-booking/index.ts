@@ -13,6 +13,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
 import { parseReceiptImage, notifyAdminGroup } from "../_shared/receipt-vision.ts";
 import { classifyLocally, extractDirectDestination, extractPickupAndDropoff } from "../_shared/local-classifier.ts";
+import { corsHeaders } from "../_shared/utils.ts";
 
 // ════════════════════════════════════════
 // المتغيرات — تُحمّل ديناميكياً من system_configs
@@ -57,13 +58,6 @@ async function loadDynamicConfig() {
     TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
   }
 }
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
-
 // ════════════════════════════════════════
 // الرسائل العربية الثابتة
 // ════════════════════════════════════════

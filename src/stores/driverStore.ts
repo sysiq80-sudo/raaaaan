@@ -260,14 +260,16 @@ export const useDriverStore = create<DriverState & DriverActions>()(
             // إعادة ضبط تلقائي عند منتصف الليل
             checkAndResetDailyStats: () => {
                 const today = new Date().toISOString().split('T')[0];
-                const { lastStatsResetDate } = get();
-                if (lastStatsResetDate !== today) {
-                    set({
-                        todayStats: { rides: 0, earnings: 0, onlineHours: 0 },
-                        lastStatsResetDate: today,
-                    });
-                    console.log('[DriverStore] Daily stats auto-reset for', today);
-                }
+                set((state) => {
+                    if (state.lastStatsResetDate !== today) {
+                        console.log('[DriverStore] Daily stats auto-reset for', today);
+                        return {
+                            todayStats: { rides: 0, earnings: 0, onlineHours: 0 },
+                            lastStatsResetDate: today,
+                        };
+                    }
+                    return state;
+                });
             },
 
             // الطلبات

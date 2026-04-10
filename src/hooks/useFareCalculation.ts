@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useVehicleTypes } from '@/hooks/useVehicleTypes';
 import { useRegionFares } from '@/hooks/useRegionFares';
+import { calculateFare, validateDistance } from '@/lib/fareCalculation';
 
 type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
 
@@ -46,36 +47,37 @@ export const useFareCalculation = (
     distanceKm: number,
     vehicle: VehicleType,
   ): FareBreakdown => {
-    // القيم من DB — إذا لم تتوفر تستخدم الـ fallback الموجود في useRegionFares
     const baseFare = defaultFare.base_fare;
     const perKmRate = defaultFare.per_km_fare;
     const perMinuteRate = defaultFare.per_minute_fare || 0;
-    // استخدام المعامل من DB (مع fallback تلقائي في الهوك)
     const vehicleMultiplier = getMultiplier(vehicle);
-    const distanceFare = distanceKm * perKmRate;
-    // تقدير وقت الرحلة: متوسط 30 كم/ساعة في المدن العراقية
-    const estimatedMinutes = Math.max(1, Math.round((distanceKm / 30) * 60));
-    const timeFare = estimatedMinutes * perMinuteRate;
-    const subtotal = Math.max(baseFare, baseFare + distanceFare + timeFare);
-    // تطبيق معامل الذروة المحفوظ من آخر استجابة سيرفر (الحد الأقصى 2.0)
-    const surgeMultiplier = Math.min(lastSurgeMultiplierRef.current, 2.0);
-    const totalFare = Math.round(subtotal * vehicleMultiplier * surgeMultiplier);
+    const surgeMultiplier = lastSurgeMultiplierRef.current;
+
+    // استخدام الدالة المشتركة (نفس المنطق في السيرفر والعميل)
+    const result = calculateFare({
+      distanceKm,
+      baseFare,
+      perKmRate,
+      perMinuteRate,
+      vehicleMultiplier,
+      surgeMultiplier,
+    });
 
     return {
-      base_fare: baseFare,
+      base_fare: result.baseFare,
       distance_km: distanceKm,
-      distance_fare: distanceFare,
+      distance_fare: result.distanceFare,
       per_km_rate: perKmRate,
       waiting_minutes: 0,
       waiting_fare: 0,
       vehicle_type: vehicle,
-      vehicle_multiplier: vehicleMultiplier,
-      subtotal,
-      vehicle_adjusted_fare: totalFare,
+      vehicle_multiplier: result.vehicleMultiplier,
+      subtotal: result.subtotal,
+      vehicle_adjusted_fare: result.totalFare,
       service_fee: 0,
-      total_fare: totalFare,
+      total_fare: result.totalFare,
       region_name: "تقدير تقريبي",
-      formatted_fare: `${totalFare.toLocaleString()} د.ع`,
+      formatted_fare: `${result.totalFare.toLocaleString()} د.ع`,
     };
   };
 
@@ -102,14 +104,10 @@ export const useFareCalculation = (
         return;
       }
 
-      // ✅ التحقق من صحة المسافة
-      if (routeDistance < 0.1) {
-        setFareError('المسافة قصيرة جداً');
-        setFareBreakdown(null);
-        return;
-      }
-      if (routeDistance > 500 || !isFinite(routeDistance)) {
-        setFareError('المسافة غير صحيحة');
+      // ✅ التحقق من صحة المسافة (عبر الدالة المشتركة)
+      const distanceCheck = validateDistance(routeDistance);
+      if (!distanceCheck.valid) {
+        setFareError(distanceCheck.error || 'المسافة غير صحيحة');
         setFareBreakdown(null);
         return;
       }

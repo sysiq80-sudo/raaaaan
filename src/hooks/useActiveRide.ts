@@ -331,7 +331,7 @@ export const useActiveRide = (userId: string | null) => {
             const prevStatus = previousStatusRef.current;
 
             // تجاهل تحديثات الإلغاء للرحلات القديمة (ليست الرحلة النشطة الحالية)
-            if (newStatus === "cancelled" && activeRide && updatedRide.id !== activeRide.id) {
+            if (newStatus === "cancelled" && activeRideIdRef.current && updatedRide.id !== activeRideIdRef.current) {
               logger.debug(LOG_CONTEXT, "Ignoring cancellation update for non-active ride", updatedRide.id);
               return;
             }

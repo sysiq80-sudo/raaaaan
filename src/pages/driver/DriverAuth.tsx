@@ -22,7 +22,6 @@ const DriverAuth = () => {
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [isLinking, setIsLinking] = useState(false); // 🔒 منع الحلقات اللا نهائية
 
   // ── تحميل بيانات "تذكرني" من Capacitor Preferences ──
   useEffect(() => {
@@ -37,12 +36,13 @@ const DriverAuth = () => {
   useEffect(() => {
     let isMounted = true;
     let hasProcessed = false; // 🔒 علم لتتبع ما إذا تم معالجة الجلسة
+    let isProcessing = false; // 🔒 علم محلي لمنع التكرار (بدلاً من state)
 
     const checkDriverStatus = async (userPhone?: string) => {
       // 🔒 منع المعالجة المتكررة
-      if (!isMounted || isLinking || hasProcessed) return;
+      if (!isMounted || isProcessing || hasProcessed) return;
       
-      setIsLinking(true);
+      isProcessing = true;
       hasProcessed = true;
 
       try {
@@ -106,9 +106,7 @@ const DriverAuth = () => {
           navigate("/driver/complete-registration");
         }
       } finally {
-        if (isMounted) {
-          setIsLinking(false);
-        }
+        isProcessing = false;
       }
     };
 
@@ -130,10 +128,9 @@ const DriverAuth = () => {
       isMounted = false;
       subscription?.unsubscribe();
     };
-  }, [navigate, isLinking]);
+  }, [navigate]);
 
-  const handlePhoneLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePhoneLogin = async () => {
     setErrors({});
 
     if (!loginPhone || loginPhone.length < 10) {
@@ -141,9 +138,9 @@ const DriverAuth = () => {
       return;
     }
 
-    if (!loginPhonePassword || loginPhonePassword.length < 8) {
+    if (!loginPhonePassword) {
       setErrors({
-        loginPhonePassword: "كلمة المرور يجب أن تكون 8 أحرف على الأقل",
+        loginPhonePassword: "يرجى إدخال كلمة المرور",
       });
       return;
     }
@@ -333,7 +330,7 @@ const DriverAuth = () => {
           </div>
 
           {/* Form */}
-          <form onSubmit={handlePhoneLogin} className="space-y-4" id="driver-login-form">
+          <form noValidate onSubmit={(e) => e.preventDefault()} className="space-y-4" id="driver-login-form">
             {/* Phone */}
             <div className="relative mb-5">
               <div className="relative flex items-center bg-[#1a2333] rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-emerald-500/50 transition-shadow">
@@ -346,7 +343,6 @@ const DriverAuth = () => {
                   value={loginPhone}
                   onChange={(e) => setLoginPhone(e.target.value)}
                   className={`h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-[16px] font-medium tracking-wide focus-visible:ring-0 w-full text-center ${errors.loginPhone ? "shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]" : ""}`}
-                  required
                   dir="ltr"
                 />
               </div>
@@ -369,8 +365,6 @@ const DriverAuth = () => {
                 value={loginPhonePassword}
                 onChange={(e) => setLoginPhonePassword(e.target.value)}
                 className={`w-full h-14 bg-transparent border-0 text-white placeholder:text-slate-500 placeholder:text-center rounded-none px-16 text-[15px] text-center focus-visible:ring-0 ${errors.loginPhonePassword ? "shadow-[inset_0_0_0_1px_rgba(239,68,68,0.5)]" : ""}`}
-                required
-                minLength={8}
                 dir="ltr"
               />
               <button 
@@ -426,7 +420,8 @@ const DriverAuth = () => {
 
             {/* Submit Button */}
             <Button
-              type="submit"
+              type="button"
+              onClick={() => handlePhoneLogin()}
               disabled={loading}
               className="w-full h-14 bg-[#34d399] hover:bg-[#10b981] active:bg-[#059669] text-[#064e3b] text-[16px] font-bold rounded-full mt-4 shadow-[0_0_24px_rgba(52,211,153,0.3)] transition-all"
             >

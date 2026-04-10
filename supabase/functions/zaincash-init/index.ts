@@ -14,6 +14,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { create } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
+import { corsHeaders } from "../_shared/utils.ts";
 
 // ════════════════════════════════════════
 // إعدادات ديناميكية
@@ -49,12 +50,6 @@ async function loadDynamicConfig() {
     zaincashBaseUrl = Deno.env.get("ZAINCASH_BASE_URL") || "https://api.zaincash.iq";
   }
 }
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
 // ════════════════════════════════════════
 // إنشاء مفتاح HMAC للتوقيع
 // ════════════════════════════════════════

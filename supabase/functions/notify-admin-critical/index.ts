@@ -45,8 +45,10 @@ async function loadConfig() {
   }
 }
 
+// corsHeaders — يستخدم الأساس من المشترك مع إضافة x-internal-secret
+import { corsHeaders as baseCorsHeaders } from "../_shared/utils.ts";
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  ...baseCorsHeaders,
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-internal-secret",
 };

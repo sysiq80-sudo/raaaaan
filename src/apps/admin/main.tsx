@@ -4,7 +4,7 @@ import "@/index.css";
 import { initSentry } from "@/lib/sentry";
 
 // تهيئة Sentry
-initSentry();
+try { initSentry(); } catch (e) { console.error('[Sentry] فشل:', e); }
 
 declare global {
   interface Window {

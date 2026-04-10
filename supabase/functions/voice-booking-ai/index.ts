@@ -10,6 +10,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
+import { corsHeaders } from "../_shared/utils.ts";
 
 let OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 let _configLoaded = false;
@@ -26,13 +27,6 @@ async function loadDynamicConfig() {
     console.warn("[voice-booking-ai] ⚠️ Config load failed, using env fallback:", e);
   }
 }
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
-
 // ============================
 // الخطوة 1: تحويل الصوت لنص
 // ============================

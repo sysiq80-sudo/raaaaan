@@ -115,13 +115,14 @@ const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: S
             .eq("user_id", authData.user.id)
             .maybeSingle();
 
-          await supabase.from("ride_ratings").insert({
+          const { error: ratingErr } = await supabase.from("ride_ratings").insert({
             ride_id: rideId,
             rating,
             comment,
             driver_id: driverId,
             rider_id: riderProfile?.id ?? null,
           });
+          if (ratingErr) console.warn("[Rating] ride_ratings insert error:", ratingErr.message);
         }
       } catch (innerErr) {
         console.warn("[Rating] ride_ratings insert skipped:", innerErr);
@@ -140,7 +141,8 @@ const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: S
           const avg = Math.round(
             (rides.reduce((s, r) => s + (r.driver_rating ?? 0), 0) / rides.length) * 10
           ) / 10;
-          await supabase.from("drivers").update({ rating: avg }).eq("id", driverId);
+          const { error: avgErr2 } = await supabase.from("drivers").update({ rating: avg }).eq("id", driverId);
+          if (avgErr2) console.warn("[Rating] driver avg update error:", avgErr2.message);
         }
       } catch (avgErr) {
         console.warn("[Rating] driver avg update skipped:", avgErr);

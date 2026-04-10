@@ -1,0 +1,162 @@
+{
+  "nav": {
+    "home": "Home",
+    "rides": "Rides",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "ride": {
+    "pickup": "Pickup Location",
+    "dropoff": "Drop-off Location",
+    "addStop": "Add Stop",
+    "removeStop": "Remove Stop",
+    "vehicleType": "Vehicle Type",
+    "economy": "Economy",
+    "comfort": "Comfort",
+    "premium": "Premium",
+    "womenOnly": "Women Only",
+    "bookRide": "Book Ride",
+    "searchingDrivers": "Searching for drivers...",
+    "waitingForDriver": "Waiting for driver",
+    "driverFound": "Driver found",
+    "driverArrived": "Driver arrived",
+    "rideStarted": "Ride started",
+    "rideCompleted": "Ride completed",
+    "cancelRide": "Cancel Ride",
+    "fare": "Fare",
+    "distance": "Distance",
+    "duration": "Duration",
+    "surgeMultiplier": "Surge Multiplier",
+    "total": "Total",
+    "eta": "ETA",
+    "estimatedFare": "Estimated Fare",
+    "mostPopular": "Most Popular"
+  },
+  "driver": {
+    "online": "Online",
+    "offline": "Offline",
+    "available": "Available",
+    "busy": "Busy",
+    "rating": "Rating",
+    "trips": "Trips",
+    "earnings": "Earnings",
+    "acceptRide": "Accept Ride",
+    "declineRide": "Decline Ride",
+    "arrived": "Arrived",
+    "startRide": "Start Ride",
+    "completeRide": "Complete Ride"
+  },
+  "common": {
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Info",
+    "retry": "Retry",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "apply": "Apply",
+    "reset": "Reset",
+    "confirm": "Confirm",
+    "noResults": "No results found",
+    "seeAll": "See All"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "phone": "Phone",
+    "name": "Name",
+    "forgotPassword": "Forgot Password?",
+    "resetPassword": "Reset Password",
+    "verifyCode": "Verification Code",
+    "resendCode": "Resend Code",
+    "loginWithPhone": "Login with Phone",
+    "loginWithEmail": "Login with Email"
+  },
+  "errors": {
+    "networkError": "Network Error",
+    "serverError": "Server Error",
+    "validationError": "Validation Error",
+    "locationError": "Location Error",
+    "paymentError": "Payment Error",
+    "rideNotFound": "Ride Not Found",
+    "driverNotFound": "Driver Not Found",
+    "invalidCredentials": "Invalid Credentials",
+    "accountSuspended": "Account Suspended",
+    "tooManyRequests": "Too Many Requests"
+  },
+  "admin": {
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "drivers": "Drivers",
+    "rides": "Rides",
+    "reports": "Reports",
+    "settings": "Settings",
+    "support": "Support",
+    "notifications": "Notifications",
+    "analytics": "Analytics",
+    "totalUsers": "Total Users",
+    "totalDrivers": "Total Drivers",
+    "totalRides": "Total Rides",
+    "revenue": "Revenue",
+    "activeRides": "Active Rides",
+    "pendingApprovals": "Pending Approvals"
+  },
+  "messages": {
+    "errors": {
+      "network": "Unable to connect to server. Check your internet connection.",
+      "location": "Unable to determine your location. Make sure location services are enabled.",
+      "login": "Login failed. Please check your credentials.",
+      "generic": "An unexpected error occurred. Please try again."
+    },
+    "success": {
+      "rideBooked": "Your ride has been booked successfully!",
+      "rideCompleted": "Ride completed successfully!",
+      "profileUpdated": "Your profile has been updated."
+    },
+    "notifications": {
+      "driverAccepted": "🎉 Your request was accepted! Driver is on the way.",
+      "driverArrived": "🔔 Driver has arrived! Come out now.",
+      "rideStarted": "🛣️ Ride has started!",
+      "rideCancelled": "❌ Ride has been cancelled."
+    }
+  },
+  "payment": {
+    "cash": "Cash",
+    "cashDesc": "Pay the driver directly",
+    "wallet": "Wallet",
+    "walletDesc": "Deduct from your balance",
+    "card": "Card",
+    "cardDesc": "Pay with card"
+  },
+  "status": {
+    "pending": "Pending",
+    "accepted": "Accepted",
+    "arrived": "Driver Arrived",
+    "in_progress": "In Progress",
+    "completed": "Completed",
+    "cancelled": "Cancelled"
+  },
+  "time": {
+    "minutes": "minutes",
+    "hours": "hours",
+    "ago": "ago",
+    "just_now": "Just now"
+  }
+}

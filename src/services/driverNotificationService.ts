@@ -350,42 +350,38 @@ export const acceptRideFromNotification = async (
   driverId: string
 ): Promise<boolean> => {
   try {
-    // التحقق من أن الرحلة لا تزال متاحة
-    const { data: ride, error: rideError } = await supabase
-      .from('rides')
-      .select('status')
-      .eq('id', rideId)
-      .single();
-
-    if (rideError || !ride || ride.status !== 'pending') {
-      console.log('الرحلة لم تعد متاحة:', ride?.status);
-      return false;
-    }
-
-    // قبول الرحلة
-    const { error } = await supabase
-      .from('rides')
-      .update({
-        driver_id: driverId,
-        status: 'accepted',
-        accepted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', rideId)
-      .eq('status', 'pending');
+    // ═══ إصلاح حرج: استخدام RPC الذري بدلاً من SELECT+UPDATE ═══
+    // الطريقة القديمة (SELECT ثم UPDATE) تترك نافذة سباق ~50ms
+    // تسمح لسائقَيْن بقبول نفس الرحلة.
+    // الـ RPC الذري يُنفذ UPDATE...WHERE status='pending' في عملية واحدة
+    // مما يضمن أن سائقاً واحداً فقط ينجح.
+    const { data, error } = await supabase.rpc('accept_ride_atomic', {
+      target_ride_id: rideId,
+      acc_driver_id: driverId,
+    });
 
     if (error) {
-      console.error('فشل قبول الرحلة:', error);
+      console.error('فشل قبول الرحلة (RPC):', error);
       return false;
     }
 
-    // تحديث حالة السائق
-    await supabase
+    const result = data as { success: boolean; message?: string } | null;
+
+    if (!result?.success) {
+      console.log('الرحلة لم تعد متاحة:', result?.message);
+      return false;
+    }
+
+    // تحديث حالة السائق (non-blocking)
+    supabase
       .from('drivers')
       .update({ is_available: false, updated_at: new Date().toISOString() })
-      .eq('id', driverId);
+      .eq('id', driverId)
+      .then(({ error: driverErr }) => {
+        if (driverErr) console.warn('⚠️ فشل تحديث حالة السائق:', driverErr);
+      });
 
-    console.log('✅ تم قبول الرحلة من الإشعار:', rideId);
+    console.log('✅ تم قبول الرحلة ذرياً من الإشعار:', rideId);
     return true;
   } catch (error) {
     console.error('خطأ في قبول الرحلة:', error);

@@ -5,9 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { logger } from "@/lib/logger";
 import { roundFare } from "@/lib/constants";
-import { playNotificationSound } from "@/lib/audioContext";
 import { stopRideAlert } from "@/lib/loudAlerts";
-import { safeVibrate } from "@/lib/userGestureTracker";
 import {
   Clock,
   Wallet,
@@ -25,6 +23,7 @@ import {
 } from "lucide-react";
 import { useAutoAccept } from "@/stores/driverStore";
 import { useVehicleTypes } from "@/hooks/useVehicleTypes";
+import { calculateLocalDistance } from "@/lib/mapUtils";
 
 interface PendingRide {
   id: string;
@@ -140,10 +139,20 @@ export const RideRequestCard = ({
 
   // Ref لـ fetchPendingRides — يمنع إعادة الاشتراك في Realtime مع كل تغيير موقع
   const fetchPendingRidesRef = useRef<() => void>(() => {});
+  // Refs لتتبع آخر موقع ونطاق السائق داخل الـ Realtime handler (بدون إعادة اشتراك)
+  const driverLocationRef = useRef(driverLocation);
+  const maxPickupRadiusRef = useRef(maxPickupRadius);
   // Refs لإدارة الاشتراك بالـ debounce
   const setupTimerRef = useRef<NodeJS.Timeout | null>(null);
   const activeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const visibilityHandlerRef = useRef<(() => void) | null>(null);
+  // تجنب استدعاء onRideRequestVisible بنفس القيمة مراراً (يمنع re-render الأب)
+  const lastVisibleStateRef = useRef<boolean | null>(null);
+  const stableOnRideRequestVisible = useCallback((visible: boolean) => {
+    if (lastVisibleStateRef.current === visible) return;
+    lastVisibleStateRef.current = visible;
+    onRideRequestVisible?.(visible);
+  }, [onRideRequestVisible]);
 
   // تنظيف الرحلات المتخطاة المنتهية الصلاحية كل 30 ثانية
   useEffect(() => {
@@ -215,7 +224,7 @@ export const RideRequestCard = ({
           hasActiveRideRef.current = true;
           // 🛡️ إخفاء بطاقات الطلبات فوراً عند وجود رحلة نشطة
           setPendingRides([]);
-          onRideRequestVisible?.(false);
+          stableOnRideRequestVisible(false);
           logger.info('RideRequestCard', '🎯 البحث الذكي مُفعَّل - البحث من موقع الوجهة', dropoff);
         } else {
           setActiveRideDropoff(null);
@@ -244,7 +253,7 @@ export const RideRequestCard = ({
     // 🛡️ لا تبحث عن طلبات جديدة إذا السائق لديه رحلة نشطة بالفعل
     if (hasActiveRideRef.current) {
       setPendingRides([]);
-      onRideRequestVisible?.(false);
+      stableOnRideRequestVisible(false);
       return;
     }
 
@@ -309,6 +318,17 @@ export const RideRequestCard = ({
           for (const ride of data) {
             if (!canDriverServeRide(vehicleType, ride.vehicle_type || "economy")) continue;
             if (!isRideVisible(ride.id)) continue;
+            // 🗺️ فلتر جغرافي للـ fallback: تجاهل إذا الرحلة خارج نطاق السائق (إذا توفر الموقع)
+            if (searchLocation?.lat && searchLocation?.lng) {
+              const pickup = ride.pickup_location as { lat: number; lng: number } | null;
+              if (pickup?.lat && pickup?.lng) {
+                const distKm = calculateLocalDistance(searchLocation, pickup);
+                if (distKm > maxPickupRadius) {
+                  logger.debug("RideRequestCard", `🗺️ فلتر fallback: تجاهل ${ride.id} — ${distKm.toFixed(1)}km > ${maxPickupRadius}km`);
+                  continue;
+                }
+              }
+            }
             collected.push({
               id: ride.id,
               pickup_location: ride.pickup_location as { lat: number; lng: number },
@@ -369,8 +389,6 @@ export const RideRequestCard = ({
         emptyPollCountRef.current = 0;
         const firstId = collected[0].id;
         if (previousRideIdRef.current !== firstId) {
-          playNotificationSound();
-          safeVibrate([300, 100, 300, 100, 400]);
           previousRideIdRef.current = firstId;
         }
         setPendingRides(prev => {
@@ -387,18 +405,18 @@ export const RideRequestCard = ({
           return collected;
         });
         setTimeLeft(calcTimeLeft(collected[0].created_at));
-        onRideRequestVisible?.(true);
+        stableOnRideRequestVisible(true);
       } else {
         // زيادة عداد الاستعلامات الفارغة (يُستخدم في adaptive backoff)
         emptyPollCountRef.current = Math.min(emptyPollCountRef.current + 1, 10);
         setPendingRides([]);
         previousRideIdRef.current = null;
-        onRideRequestVisible?.(false);
+        stableOnRideRequestVisible(false);
       }
     } catch (error) {
       logger.error("RideRequestCard", "Error fetching rides", error);
       setPendingRides([]);
-      onRideRequestVisible?.(false);
+      stableOnRideRequestVisible(false);
     }
   }, [isOnline, isPaused, vehicleType, driverLocation, maxPickupRadius, canDriverServeRide, searchFromDropoff, activeRideDropoff, isRideVisible, calcTimeLeft, highlightRideId]);
 
@@ -421,6 +439,10 @@ export const RideRequestCard = ({
   useEffect(() => {
     fetchPendingRidesRef.current = fetchPendingRides;
   }, [fetchPendingRides]);
+
+  // تحديث refs الموقع والنطاق فوراً مع كل تغيير (بدون إعادة الاشتراك)
+  useEffect(() => { driverLocationRef.current = driverLocation; }, [driverLocation]);
+  useEffect(() => { maxPickupRadiusRef.current = maxPickupRadius; }, [maxPickupRadius]);
 
   // Subscribe to realtime ride insertions — مع debounce لمنع الدورات السريعة عند الـ init
   useEffect(() => {
@@ -479,6 +501,17 @@ export const RideRequestCard = ({
             const rideData = payload.new;
             logger.debug("RideRequestCard", "⚡ New ride INSERT (pending)", rideData?.id);
             if (rideData && rideData.id && rideData.status === 'pending' && !rideData.driver_id) {
+              // 🗺️ فلتر جغرافي: تجاهل الرحلة إذا كانت خارج نطاق السائق
+              const loc = driverLocationRef.current;
+              const radius = maxPickupRadiusRef.current;
+              const pickupLoc = rideData.pickup_location as { lat: number; lng: number } | null;
+              if (loc?.lat && loc?.lng && pickupLoc?.lat && pickupLoc?.lng) {
+                const distKm = calculateLocalDistance(loc, pickupLoc);
+                if (distKm > radius) {
+                  logger.debug("RideRequestCard", `🗺️ تجاهل الرحلة ${rideData.id} — خارج النطاق (${distKm.toFixed(1)}km > ${radius}km)`);
+                  return;
+                }
+              }
               const directRide: PendingRide = {
                 id: rideData.id,
                 pickup_location: rideData.pickup_location as { lat: number; lng: number },
@@ -498,8 +531,6 @@ export const RideRequestCard = ({
               if (!inCooldown) {
                 logger.debug("RideRequestCard", "✅ عرض الطلب فوراً من الـ Realtime payload");
                 if (previousRideIdRef.current !== directRide.id) {
-                  playNotificationSound();
-                  safeVibrate([300, 100, 300, 100, 400]);
                   previousRideIdRef.current = directRide.id;
                 }
                 setPendingRides(prev => {
@@ -509,7 +540,7 @@ export const RideRequestCard = ({
                 });
                 const elapsed = Math.floor((Date.now() - new Date(directRide.created_at).getTime()) / 1000);
                 setTimeLeft(Math.max(0, 30 - elapsed));
-                onRideRequestVisible?.(true);
+                stableOnRideRequestVisible(true);
                 return;
               }
             }
@@ -529,6 +560,17 @@ export const RideRequestCard = ({
             if (newStatus === 'pending' && oldStatus !== 'pending' && rideData) {
               logger.debug("RideRequestCard", `⚡ Ride UPDATE to pending (${oldStatus} → ${newStatus})`, rideData.id);
               if (rideData.id && !rideData.driver_id) {
+                // 🗺️ فلتر جغرافي: تجاهل الرحلة إذا كانت خارج نطاق السائق
+                const loc = driverLocationRef.current;
+                const radius = maxPickupRadiusRef.current;
+                const pickupLoc = rideData.pickup_location as { lat: number; lng: number } | null;
+                if (loc?.lat && loc?.lng && pickupLoc?.lat && pickupLoc?.lng) {
+                  const distKm = calculateLocalDistance(loc, pickupLoc);
+                  if (distKm > radius) {
+                    logger.debug("RideRequestCard", `🗺️ تجاهل الرحلة ${rideData.id} (UPDATE→pending) — خارج النطاق (${distKm.toFixed(1)}km > ${radius}km)`);
+                    return;
+                  }
+                }
                 const directRide: PendingRide = {
                   id: rideData.id as string,
                   pickup_location: rideData.pickup_location as { lat: number; lng: number },
@@ -547,8 +589,6 @@ export const RideRequestCard = ({
                 const inCooldown = skippedTime && (Date.now() - skippedTime < 60000);
                 if (!inCooldown) {
                   if (previousRideIdRef.current !== directRide.id) {
-                    playNotificationSound();
-                    safeVibrate([300, 100, 300, 100, 400]);
                     previousRideIdRef.current = directRide.id;
                   }
                   setPendingRides(prev => {
@@ -558,7 +598,7 @@ export const RideRequestCard = ({
                   });
                   const elapsed = Math.floor((Date.now() - new Date(directRide.created_at).getTime()) / 1000);
                   setTimeLeft(Math.max(0, 30 - elapsed));
-                  onRideRequestVisible?.(true);
+                  stableOnRideRequestVisible(true);
                   return;
                 }
               }
@@ -576,9 +616,14 @@ export const RideRequestCard = ({
 
       activeChannelRef.current = channel;
 
-      // 👁️ Force-poll when tab/app regains visibility
+      // 👁️ Force-poll when tab/app regains visibility (مع debounce لمنع الوميض)
+      let lastVisibilityPoll = 0;
       const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
+          const now = Date.now();
+          // تجاهل إذا آخر poll كان قبل أقل من 3 ثوانٍ
+          if (now - lastVisibilityPoll < 3000) return;
+          lastVisibilityPoll = now;
           logger.debug("RideRequestCard", "👁️ Tab visible — force-polling rides");
           fetchPendingRidesRef.current();
         }
@@ -596,7 +641,7 @@ export const RideRequestCard = ({
   useEffect(() => {
     if (!isOnline || isPaused) {
       setPendingRides([]);
-      onRideRequestVisible?.(false);
+      stableOnRideRequestVisible(false);
       return;
     }
 
@@ -805,7 +850,7 @@ export const RideRequestCard = ({
       setPendingRides([]);
       setCurrentIndex(0);
       previousRideIdRef.current = null;
-      onRideRequestVisible?.(false);
+      stableOnRideRequestVisible(false);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[RideRequestCard] ❌ Accept failed:", msg);
@@ -827,7 +872,7 @@ export const RideRequestCard = ({
           setPendingRides([]);
           setCurrentIndex(0);
           previousRideIdRef.current = null;
-          onRideRequestVisible?.(false);
+          stableOnRideRequestVisible(false);
           // ❗ لا نستخدم return هنا لضمان تنفيذ finally
         }
       } catch (verifyErr) {
@@ -845,7 +890,7 @@ export const RideRequestCard = ({
         setPendingRides([]);
         setCurrentIndex(0);
         previousRideIdRef.current = null;
-        onRideRequestVisible?.(false);
+        stableOnRideRequestVisible(false);
       }
     } finally {
       // ⚡ ضمان إعادة تعيين الحالة دائماً — ينفذ حتى بعد silentSuccess
@@ -884,7 +929,7 @@ export const RideRequestCard = ({
       return next;
     });
     // إذا كانت هذه آخر رحلة → أبلغ الأب الفوري
-    if (wasLastRide) onRideRequestVisible?.(false);
+    if (wasLastRide) stableOnRideRequestVisible(false);
 
     try {
       await supabase.rpc("update_driver_response", {

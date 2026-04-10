@@ -47,12 +47,22 @@ const DutyToggle = ({
   maxPickupRadius = 10,
 }: DutyToggleProps) => {
   const [pressing, setPressing] = useState(false);
+  const [clickCount, setClickCount] = useState(0);
 
   const isDisabled = isLoading || driverStatus !== "approved";
   const isApproved = driverStatus === "approved";
 
+  // \u062a\u0634\u062e\u064a\u0635 \u0634\u0627\u0645\u0644 \u0639\u0646\u062f \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0645\u0643\u0648\u0646
+  console.log('\ud83d\udfe1 DutyToggle RENDER:', { isDisabled, isOnline, isPaused, isLoading, driverStatus, hasActiveRide, hasRideRequest });
+
   const handlePress = async () => {
-    if (isDisabled) return;
+    console.log('\ud83d\udd18 DutyToggle handlePress called!', { isDisabled, isOnline, isPaused, isLoading, driverStatus });
+    setClickCount(prev => prev + 1);
+    if (isDisabled) {
+      console.log('🚫 DutyToggle DISABLED — isLoading:', isLoading, 'driverStatus:', driverStatus);
+      return;
+    }
+    console.log('✅ DutyToggle proceeding with toggle to:', !isOnline);
     // تهيئة AudioContext عند أول تفاعل مستخدم (Go Online)
     initAudioContext();
     resumeAudioContext();
@@ -118,21 +128,21 @@ const DutyToggle = ({
 
       {/* ═══ الزر الرئيسي — يختفي عند وجود رحلة نشطة ═══ */}
       {!hasActiveRide && (
-        <div className="relative">
+        <div className="relative pointer-events-auto">
         {/* Pulse rings */}
         <AnimatePresence>
           {isOnline && !isPaused && !isLoading && (
             <>
               <motion.div
                 key="ring-1"
-                className={cn("absolute inset-0 rounded-full border-2", stateConfig.ringColor)}
+                className={cn("absolute inset-0 rounded-full border-2 pointer-events-none", stateConfig.ringColor)}
                 initial={{ scale: 1, opacity: 0.6 }}
                 animate={{ scale: 2.2, opacity: 0 }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
               />
               <motion.div
                 key="ring-2"
-                className={cn("absolute inset-0 rounded-full border-2", stateConfig.ringColor)}
+                className={cn("absolute inset-0 rounded-full border-2 pointer-events-none", stateConfig.ringColor)}
                 initial={{ scale: 1, opacity: 0.4 }}
                 animate={{ scale: 2.5, opacity: 0 }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.7 }}
@@ -142,7 +152,7 @@ const DutyToggle = ({
           {isOnline && isPaused && !isLoading && (
             <motion.div
               key="ring-paused"
-              className="absolute inset-0 rounded-full border-2 border-amber-500/25"
+              className="absolute inset-0 rounded-full border-2 border-amber-500/25 pointer-events-none"
               initial={{ scale: 1, opacity: 0.4 }}
               animate={{ scale: 1.8, opacity: 0 }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeOut" }}
@@ -153,7 +163,7 @@ const DutyToggle = ({
         {/* Glow */}
         <motion.div
           className={cn(
-            "absolute inset-[-8px] rounded-full blur-xl transition-colors duration-500",
+            "absolute inset-[-8px] rounded-full blur-xl transition-colors duration-500 pointer-events-none",
             isOnline ? (isPaused ? "bg-amber-500/20" : "bg-[#00E676]/25") : "bg-gray-500/10"
           )}
           animate={{
@@ -164,22 +174,40 @@ const DutyToggle = ({
         />
 
         {/* Main Button */}
-        <motion.button
-          onClick={handlePress}
+        <button
+          onClick={(e) => {
+            console.log('\ud83d\udc49 DutyToggle onClick fired!', e.type);
+            handlePress();
+          }}
+          onTouchEnd={(e) => {
+            console.log('\ud83d\udc46 DutyToggle onTouchEnd fired!');
+            e.preventDefault();
+            handlePress();
+          }}
           disabled={isDisabled}
-          whileTap={{ scale: isDisabled ? 1 : 0.9 }}
-          whileHover={{ scale: isDisabled ? 1 : 1.05 }}
-          animate={{ scale: pressing ? 0.92 : 1 }}
-          transition={{ type: "spring", stiffness: 400, damping: 20 }}
+          onPointerDown={() => {
+            console.log('\u2b07\ufe0f DutyToggle onPointerDown');
+            !isDisabled && setPressing(true);
+          }}
+          onPointerUp={() => setPressing(false)}
+          onPointerLeave={() => setPressing(false)}
           className={cn(
-            "relative z-10 w-20 h-20 rounded-full flex items-center justify-center transition-all duration-500",
+            "relative z-10 w-20 h-20 rounded-full flex items-center justify-center transition-all duration-200",
+            "touch-manipulation pointer-events-auto select-none",
             stateConfig.bg, stateConfig.glow,
-            isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer active:scale-95",
+            isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+            pressing && !isDisabled ? "scale-90" : "scale-100",
             "border-2", stateConfig.borderColor
           )}
           aria-label={isOnline ? (isPaused ? "استئناف استقبال الطلبات" : "قطع الاتصال") : "الاتصال واستقبال الطلبات"}
           aria-pressed={isOnline}
         >
+          {/* عداد ضغطات للتشخيص - يظهر فقط عند الضغط */}
+          {clickCount > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center z-50 pointer-events-none">
+              {clickCount}
+            </span>
+          )}
           <AnimatePresence mode="wait">
             {isLoading ? (
               <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -195,8 +223,8 @@ const DutyToggle = ({
               </motion.div>
             )}
           </AnimatePresence>
-          <div className={cn("absolute inset-1 rounded-full border transition-colors duration-500", isOnline ? (isPaused ? "border-white/15" : "border-white/20") : "border-white/5")} />
-        </motion.button>
+          <div className={cn("absolute inset-1 rounded-full border transition-colors duration-500 pointer-events-none", isOnline ? (isPaused ? "border-white/15" : "border-white/20") : "border-white/5")} />
+        </button>
       </div>
       )}
 

@@ -4,15 +4,28 @@ import "@/index.css";
 import { initCapacitorPlugins } from "@/lib/capacitorBridge";
 import { initUserGestureTracking } from "@/lib/userGestureTracker";
 import { initSentry } from "@/lib/sentry";
+import { hydrateFromNativeStorage } from "@/lib/capacitorStorage";
 
 // تهيئة Sentry
-initSentry();
+try {
+  initSentry();
+} catch (error) {
+  console.error("❌ خطأ في تهيئة Sentry:", error);
+}
 
 // تهيئة Capacitor
-initCapacitorPlugins();
+try {
+  initCapacitorPlugins();
+} catch (error) {
+  console.error("❌ خطأ في تهيئة Capacitor:", error);
+}
 
 // تتبع تفاعل المستخدم
-initUserGestureTracking();
+try {
+  initUserGestureTracking();
+} catch (error) {
+  console.error("❌ خطأ في تتبع تفاعل المستخدم:", error);
+}
 
 declare global {
   interface Window {
@@ -34,4 +47,14 @@ console.warn = (...args: any[]) => {
   _origWarn.apply(console, args);
 };
 
-createRoot(document.getElementById("root")!).render(<RiderApp />);
+// استعادة الجلسة من التخزين الأصلي قبل تهيئة التطبيق (مع مهلة 3 ثوانٍ)
+Promise.race([
+  hydrateFromNativeStorage(),
+  new Promise((resolve) => setTimeout(resolve, 3000)),
+]).finally(() => {
+  try {
+    createRoot(document.getElementById("root")!).render(<RiderApp />);
+  } catch (error) {
+    console.error("❌ خطأ في عرض التطبيق:", error);
+  }
+});

@@ -49,7 +49,7 @@
       content="
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com https://us.i.posthog.com;
-      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://maps.googleapis.com https://maps.gstatic.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: https: blob:;
       media-src 'self' data: blob:;
@@ -68,7 +68,9 @@
         https://fonts.googleapis.com
         https://www.google-analytics.com
         https://www.googletagmanager.com
-        https://us.i.posthog.com;
+        https://us.i.posthog.com
+        https://*.ingest.de.sentry.io
+        https://*.ingest.sentry.io;
       frame-src 'self' https://www.google.com;
       form-action 'self';
       object-src 'none';

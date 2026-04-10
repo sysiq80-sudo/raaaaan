@@ -11,12 +11,16 @@
  */
 import type { CapacitorConfig } from '@capacitor/cli';
 
+const DEV_IP = process.env.DEV_SERVER_IP;
+const IS_DEV = !!DEV_IP;
+
 const config: CapacitorConfig = {
   appId: 'com.raan.captain',
   appName: 'ران كابتن',
   webDir: 'dist-driver',
 
   server: {
+    ...(IS_DEV ? { url: `http://${DEV_IP}:8082`, cleartext: true } : {}),
     androidScheme: 'https',
     allowNavigation: [
       'https://maps.googleapis.com',
@@ -30,7 +34,7 @@ const config: CapacitorConfig = {
   },
 
   android: {
-    allowMixedContent: true,
+    allowMixedContent: IS_DEV,
     backgroundColor: '#0a0f14',
   },
 
@@ -54,6 +58,13 @@ const config: CapacitorConfig = {
       backgroundColor: '#00000000',
       overlaysWebView: true,
     },
+    Haptics: {},
+    Keyboard: {
+      resize: 'none',
+      style: 'dark',
+    },
+    Network: {},
+    App: {},
   },
 };
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import * as Sentry from "@sentry/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -211,6 +212,36 @@ const IntegrationsSettingsTab = () => {
                 sentry.io
                 <ExternalLink className="w-3 h-3" />
               </a>
+            </p>
+          </div>
+          
+          {/* Test Sentry Button — دائم الظهور، DSN مُعد في main.tsx */}
+          <div className="pt-4 border-t space-y-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                Sentry.captureMessage("RAAN Sentry Test — رسالة تجريبية من لوحة الإدارة", "info");
+                Sentry.captureException(new Error("RAAN Test Error — This is your first error!"));
+                toast.success("✅ تم إرسال رسالة وخطأ تجريبي مباشرةً إلى Sentry! افتح Issues الآن");
+              }}
+              className="w-full"
+            >
+              <Zap className="w-4 h-4 ml-2" />
+              اختبار Sentry الآن
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">
+              بعد الضغط، افتح{" "}
+              <a
+                href="https://raan-nf.sentry.io/issues/?project=4511184262725712"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline inline-flex items-center gap-1"
+              >
+                Sentry Issues
+                <ExternalLink className="w-3 h-3" />
+              </a>
+              {" "}— يظهر خلال 10-30 ثانية
             </p>
           </div>
         </CardContent>

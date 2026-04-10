@@ -482,7 +482,7 @@ export const translations: Record<Language, TranslationKeys> = {
   },
 };
 
-// Hook لاستخدام الترجمة
+// Hook لاستخدام الترجمة (backward-compatible)
 export const useTranslation = (lang: Language = 'ar') => {
   const t = (key: string): string => {
     const keys = key.split('.');
@@ -498,7 +498,8 @@ export const useTranslation = (lang: Language = 'ar') => {
   return { t, lang };
 };
 
-// Context لإدارة اللغة
+// i18next integration
+import i18n from './i18nConfig';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface I18nContextType {
@@ -510,35 +511,40 @@ interface I18nContextType {
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>('ar');
+  const [language, setLanguageState] = useState<Language>(
+    () => (i18n.language as Language) || 'ar'
+  );
 
   useEffect(() => {
-    // تحميل اللغة من localStorage
-    const savedLang = localStorage.getItem('raan-language') as Language;
-    if (savedLang && ['ar', 'en', 'ku'].includes(savedLang)) {
-      setLanguageState(savedLang);
+    // مزامنة مع i18next المحمل من localStorage/navigator
+    const detectedLang = i18n.language as Language;
+    if (detectedLang && ['ar', 'en', 'ku'].includes(detectedLang)) {
+      setLanguageState(detectedLang);
     }
 
     // تحديث اتجاه الصفحة حسب اللغة
-    document.documentElement.dir = savedLang === 'ar' ? 'rtl' : 'ltr';
-    document.documentElement.lang = savedLang;
+    const rtl = detectedLang === 'ar' || detectedLang === 'ku';
+    document.documentElement.dir = rtl ? 'rtl' : 'ltr';
+    document.documentElement.lang = detectedLang;
   }, []);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem('raan-language', lang);
-    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-    document.documentElement.lang = lang;
+    i18n.changeLanguage(lang);
+    // i18n.on('languageChanged') في i18nConfig يتكفل بالاتجاه
   };
 
   const t = (key: string): string => {
+    // أولاً: جرب i18next (يدعم المفاتيح الجديدة مثل messages.*, payment.*, status.*)
+    const i18nResult = i18n.t(key);
+    if (i18nResult !== key) return i18nResult;
+
+    // ثانياً: fallback للترجمات القديمة المضمنة
     const keys = key.split('.');
     let value: any = translations[language];
-
     for (const k of keys) {
       value = value?.[k];
     }
-
     return value || key;
   };
 
@@ -578,5 +584,5 @@ export const getLanguageFlag = (lang: Language): string => {
 };
 
 export const isRTL = (lang: Language): boolean => {
-  return lang === 'ar';
+  return lang === 'ar' || lang === 'ku';
 };

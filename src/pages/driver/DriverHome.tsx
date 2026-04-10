@@ -90,6 +90,7 @@ const DriverHome = () => {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [hasActiveRide, setHasActiveRide] = useState(false);
+  const [hasRideRequest, setHasRideRequest] = useState(false);
   const [showNewRideAlert, setShowNewRideAlert] = useState(false);
   const [newRideData, setNewRideData] = useState<any>(null);
   const [rideAcceptedTrigger, setRideAcceptedTrigger] = useState(0);
@@ -103,7 +104,16 @@ const DriverHome = () => {
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [adminActivated, setAdminActivated] = useState(true);
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
-  const [hasRideRequest, setHasRideRequest] = useState(false);
+  // Stable callback لمنع إعادة إنشاء subscriptions في RideRequestCard
+  const handleRideRequestVisible = useCallback((visible: boolean) => {
+    setHasRideRequest(visible);
+  }, []);
+  const handleRideAccepted = useCallback(() => {
+    console.log("[DriverHome] Ride accepted — triggering ActiveRideCard refresh");
+    setIsPaused(false);
+    setHasActiveRide(true);
+    setRideAcceptedTrigger(prev => prev + 1);
+  }, []);
 
   // 🔒 Driver Mode — منع التمرير على مستوى الصفحة
   useEffect(() => {
@@ -485,12 +495,14 @@ const DriverHome = () => {
   }, []);
 
   useEffect(() => {
+    let initialized = false;
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
+      // فقط عند SIGNED_IN أو TOKEN_REFRESHED — لا نكرر عند INITIAL_SESSION
+      if (session?.user && event !== "INITIAL_SESSION") {
         fetchDriverData(session.user.id);
       }
       setLoading(false);
@@ -499,7 +511,8 @@ const DriverHome = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
+      if (session?.user && !initialized) {
+        initialized = true;
         fetchDriverData(session.user.id);
       }
       setLoading(false);
@@ -762,10 +775,15 @@ const DriverHome = () => {
 
   // Improved online toggle with proper error handling
   const handleOnlineToggle = async (online: boolean) => {
-    if (!driverId) return;
+    console.log('🔄 handleOnlineToggle called:', { online, driverId, driverStatus, currentLocation });
+    if (!driverId) {
+      console.log('❌ handleOnlineToggle: No driverId');
+      return;
+    }
 
     // Check driver status
     if (online && driverStatus !== "approved") {
+      console.log('❌ handleOnlineToggle: Driver not approved:', driverStatus);
       toast({
         title: "لا يمكن الاتصال",
         description: "حسابك قيد المراجعة أو غير معتمد بعد",
@@ -779,6 +797,7 @@ const DriverHome = () => {
     try {
       // ✅ التحقق من GPS قبل الاتصال - يجب تحديد الموقع أولاً
       if (online && !currentLocation) {
+        console.log('📍 handleOnlineToggle: Requesting GPS...');
         try {
           const position = await new Promise<GeolocationPosition>((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -790,15 +809,31 @@ const DriverHome = () => {
           const loc = { lat: position.coords.latitude, lng: position.coords.longitude };
           setCurrentLocation(loc);
           latestLocationRef.current = loc;
-        } catch (gpsError) {
-          setOnlineToggleLoading(false);
-          toast({
-            title: "تعذر تحديد الموقع",
-            description: "يجب تفعيل GPS وتحديد موقعك قبل الاتصال",
-            variant: "destructive",
-            duration: 6000,
-          });
-          return;
+          console.log('✅ handleOnlineToggle: GPS success:', loc);
+        } catch (gpsError: any) {
+          console.warn('⚠️ handleOnlineToggle: GPS failed:', gpsError?.message);
+          // في المتصفح: استخدم إحداثيات بغداد الافتراضية للتطوير
+          const isBrowser = !window.hasOwnProperty('Capacitor') || !(window as any).Capacitor?.isNativePlatform?.();
+          if (isBrowser) {
+            console.log('🌐 handleOnlineToggle: Browser mode — using Baghdad fallback coordinates');
+            const fallbackLoc = { lat: 33.3152, lng: 44.3661 }; // بغداد
+            setCurrentLocation(fallbackLoc);
+            latestLocationRef.current = fallbackLoc;
+            toast({
+              title: "⚠️ موقع تقريبي (تطوير)",
+              description: "تم استخدام إحداثيات بغداد — GPS غير متاح في المتصفح",
+              duration: 4000,
+            });
+          } else {
+            setOnlineToggleLoading(false);
+            toast({
+              title: "تعذر تحديد الموقع",
+              description: "يجب تفعيل GPS وتحديد موقعك قبل الاتصال",
+              variant: "destructive",
+              duration: 6000,
+            });
+            return;
+          }
         }
       }
 
@@ -830,6 +865,7 @@ const DriverHome = () => {
         releaseWakeLock();
       }
 
+      console.log('📤 handleOnlineToggle: Updating Supabase...', { online, driverId });
       const { error } = await supabase
         .from("drivers")
         .update({
@@ -840,6 +876,7 @@ const DriverHome = () => {
         .eq("id", driverId);
 
       if (error) throw error;
+      console.log('✅ handleOnlineToggle: Supabase update successful!');
 
       // Only update local state after successful DB update
       setIsOnline(online);
@@ -1093,8 +1130,7 @@ const DriverHome = () => {
             {/* ═══ Driver Control Center — Centered DutyToggle ═══ */}
             {!hasRideRequest && !hasActiveRide && (
               <div className="absolute inset-x-0 top-[55%] -translate-y-1/2 z-30 pointer-events-none flex justify-center">
-                <div className="relative flex flex-col items-center gap-3 w-full max-w-2xl px-5">
-                  <div className="pointer-events-auto w-full max-w-[calc(100%-1rem)] sm:max-w-sm mx-auto">
+                <div className="pointer-events-auto relative flex flex-col items-center gap-3 w-full max-w-[calc(100%-1rem)] sm:max-w-sm mx-auto px-2">
                     <DutyToggle
                       isOnline={isOnline}
                       isPaused={isPaused}
@@ -1108,7 +1144,6 @@ const DriverHome = () => {
                       driverLocation={currentLocation}
                       maxPickupRadius={maxPickupRadius}
                     />
-                  </div>
                 </div>
               </div>
             )}
@@ -1137,15 +1172,8 @@ const DriverHome = () => {
                 maxPickupRadius={maxPickupRadius}
                 highlightRideId={highlightRideId}
                 onDeepLinkResolved={handleDeepLinkResolved}
-                onRideRequestVisible={setHasRideRequest}
-                onRideAccepted={() => {
-                  console.log(
-                    "[DriverHome] Ride accepted — triggering ActiveRideCard refresh"
-                  );
-                  setIsPaused(false);
-                  setHasActiveRide(true);
-                  setRideAcceptedTrigger(prev => prev + 1);
-                }}
+                onRideRequestVisible={handleRideRequestVisible}
+                onRideAccepted={handleRideAccepted}
               />
             )}
 

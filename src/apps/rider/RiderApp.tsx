@@ -66,7 +66,6 @@ const RiderApp = () => {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <Sonner />
-            <ConnectionStatus />
             <RiderNotificationBootstrap />
             {isNativePlatform ? (
               <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

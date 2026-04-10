@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
+import { corsHeaders } from "../_shared/utils.ts";
 
 let GOOGLE_MAPS_API_KEY = "";
 let _configLoaded = false;
@@ -18,12 +19,6 @@ async function loadDynamicConfig() {
     GOOGLE_MAPS_API_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY') || "";
   }
 }
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
 // Log API usage to database
 async function logApiUsage(apiType: string, endpoint?: string, metadata?: Record<string, any>) {
   try {

@@ -6,7 +6,7 @@ import { initUserGestureTracking } from "@/lib/userGestureTracker";
 import { initSentry } from "@/lib/sentry";
 
 // تهيئة Sentry
-initSentry();
+try { initSentry(); } catch (e) { console.error('[Sentry] فشل:', e); }
 
 // تهيئة Capacitor
 initCapacitorPlugins();

@@ -1,4 +1,4 @@
-package com.raan.captain;
+package com.raan.rider;
 
 import com.getcapacitor.BridgeActivity;
 

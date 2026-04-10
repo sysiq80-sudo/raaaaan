@@ -1,12 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
-
+import { corsHeaders } from "../_shared/utils.ts";
 /**
  * ═══════════════════════════════════════════════════════════
  * complete-ride — إكمال الرحلة مع تدقيق الأجرة الهجين
@@ -373,52 +367,29 @@ serve(async (req) => {
     let walletDeducted = false;
     if (ride.payment_method === "wallet") {
       try {
-        // جلب رصيد الراكب الحالي
-        const { data: riderProfile, error: profileError } = await supabase
-          .from("profiles")
-          .select("id, wallet_balance")
-          .eq("user_id", ride.rider_id)
-          .single();
-
-        if (profileError || !riderProfile) {
-          console.error("[complete-ride] Failed to fetch rider profile for wallet deduction:", profileError?.message);
-        } else {
-          const currentBalance = riderProfile.wallet_balance || 0;
-
-          if (currentBalance >= finalFare) {
-            // خصم المبلغ من المحفظة
-            const newBalance = currentBalance - finalFare;
-            const { error: walletUpdateError } = await supabase
-              .from("profiles")
-              .update({ wallet_balance: newBalance })
-              .eq("id", riderProfile.id);
-
-            if (walletUpdateError) {
-              console.error("[complete-ride] Wallet balance update failed:", walletUpdateError.message);
-            } else {
-              // تسجيل عملية الخصم
-              await supabase.from("wallet_transactions").insert({
-                user_id: ride.rider_id,
-                amount: -finalFare,
-                type: "ride_payment",
-                description: `دفع رحلة #${ride_id.substring(0, 8)}`,
-                reference_id: ride_id,
-                balance_after: newBalance,
-              });
-
-              walletDeducted = true;
-              console.log(`[complete-ride] Wallet deducted: ${finalFare} IQD from rider ${ride.rider_id}. New balance: ${newBalance}`);
-            }
-          } else {
-            // رصيد غير كافٍ - تسجيل كدَين ومتابعة (الرحلة مكتملة فعلياً)
-            console.warn(`[complete-ride] Insufficient wallet balance: ${currentBalance} < ${finalFare}. Recording as debt.`);
-
-            // تحويل طريقة الدفع لنقدي لأن المحفظة لا تكفي
-            await supabase
-              .from("rides")
-              .update({ payment_method: "cash" })
-              .eq("id", ride_id);
+        // خصم المبلغ بشكل آمن عبر الدالة الذرية (تمنع race condition)
+        const { data: deductResult, error: deductError } = await supabase.rpc(
+          'deduct_wallet_safely',
+          {
+            p_user_id: ride.rider_id,
+            p_amount: finalFare,
+            p_ride_id: ride_id,
           }
+        );
+
+        if (deductError) {
+          console.error("[complete-ride] Wallet deduction RPC error:", deductError.message);
+        } else if (deductResult?.success) {
+          walletDeducted = true;
+          console.log(`[complete-ride] ✅ Wallet deducted: ${finalFare} IQD from rider ${ride.rider_id}. New balance: ${deductResult.new_balance}`);
+        } else {
+          // رصيد غير كافٍ أو خطأ آخر — تحويل لنقدي
+          console.warn(`[complete-ride] Wallet deduction failed: ${deductResult?.error}. Switching to cash.`);
+
+          await supabase
+            .from("rides")
+            .update({ payment_method: "cash" })
+            .eq("id", ride_id);
         }
       } catch (e) {
         console.error("[complete-ride] Wallet deduction failed (non-critical):", e);

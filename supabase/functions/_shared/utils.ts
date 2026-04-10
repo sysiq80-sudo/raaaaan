@@ -8,10 +8,31 @@
 
 // ════════════════════════════════════════════════════════════
 // CORS Headers — مشتركة بين جميع الدوال
+// يمكن تقييد النطاقات عبر متغير بيئة ALLOWED_ORIGINS
+// القيمة الافتراضية: "*" (مطلوب لتطبيقات Capacitor WebView + webhooks)
+// مثال: ALLOWED_ORIGINS=https://raan.app,https://admin.raan.app
 // ════════════════════════════════════════════════════════════
 
+function getAllowedOrigin(requestOrigin?: string | null): string {
+  const envOrigins = Deno.env.get("ALLOWED_ORIGINS");
+  if (!envOrigins) return "*";
+  const allowed = envOrigins.split(",").map((o) => o.trim());
+  if (requestOrigin && allowed.includes(requestOrigin)) return requestOrigin;
+  return allowed[0];
+}
+
+export function getCorsHeaders(request?: Request): Record<string, string> {
+  const origin = request?.headers?.get("origin") ?? null;
+  return {
+    "Access-Control-Allow-Origin": getAllowedOrigin(origin),
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+  };
+}
+
+// الحفاظ على التوافق مع الكود الحالي (fallback لـ *)
 export const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": getAllowedOrigin(),
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };

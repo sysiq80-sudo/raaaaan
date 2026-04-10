@@ -58,7 +58,7 @@ export const useDriverNotifications = (
   maxPickupRadius: number = 10
 ) => {
   const { toast } = useToast();
-  const DRIVER_NOTIFICATION_DEDUPE_TTL_MS = 90_000;
+  const DRIVER_NOTIFICATION_DEDUPE_TTL_MS = 300_000; // 5 دقائق لتفادي إعادة الإشعار عند إعادة الاتصال
   const CHANNEL_STALE_MS = 120_000;
   const dedupeMapRef = useRef<Map<string, number>>(new Map());
   const lastRealtimeEventAtRef = useRef<number>(Date.now());
@@ -341,6 +341,7 @@ export const useDriverNotifications = (
     let swMessageHandler: ((event: MessageEvent) => void) | null = null;
     let visibilityHandler: (() => void) | null = null;
     let healthCheckTimer: ReturnType<typeof setInterval> | null = null;
+    let localNotifListenerHandle: { remove: () => void } | null = null;
 
     const channelName = `driver-new-rides-${driverId}`;
     
@@ -369,7 +370,9 @@ export const useDriverNotifications = (
             openRideRequestFromNotification(rideId);
           }
           // reject = مجرد إغلاق الإشعار
-        });
+        }).then((listener) => {
+          localNotifListenerHandle = listener;
+        }).catch(() => {});
       }).catch(() => {});
     }
     
@@ -477,10 +480,12 @@ export const useDriverNotifications = (
             isRetrying = false;
             // جلب فوري للرحلات المعلقة لتغطية أي رحلات أُنشئت أثناء إعادة الاتصال
             try {
+              const cutoffTime = new Date(Date.now() - 30_000).toISOString();
               const { data: pendingRides } = await supabase
                 .from('rides')
                 .select('id, pickup_address, dropoff_address, estimated_fare, vehicle_type, status, distance_km')
                 .eq('status', 'pending')
+                .gte('created_at', cutoffTime)
                 .order('created_at', { ascending: false })
                 .limit(5);
               if (pendingRides && pendingRides.length > 0) {
@@ -571,10 +576,12 @@ export const useDriverNotifications = (
 
     return () => {
       console.log('Cleaning up ride notification subscription');
+      stopRideAlert();
       if (retryTimer) clearTimeout(retryTimer);
       if (healthCheckTimer) clearInterval(healthCheckTimer);
       supabase.removeChannel(channel);
       if (cleanupAppState) cleanupAppState();
+      if (localNotifListenerHandle) localNotifListenerHandle.remove();
       if (visibilityHandler) {
         document.removeEventListener('visibilitychange', visibilityHandler);
       }

@@ -27,9 +27,7 @@ export function initSentry() {
       "Non-Error promise rejection",
     ],
     beforeSend(event) {
-      if (window.location.hostname === "localhost") {
-        return null;
-      }
+      // إرسال الأخطاء في كل البيئات بما فيها localhost للتطوير
       return event;
     },
   });

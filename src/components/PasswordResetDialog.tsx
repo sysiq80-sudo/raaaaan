@@ -54,7 +54,40 @@ const PasswordResetDialog = ({ open, onOpenChange, userType }: PasswordResetDial
       return;
     }
 
-    setStep('otp');
+    setLoading(true);
+    try {
+      // Send OTP via WhatsApp for password reset
+      const { data, error } = await supabase.functions.invoke('send-otp', {
+        body: { action: 'send', phone, purpose: 'password_reset' }
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        toast({
+          title: "خطأ",
+          description: data.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "تم الإرسال",
+        description: "تم إرسال رمز التحقق عبر WhatsApp",
+      });
+
+      setStep('otp');
+    } catch (error: any) {
+      console.error('Error sending OTP:', error);
+      toast({
+        title: "خطأ في الإرسال",
+        description: error.message || "فشل في إرسال رمز التحقق",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOTPVerified = () => {

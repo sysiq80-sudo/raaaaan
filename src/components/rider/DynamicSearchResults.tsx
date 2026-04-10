@@ -221,7 +221,7 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
         {/* ─── فلاتر التصنيفات ─── */}
         {onCategorySelect && (
           <div className="px-3 py-2 border-b border-white/[0.06]">
-            <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+            <div className="flex flex-row-reverse gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
               {SEARCH_CATEGORIES.map((cat) => (
                 <button
                   key={cat.id}
@@ -544,11 +544,14 @@ export const DynamicSearchHeader: React.FC<{
   showAddress?: string;
   onClearAddress?: () => void;
   onShowSavedPlaces?: () => void;
+  onShowSavedPlaces?: () => void;
   // ─── بحث صوتي ───
   voiceSupported?: boolean;
   voiceState?: 'idle' | 'listening' | 'processing' | 'error';
   onVoiceToggle?: () => void;
   voiceTranscript?: string;
+  headerLabel?: React.ReactNode;
+  onAddressClick?: () => void;
 }> = ({
   query,
   onQueryChange,
@@ -566,6 +569,8 @@ export const DynamicSearchHeader: React.FC<{
   voiceState = 'idle',
   onVoiceToggle,
   voiceTranscript,
+  headerLabel,
+  onAddressClick,
 }) => {
   const [isFocused, setIsFocused] = React.useState(false);
   const isListening = voiceState === 'listening';
@@ -575,7 +580,7 @@ export const DynamicSearchHeader: React.FC<{
       {/* ─── حاوية الشريط الرئيسية — Premium Search Bar ─── */}
       <div
         className={cn(
-          "relative flex items-center gap-2 px-3.5 py-2.5 rounded-2xl transition-all duration-300",
+          "relative flex flex-col gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300",
           "bg-gradient-to-l from-[#0b1326] to-[#121e36]",
           isListening
             ? "shadow-[0_0_20px_rgba(239,68,68,0.2),0_8px_32px_rgba(0,0,0,0.6)] border border-red-500/40"
@@ -584,193 +589,168 @@ export const DynamicSearchHeader: React.FC<{
               : "shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/[0.08] hover:border-white/[0.12]"
         )}
       >
-        {/* ── أيقونة البحث / حذف العنوان / أوفلاين ── */}
-        {isOffline ? (
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 shadow-inner">
-            <WifiOff className="w-4.5 h-4.5 text-amber-400 drop-shadow-sm" />
-          </div>
-        ) : !query && showAddress && onClearAddress ? (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.7 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.7 }}
-            whileTap={{ scale: 0.85 }}
-            onClick={onClearAddress}
-            className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 flex items-center justify-center transition-all shrink-0 shadow-inner group"
-            aria-label="حذف الموقع"
-            title="حذف الموقع المحدد"
-          >
-            <X className="w-4.5 h-4.5 text-red-400 group-hover:scale-110 transition-transform" />
-          </motion.button>
-        ) : (
-          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-inner transition-colors",
-            isListening ? "bg-red-500/10 border-red-500/20" : "bg-[#5bdda6]/5 border-[#5bdda6]/10"
-          )}>
-            {isSearching ? (
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-              >
-                <Loader2 className="w-5 h-5 text-[#5bdda6]" />
-              </motion.div>
-            ) : isListening ? (
-              <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 1, repeat: Infinity }}
-              >
-                <Mic className="w-5 h-5 text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-              </motion.div>
-            ) : (
-              <Search className="w-5 h-5 text-[#5bdda6]/70 drop-shadow-[0_0_8px_rgba(91,221,166,0.2)]" />
-            )}
+        {/* السطر صفر: علامة الانطلاق/الوجهة منفصلة فوق الجميع */}
+        {headerLabel && (
+          <div className="w-full flex justify-center mb-1">
+            {headerLabel}
           </div>
         )}
 
-        {/* ── حقل النص / عرض العنوان ── */}
-        <div className="flex-1 relative min-w-0 py-1" dir="rtl">
-          {/* عرض النص الصوتي الحي */}
-          {isListening && voiceTranscript && (
-            <div className="pointer-events-none">
-              <p className="text-[10px] text-red-400/60 font-semibold tracking-wide leading-tight mb-0.5">جاري الاستماع...</p>
-              <p className="text-[14px] text-white/90 font-bold truncate leading-tight">{voiceTranscript}</p>
-            </div>
-          )}
+        {/* السطر الأول الداخلي: أيقونات الإجراءات السريعة */}
+        <div className="flex items-center justify-end w-full">
+          {/* ── أيقونات الإجراءات ── */}
+          <div className="flex items-center gap-2.5 shrink-0 pl-1">
+            {/* مسح نص البحث */}
+            <AnimatePresence>
+              {query && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.7 }}
+                  whileTap={{ scale: 0.85 }}
+                  onClick={onClear}
+                  className="w-12 h-12 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 flex items-center justify-center transition-all group"
+                  aria-label="مسح البحث"
+                >
+                  <X className="w-5.5 h-5.5 text-slate-400 group-hover:text-white transition-colors" />
+                </motion.button>
+              )}
+            </AnimatePresence>
 
-          {/* عرض العنوان المحدد — يختفي عند التركيز */}
-          {!isListening && showAddress && !query && !isFocused && (
-            <motion.div 
-              initial={{ opacity: 0, y: 3 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="pointer-events-none flex flex-col justify-center h-full"
-            >
-              <div className="flex items-center gap-1.5 mb-1">
-                <div className="w-4 h-4 rounded-full bg-[#5bdda6]/15 flex items-center justify-center">
-                  <MapPin className="w-2.5 h-2.5 text-[#5bdda6] drop-shadow-[0_0_5px_rgba(91,221,166,0.5)]" />
-                </div>
-                <p className="text-[10.5px] text-[#5bdda6]/80 font-bold tracking-wider leading-none uppercase">
-                  الموقع المحدد
-                </p>
-              </div>
-              <p className="text-[15px] text-white/95 font-bold truncate leading-tight pr-1 drop-shadow-sm">{showAddress}</p>
-            </motion.div>
-          )}
-
-          {/* Placeholder الافتراضي — يختفي عند التركيز */}
-          {!isListening && !query && !showAddress && !isFocused && (
-            <div className="pointer-events-none">
-              <p className="text-[15px] text-white/40 font-bold leading-tight py-1.5">
-                {placeholder || "إلى أين؟"}
-              </p>
-            </div>
-          )}
-
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            onFocus={() => {
-              setIsFocused(true);
-              onFocus?.();
-            }}
-            onBlur={() => setIsFocused(false)}
-            placeholder={isFocused ? placeholder : ''}
-            className={cn(
-              "w-full bg-transparent text-[15px] font-bold text-right",
-              "text-white placeholder:text-slate-500",
-              "focus:outline-none caret-[#5bdda6]",
-              (query || isFocused) && !isListening ? "relative opacity-100 py-2.5" : "absolute inset-0 opacity-0 py-2.5 z-10 cursor-text"
-            )}
-            dir="rtl"
-          />
-        </div>
-
-        {/* ── أيقونات الإجراءات ── */}
-        <div className="flex items-center gap-1.5 shrink-0 pl-1">
-
-          {/* مسح نص البحث */}
-          <AnimatePresence>
-            {query && (
+            {/* ❤️ حفظ المفضلة */}
+            {onSaveLocation && (
               <motion.button
-                initial={{ opacity: 0, scale: 0.7 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.7 }}
                 whileTap={{ scale: 0.85 }}
-                onClick={onClear}
-                className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 flex items-center justify-center transition-all group"
-                aria-label="مسح البحث"
+                onClick={onSaveLocation}
+                className={cn(
+                  "w-12 h-12 rounded-xl flex items-center justify-center transition-all border shadow-[0_0_15px_rgba(91,221,166,0.15)]",
+                  isFavorite
+                    ? "bg-[#5bdda6]/30 hover:bg-[#5bdda6]/40 border-[#5bdda6]/50 shadow-[0_0_20px_rgba(91,221,166,0.4)]"
+                    : "bg-[#5bdda6]/20 hover:bg-[#5bdda6]/30 border-[#5bdda6]/40"
+                )}
+                title={isFavorite ? 'إزالة من المفضلة' : 'حفظ الموقع'}
+                aria-label={isFavorite ? 'إزالة من المفضلة' : 'حفظ الموقع'}
               >
-                <X className="w-4.5 h-4.5 text-slate-400 group-hover:text-white transition-colors" />
+                <Heart
+                  className={cn(
+                    'w-5.5 h-5.5 transition-all drop-shadow-[0_0_8px_rgba(91,221,166,0.5)]',
+                    isFavorite
+                      ? 'text-[#5bdda6] fill-[#5bdda6]'
+                      : 'text-[#5bdda6]'
+                  )}
+                />
               </motion.button>
             )}
-          </AnimatePresence>
 
-          {/* 🎤 بحث صوتي */}
-          {voiceSupported && onVoiceToggle && (
+            {/* 📍 موقعي الحالي */}
+            {onCurrentLocation && (
+              <motion.button
+                whileTap={{ scale: 0.85 }}
+                onClick={onCurrentLocation}
+                className="w-12 h-12 rounded-xl bg-[#5bdda6]/20 border border-[#5bdda6]/40 hover:bg-[#5bdda6]/30 flex items-center justify-center transition-all group shadow-[0_0_15px_rgba(91,221,166,0.15)]"
+                title="موقعي الحالي"
+                aria-label="تحديد موقعي الحالي"
+              >
+                <Navigation className="w-5.5 h-5.5 text-[#5bdda6] drop-shadow-[0_0_8px_rgba(91,221,166,0.5)] group-hover:scale-110 transition-transform" />
+              </motion.button>
+            )}
+          </div>
+        </div>
+
+        {/* السطر السفلي: أيقونة البحث / أوفلاين + حقل النص */}
+        <div className="flex items-center gap-2">
+          {/* ── أيقونة البحث / حذف العنوان / أوفلاين ── */}
+          {isOffline ? (
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 shadow-inner">
+              <WifiOff className="w-4.5 h-4.5 text-amber-400 drop-shadow-sm" />
+            </div>
+          ) : !query && showAddress && onClearAddress ? (
             <motion.button
+              initial={{ opacity: 0, scale: 0.7 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.7 }}
               whileTap={{ scale: 0.85 }}
-              onClick={onVoiceToggle}
-              className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center transition-all relative overflow-hidden border",
-                isListening
-                  ? "bg-red-500/20 hover:bg-red-500/30 border-red-500/30"
-                  : "bg-[#5bdda6]/5 hover:bg-[#5bdda6]/15 border-[#5bdda6]/10"
-              )}
-              title={isListening ? 'إيقاف الاستماع' : 'بحث صوتي'}
-              aria-label={isListening ? 'إيقاف الاستماع' : 'بحث صوتي'}
+              onClick={onClearAddress}
+              className="w-10 h-10 rounded-xl bg-red-600/90 border border-red-700 hover:bg-red-700 flex items-center justify-center transition-all shrink-0 shadow-[0_0_15px_rgba(220,38,38,0.5)] group"
+              aria-label="حذف الموقع"
+              title="حذف الموقع المحدد"
             >
-              {/* حلقة نبض أثناء الاستماع */}
-              {isListening && (
+              <X className="w-4.5 h-4.5 text-white drop-shadow-md group-hover:scale-110 transition-transform" />
+            </motion.button>
+          ) : (
+            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-inner transition-colors",
+              isListening ? "bg-red-500/10 border-red-500/20" : "bg-[#5bdda6]/5 border-[#5bdda6]/10"
+            )}>
+              {isSearching ? (
                 <motion.div
-                  className="absolute inset-0 rounded-xl border-2 border-red-400/40"
-                  animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                />
-              )}
-              {isListening ? (
-                <MicOff className="w-4.5 h-4.5 text-red-400 relative z-10" />
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                >
+                  <Loader2 className="w-5 h-5 text-[#5bdda6]" />
+                </motion.div>
+              ) : isListening ? (
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                >
+                  <Mic className="w-5 h-5 text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                </motion.div>
               ) : (
-                <Mic className="w-4.5 h-4.5 text-[#5bdda6]/60 relative z-10" />
+                <Search className="w-5 h-5 text-[#5bdda6]/70 drop-shadow-[0_0_8px_rgba(91,221,166,0.2)]" />
               )}
-            </motion.button>
+            </div>
           )}
 
-          {/* ❤️ حفظ المفضلة */}
-          {onSaveLocation && (
-            <motion.button
-              whileTap={{ scale: 0.85 }}
-              onClick={onSaveLocation}
+          {/* ── حقل النص / عرض العنوان ── */}
+          <div className="flex-1 relative min-w-0 py-1" dir="rtl">
+            {/* عرض النص الصوتي الحي */}
+            {isListening && voiceTranscript && (
+              <div className="pointer-events-none">
+                <p className="text-[10px] text-red-400/60 font-semibold tracking-wide leading-tight mb-0.5">جاري الاستماع...</p>
+                <p className="text-[14px] text-white/90 font-bold truncate leading-tight">{voiceTranscript}</p>
+              </div>
+            )}
+
+            {/* عرض العنوان المحدد — يختفي عند التركيز */}
+            {!isListening && showAddress && !query && !isFocused && (
+              <motion.div 
+                initial={{ opacity: 0, y: 3 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={onAddressClick}
+                className={`flex flex-col justify-center h-full ${onAddressClick ? 'pointer-events-auto cursor-pointer active:scale-95 transition-transform' : 'pointer-events-none'}`}
+              >
+                <p className="text-[15px] text-white/95 font-bold truncate leading-tight pr-1 drop-shadow-sm">{showAddress}</p>
+              </motion.div>
+            )}
+
+            {/* Placeholder الافتراضي — يختفي عند التركيز */}
+            {!isListening && !query && !showAddress && !isFocused && (
+              <div className="pointer-events-none">
+                <p className="text-[15px] text-white/40 font-bold leading-tight py-1.5">
+                  {placeholder || "إلى أين؟"}
+                </p>
+              </div>
+            )}
+
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => onQueryChange(e.target.value)}
+              onFocus={() => {
+                setIsFocused(true);
+                onFocus?.();
+              }}
+              onBlur={() => setIsFocused(false)}
+              placeholder={isFocused ? placeholder : ''}
               className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center transition-all border",
-                isFavorite
-                  ? "bg-[#5bdda6]/20 hover:bg-[#5bdda6]/30 border-[#5bdda6]/30 shadow-[0_0_12px_rgba(91,221,166,0.3)]"
-                  : "bg-[#5bdda6]/5 hover:bg-[#5bdda6]/15 border-[#5bdda6]/10"
+                "w-full bg-transparent text-[15px] font-bold text-right",
+                "text-white placeholder:text-slate-500",
+                "focus:outline-none caret-[#5bdda6]",
+                (query || isFocused) && !isListening ? "relative opacity-100 py-2.5" : "absolute inset-0 opacity-0 py-2.5 z-10 cursor-text"
               )}
-              title={isFavorite ? 'إزالة من المفضلة' : 'حفظ الموقع'}
-              aria-label={isFavorite ? 'إزالة من المفضلة' : 'حفظ الموقع'}
-            >
-              <Heart
-                className={cn(
-                  'w-4.5 h-4.5 transition-all',
-                  isFavorite
-                    ? 'text-[#5bdda6] fill-[#5bdda6]'
-                    : 'text-[#5bdda6]/50'
-                )}
-              />
-            </motion.button>
-          )}
-
-          {/* 📍 موقعي الحالي */}
-          {onCurrentLocation && (
-            <motion.button
-              whileTap={{ scale: 0.85 }}
-              onClick={onCurrentLocation}
-              className="w-10 h-10 rounded-xl bg-[#5bdda6]/5 border border-[#5bdda6]/10 hover:bg-[#5bdda6]/15 flex items-center justify-center transition-all group"
-              title="موقعي الحالي"
-              aria-label="تحديد موقعي الحالي"
-            >
-              <Navigation className="w-4.5 h-4.5 text-[#5bdda6]/70 group-hover:text-[#5bdda6] transition-colors" />
-            </motion.button>
-          )}
+              dir="rtl"
+            />
+          </div>
         </div>
       </div>
 

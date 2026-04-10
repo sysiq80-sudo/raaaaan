@@ -239,6 +239,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
   // Local state
   const setStoreUserLocation = useRiderStore((s) => s.setUserLocation);
+  const refineWatchIdRef = useRef<number | null>(null);
   const getBestPosition = useCallback((onRefine?: (pos: GeolocationPosition) => void) => {
     return new Promise<GeolocationPosition>((resolve, reject) => {
       if (!navigator.geolocation) {
@@ -281,13 +282,16 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           }
           if (wp.coords.accuracy <= 30 || Date.now() - startedAt > stopRefineAfterMs) {
             navigator.geolocation.clearWatch(watchId);
+            refineWatchIdRef.current = null;
           }
         },
         () => {
           navigator.geolocation.clearWatch(watchId);
+          refineWatchIdRef.current = null;
         },
         refineOptions
       );
+      refineWatchIdRef.current = watchId;
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -315,6 +319,16 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         refineOptions
       );
     });
+  }, []);
+
+  // Cleanup watchPosition on unmount
+  useEffect(() => {
+    return () => {
+      if (refineWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(refineWatchIdRef.current);
+        refineWatchIdRef.current = null;
+      }
+    };
   }, []);
 
   const getDistanceMeters = useCallback((a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
@@ -410,15 +424,52 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     setTimeout(tick, 350); // انتظر انتهاء panTo أولاً
   }, []);
 
-  const manualGeolocateMain = useCallback(() => {
-    // إذا كان userLocation معروفاً بالفعل، انتقل إليه بسلاسة
-    if (userLocation && map.current) {
+  const manualGeolocateMain = useCallback(async (forceHardRequest = false) => {
+    // إذا كان userLocation معروفاً بالفعل ولم يُطلب طلب قاسي، انتقل إليه بسلاسة
+    if (userLocation && map.current && !forceHardRequest) {
       map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
       smoothZoomTo(map.current, 17);
       reverseGeocode(userLocation.lat, userLocation.lng);
       return;
     }
-    // طلب إذن الموقع الجغرافي مباشرة
+
+    // محاولة استخدام Capacitor Geolocation الأصلي (أسرع وأدق على الجوال)
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { Geolocation } = await import('@capacitor/geolocation');
+        
+        // طلب الإذن أولاً
+        const perm = await Geolocation.requestPermissions();
+        if (perm.location !== 'granted' && perm.coarseLocation !== 'granted') {
+          toast({
+            title: '⚠️ إذن الموقع مرفوض',
+            description: 'يرجى منح التطبيق صلاحية الوصول للموقع من الإعدادات',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        const position = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0, // دائماً طلب موقع جديد
+        });
+
+        const { latitude, longitude } = position.coords;
+        if (map.current) {
+          map.current.panTo({ lat: latitude, lng: longitude });
+          smoothZoomTo(map.current, 17);
+          reverseGeocode(latitude, longitude);
+        }
+        setStoreUserLocation({ lat: latitude, lng: longitude } as any);
+        return; // نجح — لا حاجة للـ fallback
+      }
+    } catch (capErr) {
+      console.warn('Capacitor Geolocation failed, falling back to Web API:', capErr);
+    }
+
+    // Fallback: استخدام Web Geolocation API (للمتصفح)
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -428,6 +479,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             smoothZoomTo(map.current, 17);
             reverseGeocode(latitude, longitude);
           }
+          setStoreUserLocation({ lat: latitude, lng: longitude } as any);
         },
         (error) => {
           console.warn('⚠️ Geolocation error:', error.message);
@@ -437,7 +489,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             variant: 'destructive',
           });
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     } else {
       toast({
@@ -446,7 +498,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         variant: 'destructive',
       });
     }
-  }, [handleGeolocate, map, reverseGeocode, smoothZoomTo, toast, userLocation]);
+  }, [handleGeolocate, map, reverseGeocode, smoothZoomTo, toast, userLocation, setStoreUserLocation]);
   const manualGeolocateBooking = useCallback(() => handleGeolocate(bookingMap, false), [handleGeolocate, bookingMap]);
   
   // Layout management - Bottom panel height tracking
@@ -1711,15 +1763,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             {/* يمين: زر القائمة (نفس نمط RiderPageHeader) */}
             <button
               onClick={() => setMenuOpen(true)}
-              className="backdrop-blur-md p-2.5 rounded-xl active:scale-95 transition-transform"
-              style={{
-                background: 'var(--raan-accent-dim)',
-                border: '1px solid var(--raan-border)',
-              }}
+              className="bg-[#5bdda6]/10 border border-[#5bdda6]/30 hover:bg-[#5bdda6]/20 p-2.5 rounded-xl active:scale-95 transition-all shadow-[0_0_15px_rgba(91,221,166,0.15)] group backdrop-blur-md"
               aria-label="القائمة الرئيسية"
               title="القائمة الرئيسية"
             >
-              <Menu className="w-5 h-5" style={{ color: 'var(--raan-text-sub)' }} />
+              <Menu className="w-5 h-5 text-[#5bdda6] group-hover:drop-shadow-[0_0_8px_rgba(91,221,166,0.5)] transition-all" />
             </button>
           </div>
         </header>
@@ -1759,7 +1807,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
         {/* Location pin - دبوس CSS بدون صور خارجية - pointer-events-none للسماح بتحريك الخريطة */}
         <div 
-          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full z-[10]"
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full z-[70]"
         >
           <motion.div 
             initial={{ scale: 0.8, opacity: 0 }} 
@@ -1834,8 +1882,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         {/* Loading overlay with static map placeholder */}
         {isLoading && <StaticMapPlaceholder lat={userLocation?.lat || lastLocation?.lat} lng={userLocation?.lng || lastLocation?.lng} zoom={14} message="جاري تحميل الخريطة..." />}
 
-        {/* Network status bar */}
-        <NetworkStatusBar />
+
 
       </div>
 
@@ -1878,7 +1925,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
         {/* Drag Handle — قابل للسحب */}
         <div
-          className="flex flex-col items-center justify-center pt-3 pb-2 gap-1 cursor-grab active:cursor-grabbing touch-none select-none"
+          className="flex flex-col items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none select-none"
           onClick={() => setPanelExpanded(prev => !prev)}
         >
           {/* مؤشر السحب */}
@@ -1891,22 +1938,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             }}
             transition={{ duration: 0.3 }}
           />
-          {/* أيقونة الخطوة + النص */}
-          <div className="flex items-center gap-2">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center shadow-[0_0_12px_rgba(91,221,166,0.25)] ${
-              isPickup
-                ? 'bg-[#5bdda6]/20 border border-[#5bdda6]/30'
-                : 'bg-[#5bdda6]/10 border border-[#5bdda6]/20'
-            }`}>
-              {isPickup
-                ? <Rocket className="w-3.5 h-3.5 text-[#5bdda6]" />
-                : <MapPin className="w-3.5 h-3.5 text-[#5bdda6]" />}
-            </div>
-            <p className="text-[13px] font-bold tracking-widest text-[#5bdda6]/60 uppercase">
-              {isPickup ? 'موقع الانطلاق' : 'الوجهة'}
-            </p>
-
-          </div>
         </div>
 
         {/* ═══ الحالة المصغّرة — ملخص العنوان + زر التأكيد ═══ */}
@@ -2008,6 +2039,13 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           {/* حقل البحث — تصميم فاخر مطابق للصورة */}
           <div className="relative pointer-events-auto -mx-4 overflow-visible z-50">
             <DynamicSearchHeader
+              headerLabel={
+                <div className="flex flex-col items-center justify-center gap-1.5">
+                  <p className="text-[13px] font-bold tracking-widest text-[#5bdda6]/80 uppercase">
+                    {isPickup ? 'موقع الانطلاق' : 'الوجهة'}
+                  </p>
+                </div>
+              }
               query={locationSearchQuery}
               onQueryChange={(v) => {
                 setLocationSearchQuery(v);
@@ -2029,7 +2067,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               placeholder={isPickup ? 'اختر موقع الانطلاق ....' : 'اختر جهة الوصول ....'}
               onFocus={() => setIsLocationFocused(true)}
               showAddress={!locationSearchQuery && centerAddress ? buildDescriptiveAddress(centerAddress) : undefined}
-              onCurrentLocation={() => manualGeolocateMain()}
+              onAddressClick={() => {
+                if (!centerAddress || centerAddress.includes('بدون اسم') || centerAddress.includes('غير مفعل')) {
+                  manualGeolocateMain(true);
+                } else {
+                  setIsLocationFocused(true);
+                }
+              }}
+              onCurrentLocation={() => manualGeolocateMain(true)}
               onSaveLocation={() => {
                 if (centerAddress && centerLat && centerLng) setShowSaveModal(true);
               }}
@@ -2346,7 +2391,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                           <span className="text-lg leading-none">{displayIcon}</span>
                           <div className="text-right min-w-0 max-w-[120px]">
                             <p className="text-[13px] font-bold text-slate-200 truncate leading-tight">{place.name}</p>
-                            <p className="text-[10px] text-slate-500 truncate leading-tight">{place.address}</p>
                           </div>
                         </motion.button>
                       );

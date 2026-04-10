@@ -1,15 +1,44 @@
+import * as Sentry from "@sentry/react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
+import "./lib/i18nConfig"; // تهيئة i18next قبل أي شيء
 import "mapbox-gl/dist/mapbox-gl.css"; // ✅ FIX: إصلاح الخرائط — يجب أن يكون قبل index.css
 import "./index.css";
 import { registerServiceWorker } from "./utils/serviceWorker";
 import { supabase } from "./integrations/supabase/client";
 import { initCapacitorPlugins, isNativePlatform } from "./lib/capacitorBridge";
 import { initUserGestureTracking } from "./lib/userGestureTracker";
-import { initSentry } from "./lib/sentry";
+import { validateEnv } from "./lib/validateEnv";
 
-// ⚡ تهيئة Sentry لتتبع الأخطاء (قبل أي شيء آخر)
-initSentry();
+// التحقق من متغيرات البيئة
+validateEnv();
+
+// ⚡ تهيئة Sentry — يجب أن يكون أول شيء قبل createRoot
+try {
+  const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+  const sentryDsn = import.meta.env.VITE_SENTRY_DSN || "";
+  if (sentryDsn) {
+    Sentry.init({
+      dsn: sentryDsn,
+      sendDefaultPii: true,
+      environment: import.meta.env.MODE,
+      release: `raan@${import.meta.env.VITE_APP_VERSION || "1.0.0"}`,
+      tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+      initialScope: {
+        tags: { platform: isMobile ? "mobile" : "web" },
+      },
+      integrations: [
+        Sentry.browserTracingIntegration(),
+        // Replay معطّل على الجوال — ثقيل جداً على WebView
+        ...(!isMobile ? [Sentry.replayIntegration()] : []),
+      ],
+      replaysSessionSampleRate: 0.1,
+      replaysOnErrorSampleRate: 1.0,
+    });
+  }
+} catch (e) {
+  console.error('[Sentry] فشل في التهيئة:', e);
+}
 
 // تهيئة إضافات Capacitor (إذا كنا داخل التطبيق الأصلي)
 initCapacitorPlugins();
@@ -66,8 +95,11 @@ import { hydrateFromNativeStorage } from './lib/capacitorStorage';
 const root = document.getElementById("root");
 if (!root) throw new Error("Root element not found");
 
-// استعادة الجلسة من التخزين الأصلي قبل تهيئة التطبيق
-hydrateFromNativeStorage().finally(() => {
+// استعادة الجلسة من التخزين الأصلي قبل تهيئة التطبيق (مع مهلة 3 ثوانٍ)
+Promise.race([
+  hydrateFromNativeStorage(),
+  new Promise((resolve) => setTimeout(resolve, 3000)),
+]).finally(() => {
   createRoot(root).render(
     <React.StrictMode>
       <App />
