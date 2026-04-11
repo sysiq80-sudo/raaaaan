@@ -36,7 +36,7 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
+    <!-- ═══ Permissions ═══ -->
 
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -51,5 +51,29 @@
 
     <!-- الإشعارات المجدولة بعد إعادة التشغيل -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- ═══ الموقع (GPS) — مطلوب للسائق والراكب ═══ -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- تتبع الموقع بالخلفية — مطلوب لتطبيق السائق (Android 10+) -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- ═══ الخدمة الأمامية — يمنع أندرويد من قتل التطبيق (شاومي/سامسونج) ═══ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- منع وضع السكون أثناء الرحلة النشطة -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- طلب تجاهل تحسينات البطارية (أجهزة شاومي/MIUI) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- ═══ الكاميرا والمعرض — مطلوب لرفع وثائق KYC والصور ═══ -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- للأندرويد أقل من 13 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 
 </manifest>

@@ -108,6 +108,13 @@ export const vibrateStrong = (): void => {
  * بدء تنبيه متكرر عند طلب رحلة جديد
  */
 export const startRideAlert = (audioCtx?: AudioContext | null): void => {
+  // 🛡️ حماية من التشغيل المتكرر — إذا التنبيه نشط بالفعل، لا تبدأ واحداً جديداً
+  // هذا يمنع تراكب أصوات متعددة عند استدعاء الدالة أكثر من مرة
+  if (isAlertActive) {
+    logger.debug("LoudAlerts", "⚠️ تنبيه نشط بالفعل — تم تجاهل الطلب الجديد");
+    return;
+  }
+
   stopRideAlert();
 
   isAlertActive = true;

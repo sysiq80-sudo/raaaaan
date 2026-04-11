@@ -330,64 +330,12 @@ async function sendPushNotificationWithRetry(
     return { success: false, error: 'invalid_web_push_endpoint' };
   }
 
-  // ═══ Web Push path ═══
-  const startTime = Date.now();
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`Attempt ${attempt}/${maxRetries} - Sending to: ${subscription.endpoint.substring(0, 50)}...`);
-
-      const body = JSON.stringify(payload);
-      
-      const response = await fetch(subscription.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'TTL': '86400',
-          'Urgency': 'high',
-        },
-        body: body
-      });
-
-      if (response.ok) {
-        const delivery_delay_ms = Date.now() - startTime;
-        console.log(`Push sent successfully on attempt ${attempt}`);
-        return { success: true, attempts: attempt, delivery_delay_ms };
-      }
-
-      const errorText = await response.text();
-      console.error(`Push failed: ${response.status} - ${errorText}`);
-      
-      // Don't retry for expired subscriptions
-      if (response.status === 404 || response.status === 410) {
-        return { success: false, error: 'subscription_expired', attempts: attempt };
-      }
-      
-      // Don't retry for client errors (4xx except 429)
-      if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-        return { success: false, error: `HTTP ${response.status}`, attempts: attempt };
-      }
-
-      // Exponential backoff for retryable errors
-      if (attempt < maxRetries) {
-        const delay = baseDelayMs * Math.pow(2, attempt - 1);
-        console.log(`Waiting ${delay}ms before retry...`);
-        await new Promise(r => setTimeout(r, delay));
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Attempt ${attempt} error:`, error);
-      
-      if (attempt === maxRetries) {
-        return { success: false, error: errorMessage, attempts: attempt };
-      }
-      
-      const delay = baseDelayMs * Math.pow(2, attempt - 1);
-      await new Promise(r => setTimeout(r, delay));
-    }
-  }
-  
-  return { success: false, error: 'max_retries_exceeded', attempts: maxRetries };
+  // ═══ Non-FCM Web Push endpoints (Firefox/Safari) ═══
+  // These require VAPID authentication which is not implemented.
+  // Only FCM/Chromium endpoints are supported in production.
+  // Return a descriptive error instead of silently failing with retries.
+  console.warn(`Unsupported non-FCM push endpoint: ${subscription.endpoint.substring(0, 60)}...`);
+  return { success: false, error: 'unsupported_non_fcm_endpoint' };
 }
 
 serve(async (req) => {

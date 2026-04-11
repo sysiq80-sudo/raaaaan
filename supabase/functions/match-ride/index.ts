@@ -130,12 +130,8 @@ serve(async (req) => {
 
     console.log("🔍 بدء مطابقة الرحلة:", rideId);
 
-    // 1. جلب تفاصيل الرحلة
-    const { data: ride, error: rideError } = await supabase
-      .from("rides")
-      .select("*")
-      .eq("id", rideId)
-      .single();
+    // 1. جلب تفاصيل الرحلة مع قفل لمنع التسابق (Race Conditions)
+    const { data: ride, error: rideError } = await supabase.rpc('get_ride_for_update', { ride_id: rideId });
 
     if (rideError || !ride) {
       throw new Error("الرحلة غير موجودة");

@@ -67,6 +67,12 @@ const config: CapacitorConfig = {
     },
     Network: {},
     App: {},
+    // ═══ إضافات مُفعَّلة (كانت مثبتة لكن غير مُعلنة) ═══
+    Device: {},
+    Preferences: {},
+    Browser: {},
+    TextToSpeech: {},    // نطق حالة الرحلة صوتياً
+    SpeechRecognition: {}, // واجهة الراكب الصوتية
   },
 };
 

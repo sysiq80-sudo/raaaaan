@@ -97,8 +97,8 @@ export async function startNativeTracking(opts: NativeLocationOptions): Promise<
         text: 'جارٍ تتبع رحلتك...',
         channelName: 'raan-location-tracking',
         sticky: true,
-        smallIcon: 'drawable/ic_notification',
-        largeIcon: 'drawable/ic_notification',
+        smallIcon: 'mipmap/ic_launcher',
+        largeIcon: 'mipmap/ic_launcher',
       },
 
       // ── Headless mode (يعمل بدون UI) ──

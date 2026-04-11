@@ -33,6 +33,8 @@ const DriverCompleteRegistration = () => {
   const [licenseBack, setLicenseBack] = useState<DocumentFile | null>(null);
   const [idFront, setIdFront] = useState<DocumentFile | null>(null);
   const [idBack, setIdBack] = useState<DocumentFile | null>(null);
+  const [residencyCard, setResidencyCard] = useState<DocumentFile | null>(null);
+  const [guarantorId, setGuarantorId] = useState<DocumentFile | null>(null);
   
   // Step 3: Personal photo
   const [personalPhoto, setPersonalPhoto] = useState<DocumentFile | null>(null);
@@ -163,6 +165,10 @@ const DriverCompleteRegistration = () => {
       toast.error('يرجى رفع صورتي البطاقة الموحدة (الوجهين)');
       return;
     }
+    if (!residencyCard || !guarantorId) {
+      toast.error('يرجى رفع بطاقة السكن وهوية الكفيل (متطلبات قانونية)');
+      return;
+    }
 
     setCurrentStep(3);
   };
@@ -186,6 +192,8 @@ const DriverCompleteRegistration = () => {
         licenseBackUrl,
         idFrontUrl,
         idBackUrl,
+        residencyCardUrl,
+        guarantorIdUrl,
         personalPhotoUrl
       ] = await Promise.all([
         uploadFile(vehicleImage!.file, `${folderPath}/vehicle.jpg`),
@@ -193,6 +201,8 @@ const DriverCompleteRegistration = () => {
         uploadFile(licenseBack!.file, `${folderPath}/license_back.jpg`),
         uploadFile(idFront!.file, `${folderPath}/id_front.jpg`),
         uploadFile(idBack!.file, `${folderPath}/id_back.jpg`),
+        uploadFile(residencyCard!.file, `${folderPath}/residency.jpg`),
+        uploadFile(guarantorId!.file, `${folderPath}/guarantor.jpg`),
         uploadFile(personalPhoto!.file, `${folderPath}/profile.jpg`)
       ]);
 
@@ -209,6 +219,8 @@ const DriverCompleteRegistration = () => {
           license_image_back_url: licenseBackUrl,
           id_image_url: idFrontUrl,
           id_image_back_url: idBackUrl,
+          residency_image_url: residencyCardUrl,
+          guarantor_image_url: guarantorIdUrl,
           profile_image_url: personalPhotoUrl,
           updated_at: new Date().toISOString()
         })
@@ -443,6 +455,33 @@ const DriverCompleteRegistration = () => {
                     file={idBack}
                     onSelect={(e) => handleFileSelect(e, setIdBack)}
                     onRemove={() => setIdBack(null)}
+                  />
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  المستمسكات القانونية الإضافية
+                </h4>
+                <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-lg mb-4">
+                  <p className="text-amber-700 dark:text-amber-400 text-xs flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    لأغراض أمنية وقانونية وفق تعليمات دائرة المرور يجب إرفاق بطاقة السكن وهوية تخص الكفيل.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <DocumentUploadBox
+                    label="بطاقة السكن (الأمام)"
+                    file={residencyCard}
+                    onSelect={(e) => handleFileSelect(e, setResidencyCard)}
+                    onRemove={() => setResidencyCard(null)}
+                  />
+                  <DocumentUploadBox
+                    label="هوية الكفيل (الأمام)"
+                    file={guarantorId}
+                    onSelect={(e) => handleFileSelect(e, setGuarantorId)}
+                    onRemove={() => setGuarantorId(null)}
                   />
                 </div>
               </div>

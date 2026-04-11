@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { playSound, vibrate, VibrationPatterns, showNotification, requestNotificationPermission } from "@/utils/rideNotificationSounds";
-import { isNativePlatform, showNativeNotification, nativeHaptic } from "@/lib/capacitorBridge";
+import { isNativePlatform, nativeHaptic } from "@/lib/capacitorBridge";
 
 interface StatusMessage {
   title: string;
@@ -60,7 +60,6 @@ const statusMessages: Record<string, StatusMessage> = {
 
 export const useRideNotifications = (userId: string | null) => {
   const { toast } = useToast();
-  const fcmRegistered = useRef(false);
   // 🛡️ منع تكرار الإشعارات: تتبع آخر حالة تم إشعار المستخدم بها لكل رحلة
   const lastNotifiedStatusRef = useRef<Map<string, string>>(new Map());
 
@@ -154,71 +153,6 @@ export const useRideNotifications = (userId: string | null) => {
     requestNotificationPermission();
   }, []);
 
-  // Register FCM token for rider (native app only)
-  useEffect(() => {
-    if (!userId || !isNativePlatform || fcmRegistered.current) return;
-
-    const registerRiderFCM = async () => {
-      try {
-        // Read token saved by initNativePushNotifications() in capacitorBridge.ts
-        let token = localStorage.getItem('raan_fcm_token');
-
-        if (!token) {
-          // If not in localStorage yet, request explicitly
-          const { PushNotifications } = await import('@capacitor/push-notifications');
-          const permResult = await PushNotifications.requestPermissions();
-          if (permResult.receive !== 'granted') return;
-
-          try {
-            await PushNotifications.register();
-          } catch (regErr) {
-            console.warn('⚠️ PushNotifications.register() failed:', regErr);
-            return;
-          }
-
-          // Wait briefly for token
-          token = await new Promise<string | null>((resolve) => {
-            const timeout = setTimeout(() => resolve(null), 5000);
-            PushNotifications.addListener('registration', (t) => {
-              clearTimeout(timeout);
-              localStorage.setItem('raan_fcm_token', t.value);
-              resolve(t.value);
-            });
-          });
-        }
-
-        if (!token) return;
-
-        // Remove old FCM records for this user, then insert new one
-        await supabase
-          .from('push_subscriptions')
-          .delete()
-          .eq('user_id', userId)
-          .not('fcm_token', 'is', null);
-
-        const { error } = await supabase
-          .from('push_subscriptions')
-          .insert({
-            user_id: userId,
-            endpoint: `fcm://${token}`,
-            p256dh_key: '',
-            auth_key: '',
-            platform: 'android',
-            fcm_token: token,
-            updated_at: new Date().toISOString(),
-          });
-
-        if (error) {
-          console.error('فشل حفظ رمز FCM للراكب:', error);
-        } else {
-          fcmRegistered.current = true;
-          console.log('✅ Rider FCM token registered');
-        }
-      } catch (err) {
-        console.error('Rider FCM registration error:', err);
-      }
-    };
-
-    registerRiderFCM();
-  }, [userId]);
+  // ⚠️ FCM registration is handled by useRiderFCMRegistration hook.
+  // Do NOT register FCM here to avoid race conditions with duplicate subscriptions.
 };

@@ -852,41 +852,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               const finalAddress = result.results[0].formatted_address;
               let poiName: string | null = null;
               
-              // Step 2: Try to get POI name using Place.searchNearby (New API)
-              try {
-                if (window.google?.maps?.places?.Place) {
-                  const POI_TYPES = [
-                    'hospital', 'doctor', 'pharmacy',
-                    'mosque', 'church',
-                    'school', 'university', 'library',
-                    'city_hall', 'police', 'fire_station',
-                    'shopping_mall', 'supermarket', 'store',
-                    'restaurant', 'cafe', 'bakery',
-                    'bank', 'atm', 'post_office',
-                    'gas_station', 'car_repair',
-                    'park', 'stadium', 'gym',
-                    'museum', 'tourist_attraction'
-                  ];
-
-                  const { places } = await google.maps.places.Place.searchNearby({
-                    fields: ['displayName', 'types'],
-                    locationRestriction: {
-                      center: { lat: actualLat, lng: actualLng },
-                      radius: 50,
-                    },
-                    includedTypes: POI_TYPES,
-                    maxResultCount: 5,
-                    language: 'ar',
-                  });
-
-                  if (places && places.length > 0 && places[0].displayName) {
-                    poiName = places[0].displayName;
-                    console.log("✅ Valid POI found in confirmation:", poiName);
-                  }
-                }
-              } catch (placeError) {
-                console.warn("Places API error (non-critical):", placeError);
-              }
+              // Step 2: 🚫 SearchNearby معطّل — تكلفة $32/1000 طلب
+              // POI يُستخرج من نتائج Geocoding بدلاً (Step 3 أدناه)
 
               // Step 3: Look for POI in geocoding results if not found
               if (!poiName) {

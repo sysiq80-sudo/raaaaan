@@ -208,20 +208,49 @@ export const registerFCMToken = async (driverId: string): Promise<boolean> => {
 
     if (!token) {
       token = await new Promise<string | null>((resolve) => {
-        const timeout = setTimeout(() => resolve(readStoredToken()), 9000);
-        void PushNotifications.addListener('registration', (t) => {
-          clearTimeout(timeout);
-          try {
-            localStorage.setItem('raan_fcm_token', t.value);
-            capacitorStorageSync.setItem('raan_fcm_token', t.value);
-          } catch {
-            /* صامت */
+        let isResolved = false;
+        let listenerHandle: { remove: () => void } | null = null;
+        
+        const cleanup = () => {
+          if (listenerHandle) {
+            listenerHandle.remove().catch(() => {});
           }
-          resolve(t.value);
+        };
+
+        const timeout = setTimeout(() => {
+          if (!isResolved) {
+            isResolved = true;
+            cleanup();
+            resolve(readStoredToken());
+          }
+        }, 5000);
+
+        PushNotifications.addListener('registration', (t) => {
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeout);
+            cleanup();
+            try {
+              localStorage.setItem('raan_fcm_token', t.value);
+              capacitorStorageSync.setItem('raan_fcm_token', t.value);
+            } catch {
+              /* صامت */
+            }
+            resolve(t.value);
+          }
+        }).then(handle => {
+          listenerHandle = handle;
+          if (isResolved) cleanup(); // In case it resolved before then()
         });
+
         PushNotifications.register().catch((e: unknown) => {
           console.warn('⚠️ PushNotifications.register() failed:', e);
-          resolve(readStoredToken());
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeout);
+            cleanup();
+            resolve(readStoredToken());
+          }
         });
       });
     } else {

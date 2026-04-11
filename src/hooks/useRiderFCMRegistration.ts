@@ -29,15 +29,34 @@ export const useRiderFCMRegistration = (userId: string | null) => {
         }
 
         const token = await new Promise<string | null>((resolve) => {
+          let isResolved = false;
+          let listenerHandle: { remove: () => void } | null = null;
+
+          const cleanup = () => {
+            if (listenerHandle) {
+              try { listenerHandle.remove(); } catch { /* ignore */ }
+            }
+          };
+
           const timeout = setTimeout(() => {
-            // Fallback to last known token only if registration callback is delayed.
-            resolve(localStorage.getItem('raan_fcm_token'));
-          }, 7000);
+            if (!isResolved) {
+              isResolved = true;
+              cleanup();
+              resolve(localStorage.getItem('raan_fcm_token'));
+            }
+          }, 5000);
 
           PushNotifications.addListener('registration', (t) => {
-            clearTimeout(timeout);
-            localStorage.setItem('raan_fcm_token', t.value);
-            resolve(t.value);
+            if (!isResolved) {
+              isResolved = true;
+              clearTimeout(timeout);
+              cleanup();
+              localStorage.setItem('raan_fcm_token', t.value);
+              resolve(t.value);
+            }
+          }).then(handle => {
+            listenerHandle = handle;
+            if (isResolved) cleanup();
           });
         });
 

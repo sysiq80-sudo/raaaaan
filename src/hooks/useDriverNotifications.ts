@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
-import { playNotificationSound, resumeAudioContext } from "@/lib/audioContext";
+import { resumeAudioContext } from "@/lib/audioContext";
 import { isNativePlatform, onAppStateChange, showNativeNotification, nativeHaptic } from "@/lib/capacitorBridge";
 import { capacitorStorageSync } from "@/lib/capacitorStorage";
 import { useDriverStore } from "@/stores/driverStore";
@@ -23,11 +23,7 @@ interface NewRide {
   distance_km: number | null;
 }
 
-// تشغيل صوت الإشعار باستخدام AudioContext المشترك (بدون إنشاء سياق جديد)
-const createNotificationSound = () => {
-  // نستخدم الصوت المركزي من audioContext.ts بدلاً من إنشاء AudioContext منفصل
-  playNotificationSound();
-};
+
 
 // Vibration pattern for mobile — guarded by user-interaction policy
 const vibrateDevice = () => {
@@ -59,7 +55,7 @@ export const useDriverNotifications = (
 ) => {
   const { toast } = useToast();
   const DRIVER_NOTIFICATION_DEDUPE_TTL_MS = 300_000; // 5 دقائق لتفادي إعادة الإشعار عند إعادة الاتصال
-  const CHANNEL_STALE_MS = 120_000;
+  const CHANNEL_STALE_MS = 300_000;
   const dedupeMapRef = useRef<Map<string, number>>(new Map());
   const lastRealtimeEventAtRef = useRef<number>(Date.now());
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
@@ -157,9 +153,8 @@ export const useDriverNotifications = (
     // 🔊 تشغيل تنبيه صوتي قوي ومتكرر (Loud Alert System)
     if (shouldPlaySound) {
       startRideAlert();
-      
-      // تشغيل الصوت المركزي كإضافة
-      playNotificationSound();
+      // ⚠️ لا نستدعي playNotificationSound() هنا — startRideAlert() يتضمن 3 تكرارات صوتية + سارينة
+      // استدعاء كليهما كان يسبب صوتين متراكبين
     }
     
     // Vibrate device — استخدام اهتزاز أصلي في Capacitor
@@ -490,8 +485,17 @@ export const useDriverNotifications = (
                 .limit(5);
               if (pendingRides && pendingRides.length > 0) {
                 console.log(`📥 Found ${pendingRides.length} pending rides on channel subscribe`);
-                pendingRides.forEach(ride => {
-                  handleNewRide({ new: ride as unknown as Record<string, unknown> });
+                // 🛡️ Catch-up فقط — لا نشغل أصوات/إشعارات للرحلات المجلوبة عند subscribe
+                // لأنها قد تكون نفس الرحلات التي وصلت عبر INSERT event (تسبب تكرار)
+                // أو رحلات قديمة عند recreateChannel (تسبب عاصفة إشعارات)
+                // فقط نسجلها في dedupe map لمنع إعادة الإشعار لاحقاً
+                const now = Date.now();
+                pendingRides.forEach((ride) => {
+                  const rideId = ride.id as string;
+                  if (!dedupeMapRef.current.has(rideId)) {
+                    dedupeMapRef.current.set(rideId, now);
+                    console.log(`📥 Registered catch-up ride in dedupe: ${rideId} (silent)`);
+                  }
                 });
               }
             } catch (err) {
@@ -559,7 +563,9 @@ export const useDriverNotifications = (
     visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
         const staleForMs = Date.now() - lastRealtimeEventAtRef.current;
-        if (staleForMs > 10000) {
+        // 🛡️ زيادة العتبة إلى 60 ثانية لمنع إعادة الإنشاء المتكرر (كانت 10 ثوانٍ)
+        // العتبة القصيرة كانت تسبب recreateChannel عند كل تبديل تطبيق → عاصفة إشعارات
+        if (staleForMs > 60000) {
           recreateChannel('visibility_visible');
         }
       }

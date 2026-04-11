@@ -64,9 +64,6 @@ export function StaticRideMap({
     [pickupLocation, dropoffLocation, width, height, routeCoordinates]
   );
 
-  if (error) {
-    return (
-      <div 
   if (!imageUrl) {
     return (
       <div

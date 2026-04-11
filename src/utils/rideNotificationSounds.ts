@@ -396,7 +396,10 @@ export const stopLoopingAlert = (rideId: string): void => {
   _activeAlerts.delete(rideId);
 
   try {
-    navigator.vibrate(0); // cancel vibration
+    // Use the same safe vibrate guard as the rest of the project
+    import('../lib/userGestureTracker').then(({ safeVibrate }) => {
+      safeVibrate(0);
+    }).catch(() => { /* ignore */ });
   } catch {
     // not available in all environments
   }

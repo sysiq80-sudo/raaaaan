@@ -1645,6 +1645,8 @@ export type Database = {
           id?: string
           id_image_back_url?: string | null
           id_image_url?: string | null
+          residency_image_url?: string | null
+          guarantor_image_url?: string | null
           is_available?: boolean | null
           is_online?: boolean | null
           last_heading_update?: string | null
@@ -1687,6 +1689,8 @@ export type Database = {
           id?: string
           id_image_back_url?: string | null
           id_image_url?: string | null
+          residency_image_url?: string | null
+          guarantor_image_url?: string | null
           is_available?: boolean | null
           is_online?: boolean | null
           last_heading_update?: string | null
@@ -6004,3 +6008,4 @@ export const Constants = {
     },
   },
 } as const
+

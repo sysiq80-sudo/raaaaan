@@ -388,12 +388,6 @@ export const getNotificationAnalytics = async (days: number = 30): Promise<{
   daily: unknown[];
 } | null> => {
   try {
-    const { data, error } = await supabase.functions.invoke('notification-analytics', {
-      body: {},
-      headers: {}
-    });
-
-    // Use URL params for GET-like request
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notification-analytics?action=summary&days=${days}`,
       {

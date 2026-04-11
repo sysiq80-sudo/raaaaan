@@ -301,44 +301,8 @@ export const reverseGeocodeCoordinates = async (
     let finalAddress = result.results[0].formatted_address;
     let poiName: string | null = null;
 
-    // Step 2: Try to get POI name using Place.searchNearby (New API)
-    if (window.google?.maps?.places?.Place) {
-      try {
-        const POI_TYPES = [
-          'hospital', 'doctor', 'pharmacy',
-          'mosque', 'church',
-          'school', 'university', 'library',
-          'city_hall', 'police', 'fire_station',
-          'shopping_mall', 'supermarket', 'store',
-          'restaurant', 'cafe', 'bakery',
-          'bank', 'atm', 'post_office',
-          'gas_station', 'car_repair',
-          'park', 'stadium', 'gym',
-          'museum', 'tourist_attraction'
-        ];
-
-        const { places } = await google.maps.places.Place.searchNearby({
-          fields: ['displayName', 'types'],
-          locationRestriction: {
-            center: { lat, lng },
-            radius: 50,
-          },
-          includedTypes: POI_TYPES,
-          maxResultCount: 5,
-          language: 'ar',
-        });
-
-        if (places && places.length > 0) {
-          const nearestPlace = places[0];
-          if (nearestPlace.displayName) {
-            poiName = nearestPlace.displayName;
-            console.log("✅ Valid POI found via Place.searchNearby:", poiName);
-          }
-        }
-      } catch (placeError) {
-        console.warn("Places API error (non-critical):", placeError);
-      }
-    }
+    // Step 2: 🚫 SearchNearby معطّل — تكلفة $32/1000 طلب
+    // POI يُستخرج من نتائج Geocoding بدلاً (Step 3 أدناه — مجاني)
 
     // Step 3: Look for POI in geocoding results if not found
     if (!poiName) {

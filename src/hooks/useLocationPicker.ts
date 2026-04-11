@@ -206,15 +206,9 @@ export const useLocationPicker = (
           language: "ar",
         });
 
-        const nearbySearch50m = window.google?.maps?.places?.Place
-          ? google.maps.places.Place.searchNearby({
-              fields: ['displayName', 'types', 'location'],
-              locationRestriction: { center: { lat, lng }, radius: 50 },
-              includedTypes: IRAQ_POI_TYPES,
-              maxResultCount: 5,
-              language: 'ar',
-            }).catch(() => ({ places: [] as any[] }))
-          : Promise.resolve({ places: [] as any[] });
+        // 🚫 SearchNearby معطّل — تكلفة $32/1000 طلب
+        // POI يُستخرج من نتائج Geocoding بدلاً ($5/1000 طلب)
+        const nearbySearch50m = Promise.resolve({ places: [] as any[] });
 
         const [geocodeResult, nearbyResult50] = await Promise.all([
           geocodePromise,
@@ -282,22 +276,8 @@ export const useLocationPicker = (
         // ═══════════════════ Step 3: POI — Places API → 150م → Geocoding ═══════════════════
         let poiName = pickBestPOI(nearbyResult50?.places || []);
 
-        // توسيع إلى 150م
-        if (!poiName && window.google?.maps?.places?.Place) {
-          try {
-            const nearbyResult150 = await google.maps.places.Place.searchNearby({
-              fields: ['displayName', 'types', 'location'],
-              locationRestriction: { center: { lat, lng }, radius: 150 },
-              includedTypes: IRAQ_POI_TYPES,
-              maxResultCount: 5,
-              language: 'ar',
-            });
-            poiName = pickBestPOI(nearbyResult150?.places || []);
-            if (poiName) console.log("🔍 POI at 150m:", poiName);
-          } catch {
-            // non-critical
-          }
-        }
+        // 🚫 SearchNearby 150م معطّل — تكلفة عالية
+        // POI يُستخرج من Geocoding results بدلاً (Step 2 أعلاه)
 
         // POI من نتائج Geocoding
         if (!poiName && geoPOIName) {

@@ -61,6 +61,11 @@ const config: CapacitorConfig = {
     },
     Network: {},
     App: {},
+    // ═══ إضافات مُفعَّلة (كانت مثبتة لكن غير مُعلنة) ═══
+    Device: {},
+    Preferences: {},
+    Browser: {},
+    KeepAwake: {},       // إبقاء شاشة السيارة مضاءة
   },
 };
 

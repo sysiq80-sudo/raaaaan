@@ -1206,6 +1206,61 @@ const AdminDriverDetails = () => {
                       </div>
                     )}
                   </div>
+                  {/* Residency Card */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">بطاقة السكن</label>
+                    {driver.residency_image_url ? (
+                      <div className="border rounded-lg p-4">
+                        <img
+                          src={driver.residency_image_url}
+                          alt="Residency Card"
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-2"
+                          onClick={() => window.open(driver.residency_image_url, '_blank')}
+                        >
+                          <Eye className="w-4 h-4 ml-2" />
+                          عرض الصورة
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                        <FileText className="w-12 h-12 mx-auto mb-2" />
+                        <p>لا توجد صورة لبطاقة السكن</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Guarantor ID */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">هوية الكفيل</label>
+                    {driver.guarantor_image_url ? (
+                      <div className="border rounded-lg p-4">
+                        <img
+                          src={driver.guarantor_image_url}
+                          alt="Guarantor ID"
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-2"
+                          onClick={() => window.open(driver.guarantor_image_url, '_blank')}
+                        >
+                          <Eye className="w-4 h-4 ml-2" />
+                          عرض الصورة
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                        <FileText className="w-12 h-12 mx-auto mb-2" />
+                        <p>لا توجد صورة لهوية الكفيل</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>

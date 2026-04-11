@@ -30,7 +30,7 @@ android {
             versionName "1.0"
         }
         captain {
-            applicationId "com.raan.driver"
+            applicationId "com.raan.captain"
             versionCode 1
             versionName "1.0"
         }

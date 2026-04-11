@@ -319,7 +319,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- دالة: معالجة أرباح الرحلة
+-- دالة: معالجة أرباح الرحلة (مع transaction ACID)
 CREATE OR REPLACE FUNCTION process_ride_earnings(
   p_ride_id UUID,
   p_driver_id UUID,
@@ -334,49 +334,60 @@ DECLARE
   v_commission_tx_id UUID;
   v_result JSONB;
 BEGIN
-  -- حساب العمولة والأرباح
-  v_commission := (p_total_fare * p_commission_rate / 100)::DECIMAL(10,2);
-  v_driver_earning := (p_total_fare - v_commission)::DECIMAL(10,2);
-  
-  -- إضافة أرباح السائق
-  v_earnings_tx_id := create_wallet_transaction(
-    p_driver_id,
-    'ride_earning',
-    v_driver_earning,
-    p_ride_id,
-    'أرباح الرحلة',
-    jsonb_build_object('total_fare', p_total_fare, 'commission_rate', p_commission_rate)
-  );
-  
-  -- خصم العمولة (كمعاملة منفصلة للشفافية)
-  v_commission_tx_id := create_wallet_transaction(
-    p_driver_id,
-    'commission',
-    -v_commission,
-    p_ride_id,
-    format('عمولة المنصة (%s%%)', p_commission_rate),
-    jsonb_build_object('commission_rate', p_commission_rate)
-  );
-  
-  -- تحديث إحصائيات المحفظة
-  UPDATE driver_wallets
-  SET 
-    total_rides_completed = total_rides_completed + 1,
-    commission_paid = commission_paid + v_commission,
-    updated_at = now()
-  WHERE driver_id = p_driver_id;
-  
-  -- إرجاع النتائج
-  v_result := jsonb_build_object(
-    'success', true,
-    'total_fare', p_total_fare,
-    'commission', v_commission,
-    'driver_earning', v_driver_earning,
-    'earnings_transaction_id', v_earnings_tx_id,
-    'commission_transaction_id', v_commission_tx_id
-  );
-  
-  RETURN v_result;
+  -- بدء transaction لضمان الذرية
+  BEGIN
+    -- حساب العمولة والأرباح
+    v_commission := (p_total_fare * p_commission_rate / 100)::DECIMAL(10,2);
+    v_driver_earning := (p_total_fare - v_commission)::DECIMAL(10,2);
+    
+    -- إضافة أرباح السائق
+    v_earnings_tx_id := create_wallet_transaction(
+      p_driver_id,
+      'ride_earning',
+      v_driver_earning,
+      p_ride_id,
+      'أرباح الرحلة',
+      jsonb_build_object('total_fare', p_total_fare, 'commission_rate', p_commission_rate)
+    );
+    
+    -- خصم العمولة (كمعاملة منفصلة للشفافية)
+    v_commission_tx_id := create_wallet_transaction(
+      p_driver_id,
+      'commission',
+      -v_commission,
+      p_ride_id,
+      format('عمولة المنصة (%s%%)', p_commission_rate),
+      jsonb_build_object('commission_rate', p_commission_rate)
+    );
+    
+    -- تحديث إحصائيات المحفظة
+    UPDATE driver_wallets
+    SET 
+      total_rides_completed = total_rides_completed + 1,
+      commission_paid = commission_paid + v_commission,
+      updated_at = now()
+    WHERE driver_id = p_driver_id;
+    
+    -- إرجاع النتائج
+    v_result := jsonb_build_object(
+      'success', true,
+      'total_fare', p_total_fare,
+      'commission', v_commission,
+      'driver_earning', v_driver_earning,
+      'earnings_transaction_id', v_earnings_tx_id,
+      'commission_transaction_id', v_commission_tx_id
+    );
+    
+    -- تأكيد الـ transaction
+    COMMIT;
+    RETURN v_result;
+    
+  EXCEPTION
+    WHEN OTHERS THEN
+      -- إلغاء الـ transaction في حالة خطأ
+      ROLLBACK;
+      RAISE EXCEPTION 'Failed to process ride earnings: %', SQLERRM;
+  END;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

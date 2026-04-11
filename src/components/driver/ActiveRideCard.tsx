@@ -10,6 +10,7 @@ import { ChatButton } from "@/components/ride/RideChat";
 import { DriverEmergencyButton } from "./DriverEmergencyButton";
 import { logger } from "@/lib/logger";
 import { useDriverLocationSync } from "@/hooks/useDriverLocationSync";
+import { useDriverStore } from "@/stores/driverStore";
 import {
   playSound,
   vibrate,
@@ -138,6 +139,19 @@ export const ActiveRideCard = ({
 }: ActiveRideCardProps) => {
   const { toast } = useToast();
   const [activeRide, setActiveRide] = useState<ActiveRide | null>(null);
+
+  // Sync with global store so useDriverNotifications knows the driver is busy
+  const setActiveRideStore = useDriverStore((state) => state.setActiveRide);
+
+  useEffect(() => {
+    if (activeRide) {
+      setActiveRideStore(activeRide as any);
+    } else {
+      setActiveRideStore(null);
+    }
+    return () => setActiveRideStore(null);
+  }, [activeRide, setActiveRideStore]);
+
   const [riderInfo, setRiderInfo] = useState<RiderInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -379,10 +393,11 @@ export const ActiveRideCard = ({
         }
       });
 
-    // Fallback polling every 3 seconds (skip if rating screen is open)
+    // Fallback polling every 10 seconds (skip if rating screen is open)
+    // Realtime subscription handles instant updates — polling is safety net only
     const pollInterval = setInterval(() => {
       if (!showingCompletedRef.current) fetchActiveRide();
-    }, 3000);
+    }, 10000);
 
     return () => {
       supabase.removeChannel(channel);
@@ -446,13 +461,15 @@ export const ActiveRideCard = ({
     fetchFareBreakdown();
   }, [activeRide?.id]);
 
-  // Setup broadcast channel for communication with rider - with proper subscription
+  // ═══ قناة موحدة للتواصل مع الراكب (إرسال + استقبال) ═══
+  // ⚠️ مهم: يجب إنشاء قناة واحدة فقط بنفس الاسم — إنشاء قناتين بنفس الاسم
+  // يسبب دورة اشتراك/إلغاء مستمرة وتكرار الإشعارات
   useEffect(() => {
     if (!activeRide) return;
 
     logger.debug(
       "ActiveRideCard",
-      "Setting up broadcast channel for ride",
+      "Setting up UNIFIED broadcast channel for ride",
       activeRide.id,
     );
 
@@ -463,14 +480,56 @@ export const ActiveRideCard = ({
       },
     });
 
+    // ═══ استقبال رسائل الراكب (كانت في useEffect منفصل سابقاً) ═══
+    channel
+      .on("broadcast", { event: "ride_completed_by_rider" }, (payload) => {
+        logger.debug("ActiveRideCard", "Received: ride_completed_by_rider", payload);
+        playSound("completed");
+        vibrate(VibrationPatterns.completed);
+        toast({ title: "🏁 الراكب أنهى الرحلة", description: "تم إنهاء الرحلة بنجاح", duration: 8000 });
+        showNotification("🏁 الراكب أنهى الرحلة", "تم إنهاء الرحلة وستحصل على أرباحك قريباً", { tag: "ride-completed-by-rider", requireInteraction: true });
+        fetchActiveRide();
+      })
+      .on("broadcast", { event: "rider_arrived" }, (payload) => {
+        logger.debug("ActiveRideCard", "Received: rider_arrived", payload);
+        playSound("riderArrived");
+        vibrate(VibrationPatterns.riderArrived);
+        toast({ title: "🏁 الراكب وصل للوجهة!", description: "اضغط 'تم الوصول' لإنهاء الرحلة", duration: 10000 });
+        showNotification("🏁 الراكب وصل للوجهة!", "اضغط تم الوصول لإنهاء الرحلة وتحصيل الأجرة", { tag: "rider-arrived", requireInteraction: true });
+      })
+      .on("broadcast", { event: "rider_on_my_way" }, (payload) => {
+        logger.debug("ActiveRideCard", "Received: rider_on_my_way", payload);
+        playSound("riderOnWay");
+        vibrate(VibrationPatterns.riderOnWay);
+        toast({ title: "🚶 الراكب في الطريق!", description: "سيصل إليك قريباً", duration: 5000 });
+        showNotification("🚶 الراكب قادم!", "في طريقه إليك الآن", { tag: "rider-on-way", duration: 5000 });
+      })
+      .on("broadcast", { event: "rider_wait_moment" }, (payload) => {
+        logger.debug("ActiveRideCard", "Received: rider_wait_moment", payload);
+        playSound("riderWait");
+        vibrate(VibrationPatterns.riderWait);
+        toast({ title: "⏱️ طلب الراكب الانتظار", description: "دقيقة واحدة فقط", duration: 5000 });
+        showNotification("⏱️ انتظر لحظة", "الراكب يحتاج دقيقة إضافية", { tag: "rider-wait", duration: 5000 });
+      })
+      .on("broadcast", { event: "rider_where_are_you" }, (payload) => {
+        logger.debug("ActiveRideCard", "Received: rider_where_are_you", payload);
+        playSound("riderQuestion");
+        vibrate(VibrationPatterns.riderQuestion);
+        toast({ title: "📍 الراكب يسأل عن موقعك", description: "اتصل به لتوضيح مكانك بالضبط", duration: 8000 });
+        showNotification("📍 أين أنت؟", "الراكب يسأل عن موقعك - يمكنك الاتصال به", { tag: "rider-question", requireInteraction: true });
+      })
+      .on("broadcast", { event: "rider_waiting" }, (payload) => {
+        logger.debug("ActiveRideCard", "Received: rider_waiting", payload);
+        playSound("confirm");
+        vibrate([100, 50, 100]);
+        toast({ title: "👋 الراكب بالانتظار", description: "يراك ويستعد للركوب", duration: 5000 });
+      });
+
     channel.subscribe((status) => {
-      logger.debug("ActiveRideCard", "Broadcast channel status", status);
+      logger.debug("ActiveRideCard", "Unified broadcast channel status", status);
       if (status === "SUBSCRIBED") {
         broadcastChannel.current = channel;
-        logger.info(
-          "ActiveRideCard",
-          "Channel ready for instant communication",
-        );
+        logger.info("ActiveRideCard", "Unified channel ready — send & receive");
 
         // Send initial location immediately when channel is ready
         if (driverLocation) {
@@ -487,11 +546,11 @@ export const ActiveRideCard = ({
     });
 
     return () => {
-      logger.debug("ActiveRideCard", "Cleaning up broadcast channel");
+      logger.debug("ActiveRideCard", "Cleaning up unified broadcast channel");
       supabase.removeChannel(channel);
       broadcastChannel.current = null;
     };
-  }, [activeRide?.id]);
+  }, [activeRide?.id, toast, fetchActiveRide]);
 
   // Send broadcast to rider - with retry logic
   const notifyRider = async (
@@ -623,140 +682,7 @@ export const ActiveRideCard = ({
     });
   };
 
-  // Listen for rider broadcasts (arrived, on my way, wait, where are you)
-  useEffect(() => {
-    if (!activeRide) return;
-
-    logger.debug(
-      "ActiveRideCard",
-      "Setting up rider message listener for ride",
-      activeRide.id,
-    );
-
-    const commChannel = supabase
-      .channel(`ride-comm-${activeRide.id}`)
-      .on("broadcast", { event: "ride_completed_by_rider" }, (payload) => {
-        logger.debug(
-          "ActiveRideCard",
-          "Received: ride_completed_by_rider",
-          payload,
-        );
-
-        playSound("completed");
-        vibrate(VibrationPatterns.completed);
-
-        toast({
-          title: "🏁 الراكب أنهى الرحلة",
-          description: "تم إنهاء الرحلة بنجاح",
-          duration: 8000,
-        });
-
-        showNotification(
-          "🏁 الراكب أنهى الرحلة",
-          "تم إنهاء الرحلة وستحصل على أرباحك قريباً",
-          { tag: "ride-completed-by-rider", requireInteraction: true },
-        );
-
-        // تحديث واجهة السائق
-        fetchActiveRide();
-      })
-      .on("broadcast", { event: "rider_arrived" }, (payload) => {
-        logger.debug("ActiveRideCard", "Received: rider_arrived", payload);
-
-        playSound("riderArrived");
-        vibrate(VibrationPatterns.riderArrived);
-
-        toast({
-          title: "🏁 الراكب وصل للوجهة!",
-          description: "اضغط 'تم الوصول' لإنهاء الرحلة",
-          duration: 10000,
-        });
-
-        showNotification(
-          "🏁 الراكب وصل للوجهة!",
-          "اضغط تم الوصول لإنهاء الرحلة وتحصيل الأجرة",
-          { tag: "rider-arrived", requireInteraction: true },
-        );
-      })
-      .on("broadcast", { event: "rider_on_my_way" }, (payload) => {
-        logger.debug("ActiveRideCard", "Received: rider_on_my_way", payload);
-
-        playSound("riderOnWay");
-        vibrate(VibrationPatterns.riderOnWay);
-
-        toast({
-          title: "🚶 الراكب في الطريق!",
-          description: "سيصل إليك قريباً",
-          duration: 5000,
-        });
-
-        showNotification("🚶 الراكب قادم!", "في طريقه إليك الآن", {
-          tag: "rider-on-way",
-          duration: 5000,
-        });
-      })
-      .on("broadcast", { event: "rider_wait_moment" }, (payload) => {
-        logger.debug("ActiveRideCard", "Received: rider_wait_moment", payload);
-
-        playSound("riderWait");
-        vibrate(VibrationPatterns.riderWait);
-
-        toast({
-          title: "⏱️ طلب الراكب الانتظار",
-          description: "دقيقة واحدة فقط",
-          duration: 5000,
-        });
-
-        showNotification("⏱️ انتظر لحظة", "الراكب يحتاج دقيقة إضافية", {
-          tag: "rider-wait",
-          duration: 5000,
-        });
-      })
-      .on("broadcast", { event: "rider_where_are_you" }, (payload) => {
-        logger.debug(
-          "ActiveRideCard",
-          "Received: rider_where_are_you",
-          payload,
-        );
-
-        playSound("riderQuestion");
-        vibrate(VibrationPatterns.riderQuestion);
-
-        toast({
-          title: "📍 الراكب يسأل عن موقعك",
-          description: "اتصل به لتوضيح مكانك بالضبط",
-          duration: 8000,
-        });
-
-        showNotification(
-          "📍 أين أنت؟",
-          "الراكب يسأل عن موقعك - يمكنك الاتصال به",
-          { tag: "rider-question", requireInteraction: true },
-        );
-      })
-      .on("broadcast", { event: "rider_waiting" }, (payload) => {
-        logger.debug("ActiveRideCard", "Received: rider_waiting", payload);
-
-        playSound("confirm");
-        vibrate([100, 50, 100]);
-
-        toast({
-          title: "👋 الراكب بالانتظار",
-          description: "يراك ويستعد للركوب",
-          duration: 5000,
-        });
-      })
-      .subscribe((status) => {
-        logger.debug("ActiveRideCard", "Rider messages channel status", status);
-        if (status === "SUBSCRIBED") {
-          logger.info("ActiveRideCard", "Ready to receive rider messages");
-        }
-      });
-
-    return () => {
-      supabase.removeChannel(commChannel);
-    };
-  }, [activeRide?.id, toast]);
+  // ═══ رسائل الراكب مُدمجة في القناة الموحدة أعلاه — لا حاجة لقناة منفصلة ═══
 
   // ═══ استقبال رسائل الراكب من قاعدة البيانات — بانر بارز ═══
   useEffect(() => {
