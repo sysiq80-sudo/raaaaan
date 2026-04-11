@@ -28,8 +28,13 @@ export const useRiderWebPushSetup = (userId: string | null) => {
         // Only auto-register if permission was already granted (from settings).
         // Don't auto-trigger the browser prompt — it gets silently blocked
         // without a user gesture. The settings page toggle handles first-time requests.
-        if (!('Notification' in window) || Notification.permission !== 'granted') {
-          console.log("[RiderWebPush] Permission not yet granted, skipping auto-setup");
+        try {
+          if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+            console.log("[RiderWebPush] Permission not yet granted, skipping auto-setup");
+            return;
+          }
+        } catch {
+          console.log("[RiderWebPush] Notification API not available, skipping");
           return;
         }
 

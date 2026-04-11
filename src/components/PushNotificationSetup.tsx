@@ -25,8 +25,8 @@ export const PushNotificationSetup = ({ userId, userType }: PushNotificationSetu
   const checkNotificationStatus = async () => {
     setChecking(true);
     try {
-      // التحقق من دعم المتصفح
-      if (!('Notification' in window)) {
+      // التحقق من دعم المتصفح — guarded for Android WebView
+      if (typeof Notification === 'undefined') {
         setPermission('denied');
         setChecking(false);
         return;
@@ -49,6 +49,7 @@ export const PushNotificationSetup = ({ userId, userType }: PushNotificationSetu
 
   const requestPermission = useCallback(async () => {
     try {
+      if (typeof Notification === 'undefined') throw new Error('Notification API not available');
       const result = await Notification.requestPermission();
       setPermission(result);
       

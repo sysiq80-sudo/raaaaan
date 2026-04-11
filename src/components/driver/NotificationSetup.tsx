@@ -39,9 +39,13 @@ export const NotificationSetup = ({
     const checkStatus = async () => {
       setChecking(true);
 
-      // Check permission
-      if ("Notification" in window) {
-        setPermission(Notification.permission);
+      // Check permission — guarded for Android WebView
+      try {
+        if (typeof Notification !== 'undefined') {
+          setPermission(Notification.permission);
+        }
+      } catch {
+        // Notification API not available (Android WebView)
       }
 
       // Check subscription

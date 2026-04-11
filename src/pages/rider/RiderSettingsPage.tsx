@@ -63,9 +63,13 @@ const RiderSettingsPage: React.FC = () => {
   // Check actual push notification status
   useEffect(() => {
     const checkNotifStatus = async () => {
-      if ('Notification' in window && Notification.permission === 'granted') {
-        const subscribed = await isPushNotificationEnabled();
-        setNotificationsEnabled(subscribed);
+      try {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          const subscribed = await isPushNotificationEnabled();
+          setNotificationsEnabled(subscribed);
+        }
+      } catch {
+        // Notification API not available (Android WebView)
       }
     };
     checkNotifStatus();
