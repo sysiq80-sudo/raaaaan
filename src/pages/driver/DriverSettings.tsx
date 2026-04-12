@@ -114,10 +114,16 @@ const DriverSettings = () => {
       // في التطبيق الأصلي، الإشعارات تعمل عبر FCM
       const hasFcmToken = !!localStorage.getItem('raan_fcm_token');
       setNotificationPermission(hasFcmToken ? 'granted' : 'default');
-    } else if ('Notification' in window) {
-      setNotificationPermission(Notification.permission);
     } else {
-      setNotificationPermission('unsupported');
+      try {
+        if (typeof Notification !== 'undefined') {
+          setNotificationPermission(Notification.permission);
+        } else {
+          setNotificationPermission('unsupported');
+        }
+      } catch {
+        setNotificationPermission('unsupported');
+      }
     }
   }, []);
 
@@ -128,12 +134,12 @@ const DriverSettings = () => {
   };
 
   const requestNotificationPermission = async () => {
-    if (!('Notification' in window)) {
-      toast.error('متصفحك لا يدعم الإشعارات');
-      return;
-    }
-
     try {
+      if (typeof Notification === 'undefined') {
+        toast.error('متصفحك لا يدعم الإشعارات');
+        return;
+      }
+
       const permission = await Notification.requestPermission();
       setNotificationPermission(permission);
 

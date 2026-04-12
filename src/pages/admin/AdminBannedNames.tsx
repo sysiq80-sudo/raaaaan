@@ -3,8 +3,9 @@
  * للمشرفين فقط
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import {
     Plus,
@@ -51,59 +52,32 @@ interface BannedName {
 const AdminBannedNames = () => {
     const { isAdmin, loading: authLoading } = useAdminAuth();
     const { toast } = useToast();
-    const [bannedNames, setBannedNames] = useState<BannedName[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState("");
 
     // Add new name state
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [newName, setNewName] = useState("");
     const [newReason, setNewReason] = useState("");
-    const [addLoading, setAddLoading] = useState(false);
 
     // Delete confirmation
     const [deleteId, setDeleteId] = useState<string | null>(null);
-    const [deleteLoading, setDeleteLoading] = useState(false);
 
-    useEffect(() => {
-        fetchBannedNames();
-    }, []);
-
-    const fetchBannedNames = async () => {
-        try {
+    const { data: bannedNames = [], isLoading: loading } = useQuery({
+        queryKey: ['banned-names'],
+        queryFn: async () => {
             const { data, error } = await supabase
                 .from('banned_names')
                 .select('*')
                 .order('created_at', { ascending: false });
-
             if (error) throw error;
-            setBannedNames(data || []);
-        } catch (error: any) {
-            console.error('Error fetching banned names:', error);
-            toast({
-                title: "خطأ",
-                description: "فشل في تحميل الأسماء المحظورة",
-                variant: "destructive",
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
+            return (data || []) as BannedName[];
+        },
+    });
 
-    const handleAddName = async () => {
-        if (!newName.trim()) {
-            toast({
-                title: "خطأ",
-                description: "الرجاء إدخال الاسم",
-                variant: "destructive",
-            });
-            return;
-        }
-
-        setAddLoading(true);
-        try {
+    const addMutation = useMutation({
+        mutationFn: async () => {
             const { data: { user } } = await supabase.auth.getUser();
-
             const { error } = await supabase
                 .from('banned_names')
                 .insert({
@@ -111,89 +85,80 @@ const AdminBannedNames = () => {
                     reason: newReason.trim() || null,
                     added_by: user?.id
                 });
-
             if (error) {
-                if (error.code === '23505') {
-                    toast({
-                        title: "الاسم موجود",
-                        description: "هذا الاسم موجود بالفعل في القائمة",
-                        variant: "destructive",
-                    });
-                } else {
-                    throw error;
-                }
-            } else {
-                toast({
-                    title: "تمت الإضافة ✅",
-                    description: `تم إضافة "${newName}" إلى قائمة الأسماء المحظورة`,
-                });
-                setNewName("");
-                setNewReason("");
-                setShowAddDialog(false);
-                fetchBannedNames();
+                if (error.code === '23505') throw new Error('DUPLICATE');
+                throw error;
             }
-        } catch (error: any) {
-            console.error('Error adding banned name:', error);
-            toast({
-                title: "خطأ",
-                description: "فشل في إضافة الاسم",
-                variant: "destructive",
-            });
-        } finally {
-            setAddLoading(false);
-        }
-    };
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['banned-names'] });
+            toast({ title: "تمت الإضافة ✅", description: `تم إضافة "${newName}" إلى قائمة الأسماء المحظورة` });
+            setNewName("");
+            setNewReason("");
+            setShowAddDialog(false);
+        },
+        onError: (error: Error) => {
+            if (error.message === 'DUPLICATE') {
+                toast({ title: "الاسم موجود", description: "هذا الاسم موجود بالفعل في القائمة", variant: "destructive" });
+            } else {
+                toast({ title: "خطأ", description: "فشل في إضافة الاسم", variant: "destructive" });
+            }
+        },
+    });
 
-    const handleDeleteName = async (id: string) => {
-        setDeleteLoading(true);
-        try {
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
             const { error } = await supabase
                 .from('banned_names')
                 .delete()
                 .eq('id', id);
-
             if (error) throw error;
-
-            toast({
-                title: "تم الحذف ✅",
-                description: "تم حذف الاسم من القائمة",
-            });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['banned-names'] });
+            toast({ title: "تم الحذف ✅", description: "تم حذف الاسم من القائمة" });
             setDeleteId(null);
-            fetchBannedNames();
-        } catch (error: any) {
-            console.error('Error deleting banned name:', error);
-            toast({
-                title: "خطأ",
-                description: "فشل في حذف الاسم",
-                variant: "destructive",
-            });
-        } finally {
-            setDeleteLoading(false);
-        }
-    };
+        },
+        onError: () => {
+            toast({ title: "خطأ", description: "فشل في حذف الاسم", variant: "destructive" });
+        },
+    });
 
-    const handleToggleActive = async (id: string, currentStatus: boolean) => {
-        try {
+    const toggleMutation = useMutation({
+        mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: boolean }) => {
             const { error } = await supabase
                 .from('banned_names')
                 .update({ is_active: !currentStatus })
                 .eq('id', id);
-
             if (error) throw error;
-
+            return currentStatus;
+        },
+        onSuccess: (_, { currentStatus }) => {
+            queryClient.invalidateQueries({ queryKey: ['banned-names'] });
             toast({
                 title: currentStatus ? "تم التعطيل" : "تم التفعيل ✅",
                 description: currentStatus ? "تم تعطيل الحظر مؤقتاً" : "تم تفعيل الحظر",
             });
-            fetchBannedNames();
-        } catch (error: any) {
-            console.error('Error toggling status:', error);
-            toast({
-                title: "خطأ",
-                description: "فشل في تغيير الحالة",
-                variant: "destructive",
-            });
+        },
+        onError: () => {
+            toast({ title: "خطأ", description: "فشل في تغيير الحالة", variant: "destructive" });
+        },
+    });
+
+    const handleAddName = () => {
+        if (!newName.trim()) {
+            toast({ title: "خطأ", description: "الرجاء إدخال الاسم", variant: "destructive" });
+            return;
         }
+        addMutation.mutate();
+    };
+
+    const handleDeleteName = (id: string) => {
+        deleteMutation.mutate(id);
+    };
+
+    const handleToggleActive = (id: string, currentStatus: boolean) => {
+        toggleMutation.mutate({ id, currentStatus });
     };
 
     // Filter names based on search
@@ -260,8 +225,8 @@ const AdminBannedNames = () => {
                                 <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                                     إلغاء
                                 </Button>
-                                <Button onClick={handleAddName} disabled={addLoading}>
-                                    {addLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "إضافة"}
+                                <Button onClick={handleAddName} disabled={addMutation.isPending}>
+                                    {addMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "إضافة"}
                                 </Button>
                             </DialogFooter>
                         </DialogContent>
@@ -388,9 +353,9 @@ const AdminBannedNames = () => {
                                                             <Button
                                                                 variant="destructive"
                                                                 onClick={() => handleDeleteName(item.id)}
-                                                                disabled={deleteLoading}
+                                                                disabled={deleteMutation.isPending}
                                                             >
-                                                                {deleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "حذف"}
+                                                                {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "حذف"}
                                                             </Button>
                                                         </DialogFooter>
                                                     </DialogContent>

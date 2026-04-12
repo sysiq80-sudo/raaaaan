@@ -264,25 +264,35 @@ export const registerFCMToken = async (driverId: string): Promise<boolean> => {
       return false;
     }
 
-    // إزالة السجلات المعطوبة ثم الاشتراك الواحد النشط (مثل الراكب)
+    // حذف اشتراكات Web Push القديمة لمنع الإشعارات المكررة على Android
+    await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('driver_id', driverId)
+      .not('endpoint', 'like', 'fcm://%');
+
+    // حذف سجلات FCM القديمة برموز مختلفة عن الرمز الحالي
     await supabase
       .from('push_subscriptions')
       .delete()
       .eq('driver_id', driverId)
       .like('endpoint', 'fcm://%')
-      .is('fcm_token', null);
+      .neq('fcm_token', token);
 
-    await supabase.from('push_subscriptions').delete().eq('driver_id', driverId).like('endpoint', 'fcm://%');
-
-    const { error } = await supabase.from('push_subscriptions').insert({
-      driver_id: driverId,
-      endpoint: `fcm://${token}`,
-      p256dh_key: '',
-      auth_key: '',
-      platform: 'android',
-      fcm_token: token,
-      updated_at: new Date().toISOString(),
-    });
+    // upsert الرمز الحالي: إذا موجود يحدّث فقط، إذا غير موجود يُدرج
+    // يعتمد على UNIQUE(driver_id, fcm_token) لمنع التكرار
+    const { error } = await supabase.from('push_subscriptions').upsert(
+      {
+        driver_id: driverId,
+        endpoint: `fcm://${token}`,
+        p256dh_key: '',
+        auth_key: '',
+        platform: 'android',
+        fcm_token: token,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'driver_id,fcm_token' }
+    );
 
     if (error) {
       console.error('فشل حفظ رمز FCM للسائق:', error);
@@ -409,6 +419,19 @@ export const acceptRideFromNotification = async (
       .then(({ error: driverErr }) => {
         if (driverErr) console.warn('⚠️ فشل تحديث حالة السائق:', driverErr);
       });
+
+    // ⚡ إرسال broadcast فوري للراكب — أسرع من postgres_changes (~100ms vs ~500ms)
+    supabase.channel(`ride-comm-${rideId}`)
+      .send({
+        type: 'broadcast',
+        event: 'ride_accepted',
+        payload: {
+          driverId,
+          message: 'تم قبول الرحلة',
+          timestamp: new Date().toISOString(),
+        },
+      })
+      .catch(() => { /* best-effort */ });
 
     console.log('✅ تم قبول الرحلة ذرياً من الإشعار:', rideId);
     return true;

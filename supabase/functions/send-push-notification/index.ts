@@ -239,6 +239,10 @@ async function sendFCMNotification(
           channel_id: channelId,
           sound: 'default',
           default_vibrate_timings: true,
+          // أيقونة الإشعار: monochrome (أبيض/شفاف على Android 5+)
+          icon: 'ic_launcher_monochrome',
+          // لون خلفية الأيقونة: أخضر ران
+          color: '#1DB954',
           // طلب رحلة جديد: أقصى أولوية عند قفل الشاشة / إغلاق التطبيق
           notification_priority: urgentRide ? 'PRIORITY_MAX' : 'PRIORITY_HIGH',
         },

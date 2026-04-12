@@ -287,35 +287,43 @@ export const showNotification = async (
   }
 
   // Web — browser notification
-  if ("Notification" in window && Notification.permission === "granted") {
-    const notification = new Notification(title, {
-      body,
-      icon: "/logo.png",
-      badge: "/logo.png",
-      tag: options?.tag || "ride-notification",
-      requireInteraction: options?.requireInteraction || false,
-    });
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission === "granted") {
+      const notification = new Notification(title, {
+        body,
+        icon: "/logo.png",
+        badge: "/logo.png",
+        tag: options?.tag || "ride-notification",
+        requireInteraction: options?.requireInteraction || false,
+      });
 
-    if (options?.duration) {
-      setTimeout(() => notification.close(), options.duration);
+      if (options?.duration) {
+        setTimeout(() => notification.close(), options.duration);
+      }
+
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+
+      return notification;
     }
-
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-    };
-
-    return notification;
+  } catch {
+    // Notification API not available (Android WebView)
   }
   return null;
 };
 
 // Request notification permission
 export const requestNotificationPermission = async () => {
-  if ("Notification" in window && Notification.permission === "default") {
-    return await Notification.requestPermission();
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission === "default") {
+      return await Notification.requestPermission();
+    }
+    return typeof Notification !== 'undefined' ? Notification.permission : 'denied';
+  } catch {
+    return 'denied' as NotificationPermission;
   }
-  return Notification.permission;
 };
 
 // Complete notification trigger (sound + vibration + browser notification)

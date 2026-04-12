@@ -659,7 +659,8 @@ html.light-rider .dots-pattern {
       "calt" 1;
     line-height: 1.5; /* Better line height for readability */
     touch-action: pan-y;
-    user-select: none;
+    /* user-select: auto — السماح بالتحديد والنسخ بشكل طبيعي في الويب */
+    user-select: auto;
   }
 
   /* Responsive text scaling */
@@ -1405,12 +1406,27 @@ html.light-rider .dots-pattern {
    تحسينات صفحة السائق للموبايل — Mobile Driver Optimizations
    ══════════════════════════════════════════════════════════ */
 
-/* منع التحديد النصي غير المقصود أثناء اللمس */
+/* منع التحديد النصي غير المقصود أثناء اللمس (موبايل فقط) */
 .touch-manipulation {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   user-select: none;
+}
+
+/* السماح بالنسخ في لوحة الإدارة */
+body:not(.driver-mode):not(.car-mode) input,
+body:not(.driver-mode):not(.car-mode) textarea,
+body:not(.driver-mode):not(.car-mode) p,
+body:not(.driver-mode):not(.car-mode) span,
+body:not(.driver-mode):not(.car-mode) td,
+body:not(.driver-mode):not(.car-mode) th,
+body:not(.driver-mode):not(.car-mode) h1,
+body:not(.driver-mode):not(.car-mode) h2,
+body:not(.driver-mode):not(.car-mode) h3,
+body:not(.driver-mode):not(.car-mode) code,
+body:not(.driver-mode):not(.car-mode) pre {
+  user-select: text;
 }
 
 /* دعم المناطق الآمنة (الشقوق / الكاميرا المثقوبة) — Safe Area Insets */
@@ -1561,6 +1577,8 @@ body.driver-mode {
   inset: 0;
   width: 100%;
   height: 100%;
+  user-select: none; /* منع التحديد في تطبيق السائق */
+  -webkit-user-select: none;
   /* safe-area: منع تراكب المحتوى مع شريط التصفح السفلي */
   padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   padding-top: env(safe-area-inset-top, 0px) !important;

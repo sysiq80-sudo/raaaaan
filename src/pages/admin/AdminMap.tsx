@@ -102,6 +102,7 @@ const AdminMap = () => {
           .select('id, status, pickup_location, dropoff_location, pickup_address, dropoff_address, driver_id, region_id, vehicle_type, created_at')
           .in('status', ['pending', 'accepted', 'arrived', 'in_progress'])
           .order('created_at', { ascending: false })
+          .limit(500)
       ]);
 
       if (driversResult.data) {

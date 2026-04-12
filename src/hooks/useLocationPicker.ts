@@ -10,6 +10,7 @@ import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { useToast } from "./use-toast";
 import { getMapStyle, watchThemeChanges } from "@/utils/mapStyles";
 import { getGeocoder } from "@/lib/googleMapService";
+import { saveLastKnownLocation, getLastKnownLocation } from "@/services/lastKnownLocationService";
 
 interface LocationType {
   lat: number;
@@ -457,8 +458,11 @@ export const useLocationPicker = (
 
         console.log("Initializing Google Maps");
 
-        // ⚡ Always use default center immediately — don't wait for GPS
-        const initialCenter = ramadiCenter;
+        // ✅ استخدام آخر موقع مخزن بدل الرمادي الافتراضي — يعرض الخريطة فوراً عند ضعف النت
+        const cachedLocation = getLastKnownLocation();
+        const initialCenter = cachedLocation
+          ? { lat: cachedLocation.lat, lng: cachedLocation.lng }
+          : ramadiCenter;
 
         try {
           console.log("🗺️ Creating Google Maps instance...");
@@ -655,6 +659,8 @@ export const useLocationPicker = (
       const target = new window.google.maps.LatLng(userLocation.lat, userLocation.lng);
       map.current.panTo(target);
       map.current.setZoom(16);
+      // ✅ حفظ موقع المستخدم للاستخدام عند فقدان النت
+      saveLastKnownLocation(userLocation.lat, userLocation.lng);
       console.log("🎯 Map panned to user location:", userLocation.lat, userLocation.lng);
     }
 

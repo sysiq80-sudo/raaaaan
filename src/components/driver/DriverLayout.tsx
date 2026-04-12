@@ -38,8 +38,8 @@ const DriverLayout: React.FC<DriverLayoutProps> = ({ children }) => {
       data-driver-theme="dark-luxury-geometric"
       dir="rtl"
     >
-      {/* المحتوى الرئيسي — يملأ المساحة المتبقية */}
-      <div className="flex-1 overflow-hidden">
+      {/* المحتوى الرئيسي — يملأ المساحة المتبقية ويسمح بالتمرير */}
+      <div className="flex-1 overflow-y-auto">
         {children}
       </div>
 

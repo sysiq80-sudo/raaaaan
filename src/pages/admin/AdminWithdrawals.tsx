@@ -3,7 +3,8 @@
  * عرض ومراجعة وموافقة/رفض طلبات سحب أرباح السائقين
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -57,31 +58,40 @@ interface Stats {
 }
 
 export default function AdminWithdrawals() {
-  const [requests, setRequests] = useState<WithdrawalRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<Stats>({ pending: 0, approved: 0, completed: 0, rejected: 0, totalPending: 0 });
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("pending");
   const [selectedRequest, setSelectedRequest] = useState<WithdrawalRequest | null>(null);
   const [actionType, setActionType] = useState<"approve" | "reject" | "complete" | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
   const [txRef, setTxRef] = useState("");
-  const [processing, setProcessing] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await (supabase
-        .from("withdrawal_requests" as any) as any)
-        .select("*")
-        .order("created_at", { ascending: false });
+  // Server-side pagination
+  const PAGE_SIZE = 50;
+  const [currentPage, setCurrentPage] = useState(0);
 
-      if (error) throw error;
-      const all = (data || []) as WithdrawalRequest[];
+  const { data: queryData, isLoading: loading } = useQuery({
+    queryKey: ["withdrawal-requests", currentPage],
+    queryFn: async () => {
+      const from = currentPage * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-      // Fetch driver details for each request
+      const [countResult, dataResult] = await Promise.all([
+        (supabase.from("withdrawal_requests" as any) as any)
+          .select("*", { count: "exact", head: true }),
+        (supabase.from("withdrawal_requests" as any) as any)
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(from, to),
+      ]);
+
+      if (dataResult.error) throw dataResult.error;
+      const totalCount = countResult.count || 0;
+      const all = (dataResult.data || []) as WithdrawalRequest[];
+
+      // Fetch driver details
       const driverIds = [...new Set(all.map(r => r.driver_id))];
       if (driverIds.length > 0) {
         const { data: drivers } = await supabase
@@ -97,108 +107,86 @@ export default function AdminWithdrawals() {
         }
       }
 
-      setRequests(all);
-
       // Calculate stats
       const pending = all.filter(r => r.status === "pending");
-      setStats({
+      const stats: Stats = {
         pending: pending.length,
         approved: all.filter(r => r.status === "approved" || r.status === "processing").length,
         completed: all.filter(r => r.status === "completed").length,
         rejected: all.filter(r => r.status === "rejected").length,
         totalPending: pending.reduce((sum, r) => sum + Number(r.amount), 0),
-      });
-    } catch (err: any) {
-      toast({ title: "خطأ", description: err.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
+      };
 
-  useEffect(() => { fetchData(); }, []);
+      return { requests: all, totalCount, stats };
+    },
+  });
 
-  const handleAction = async () => {
-    if (!selectedRequest || !actionType) return;
-    setProcessing(true);
-    try {
+  const requests = queryData?.requests || [];
+  const totalCount = queryData?.totalCount || 0;
+  const stats = queryData?.stats || { pending: 0, approved: 0, completed: 0, rejected: 0, totalPending: 0 };
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+  const actionMutation = useMutation({
+    mutationFn: async ({ request, type, notes, ref }: { request: WithdrawalRequest; type: "approve" | "reject" | "complete"; notes: string; ref: string }) => {
+      if (type === "complete") {
+        const { data: rpcResult, error: rpcError } = await supabase.rpc(
+          "admin_complete_withdrawal",
+          {
+            p_request_id: request.id,
+            p_tx_reference: ref || null,
+            p_notes: notes || null,
+          }
+        );
+        if (rpcError) throw rpcError;
+        if (!rpcResult?.success) {
+          throw new Error(rpcResult?.error || "فشل إكمال السحب");
+        }
+        return { type, name: request.account_holder_name, amount: request.amount };
+      }
+
       const updates: Record<string, any> = {};
-
-      if (actionType === "approve") {
+      if (type === "approve") {
         updates.status = "approved";
         updates.reviewed_at = new Date().toISOString();
-        updates.review_notes = reviewNotes || null;
-      } else if (actionType === "reject") {
-        if (!reviewNotes.trim()) {
-          toast({ title: "خطأ", description: "يجب كتابة سبب الرفض", variant: "destructive" });
-          setProcessing(false);
-          return;
+        updates.review_notes = notes || null;
+      } else if (type === "reject") {
+        if (!notes.trim()) {
+          throw new Error("يجب كتابة سبب الرفض");
         }
         updates.status = "rejected";
         updates.reviewed_at = new Date().toISOString();
-        updates.review_notes = reviewNotes;
-      } else if (actionType === "complete") {
-        updates.status = "completed";
-        updates.processed_at = new Date().toISOString();
-        updates.transaction_reference = txRef || null;
-        updates.review_notes = reviewNotes || selectedRequest.review_notes;
-
-        // Deduct from wallet
-        const { data: wallet } = await supabase
-          .from("driver_wallets")
-          .select("id, balance, total_withdrawn")
-          .eq("id", selectedRequest.wallet_id)
-          .maybeSingle();
-
-        if (wallet) {
-          const newBalance = Number(wallet.balance) - Number(selectedRequest.amount);
-          const newWithdrawn = Number(wallet.total_withdrawn) + Number(selectedRequest.amount);
-
-          await supabase
-            .from("driver_wallets")
-            .update({
-              balance: Math.max(0, newBalance),
-              total_withdrawn: newWithdrawn,
-            })
-            .eq("id", wallet.id);
-
-          // Record transaction
-          await supabase.from("wallet_transactions").insert({
-            wallet_id: wallet.id,
-            driver_id: selectedRequest.driver_id,
-            transaction_type: "withdrawal",
-            amount: -Number(selectedRequest.amount),
-            balance_before: Number(wallet.balance),
-            balance_after: Math.max(0, newBalance),
-            description: `سحب أرباح — ${getMethodName(selectedRequest.withdrawal_method)}`,
-            metadata: { withdrawal_request_id: selectedRequest.id, transaction_reference: txRef },
-            status: "completed",
-          });
-        }
+        updates.review_notes = notes;
       }
 
       const { error } = await (supabase
         .from("withdrawal_requests" as any) as any)
         .update(updates)
-        .eq("id", selectedRequest.id);
-
+        .eq("id", request.id);
       if (error) throw error;
-
+      return { type, name: request.account_holder_name, amount: request.amount };
+    },
+    onSuccess: (result) => {
       toast({
-        title: actionType === "approve" ? "✅ تمت الموافقة" :
-               actionType === "reject" ? "❌ تم الرفض" : "✅ تم التحويل",
-        description: `طلب ${selectedRequest.account_holder_name} — ${Number(selectedRequest.amount).toLocaleString()} د.ع`,
+        title: result.type === "approve" ? "✅ تمت الموافقة" :
+               result.type === "reject" ? "❌ تم الرفض" : "✅ تم التحويل",
+        description: `طلب ${result.name} — ${Number(result.amount).toLocaleString()} د.ع`,
       });
-
       setSelectedRequest(null);
       setActionType(null);
       setReviewNotes("");
       setTxRef("");
-      await fetchData();
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["withdrawal-requests"] });
+    },
+    onError: (err: any) => {
       toast({ title: "خطأ", description: err.message, variant: "destructive" });
-    } finally {
-      setProcessing(false);
-    }
+    },
+  });
+
+  const processing = actionMutation.isPending;
+
+  const handleAction = async () => {
+    if (!selectedRequest || !actionType) return;
+    actionMutation.mutate({ request: selectedRequest, type: actionType, notes: reviewNotes, ref: txRef });
   };
 
   const getMethodName = (method: string) => {
@@ -263,7 +251,7 @@ export default function AdminWithdrawals() {
               <p className="text-sm opacity-80">{stats.pending} طلب قيد المراجعة</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" onClick={fetchData}>
+          <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" onClick={() => queryClient.invalidateQueries({ queryKey: ["withdrawal-requests"] })}>
             <RefreshCw className="w-5 h-5" />
           </Button>
         </div>
@@ -493,6 +481,33 @@ export default function AdminWithdrawals() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-muted-foreground">
+            صفحة {currentPage + 1} من {totalPages} ({totalCount} طلب)
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 0}
+              onClick={() => setCurrentPage(p => p - 1)}
+            >
+              السابق
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage >= totalPages - 1}
+              onClick={() => setCurrentPage(p => p + 1)}
+            >
+              التالي
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
     </AdminLayout>
   );

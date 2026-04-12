@@ -12,7 +12,7 @@ const IS_DEV = !!DEV_IP;
 
 const config: CapacitorConfig = {
   appId: "com.raan.car",
-  appName: "ران سيارة",
+  appName: "سيارة ران",
   webDir: "dist-car",
 
   server: {

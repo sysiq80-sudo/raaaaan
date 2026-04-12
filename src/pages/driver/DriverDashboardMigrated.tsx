@@ -206,8 +206,27 @@ const DriverDashboardMigrated: React.FC = () => {
   const handleToggleOnline = async () => {
     if (!driver || toggling) return;
     setToggling(true);
+    setErrorMsg(null);
 
     const newStatus = !driver.is_online;
+
+    if (newStatus) {
+      // التحقق من الرصيد والحد الأدنى المسموح للعمل (سقف الديون)
+      const [settingsRes, profileRes] = await Promise.all([
+        supabase.from("app_settings").select("value").eq("key", "commission").maybeSingle(),
+        supabase.from("profiles").select("wallet_balance").eq("user_id", driver.user_id).maybeSingle()
+      ]);
+
+      // @ts-ignore (تجنب أخطاء JSON parsing)
+      const minBalance = settingsRes.data?.value?.min_driver_balance ?? -10000;
+      const currentBalance = profileRes.data?.wallet_balance ?? 0;
+
+      if (currentBalance < minBalance) {
+        setToggling(false);
+        setErrorMsg(`لا يمكنك العمل. رصيدك الحالي (${currentBalance.toLocaleString()} د.ع) أقل من الحد المسموح للعمل (${minBalance.toLocaleString()} د.ع). يرجى شحن محفظتك أولاً.`);
+        return;
+      }
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const driversTable = supabase.from("drivers") as any;

@@ -69,14 +69,19 @@ export const getServiceWorkerRegistration = async (): Promise<ServiceWorkerRegis
 
 // Request notification permission
 export const requestNotificationPermission = async (): Promise<NotificationPermission> => {
-  if (!('Notification' in window)) {
-    console.log('Notifications not supported');
+  try {
+    if (typeof Notification === 'undefined') {
+      console.log('Notifications not supported');
+      return 'denied';
+    }
+
+    const permission = await Notification.requestPermission();
+    console.log('Notification permission:', permission);
+    return permission;
+  } catch {
+    console.log('Notification API not available');
     return 'denied';
   }
-
-  const permission = await Notification.requestPermission();
-  console.log('Notification permission:', permission);
-  return permission;
 };
 
 // Subscribe to push notifications and save to server
@@ -205,8 +210,12 @@ export const showLocalNotification = async (
   const registration = await getServiceWorkerRegistration();
   if (!registration) {
     // Fallback to regular notification
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, options);
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification(title, options);
+      }
+    } catch {
+      // Notification API not available
     }
     return;
   }

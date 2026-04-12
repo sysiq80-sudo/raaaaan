@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -50,74 +51,47 @@ interface StoppedRide {
 
 const AdminStoppedRides = () => {
   const { toast } = useToast();
-  const [alerts, setAlerts] = useState<StoppedRide[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
 
   useAdminAuth();
 
-  useEffect(() => {
-    fetchStoppedRides();
-    
-    // Realtime subscription
-    const subscription = supabase
-      .channel('stopped_rides_admin')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'dual_stop_alerts',
-        },
-        () => {
-          fetchStoppedRides();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
   const fetchStoppedRides = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('dual_stop_alerts')
-        .select(`
-          *,
-          rides!inner (
-            pickup_address,
-            dropoff_address,
-            status,
-            driver_location,
-            rider_location,
-            rider_id,
-            driver_id
-          )
-        `)
-        .is('resolved_at', null)
-        .order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('dual_stop_alerts')
+      .select(`
+        *,
+        rides!inner (
+          pickup_address,
+          dropoff_address,
+          status,
+          driver_location,
+          rider_location,
+          rider_id,
+          driver_id
+        )
+      `)
+      .is('resolved_at', null)
+      .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      let alertsData: any[] = data || [];
+    if (error) throw error;
+    let alertsData: any[] = data || [];
 
-      // gather rider/driver ids for profile lookup
-      const riderIds = Array.from(
-        new Set(alertsData.map(a => a.rides?.rider_id).filter(Boolean))
-      ) as string[];
-      const driverIds = Array.from(
-        new Set(alertsData.map(a => a.rides?.driver_id).filter(Boolean))
-      ) as string[];
+    const riderIds = Array.from(
+      new Set(alertsData.map(a => a.rides?.rider_id).filter(Boolean))
+    ) as string[];
+    const driverIds = Array.from(
+      new Set(alertsData.map(a => a.rides?.driver_id).filter(Boolean))
+    ) as string[];
 
-      if (riderIds.length || driverIds.length) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id,full_name,phone')
-          .in('user_id', [...riderIds, ...driverIds]);
-        const profileMap: Record<string, { full_name: string; phone: string }> = {};
-        (profiles || []).forEach(p => {
-          if (p.user_id) profileMap[p.user_id] = { full_name: p.full_name, phone: p.phone };
+    if (riderIds.length || driverIds.length) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id,full_name,phone')
+        .in('user_id', [...riderIds, ...driverIds]);
+      const profileMap: Record<string, { full_name: string; phone: string }> = {};
+      (profiles || []).forEach(p => {
+        if (p.user_id) profileMap[p.user_id] = { full_name: p.full_name, phone: p.phone };
         });
 
         alertsData = alertsData.map(a => {
@@ -133,48 +107,67 @@ const AdminStoppedRides = () => {
         });
       }
 
-      // @ts-expect-error - Type will match after migration
-      setAlerts(alertsData || []);
-    } catch (error: any) {
-      console.error('Error fetching stopped rides:', error);
-      toast({
-        title: "خطأ في التحميل",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+      return alertsData as StoppedRide[];
   };
+
+  const { data: alerts = [], isLoading: loading } = useQuery({
+    queryKey: ["stopped-rides"],
+    queryFn: fetchStoppedRides,
+  });
+
+  // Realtime subscription
+  useEffect(() => {
+    const subscription = supabase
+      .channel('stopped_rides_admin')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'dual_stop_alerts',
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["stopped-rides"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [queryClient]);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchStoppedRides();
+    queryClient.invalidateQueries({ queryKey: ["stopped-rides"] }).then(() => setRefreshing(false));
   };
 
-  const handleResolve = async (alertId: string) => {
-    try {
+  const resolveMutation = useMutation({
+    mutationFn: async (alertId: string) => {
       const { error } = await supabase
         .from('dual_stop_alerts')
         .update({ resolved_at: new Date().toISOString() })
         .eq('id', alertId);
-
       if (error) throw error;
-
+    },
+    onSuccess: () => {
       toast({
         title: "تم وضع علامة حل",
         description: "تم وضع علامة على الإشعار كمحلول",
       });
-
-      fetchStoppedRides();
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ["stopped-rides"] });
+    },
+    onError: (error: any) => {
       toast({
         title: "خطأ",
         description: error.message,
         variant: "destructive",
       });
-    }
+    },
+  });
+
+  const handleResolve = (alertId: string) => {
+    resolveMutation.mutate(alertId);
   };
 
   const getStopDuration = (lastUpdate: string) => {

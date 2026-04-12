@@ -16,7 +16,7 @@ const IS_DEV = !!DEV_IP;
 
 const config: CapacitorConfig = {
   appId: 'com.raan.captain',
-  appName: 'ران كابتن',
+  appName: 'كابتن ران',
   webDir: 'dist-driver',
 
   server: {

@@ -486,8 +486,9 @@ export const ActiveRideCard = ({
         logger.debug("ActiveRideCard", "Received: ride_completed_by_rider", payload);
         playSound("completed");
         vibrate(VibrationPatterns.completed);
+        // Toast داخل التطبيق فقط — FCM trigger يتكفل بإشعار system tray
+        // (إزالة showNotification() لمنع ظهور إشعارَيْن: LocalNotification + FCM)
         toast({ title: "🏁 الراكب أنهى الرحلة", description: "تم إنهاء الرحلة بنجاح", duration: 8000 });
-        showNotification("🏁 الراكب أنهى الرحلة", "تم إنهاء الرحلة وستحصل على أرباحك قريباً", { tag: "ride-completed-by-rider", requireInteraction: true });
         fetchActiveRide();
       })
       .on("broadcast", { event: "rider_arrived" }, (payload) => {
@@ -1262,9 +1263,9 @@ export const ActiveRideCard = ({
     <>
       {/* ═══ بانر رسالة الراكب الواردة — Floating Luxury Notification ═══ */}
       {riderIncomingMsg && (
-        <div className="fixed top-2 left-2 right-2 z-[70] pointer-events-auto bg-[#1a243b]/95 backdrop-blur-2xl border border-blue-500/30 rounded-3xl animate-in slide-in-from-top-4 duration-500 shadow-[0_10px_40px_rgba(0,0,0,0.6)] overflow-hidden" dir="rtl" style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}>
+        <div className="fixed top-2 left-2 right-2 z-[70] pointer-events-auto bg-[#1a243b]/95 backdrop-blur-2xl border border-blue-500/30 rounded-3xl animate-in slide-in-from-top-4 duration-500 shadow-[0_10px_40px_rgba(0,0,0,0.6)] overflow-hidden mt-[env(safe-area-inset-top,0px)]" dir="rtl">
           {/* Animated Gradient Accent Line */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-400 animate-[gradient_3s_linear_infinite]" style={{ backgroundSize: '200% 100%' }} />
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-400 animate-[gradient_3s_linear_infinite]" />
 
           <div className="px-4 pt-4 pb-3 max-w-lg mx-auto">
             <div className="flex items-start justify-between gap-3">
@@ -1326,8 +1327,7 @@ export const ActiveRideCard = ({
             setIsSheetExpanded(true);
           }
         }}
-        className={`absolute bottom-0 left-0 right-0 z-50 pointer-events-auto bg-[#0b1326] rounded-t-[2rem] shadow-[0_-20px_50px_rgba(0,0,0,0.4)] border-t border-slate-700/30 ${isSheetExpanded ? 'overflow-y-auto' : 'overflow-hidden'} flex flex-col`}
-        style={{ paddingBottom: '0.5rem' }}
+        className={`absolute bottom-0 left-0 right-0 z-50 pointer-events-auto bg-[#0b1326] rounded-t-[2rem] shadow-[0_-20px_50px_rgba(0,0,0,0.4)] border-t border-slate-700/30 ${isSheetExpanded ? 'overflow-y-auto' : 'overflow-hidden'} flex flex-col pb-2`}
         dir="rtl"
       >
 
@@ -1360,7 +1360,7 @@ export const ActiveRideCard = ({
                 <Navigation className="w-4 h-4 text-blue-400" />
               </motion.div>
               {distanceToPickupM !== null && (
-                <span className="bg-[#0b1326]/50 border border-blue-500/20 px-3 py-1.5 rounded-full text-xs font-bold text-blue-300" style={{ fontFamily: "Inter, sans-serif" }}>
+                <span className="bg-[#0b1326]/50 border border-blue-500/20 px-3 py-1.5 rounded-full text-xs font-bold text-blue-300 font-inter">
                   {distanceToPickupM >= 1000 ? `${(distanceToPickupM / 1000).toFixed(1)} كم` : `${distanceToPickupM} م`}
                 </span>
               )}
@@ -1372,7 +1372,7 @@ export const ActiveRideCard = ({
                   className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/20 border border-blue-500/40 hover:bg-blue-500/30 active:scale-95 transition-all touch-manipulation"
                   title="ملاحة إلى العميل"
                 >
-                  <span className="text-xs font-bold text-blue-400" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>الطريق إلى العميل</span>
+                  <span className="text-xs font-bold text-blue-400 font-plus-jakarta">الطريق إلى العميل</span>
                   <Navigation className="w-4 h-4 text-blue-400" />
                 </button>
               )}
@@ -1386,11 +1386,11 @@ export const ActiveRideCard = ({
               <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}>
                 <Clock className="w-4 h-4 text-amber-400" />
               </motion.div>
-              <span className="font-bold text-amber-400 text-sm" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>في انتظار العميل</span>
+              <span className="font-bold text-amber-400 text-sm font-plus-jakarta">في انتظار العميل</span>
             </div>
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${waitingTime >= WAITING_CRITICAL_THRESHOLD ? "bg-red-500/20 text-red-400 border-red-500/30" : "bg-[#0b1326]/50 text-amber-300 border-amber-500/20"}`}>
               {waitingTime >= WAITING_WARNING_THRESHOLD ? <AlertTriangle className="w-3.5 h-3.5 animate-pulse" /> : <Timer className="w-3.5 h-3.5" />}
-              <span className="tabular-nums" style={{ fontFamily: "Inter, sans-serif" }}>{formatWaitingTime(waitingTime)}</span>
+              <span className="tabular-nums font-inter">{formatWaitingTime(waitingTime)}</span>
             </div>
           </div>
         )}
@@ -1401,12 +1401,12 @@ export const ActiveRideCard = ({
               <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}>
                 <Car className="w-4 h-4 text-[#5bdda6]" />
               </motion.div>
-              <span className="font-bold text-[#5bdda6] text-sm" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>الرحلة جارية</span>
+              <span className="font-bold text-[#5bdda6] text-sm font-plus-jakarta">الرحلة جارية</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="bg-[#0b1326]/50 border border-[#5bdda6]/20 px-3 py-1.5 rounded-full flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-[#5bdda6]" />
-                <span className="font-bold text-[#5bdda6] text-sm tabular-nums" style={{ fontFamily: "Inter, sans-serif" }}>{formatTime(elapsedTime)}</span>
+                <span className="font-bold text-[#5bdda6] text-sm tabular-nums font-inter">{formatTime(elapsedTime)}</span>
               </div>
               {onNavigationClick && (
                 <button
@@ -1432,7 +1432,7 @@ export const ActiveRideCard = ({
                   <User className={`w-5 h-5 ${activeRide.status === "accepted" ? "text-blue-400" : activeRide.status === "arrived" ? "text-amber-400" : "text-[#5bdda6]"}`} />
                 </div>
                 <div>
-                  <p className="font-bold text-sm text-white truncate max-w-[130px]" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>{riderInfo?.full_name || "العميل"}</p>
+                  <p className="font-bold text-sm text-white truncate max-w-[130px] font-plus-jakarta">{riderInfo?.full_name || "العميل"}</p>
                   {(activeRide.status === "accepted" || activeRide.status === "arrived") && (
                     <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5 font-semibold">
                       <span className="flex items-center gap-0.5 text-amber-400"><Star className="w-3 h-3 fill-amber-400" />{typeof riderInfo?.rating === "number" ? riderInfo.rating.toFixed(1) : "—"}</span>
@@ -1446,7 +1446,7 @@ export const ActiveRideCard = ({
               {/* الأجرة */}
               <div className="flex flex-col items-end">
                 <p className="text-[10px] text-slate-400 mb-0.5 font-semibold">الأجرة المقدرة</p>
-                <div className="flex items-baseline gap-1" style={{ fontFamily: "Inter, sans-serif" }}>
+                <div className="flex items-baseline gap-1 font-inter">
                   <span className={`text-xl font-black tabular-nums tracking-tight ${activeRide.status === "in_progress" ? "text-[#5bdda6]" : activeRide.status === "arrived" ? "text-amber-400" : "text-blue-400"}`}>{roundFare(activeRide.estimated_fare || 0).toLocaleString()}</span>
                   <span className={`text-[10px] font-bold ${activeRide.status === "in_progress" ? "text-[#5bdda6]/70" : activeRide.status === "arrived" ? "text-amber-400/70" : "text-blue-400/70"}`}>د.ع</span>
                 </div>
@@ -1458,11 +1458,11 @@ export const ActiveRideCard = ({
               <div className="flex gap-2">
                 <div className="flex-1 bg-[#171f33] rounded-2xl border border-slate-700/30 p-3 flex flex-col items-center justify-center">
                   <span className="text-[10px] font-semibold text-slate-400 mb-1">المسافة</span>
-                  <span className="text-sm font-bold text-white tabular-nums" style={{ fontFamily: "Inter, sans-serif" }}>{activeRide.distance_km || "?"} كم</span>
+                  <span className="text-sm font-bold text-white tabular-nums font-inter">{activeRide.distance_km || "?"} كم</span>
                 </div>
                 <div className="flex-1 bg-[#171f33] rounded-2xl border border-slate-700/30 p-3 flex flex-col items-center justify-center">
                   <span className="text-[10px] font-semibold text-slate-400 mb-1">المدة المقدرة</span>
-                  <span className="text-sm font-bold text-white tabular-nums" style={{ fontFamily: "Inter, sans-serif" }}>{activeRide.duration_minutes || "?"} د</span>
+                  <span className="text-sm font-bold text-white tabular-nums font-inter">{activeRide.duration_minutes || "?"} د</span>
                 </div>
               </div>
             )}
@@ -1492,14 +1492,14 @@ export const ActiveRideCard = ({
                 {(activeRide.status === "accepted" || activeRide.status === "arrived") ? (
                   <>
                     <div>
-                      <p className="text-[10px] text-blue-400 font-bold tracking-wider mb-0.5" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>الوجهة الحالية (نقطة الاستلام)</p>
+                      <p className="text-[10px] text-blue-400 font-bold tracking-wider mb-0.5 font-plus-jakarta">الوجهة الحالية (نقطة الاستلام)</p>
                       <p className="text-sm font-medium text-slate-200 line-clamp-2 leading-snug">{activeRide.pickup_address || getLocationString(activeRide.pickup_location)}</p>
                     </div>
                   </>
                 ) : (
                   <>
                     <div>
-                      <p className="text-[10px] text-[#5bdda6] font-bold tracking-wider mb-0.5" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>الوجهة الحالية (نقطة الوصول)</p>
+                      <p className="text-[10px] text-[#5bdda6] font-bold tracking-wider mb-0.5 font-plus-jakarta">الوجهة الحالية (نقطة الوصول)</p>
                       <p className="text-sm font-medium text-slate-200 line-clamp-2 leading-snug">{activeRide.dropoff_address || getLocationString(activeRide.dropoff_location)}</p>
                     </div>
                   </>
@@ -1558,13 +1558,12 @@ export const ActiveRideCard = ({
         </div>
 
         {/* ═══ Action Buttons ═══ */}
-        <div className="flex w-full mt-auto shrink-0 bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
+        <div className="flex w-full mt-auto shrink-0 bg-[#163d30] pb-[max(env(safe-area-inset-bottom,32px),32px)] z-[10]">
           {activeRide.status === "accepted" && (
             <motion.button
               animate={isNearPickup ? { boxShadow: ["0 0 0px 0px rgba(52,211,153,0)", "0 0 20px 2px rgba(52,211,153,0.4)", "0 0 0px 0px rgba(52,211,153,0)"] } : {}}
               transition={isNearPickup ? { duration: 1.8, repeat: Infinity } : {}}
-              style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black text-[#064e3b] bg-[#34d399] shadow-[0_-5px_30px_rgba(52,211,153,0.25)] hover:bg-[#2dd392] active:bg-[#10b981] transition-colors disabled:opacity-50 touch-manipulation border-t border-[#34d399]"
+              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black text-[#064e3b] bg-[#34d399] shadow-[0_-5px_30px_rgba(52,211,153,0.25)] hover:bg-[#2dd392] active:bg-[#10b981] transition-colors disabled:opacity-50 touch-manipulation border-t border-[#34d399] font-plus-jakarta"
               onClick={handleArrived} disabled={loading}>
               {loading ? <Loader2 className="w-6 h-6 animate-spin text-[#064e3b]" /> : (<><MapPin className="w-5 h-5 ml-1" /><span>وصلت للعميل</span></>)}
             </motion.button>
@@ -1574,8 +1573,7 @@ export const ActiveRideCard = ({
             <motion.button
               animate={{ boxShadow: ["0 0 0px 0px rgba(52,211,153,0)", "0 0 20px 2px rgba(52,211,153,0.4)", "0 0 0px 0px rgba(52,211,153,0)"] }}
               transition={{ duration: 2, repeat: Infinity }}
-              style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black text-[#064e3b] bg-[#34d399] shadow-[0_-5px_30px_rgba(52,211,153,0.25)] hover:bg-[#2dd392] active:bg-[#10b981] transition-colors disabled:opacity-50 touch-manipulation border-t border-[#34d399]"
+              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black text-[#064e3b] bg-[#34d399] shadow-[0_-5px_30px_rgba(52,211,153,0.25)] hover:bg-[#2dd392] active:bg-[#10b981] transition-colors disabled:opacity-50 touch-manipulation border-t border-[#34d399] font-plus-jakarta"
               onClick={handleStartRide} disabled={loading}>
               {loading ? <Loader2 className="w-6 h-6 animate-spin text-[#064e3b]" /> : (<><CheckCircle className="w-6 h-6 ml-1" /><span>ركب العميل — بدء الرحلة</span></>)}
             </motion.button>
@@ -1585,8 +1583,7 @@ export const ActiveRideCard = ({
             <motion.button
               animate={{ boxShadow: ["0 0 0px 0px rgba(52,211,153,0)", "0 0 20px 2px rgba(52,211,153,0.4)", "0 0 0px 0px rgba(52,211,153,0)"] }}
               transition={{ duration: 2, repeat: Infinity }}
-              style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black text-[#064e3b] bg-[#34d399] shadow-[0_-5px_30px_rgba(52,211,153,0.25)] hover:bg-[#2dd392] active:bg-[#10b981] transition-colors disabled:opacity-50 touch-manipulation border-t border-[#34d399]"
+              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black text-[#064e3b] bg-[#34d399] shadow-[0_-5px_30px_rgba(52,211,153,0.25)] hover:bg-[#2dd392] active:bg-[#10b981] transition-colors disabled:opacity-50 touch-manipulation border-t border-[#34d399] font-plus-jakarta"
               onClick={handleCompleteRide} disabled={loading}>
               {loading ? <Loader2 className="w-6 h-6 animate-spin text-[#064e3b]" /> : (<><Flag className="w-5 h-5 ml-1" /><span>إنهاء الرحلة</span></>)}
             </motion.button>

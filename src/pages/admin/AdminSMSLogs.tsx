@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -41,51 +42,37 @@ interface SMSStats {
 }
 
 export default function AdminSMSLogs() {
+  const queryClient = useQueryClient();
   const [logs, setLogs] = useState<SMSLog[]>([]);
   const [blockedPhones, setBlockedPhones] = useState<BlockedPhone[]>([]);
   const [stats, setStats] = useState<SMSStats | null>(null);
-  const [loading, setLoading] = useState(true);
   const [searchPhone, setSearchPhone] = useState("");
   const [activeTab, setActiveTab] = useState<"logs" | "blocked">("logs");
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // Fetch logs
-      const { data: logsData } = await supabase
-        .from("sms_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
+  const { isLoading: loading } = useQuery({
+    queryKey: ['sms-logs-data'],
+    queryFn: async () => {
+      const [logsRes, blockedRes, statsRes] = await Promise.all([
+        supabase.from("sms_logs").select("*").order("created_at", { ascending: false }).limit(100),
+        supabase.from("blocked_phones").select("*").order("created_at", { ascending: false }),
+        supabase.rpc("get_sms_stats", { p_days: 30 }),
+      ]);
+      setLogs(logsRes.data || []);
+      setBlockedPhones(blockedRes.data || []);
+      if (statsRes.data && statsRes.data.length > 0) setStats(statsRes.data[0]);
+      return { logs: logsRes.data, blocked: blockedRes.data, stats: statsRes.data };
+    },
+  });
 
-      // Fetch blocked phones
-      const { data: blockedData } = await supabase
-        .from("blocked_phones")
-        .select("*")
-        .order("created_at", { ascending: false });
+  const unblockMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("blocked_phones").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sms-logs-data'] }),
+  });
 
-      // Fetch stats
-      const { data: statsData } = await supabase.rpc("get_sms_stats", { p_days: 30 });
-
-      setLogs(logsData || []);
-      setBlockedPhones(blockedData || []);
-      if (statsData && statsData.length > 0) {
-        setStats(statsData[0]);
-      }
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const unblockPhone = async (id: string) => {
-    await supabase.from("blocked_phones").delete().eq("id", id);
-    fetchData();
-  };
+  const unblockPhone = (id: string) => unblockMutation.mutate(id);
 
   const filteredLogs = logs.filter((log) =>
     log.phone.includes(searchPhone)
@@ -117,7 +104,7 @@ export default function AdminSMSLogs() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">سجلات الرسائل</h1>
-          <Button onClick={fetchData} variant="outline" size="sm">
+          <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['sms-logs-data'] })} variant="outline" size="sm">
             <RefreshCw className="h-4 w-4 ml-2" />
             تحديث
           </Button>

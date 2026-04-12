@@ -1,9 +1,10 @@
 import { useEffect, useCallback, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
 import { resumeAudioContext } from "@/lib/audioContext";
-import { isNativePlatform, onAppStateChange, showNativeNotification, nativeHaptic } from "@/lib/capacitorBridge";
+import { isNativePlatform, onAppStateChange, nativeHaptic } from "@/lib/capacitorBridge";
 import { capacitorStorageSync } from "@/lib/capacitorStorage";
 import { useDriverStore } from "@/stores/driverStore";
 import { 
@@ -12,6 +13,18 @@ import {
   registerFCMToken,
   syncNotificationPreferences 
 } from "@/services/driverNotificationService";
+
+/**
+ * Safe wrapper for Web Notifications API.
+ * Returns undefined on Capacitor/Android WebView where Notification is not defined.
+ */
+const getWebNotification = (): typeof Notification | undefined => {
+  try {
+    return typeof Notification !== 'undefined' ? Notification : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 interface NewRide {
   id: string;
@@ -54,6 +67,7 @@ export const useDriverNotifications = (
   maxPickupRadius: number = 10
 ) => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const DRIVER_NOTIFICATION_DEDUPE_TTL_MS = 300_000; // 5 دقائق لتفادي إعادة الإشعار عند إعادة الاتصال
   const CHANNEL_STALE_MS = 300_000;
   const dedupeMapRef = useRef<Map<string, number>>(new Map());
@@ -67,39 +81,48 @@ export const useDriverNotifications = (
   maxPickupRadiusRef.current = maxPickupRadius;
   const showPushNotificationRef = useRef<((ride: Record<string, unknown>) => void) | null>(null);
 
-  const openRideRequestFromNotification = useCallback((rideId: string) => {
+  const openRideRequestFromNotification = useCallback((rideId: string, persistPending = true) => {
     if (!rideId) return;
 
-    try {
-      capacitorStorageSync.setItem('raan_pending_open_ride', rideId);
-    } catch {
-      // ignore localStorage failures
+    if (persistPending) {
+      try {
+        capacitorStorageSync.setItem('raan_pending_open_ride', rideId);
+      } catch {
+        // ignore localStorage failures
+      }
     }
 
-    const targetUrl = `/driver?ride_id=${rideId}&action=open_request`;
-
-    if (window.location.pathname === '/driver') {
-      window.history.replaceState({}, '', targetUrl);
-      window.dispatchEvent(new PopStateEvent('popstate'));
+    const targetSearch = `?ride_id=${rideId}&action=open_request`;
+    if (window.location.pathname === '/driver' && window.location.search === targetSearch) {
       return;
     }
 
-    window.location.assign(targetUrl);
-  }, []);
+    if (window.location.pathname === '/driver') {
+      // استخدام navigate بدلاً من PopStateEvent لمنع إعادة تحميل المسار وإزالة الوميض
+      navigate(
+        { pathname: '/driver', search: targetSearch },
+        { replace: true }
+      );
+      return;
+    }
+
+    window.location.assign(`/driver${targetSearch}`);
+  }, [navigate]);
 
   // Request notification permission with user feedback
   const requestNotificationPermission = useCallback(async () => {
-    if (!('Notification' in window)) {
+    const WebNotification = getWebNotification();
+    if (!WebNotification) {
       setNotificationPermission('unsupported');
       return;
     }
 
-    if (Notification.permission === 'granted') {
+    if (WebNotification.permission === 'granted') {
       setNotificationPermission('granted');
       return;
     }
 
-    if (Notification.permission === 'denied') {
+    if (WebNotification.permission === 'denied') {
       setNotificationPermission('denied');
       toast({
         title: "الإشعارات محظورة",
@@ -111,7 +134,7 @@ export const useDriverNotifications = (
     }
 
     try {
-      const permission = await Notification.requestPermission();
+      const permission = await WebNotification.requestPermission();
       setNotificationPermission(permission);
 
       if (permission === 'granted') {
@@ -121,7 +144,7 @@ export const useDriverNotifications = (
         });
         
         // Send test notification
-        new Notification('ران كابتن 🚗', {
+        new WebNotification('ران كابتن 🚗', {
           body: 'تم تفعيل الإشعارات بنجاح! ستصلك تنبيهات الطلبات الجديدة هنا.',
           icon: '/favicon.ico',
           tag: 'test-notification'
@@ -173,33 +196,14 @@ export const useDriverNotifications = (
       duration: 20000,
     });
 
-    // إشعار أصلي عبر Capacitor مع أزرار (قبول/رفض)
-    if (isNativePlatform) {
-      const notifBody = [
-        `💰 الأجرة: ${estimatedFare.toLocaleString()} د.ع`,
-        `📍 من: ${pickupAddress}`,
-        dropoffAddress ? `🎯 إلى: ${dropoffAddress}` : '',
-        distance > 0 ? `📏 المسافة: ${distance.toFixed(1)} كم` : ''
-      ].filter(Boolean).join('\n');
-      
-      showNativeNotification(
-        '🚗 طلب رحلة جديد!',
-        notifBody,
-        undefined,
-        {
-          channelId: 'raan-rides',
-          priority: 'high',
-          data: { rideId, action: 'open_request' },
-          actionButtons: [
-            { id: 'accept', title: '✅ قبول' },
-            { id: 'reject', title: '❌ رفض' },
-          ],
-        }
-      );
-    }
+    // إشعار أصلي عبر Capacitor — يُتخطى على Android لأن FCM يُرسل إشعار النظام
+    // showNativeNotification يُستخدم فقط على الويب أو إذا لم يكن FCM مفعلاً
+    // على Native: التنبيه الصوتي + الاهتزاز + Toast كافية، و FCM يتكفل بإشعار النظام
+    // if (isNativePlatform) { ... } — مُعطّل لتجنب تكرار الإشعارات مع FCM
 
     // Browser Push Notification (للويب فقط)
-    if (!isNativePlatform && 'Notification' in window && Notification.permission === 'granted') {
+    const WebNotif = getWebNotification();
+    if (!isNativePlatform && WebNotif && WebNotif.permission === 'granted') {
       const notificationBody = [
         `💰 الأجرة: ${estimatedFare.toLocaleString()} د.ع`,
         `📍 من: ${pickupAddress}`,
@@ -207,7 +211,7 @@ export const useDriverNotifications = (
         distance > 0 ? `📏 المسافة: ${distance.toFixed(1)} كم` : ''
       ].filter(Boolean).join('\n');
 
-      const notification = new Notification('🚗 طلب رحلة جديد!', {
+      const notification = new WebNotif('🚗 طلب رحلة جديد!', {
         body: notificationBody,
         icon: '/favicon.ico',
         badge: '/favicon.ico',
@@ -412,7 +416,7 @@ export const useDriverNotifications = (
       const pendingOpenRide = capacitorStorageSync.getItem('raan_pending_open_ride');
       if (pendingOpenRide) {
         capacitorStorageSync.removeItem('raan_pending_open_ride');
-        openRideRequestFromNotification(pendingOpenRide);
+        openRideRequestFromNotification(pendingOpenRide, false);
       }
     } catch {
       // صامت
@@ -602,11 +606,12 @@ export const useDriverNotifications = (
 
   // Request notification permission on mount
   useEffect(() => {
-    if ('Notification' in window) {
-      setNotificationPermission(Notification.permission);
+    const WebNotification = getWebNotification();
+    if (WebNotification) {
+      setNotificationPermission(WebNotification.permission);
       
       // Auto-request if permission is default
-      if (Notification.permission === 'default') {
+      if (WebNotification.permission === 'default') {
         // Delay to not be too aggressive
         const timer = setTimeout(() => {
           requestNotificationPermission();

@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -156,8 +157,7 @@ interface MapSettings {
 
 const AdminSettings = () => {
   const { loading: authLoading, isAdmin } = useAdminAuth();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
 
   // Settings states
   const [general, setGeneral] = useState<GeneralSettings>({
@@ -183,16 +183,12 @@ const AdminSettings = () => {
     cash: true
   });
 
-  // Payment accounts from database
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [editingAccount, setEditingAccount] = useState<PaymentAccount | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [savingAccount, setSavingAccount] = useState(false);
   
-  // Add new account states
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newAccount, setNewAccount] = useState<NewPaymentAccount>({ ...defaultNewAccount });
-  const [addingAccount, setAddingAccount] = useState(false);
   
   
 
@@ -214,69 +210,63 @@ const AdminSettings = () => {
   });
 
   // Fetch payment accounts
-  const fetchPaymentAccounts = async () => {
-    const { data, error } = await supabase
-      .from('payment_accounts')
-      .select('*')
-      .order('display_order', { ascending: true });
-
-    if (!error && data) {
-      setPaymentAccounts(data);
-    }
-  };
+  const { isLoading: loadingAccounts } = useQuery({
+    queryKey: ['payment-accounts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('payment_accounts')
+        .select('*')
+        .order('display_order', { ascending: true });
+      if (error) throw error;
+      if (data) setPaymentAccounts(data);
+      return data;
+    },
+    enabled: isAdmin,
+  });
 
   // Load settings from database
-  useEffect(() => {
-    if (!isAdmin) return;
-    const fetchSettings = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('app_settings')
-          .select('key, value');
+  const { isLoading: loadingSettings } = useQuery({
+    queryKey: ['app-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('key, value');
+      if (error) throw error;
 
-        if (error) throw error;
+      data?.forEach((setting) => {
+        const value = setting.value as Record<string, unknown>;
+        switch (setting.key) {
+          case 'general':
+            setGeneral(value as unknown as GeneralSettings);
+            break;
+          case 'notifications':
+            setNotifications(value as unknown as NotificationSettings);
+            break;
+          case 'rides':
+            setRides(value as unknown as RideSettings);
+            break;
+          case 'payments':
+            if (value && typeof value === 'object' && 'cash' in value) {
+              setPayments({ cash: Boolean(value.cash) });
+            }
+            break;
+          case 'support':
+            setSupport(value as unknown as SupportSettings);
+            break;
+          case 'maps':
+            setMaps(value as unknown as MapSettings);
+            break;
+          case 'commission':
+            setCommission(value as unknown as CommissionSettings);
+            break;
+        }
+      });
+      return data;
+    },
+    enabled: isAdmin,
+  });
 
-        data?.forEach((setting) => {
-          const value = setting.value as Record<string, unknown>;
-          switch (setting.key) {
-            case 'general':
-              setGeneral(value as unknown as GeneralSettings);
-              break;
-            case 'notifications':
-              setNotifications(value as unknown as NotificationSettings);
-              break;
-            case 'rides':
-              setRides(value as unknown as RideSettings);
-              break;
-            case 'payments':
-              if (value && typeof value === 'object' && 'cash' in value) {
-                setPayments({ cash: Boolean(value.cash) });
-              }
-              break;
-            case 'support':
-              setSupport(value as unknown as SupportSettings);
-              break;
-            case 'maps':
-              setMaps(value as unknown as MapSettings);
-              break;
-            case 'commission':
-              setCommission(value as unknown as CommissionSettings);
-              break;
-          }
-        });
-
-        // Fetch payment accounts from payment_accounts table
-        await fetchPaymentAccounts();
-      } catch (error) {
-        console.error('Error fetching settings:', error);
-        toast.error("حدث خطأ أثناء تحميل الإعدادات");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSettings();
-  }, [isAdmin]);
+  const loading = loadingSettings || loadingAccounts;
 
   const updateSetting = async (key: string, value: object) => {
     // استخدام upsert بدلاً من update لإنشاء الصف تلقائياً إن لم يكن موجوداً
@@ -290,9 +280,8 @@ const AdminSettings = () => {
     if (error) throw error;
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async () => {
       await Promise.all([
         updateSetting('general', general),
         updateSetting('notifications', notifications),
@@ -302,14 +291,95 @@ const AdminSettings = () => {
         updateSetting('maps', maps),
         updateSetting('commission', commission),
       ]);
+    },
+    onSuccess: () => {
       toast.success("تم حفظ الإعدادات بنجاح");
-    } catch (error) {
+      queryClient.invalidateQueries({ queryKey: ['app-settings'] });
+    },
+    onError: (error) => {
       console.error('Error saving settings:', error);
       toast.error("حدث خطأ أثناء حفظ الإعدادات");
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+  });
+
+  const handleSave = () => saveMutation.mutate();
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async (accountId: string) => {
+      const { error } = await supabase
+        .from('payment_accounts')
+        .delete()
+        .eq('id', accountId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("تم حذف طريقة الدفع بنجاح");
+      queryClient.invalidateQueries({ queryKey: ['payment-accounts'] });
+    },
+    onError: () => {
+      toast.error("حدث خطأ أثناء حذف طريقة الدفع");
+    },
+  });
+
+  const toggleAccountMutation = useMutation({
+    mutationFn: async ({ id, checked }: { id: string; checked: boolean }) => {
+      const { error } = await supabase
+        .from('payment_accounts')
+        .update({ is_active: checked })
+        .eq('id', id);
+      if (error) throw error;
+      return checked;
+    },
+    onSuccess: (checked) => {
+      toast.success(checked ? "تم تفعيل طريقة الدفع" : "تم تعطيل طريقة الدفع");
+      queryClient.invalidateQueries({ queryKey: ['payment-accounts'] });
+    },
+    onError: () => {
+      toast.error("حدث خطأ أثناء تحديث الحالة");
+    },
+  });
+
+  const editAccountMutation = useMutation({
+    mutationFn: async (account: PaymentAccount) => {
+      const { error } = await supabase
+        .from('payment_accounts')
+        .update({
+          account_number: account.account_number,
+          account_holder: account.account_holder,
+          instructions: account.instructions
+        })
+        .eq('id', account.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("تم حفظ التغييرات بنجاح");
+      setEditDialogOpen(false);
+      setEditingAccount(null);
+      queryClient.invalidateQueries({ queryKey: ['payment-accounts'] });
+    },
+    onError: () => {
+      toast.error("حدث خطأ أثناء حفظ التغييرات");
+    },
+  });
+
+  const addAccountMutation = useMutation({
+    mutationFn: async (accountData: Record<string, unknown>) => {
+      const { error } = await supabase
+        .from('payment_accounts')
+        .insert(accountData);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("تم إضافة طريقة الدفع بنجاح");
+      setAddDialogOpen(false);
+      setNewAccount({ ...defaultNewAccount });
+      queryClient.invalidateQueries({ queryKey: ['payment-accounts'] });
+    },
+    onError: (error) => {
+      console.error('Error adding payment account:', error);
+      toast.error("حدث خطأ أثناء إضافة طريقة الدفع");
+    },
+  });
 
   if (authLoading || loading) {
     return (
@@ -327,8 +397,8 @@ const AdminSettings = () => {
       title="الإعدادات" 
       subtitle="إدارة إعدادات التطبيق العامة"
       actions={
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? <RefreshCw className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
+        <Button onClick={handleSave} disabled={saveMutation.isPending}>
+          {saveMutation.isPending ? <RefreshCw className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
           حفظ الإعدادات
         </Button>
       }
@@ -699,40 +769,17 @@ const AdminSettings = () => {
                         variant="ghost"
                         size="icon"
                         className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={async () => {
+                        onClick={() => {
                           if (!confirm(`هل أنت متأكد من حذف "${account.account_name}"؟`)) return;
-                          
-                          const { error } = await supabase
-                            .from('payment_accounts')
-                            .delete()
-                            .eq('id', account.id);
-                          
-                          if (error) {
-                            toast.error("حدث خطأ أثناء حذف طريقة الدفع");
-                          } else {
-                            setPaymentAccounts(prev => prev.filter(a => a.id !== account.id));
-                            toast.success("تم حذف طريقة الدفع بنجاح");
-                          }
+                          deleteAccountMutation.mutate(account.id);
                         }}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                       <Switch 
                         checked={account.is_active} 
-                        onCheckedChange={async (checked) => {
-                          const { error } = await supabase
-                            .from('payment_accounts')
-                            .update({ is_active: checked })
-                            .eq('id', account.id);
-                          
-                          if (error) {
-                            toast.error("حدث خطأ أثناء تحديث الحالة");
-                          } else {
-                            setPaymentAccounts(prev => 
-                              prev.map(a => a.id === account.id ? { ...a, is_active: checked } : a)
-                            );
-                            toast.success(checked ? "تم تفعيل طريقة الدفع" : "تم تعطيل طريقة الدفع");
-                          }
+                        onCheckedChange={(checked) => {
+                          toggleAccountMutation.mutate({ id: account.id, checked });
                         }} 
                       />
                     </div>
@@ -814,34 +861,13 @@ const AdminSettings = () => {
                   إلغاء
                 </Button>
                 <Button
-                  onClick={async () => {
+                  onClick={() => {
                     if (!editingAccount) return;
-                    setSavingAccount(true);
-                    
-                    const { error } = await supabase
-                      .from('payment_accounts')
-                      .update({
-                        account_number: editingAccount.account_number,
-                        account_holder: editingAccount.account_holder,
-                        instructions: editingAccount.instructions
-                      })
-                      .eq('id', editingAccount.id);
-                    
-                    if (error) {
-                      toast.error("حدث خطأ أثناء حفظ التغييرات");
-                    } else {
-                      setPaymentAccounts(prev =>
-                        prev.map(a => a.id === editingAccount.id ? editingAccount : a)
-                      );
-                      toast.success("تم حفظ التغييرات بنجاح");
-                      setEditDialogOpen(false);
-                      setEditingAccount(null);
-                    }
-                    setSavingAccount(false);
+                    editAccountMutation.mutate(editingAccount);
                   }}
-                  disabled={savingAccount}
+                  disabled={editAccountMutation.isPending}
                 >
-                  {savingAccount ? <RefreshCw className="w-4 h-4 animate-spin ml-2" /> : null}
+                  {editAccountMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin ml-2" /> : null}
                   حفظ التغييرات
                 </Button>
               </DialogFooter>
@@ -1016,7 +1042,7 @@ const AdminSettings = () => {
                   إلغاء
                 </Button>
                 <Button
-                  onClick={async () => {
+                  onClick={() => {
                     if (!newAccount.account_name || !newAccount.payment_method) {
                       toast.error("يرجى ملء الحقول المطلوبة");
                       return;
@@ -1026,8 +1052,6 @@ const AdminSettings = () => {
                       toast.error("يرجى إدخال رقم الحساب");
                       return;
                     }
-                    
-                    setAddingAccount(true);
                     
                     const accountData = {
                       payment_method: newAccount.payment_method,
@@ -1042,24 +1066,11 @@ const AdminSettings = () => {
                       display_order: paymentAccounts.length
                     };
                     
-                    const { error } = await supabase
-                      .from('payment_accounts')
-                      .insert(accountData);
-                    
-                    if (error) {
-                      console.error('Error adding payment account:', error);
-                      toast.error("حدث خطأ أثناء إضافة طريقة الدفع");
-                    } else {
-                      await fetchPaymentAccounts();
-                      toast.success("تم إضافة طريقة الدفع بنجاح");
-                      setAddDialogOpen(false);
-                      setNewAccount({ ...defaultNewAccount });
-                    }
-                    setAddingAccount(false);
+                    addAccountMutation.mutate(accountData);
                   }}
-                  disabled={addingAccount}
+                  disabled={addAccountMutation.isPending}
                 >
-                  {addingAccount ? <RefreshCw className="w-4 h-4 animate-spin ml-2" /> : <Plus className="w-4 h-4 ml-2" />}
+                  {addAccountMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin ml-2" /> : <Plus className="w-4 h-4 ml-2" />}
                   إضافة
                 </Button>
               </DialogFooter>

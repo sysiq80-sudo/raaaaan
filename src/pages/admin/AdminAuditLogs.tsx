@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,8 +47,8 @@ interface AuditLog {
 
 const AdminAuditLogs = () => {
   const { loading: authLoading, isAdmin } = useAdminAuth();
+  const queryClient = useQueryClient();
   const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,36 +57,31 @@ const AdminAuditLogs = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetchLogs();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, currentPage, searchQuery]);
+  const { isLoading: loading } = useQuery({
+    queryKey: ['audit-logs', currentPage, searchQuery],
+    queryFn: async () => {
+      const from = currentPage * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-  const fetchLogs = async () => {
-    setLoading(true);
-    const from = currentPage * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+      let query = supabase
+        .from("admin_audit_logs")
+        .select("*, admin_profile:profiles!admin_id(full_name, email)", { count: "exact" });
 
-    let query = supabase
-      .from("admin_audit_logs")
-      .select("*, admin_profile:profiles!admin_id(full_name, email)", { count: "exact" });
+      if (searchQuery) {
+        query = query.ilike("action_type", `%${searchQuery}%`);
+      }
 
-    if (searchQuery) {
-      query = query.ilike("action_type", `%${searchQuery}%`);
-    }
+      const { data, count, error } = await query
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
-    const { data, count, error } = await query
-      .order("created_at", { ascending: false })
-      .range(from, to);
-
-    if (!error && data) {
+      if (error) throw error;
       setLogs(data as unknown as AuditLog[]);
       if (count !== null) setTotalCount(count);
-    }
-    setLoading(false);
-  };
+      return data;
+    },
+    enabled: isAdmin,
+  });
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

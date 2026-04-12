@@ -114,6 +114,12 @@ const AdminRiders = () => {
   const [activityFilter, setActivityFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
+  // Server-side pagination
+  const PAGE_SIZE = 50;
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
   // Stats
   const [totalStats, setTotalStats] = useState({
     totalRiders: 0,
@@ -127,7 +133,7 @@ const AdminRiders = () => {
     if (isAdmin) {
       fetchRiders();
     }
-  }, [isAdmin]);
+  }, [isAdmin, currentPage]);
 
   const fetchRiders = async () => {
     setLoading(true);
@@ -146,48 +152,49 @@ const AdminRiders = () => {
       console.log('Profile sync not available');
     }
 
-    // Fetch profiles
-    const { data: profiles, error: profilesError } = await supabase
-      .from("profiles")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const from = currentPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
-    if (profilesError) {
-      console.error("Error fetching profiles:", profilesError);
+    // جلب البيانات بالتوازي: عدد الملفات الشخصية + الصفحة الحالية + أدوار الإدارة + السائقين
+    const [countResult, profilesResult, adminRolesResult, driverRecordsResult] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }),
+      supabase.from("profiles").select("*").order("created_at", { ascending: false }).range(from, to),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("user_roles") as any).select("user_id").in("role", ["admin", "moderator"]),
+      supabase.from("drivers").select("user_id"),
+    ]);
+
+    if (profilesResult.error) {
+      console.error("Error fetching profiles:", profilesResult.error);
       toast({
         title: "خطأ",
-        description: "فشل في جلب بيانات الركاب: " + profilesError.message,
+        description: "فشل في جلب بيانات الركاب: " + profilesResult.error.message,
         variant: "destructive",
       });
       setLoading(false);
       return;
     }
 
-    // استبعاد مستخدمي الإدارة (admin/moderator) من قائمة الركاب
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rolesTable = supabase.from("user_roles") as any;
-    const { data: adminRoles } = await rolesTable
-      .select("user_id")
-      .in("role", ["admin", "moderator"]);
-    const adminUserIds = new Set((adminRoles || []).map((r: any) => r.user_id));
+    if (countResult.count !== null) setTotalCount(countResult.count);
 
-    // استبعاد السائقين من قائمة الركاب
-    const { data: driverRecords } = await supabase
-      .from("drivers")
-      .select("user_id");
-    const driverUserIds = new Set((driverRecords || []).map((d: any) => d.user_id));
+    const adminUserIds = new Set((adminRolesResult.data || []).map((r: any) => r.user_id));
+    const driverUserIds = new Set((driverRecordsResult.data || []).map((d: any) => d.user_id));
+    const filteredProfiles = (profilesResult.data || []).filter((p: any) => !adminUserIds.has(p.user_id) && !driverUserIds.has(p.user_id));
 
-    const filteredProfiles = (profiles || []).filter((p: any) => !adminUserIds.has(p.user_id) && !driverUserIds.has(p.user_id));
+    // جلب الرحلات فقط للركاب في الصفحة الحالية (بدلاً من كل الرحلات)
+    const riderUserIds = filteredProfiles.map((p: any) => p.user_id);
+    let rides: any[] = [];
+    if (riderUserIds.length > 0) {
+      const { data: ridesData, error: ridesError } = await supabase
+        .from("rides")
+        .select("rider_id, status, final_fare, payment_method, created_at, driver_rating")
+        .in("rider_id", riderUserIds);
 
-    console.log(`Fetched ${profiles?.length || 0} profiles, ${filteredProfiles.length} after excluding admins`);
-
-    // Fetch rides for stats
-    const { data: rides, error: ridesError } = await supabase
-      .from("rides")
-      .select("rider_id, status, final_fare, payment_method, created_at, driver_rating");
-
-    if (ridesError) {
-      console.error("Error fetching rides:", ridesError);
+      if (ridesError) {
+        console.error("Error fetching rides:", ridesError);
+      } else {
+        rides = ridesData || [];
+      }
     }
 
     // Group rides by rider_id using Map for O(n+m) performance
@@ -851,6 +858,33 @@ const AdminRiders = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-muted-foreground">
+            صفحة {currentPage + 1} من {totalPages} ({totalCount} راكب)
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 0}
+              onClick={() => setCurrentPage(p => p - 1)}
+            >
+              السابق
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage >= totalPages - 1}
+              onClick={() => setCurrentPage(p => p + 1)}
+            >
+              التالي
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Delete Dialog */}
       <DeleteRiderDialog

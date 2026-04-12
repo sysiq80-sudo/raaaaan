@@ -142,7 +142,7 @@ export default function DriverFinance() {
   const [walletBalance, setWalletBalance] = useState(0);
   const [minWithdrawal, setMinWithdrawal] = useState(10000);
 
-  // إزالة driver-mode من body لتفعيل السكرول في صفحة المالية
+  // إزالة قيود السكرول من body لتفعيل التمرير في صفحة المالية
   useEffect(() => {
     const hadDriverMode = document.body.classList.contains('driver-mode');
     document.body.classList.remove('driver-mode');

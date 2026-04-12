@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,37 +43,29 @@ interface PaymentDistribution {
 
 const AdminReports = () => {
   const { loading: authLoading, isAdmin } = useAdminAuth();
-  const [dailyStats, setDailyStats] = useState<RideStats[]>([]);
-  const [monthlyStats, setMonthlyStats] = useState<RideStats[]>([]);
-  const [statusDistribution, setStatusDistribution] = useState<StatusDistribution[]>([]);
-  const [paymentDistribution, setPaymentDistribution] = useState<PaymentDistribution[]>([]);
-  const [totals, setTotals] = useState({
-    totalRevenue: 0,
-    totalRides: 0,
-    completedRides: 0,
-    averageFare: 0,
-  });
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetchReportData();
-    }
-  }, [isAdmin]);
-
-  const fetchReportData = async () => {
-    try {
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["admin-reports"],
+    queryFn: async () => {
       // Fetch rides with only needed columns
+      // جلب آخر 6 أشهر فقط بدلاً من كل الرحلات
+      const sixMonthsAgo = subDays(new Date(), 180).toISOString();
       const { data: rides, error } = await supabase
         .from("rides")
-        .select("id, status, created_at, final_fare, estimated_fare")
+        .select("id, status, created_at, final_fare, estimated_fare, payment_method")
+        .gte("created_at", sixMonthsAgo)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
       if (!rides || rides.length === 0) {
-        setLoading(false);
-        return;
+        return {
+          dailyStats: [] as RideStats[],
+          monthlyStats: [] as RideStats[],
+          statusDistribution: [] as StatusDistribution[],
+          paymentDistribution: [] as PaymentDistribution[],
+          totals: { totalRevenue: 0, totalRides: 0, completedRides: 0, averageFare: 0 },
+        };
       }
 
       // Calculate totals
@@ -81,12 +73,12 @@ const AdminReports = () => {
       const totalRevenue = completedRides.reduce((sum, r) => sum + (r.final_fare || r.estimated_fare || 0), 0);
       const averageFare = completedRides.length > 0 ? totalRevenue / completedRides.length : 0;
 
-      setTotals({
+      const totals = {
         totalRevenue,
         totalRides: rides.length,
         completedRides: completedRides.length,
         averageFare,
-      });
+      };
 
       // Calculate daily stats (last 7 days)
       const last7Days = eachDayOfInterval({
@@ -94,7 +86,7 @@ const AdminReports = () => {
         end: new Date(),
       });
 
-      const dailyData = last7Days.map(day => {
+      const dailyStats = last7Days.map(day => {
         const dayStart = startOfDay(day);
         const dayRides = rides.filter(r => {
           const rideDate = startOfDay(new Date(r.created_at));
@@ -111,10 +103,8 @@ const AdminReports = () => {
         };
       });
 
-      setDailyStats(dailyData);
-
       // Calculate monthly stats (last 6 months)
-      const monthlyData: RideStats[] = [];
+      const monthlyStats: RideStats[] = [];
       for (let i = 5; i >= 0; i--) {
         const monthStart = startOfMonth(subDays(new Date(), i * 30));
         const monthEnd = endOfMonth(monthStart);
@@ -126,14 +116,12 @@ const AdminReports = () => {
           .filter(r => r.status === "completed")
           .reduce((sum, r) => sum + (r.final_fare || r.estimated_fare || 0), 0);
 
-        monthlyData.push({
+        monthlyStats.push({
           date: format(monthStart, "MMM", { locale: ar }),
           rides: monthRides.length,
           revenue: monthRevenue,
         });
       }
-
-      setMonthlyStats(monthlyData);
 
       // Status distribution
       const statusCounts = rides.reduce((acc, r) => {
@@ -159,13 +147,11 @@ const AdminReports = () => {
         cancelled: "hsl(var(--destructive))",
       };
 
-      setStatusDistribution(
-        Object.entries(statusCounts).map(([status, count]) => ({
-          name: statusLabels[status] || status,
-          value: count,
-          color: statusColors[status] || "hsl(var(--muted))",
-        }))
-      );
+      const statusDistribution = Object.entries(statusCounts).map(([status, count]) => ({
+        name: statusLabels[status] || status,
+        value: count,
+        color: statusColors[status] || "hsl(var(--muted))",
+      }));
 
       // Payment distribution
       const paymentCounts = rides.reduce((acc, r) => {
@@ -191,20 +177,22 @@ const AdminReports = () => {
         qi_card: "hsl(var(--chart-3))",
       };
 
-      setPaymentDistribution(
-        Object.entries(paymentCounts).map(([method, count]) => ({
-          name: paymentLabels[method] || method,
-          value: count,
-          color: paymentColors[method] || "hsl(var(--muted))",
-        }))
-      );
+      const paymentDistribution = Object.entries(paymentCounts).map(([method, count]) => ({
+        name: paymentLabels[method] || method,
+        value: count,
+        color: paymentColors[method] || "hsl(var(--muted))",
+      }));
 
-    } catch (error) {
-      console.error("Error fetching report data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return { dailyStats, monthlyStats, statusDistribution, paymentDistribution, totals };
+    },
+    enabled: isAdmin,
+  });
+
+  const dailyStats = data?.dailyStats || [];
+  const monthlyStats = data?.monthlyStats || [];
+  const statusDistribution = data?.statusDistribution || [];
+  const paymentDistribution = data?.paymentDistribution || [];
+  const totals = data?.totals || { totalRevenue: 0, totalRides: 0, completedRides: 0, averageFare: 0 };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("ar-IQ", {

@@ -3,7 +3,7 @@
  * CRUD operations for messenger_accounts table
  */
 
-import { useState, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -38,35 +38,27 @@ export interface CreateMessengerAccountInput {
 }
 
 export function useMessengerAccounts() {
-  const [accounts, setAccounts] = useState<MessengerAccount[]>([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
 
-  const fetchAccounts = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data: accounts = [], isLoading: loading } = useQuery({
+    queryKey: ['messenger-accounts'],
+    queryFn: async () => {
       const { data, error } = await sb
         .from('messenger_accounts')
         .select('*')
         .order('created_at', { ascending: false });
-
       if (error) throw error;
-      setAccounts(data || []);
-    } catch (err: any) {
-      console.error('❌ fetchMessengerAccounts error:', err);
-      toast.error('فشل تحميل حسابات Messenger');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return (data || []) as MessengerAccount[];
+    },
+  });
 
-  const createAccount = useCallback(async (input: CreateMessengerAccountInput) => {
-    try {
-      console.log('[messenger] Creating account:', { page_name: input.page_name, page_id: input.page_id });
-      
-      // Get current user for created_by
+  const fetchAccounts = () => queryClient.invalidateQueries({ queryKey: ['messenger-accounts'] });
+
+  const createAccountMutation = useMutation({
+    mutationFn: async (input: CreateMessengerAccountInput) => {
       const { data: { user } } = await supabase.auth.getUser();
       
       const insertData = {
@@ -80,79 +72,99 @@ export function useMessengerAccounts() {
         created_by: user?.id || null,
       };
       
-      console.log('[messenger] Insert data prepared, user:', user?.id);
-      
       const { data, error } = await sb
         .from('messenger_accounts')
         .insert(insertData)
         .select()
         .single();
 
-      console.log('[messenger] Insert result:', { data: !!data, error });
-
       if (error) {
         if (error.code === '23505') {
-          toast.error('هذا الـ Page ID مسجل مسبقاً');
-        } else {
-          console.error('❌ Insert error details:', JSON.stringify(error));
-          toast.error('فشل إضافة الحساب: ' + (error.message || error.code || 'خطأ غير معروف'));
+          throw new Error('هذا الـ Page ID مسجل مسبقاً');
         }
-        return null;
+        throw error;
       }
-
-      toast.success('تمت إضافة حساب Messenger بنجاح');
-      await fetchAccounts();
       return data;
-    } catch (err: any) {
+    },
+    onSuccess: () => {
+      toast.success('تمت إضافة حساب Messenger بنجاح');
+      queryClient.invalidateQueries({ queryKey: ['messenger-accounts'] });
+    },
+    onError: (err: any) => {
       console.error('❌ createMessengerAccount error:', err);
       toast.error('فشل إضافة الحساب: ' + (err.message || 'خطأ غير معروف'));
+    },
+  });
+
+  const createAccount = async (input: CreateMessengerAccountInput) => {
+    try {
+      const result = await createAccountMutation.mutateAsync(input);
+      return result;
+    } catch {
       return null;
     }
-  }, [fetchAccounts]);
+  };
 
-  const updateAccount = useCallback(async (id: string, updates: Partial<MessengerAccount>) => {
-    try {
+  const updateAccountMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<MessengerAccount> }) => {
       const { error } = await sb
         .from('messenger_accounts')
         .update(updates)
         .eq('id', id);
-
       if (error) throw error;
+    },
+    onSuccess: () => {
       toast.success('تم تحديث الحساب');
-      await fetchAccounts();
-      return true;
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ['messenger-accounts'] });
+    },
+    onError: (err: any) => {
       console.error('❌ updateMessengerAccount error:', err);
       toast.error('فشل التحديث');
+    },
+  });
+
+  const updateAccount = async (id: string, updates: Partial<MessengerAccount>) => {
+    try {
+      await updateAccountMutation.mutateAsync({ id, updates });
+      return true;
+    } catch {
       return false;
     }
-  }, [fetchAccounts]);
+  };
 
-  const deleteAccount = useCallback(async (id: string) => {
-    try {
+  const deleteAccountMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await sb
         .from('messenger_accounts')
         .delete()
         .eq('id', id);
-
       if (error) throw error;
+    },
+    onSuccess: () => {
       toast.success('تم حذف الحساب');
-      await fetchAccounts();
-      return true;
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ['messenger-accounts'] });
+    },
+    onError: (err: any) => {
       console.error('❌ deleteMessengerAccount error:', err);
       toast.error('فشل الحذف');
+    },
+  });
+
+  const deleteAccount = async (id: string) => {
+    try {
+      await deleteAccountMutation.mutateAsync(id);
+      return true;
+    } catch {
       return false;
     }
-  }, [fetchAccounts]);
+  };
 
-  const toggleActive = useCallback(async (id: string, isActive: boolean) => {
+  const toggleActive = async (id: string, isActive: boolean) => {
     return updateAccount(id, { is_active: isActive });
-  }, [updateAccount]);
+  };
 
-  const testConnection = useCallback(async (account: MessengerAccount) => {
+  const testConnection = async (account: MessengerAccount) => {
     try {
-      // تحقق من صلاحية التوكن عبر Graph API
       const res = await fetch(
         `https://graph.facebook.com/v21.0/${account.page_id}?fields=name,id&access_token=${account.page_access_token}`
       );
@@ -169,7 +181,7 @@ export function useMessengerAccounts() {
       toast.error('فشل اختبار الاتصال: ' + err.message);
       return false;
     }
-  }, []);
+  };
 
   return {
     accounts,

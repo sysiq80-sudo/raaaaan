@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,7 +63,8 @@ interface RecentActivity {
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { user, loading, isAdmin } = useAdminAuth();
-  const [stats, setStats] = useState<DashboardStats>({
+
+  const { data: stats = {
     totalRides: 0,
     activeDrivers: 0,
     pendingDrivers: 0,
@@ -79,19 +81,9 @@ const AdminDashboard = () => {
     todayRides: 0,
     regionsCount: 0,
     landmarksCount: 0,
-  });
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
-  const [statsLoading, setStatsLoading] = useState(true);
-
-  useEffect(() => {
-    if (isAdmin) {
-      fetchDashboardStats();
-      fetchRecentActivity();
-    }
-  }, [isAdmin]);
-
-  const fetchDashboardStats = async () => {
-    try {
+  }, isLoading: statsLoading } = useQuery({
+    queryKey: ["admin-dashboard-stats"],
+    queryFn: async () => {
       const today = new Date();
       const todayStart = startOfDay(today).toISOString();
       const weekAgo = subDays(today, 7);
@@ -104,38 +96,34 @@ const AdminDashboard = () => {
 
       if (error) {
         console.error("RPC Error fetching admin stats:", error);
-        return;
+        throw error;
       }
 
-      if (data) {
-        setStats({
-          totalRides: data.totalRides || 0,
-          activeDrivers: data.activeDrivers || 0,
-          pendingDrivers: data.pendingDrivers || 0,
-          todayEarnings: data.todayEarnings || 0,
-          totalUsers: data.totalUsers || 0,
-          activeRides: data.activeRides || 0,
-          completedRides: data.completedRides || 0,
-          cancelledRides: data.cancelledRides || 0,
-          totalIncentivesPaid: data.totalIncentivesPaid || 0,
-          totalDrivers: data.totalDrivers || 0,
-          avgDriverRating: data.avgDriverRating || 0,
-          weeklyRides: data.weeklyRides || 0,
-          weeklyEarnings: data.weeklyEarnings || 0,
-          todayRides: data.todayRides || 0,
-          regionsCount: data.regionsCount || 0,
-          landmarksCount: data.landmarksCount || 0,
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching dashboard stats:", error);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
+      return {
+        totalRides: data?.totalRides || 0,
+        activeDrivers: data?.activeDrivers || 0,
+        pendingDrivers: data?.pendingDrivers || 0,
+        todayEarnings: data?.todayEarnings || 0,
+        totalUsers: data?.totalUsers || 0,
+        activeRides: data?.activeRides || 0,
+        completedRides: data?.completedRides || 0,
+        cancelledRides: data?.cancelledRides || 0,
+        totalIncentivesPaid: data?.totalIncentivesPaid || 0,
+        totalDrivers: data?.totalDrivers || 0,
+        avgDriverRating: data?.avgDriverRating || 0,
+        weeklyRides: data?.weeklyRides || 0,
+        weeklyEarnings: data?.weeklyEarnings || 0,
+        todayRides: data?.todayRides || 0,
+        regionsCount: data?.regionsCount || 0,
+        landmarksCount: data?.landmarksCount || 0,
+      } as DashboardStats;
+    },
+    enabled: isAdmin,
+  });
 
-  const fetchRecentActivity = async () => {
-    try {
+  const { data: recentActivity = [] } = useQuery({
+    queryKey: ["admin-recent-activity"],
+    queryFn: async () => {
       const activities: RecentActivity[] = [];
 
       const { data: recentRides } = await supabase
@@ -204,11 +192,10 @@ const AdminDashboard = () => {
       }
 
       activities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setRecentActivity(activities.slice(0, 8));
-    } catch (error) {
-      console.error("Error fetching recent activity:", error);
-    }
-  };
+      return activities.slice(0, 8);
+    },
+    enabled: isAdmin,
+  });
 
   const getActivityIcon = (type: RecentActivity["type"]) => {
     switch (type) {

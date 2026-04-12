@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,9 +45,7 @@ const DAYS_OF_WEEK = [
 ];
 
 const AdminSurgePricing = () => {
-  const [rules, setRules] = useState<SurgePricingRule[]>([]);
-  const [regions, setRegions] = useState<Region[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<SurgePricingRule | null>(null);
   const [formData, setFormData] = useState({
@@ -62,35 +61,95 @@ const AdminSurgePricing = () => {
     priority: 0,
   });
 
-  useEffect(() => {
-    fetchRules();
-    fetchRegions();
-  }, []);
+  const { data: rules = [], isLoading: loading } = useQuery({
+    queryKey: ['surge-pricing-rules'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('surge_pricing_rules')
+        .select('*')
+        .order('priority', { ascending: false });
+      if (error) throw error;
+      return data as SurgePricingRule[];
+    },
+  });
 
-  const fetchRules = async () => {
-    const { data, error } = await supabase
-      .from('surge_pricing_rules')
-      .select('*')
-      .order('priority', { ascending: false });
+  const { data: regions = [] } = useQuery({
+    queryKey: ['regions-active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('regions')
+        .select('id, name_ar')
+        .eq('is_active', true);
+      if (error) throw error;
+      return data as Region[];
+    },
+  });
 
-    if (error) {
-      toast.error('خطأ في جلب البيانات');
-      console.error(error);
-    } else {
-      setRules(data || []);
-    }
-    setLoading(false);
-  };
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        ...formData,
+        region_id: formData.region_id || null,
+      };
 
-  const fetchRegions = async () => {
-    const { data } = await supabase
-      .from('regions')
-      .select('id, name_ar')
-      .eq('is_active', true);
-    setRegions(data || []);
-  };
+      if (editingRule) {
+        const { error } = await supabase
+          .from('surge_pricing_rules')
+          .update(payload)
+          .eq('id', editingRule.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('surge_pricing_rules')
+          .insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['surge-pricing-rules'] });
+      toast.success(editingRule ? 'تم التحديث بنجاح' : 'تم الإضافة بنجاح');
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: () => {
+      toast.error(editingRule ? 'خطأ في التحديث' : 'خطأ في الإضافة');
+    },
+  });
 
-  const handleSubmit = async () => {
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('surge_pricing_rules')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['surge-pricing-rules'] });
+      toast.success('تم الحذف بنجاح');
+    },
+    onError: () => {
+      toast.error('خطأ في الحذف');
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async (rule: SurgePricingRule) => {
+      const { error } = await supabase
+        .from('surge_pricing_rules')
+        .update({ is_active: !rule.is_active })
+        .eq('id', rule.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['surge-pricing-rules'] });
+    },
+    onError: () => {
+      toast.error('خطأ في التحديث');
+    },
+  });
+
+  const handleSubmit = () => {
     if (!formData.name_ar || !formData.start_time || !formData.end_time) {
       toast.error('يرجى ملء جميع الحقول المطلوبة');
       return;
@@ -101,67 +160,16 @@ const AdminSurgePricing = () => {
       return;
     }
 
-    const payload = {
-      ...formData,
-      region_id: formData.region_id || null,
-    };
-
-    if (editingRule) {
-      const { error } = await supabase
-        .from('surge_pricing_rules')
-        .update(payload)
-        .eq('id', editingRule.id);
-
-      if (error) {
-        toast.error('خطأ في التحديث');
-      } else {
-        toast.success('تم التحديث بنجاح');
-        fetchRules();
-      }
-    } else {
-      const { error } = await supabase
-        .from('surge_pricing_rules')
-        .insert(payload);
-
-      if (error) {
-        toast.error('خطأ في الإضافة');
-      } else {
-        toast.success('تم الإضافة بنجاح');
-        fetchRules();
-      }
-    }
-
-    setDialogOpen(false);
-    resetForm();
+    submitMutation.mutate();
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!confirm('هل أنت متأكد من الحذف؟')) return;
-
-    const { error } = await supabase
-      .from('surge_pricing_rules')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      toast.error('خطأ في الحذف');
-    } else {
-      toast.success('تم الحذف بنجاح');
-      fetchRules();
-    }
+    deleteMutation.mutate(id);
   };
 
-  const toggleActive = async (rule: SurgePricingRule) => {
-    const { error } = await supabase
-      .from('surge_pricing_rules')
-      .update({ is_active: !rule.is_active })
-      .eq('id', rule.id);
-
-    if (error) {
-      toast.error('خطأ في التحديث');
-    } else {
-      fetchRules();
-    }
+  const toggleActive = (rule: SurgePricingRule) => {
+    toggleMutation.mutate(rule);
   };
 
   const openEditDialog = (rule: SurgePricingRule) => {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,6 +118,7 @@ interface Governorate {
 
 const AdminLandmarks = () => {
   const { toast } = useToast();
+  const { isAdmin, loading: authLoading } = useAdminAuth();
   const [landmarks, setLandmarks] = useState<LandmarkData[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [governorates, setGovernorates] = useState<Governorate[]>([]);
@@ -213,10 +215,11 @@ const AdminLandmarks = () => {
   }, []);
 
   useEffect(() => {
+    if (!isAdmin) return;
     fetchLandmarks();
     fetchRegions();
     fetchGovernorates();
-  }, [fetchLandmarks, fetchRegions, fetchGovernorates]);
+  }, [isAdmin, fetchLandmarks, fetchRegions, fetchGovernorates]);
 
   const handleToggleActive = async (landmark: LandmarkData) => {
     const { error } = await supabase
@@ -284,15 +287,15 @@ const AdminLandmarks = () => {
       return;
     }
 
-    const { error } = await supabase
-      .from("landmarks")
-      .delete()
-      .eq("governorate_id", governorateFilter);
+    const { data: rpcResult, error } = await supabase.rpc(
+      "admin_delete_landmarks_by_governorate",
+      { governorate_id_param: governorateFilter }
+    );
 
-    if (!error) {
+    if (!error && rpcResult?.success) {
       toast({
         title: "تم الحذف بنجاح",
-        description: `تم حذف ${landmarksToDelete.length} معلم من محافظة ${governorateName}`,
+        description: `تم حذف ${rpcResult.deleted} معلم من محافظة ${governorateName}`,
       });
       setShowDeleteAllDialog(false);
       setGovernorateFilter("all");
@@ -300,7 +303,7 @@ const AdminLandmarks = () => {
     } else {
       toast({
         title: "خطأ",
-        description: "فشل في حذف المعالم",
+        description: rpcResult?.error || "فشل في حذف المعالم",
         variant: "destructive",
       });
     }

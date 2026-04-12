@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,9 +34,7 @@ interface PlanStats {
 }
 
 const AdminSubscriptionPlans = () => {
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [stats, setStats] = useState<PlanStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
   const [formData, setFormData] = useState({
@@ -51,119 +50,124 @@ const AdminSubscriptionPlans = () => {
     sort_order: 0,
   });
 
-  useEffect(() => {
-    fetchPlans();
-    fetchStats();
-  }, []);
+  const { data: plans = [], isLoading: loading } = useQuery({
+    queryKey: ['subscription-plans'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('subscription_plans')
+        .select('*')
+        .order('sort_order');
+      if (error) throw error;
+      return (data || []) as SubscriptionPlan[];
+    },
+  });
 
-  const fetchPlans = async () => {
-    const { data, error } = await supabase
-      .from('subscription_plans')
-      .select('*')
-      .order('sort_order');
+  const { data: stats = [] } = useQuery({
+    queryKey: ['subscription-stats'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('driver_subscriptions')
+        .select('plan_id')
+        .eq('status', 'active')
+        .gte('expires_at', new Date().toISOString());
 
-    if (error) {
-      toast.error('خطأ في جلب البيانات');
-      console.error(error);
-    } else {
-      setPlans(data || []);
-    }
-    setLoading(false);
-  };
-
-  const fetchStats = async () => {
-    const { data } = await supabase
-      .from('driver_subscriptions')
-      .select('plan_id')
-      .eq('status', 'active')
-      .gte('expires_at', new Date().toISOString());
-
-    if (data) {
+      if (!data) return [] as PlanStats[];
       const grouped = data.reduce((acc, sub) => {
         acc[sub.plan_id] = (acc[sub.plan_id] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      setStats(Object.entries(grouped).map(([plan_id, active_subscribers]) => ({
+      return Object.entries(grouped).map(([plan_id, active_subscribers]) => ({
         plan_id,
         active_subscribers
-      })));
-    }
-  };
+      })) as PlanStats[];
+    },
+  });
 
-  const handleSubmit = async () => {
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        ...formData,
+        max_commission_rate: formData.max_commission_rate || null,
+      };
+
+      if (editingPlan) {
+        const { error } = await supabase
+          .from('subscription_plans')
+          .update(payload)
+          .eq('id', editingPlan.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('subscription_plans')
+          .insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subscription-plans'] });
+      toast.success(editingPlan ? 'تم التحديث بنجاح' : 'تم الإضافة بنجاح');
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: () => {
+      toast.error(editingPlan ? 'خطأ في التحديث' : 'خطأ في الإضافة');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('subscription_plans')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subscription-plans'] });
+      toast.success('تم الحذف بنجاح');
+    },
+    onError: () => {
+      toast.error('خطأ في الحذف');
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async (plan: SubscriptionPlan) => {
+      const { error } = await supabase
+        .from('subscription_plans')
+        .update({ is_active: !plan.is_active })
+        .eq('id', plan.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subscription-plans'] });
+    },
+    onError: () => {
+      toast.error('خطأ في التحديث');
+    },
+  });
+
+  const handleSubmit = () => {
     if (!formData.name_ar || formData.price <= 0) {
       toast.error('يرجى ملء جميع الحقول المطلوبة');
       return;
     }
-
-    const payload = {
-      ...formData,
-      max_commission_rate: formData.max_commission_rate || null,
-    };
-
-    if (editingPlan) {
-      const { error } = await supabase
-        .from('subscription_plans')
-        .update(payload)
-        .eq('id', editingPlan.id);
-
-      if (error) {
-        toast.error('خطأ في التحديث');
-      } else {
-        toast.success('تم التحديث بنجاح');
-        fetchPlans();
-      }
-    } else {
-      const { error } = await supabase
-        .from('subscription_plans')
-        .insert(payload);
-
-      if (error) {
-        toast.error('خطأ في الإضافة');
-      } else {
-        toast.success('تم الإضافة بنجاح');
-        fetchPlans();
-      }
-    }
-
-    setDialogOpen(false);
-    resetForm();
+    submitMutation.mutate();
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     const planStats = stats.find(s => s.plan_id === id);
     if (planStats && planStats.active_subscribers > 0) {
       toast.error('لا يمكن حذف خطة لها مشتركين نشطين');
       return;
     }
-
     if (!confirm('هل أنت متأكد من الحذف؟')) return;
-
-    const { error } = await supabase
-      .from('subscription_plans')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      toast.error('خطأ في الحذف');
-    } else {
-      toast.success('تم الحذف بنجاح');
-      fetchPlans();
-    }
+    deleteMutation.mutate(id);
   };
 
-  const toggleActive = async (plan: SubscriptionPlan) => {
-    const { error } = await supabase
-      .from('subscription_plans')
-      .update({ is_active: !plan.is_active })
-      .eq('id', plan.id);
-
-    if (error) {
-      toast.error('خطأ في التحديث');
-    } else {
-      fetchPlans();
-    }
+  const toggleActive = (plan: SubscriptionPlan) => {
+    toggleMutation.mutate(plan);
   };
 
   const openEditDialog = (plan: SubscriptionPlan) => {

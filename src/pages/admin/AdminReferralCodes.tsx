@@ -2,7 +2,8 @@
  * صفحة إدارة الإحالات - Admin Referral Codes
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -59,21 +60,14 @@ interface Referral {
 
 const AdminReferralCodes = () => {
   const { toast } = useToast();
-  const [codes, setCodes] = useState<ReferralCode[]>([]);
-  const [referrals, setReferrals] = useState<Referral[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [stats, setStats] = useState({ totalCodes: 0, totalReferrals: 0, totalRewards: 0, pendingReferrals: 0 });
 
   useAdminAuth();
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["referral-data"],
+    queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const codesTable = supabase.from("referral_codes") as any;
       const { data: codesData, error: codesError } = await codesTable
@@ -99,7 +93,6 @@ const AdminReferralCodes = () => {
         ...c,
         profile: profileMap[c.user_id],
       }));
-      setCodes(enrichedCodes);
 
       // جلب الإحالات
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -131,7 +124,6 @@ const AdminReferralCodes = () => {
         referrer_profile: refProfileMap[r.referrer_id],
         referred_profile: refProfileMap[r.referred_id],
       }));
-      setReferrals(enrichedReferrals);
 
       // حساب الإحصائيات
       const totalRewards = (referralsData || [])
@@ -139,34 +131,44 @@ const AdminReferralCodes = () => {
         .reduce((sum: number, r: Referral) => sum + (r.referrer_reward || 0) + (r.referred_reward || 0), 0);
       const pendingCount = (referralsData || []).filter((r: Referral) => r.status === "pending").length;
 
-      setStats({
-        totalCodes: (codesData || []).length,
-        totalReferrals: (referralsData || []).length,
-        totalRewards,
-        pendingReferrals: pendingCount,
-      });
-    } catch (error: unknown) {
-      const err = error as Error;
-      console.error("Error fetching referral data:", err);
-      toast({ title: "خطأ في التحميل", description: err.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
+      return {
+        codes: enrichedCodes as ReferralCode[],
+        referrals: enrichedReferrals as Referral[],
+        stats: {
+          totalCodes: (codesData || []).length,
+          totalReferrals: (referralsData || []).length,
+          totalRewards,
+          pendingReferrals: pendingCount,
+        },
+      };
+    },
+  });
 
-  const toggleCodeStatus = async (codeId: string, currentStatus: boolean) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const codesTable = supabase.from("referral_codes") as any;
-    const { error } = await codesTable
-      .update({ is_active: !currentStatus })
-      .eq("id", codeId);
+  const codes = data?.codes || [];
+  const referrals = data?.referrals || [];
+  const stats = data?.stats || { totalCodes: 0, totalReferrals: 0, totalRewards: 0, pendingReferrals: 0 };
 
-    if (error) {
-      toast({ title: "خطأ", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: currentStatus ? "تم تعطيل الكود" : "تم تفعيل الكود" });
-      fetchData();
-    }
+  const toggleMutation = useMutation({
+    mutationFn: async ({ codeId, currentStatus }: { codeId: string; currentStatus: boolean }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const codesTable = supabase.from("referral_codes") as any;
+      const { error } = await codesTable
+        .update({ is_active: !currentStatus })
+        .eq("id", codeId);
+      if (error) throw error;
+      return currentStatus;
+    },
+    onSuccess: (_data, variables) => {
+      toast({ title: variables.currentStatus ? "تم تعطيل الكود" : "تم تفعيل الكود" });
+      queryClient.invalidateQueries({ queryKey: ["referral-data"] });
+    },
+    onError: (err) => {
+      toast({ title: "خطأ", description: (err as Error).message, variant: "destructive" });
+    },
+  });
+
+  const toggleCodeStatus = (codeId: string, currentStatus: boolean) => {
+    toggleMutation.mutate({ codeId, currentStatus });
   };
 
   const filteredCodes = codes.filter(

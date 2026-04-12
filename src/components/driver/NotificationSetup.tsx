@@ -17,6 +17,7 @@ import {
   isPushNotificationEnabled,
   registerServiceWorker,
 } from "@/utils/serviceWorker";
+import { isNativePlatform } from "@/lib/capacitorBridge";
 
 interface NotificationSetupProps {
   driverId: string;
@@ -62,6 +63,17 @@ export const NotificationSetup = ({
     setLoading(true);
 
     try {
+      // على الأجهزة الأصلية، FCM يتكفل بالإشعارات — لا حاجة لـ Web Push
+      if (isNativePlatform) {
+        setIsSubscribed(true);
+        setLoading(false);
+        toast({
+          title: "الإشعارات مفعّلة ✅",
+          description: "ستصلك تنبيهات عبر FCM عند وصول طلبات جديدة",
+        });
+        return;
+      }
+
       // Register service worker first
       await registerServiceWorker();
 

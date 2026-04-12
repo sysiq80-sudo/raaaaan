@@ -113,8 +113,8 @@ export const useActiveRide = (userId: string | null) => {
             
             setCompletedRide(completedRideData);
             
-            // ✅ FIX: تأخير بسيط لضمان عرض شاشة التقييم
-            setTimeout(() => {
+            // ✅ عرض شاشة التقييم فوراً — queueMicrotask أسرع من setTimeout
+            queueMicrotask(() => {
               setShowCompletedScreen(true);
               playSound("completed");
               vibrate(VibrationPatterns.inProgress);
@@ -123,17 +123,17 @@ export const useActiveRide = (userId: string | null) => {
                 description: "شكراً لاستخدامك ران - يرجى تقييم السائق",
                 duration: 5000,
               });
-            }, 100);
+            });
           }
         }
 
-        // ✅ FIX: مسح الحالة بعد تأخير لمنع race condition
+        // ✅ مسح الحالة بعد تأخير مخفض لمنع race condition
         setTimeout(() => {
           setActiveRide(null);
           setShowLiveTracker(false);
           setShowWaitingScreen(false);
           setPendingRideId(null);
-        }, newStatus === "completed" && updatedRide.emergency_completed !== true ? 150 : 0);
+        }, newStatus === "completed" && updatedRide.emergency_completed !== true ? 50 : 0);
 
         if (newStatus === "cancelled") {
           // تجاهل الإلغاءات الصامتة من النظام (للرحلات القديمة)
@@ -355,9 +355,9 @@ export const useActiveRide = (userId: string | null) => {
       });
 
     // Fallback polling - smart interval:
-    // 15s when no active ride (just checking for new ones)
-    // 3s when tracking an active ride (need fast status updates)
-    const getPollingInterval = () => activeRideIdRef.current ? 3000 : 15000;
+    // 10s when no active ride (just checking for new ones)
+    // 2s when tracking an active ride (need fast status updates)
+    const getPollingInterval = () => activeRideIdRef.current ? 2000 : 10000;
     let pollTimer: ReturnType<typeof setTimeout>;
 
     const schedulePoll = () => {

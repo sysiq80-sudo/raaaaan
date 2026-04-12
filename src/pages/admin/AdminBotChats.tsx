@@ -3,7 +3,8 @@
  * عرض وإدارة المحادثات عبر واتساب وتليجرام وسي إم إس
  */
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -61,12 +62,11 @@ interface ConversationMessage {
 const AdminBotChats = () => {
   const { toast } = useToast();
   const { loading: authLoading, isAdmin } = useAdminAuth();
+  const queryClient = useQueryClient();
 
   const [customers, setCustomers] = useState<BotCustomer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<BotCustomer | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [messagesLoading, setMessagesLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [newMessage, setNewMessage] = useState("");
@@ -92,65 +92,46 @@ const AdminBotChats = () => {
   }, [customers]);
 
   // ─── جلب العملاء ───
-  useEffect(() => {
-    if (isAdmin) fetchCustomers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
-
-  const fetchCustomers = async () => {
-    setLoading(true);
-    const { data, error } = await (supabase as any)
-      .from("bot_customers")
-      .select("*")
-      .order("last_active", { ascending: false });
-
-    if (error) {
-      console.error("Failed to fetch bot_customers:", error);
-      toast({
-        title: "خطأ",
-        description: "فشل في جلب بيانات العملاء",
-        variant: "destructive",
-      });
-    } else {
+  const { isLoading: loading } = useQuery({
+    queryKey: ['bot-chat-customers'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("bot_customers")
+        .select("*")
+        .order("last_active", { ascending: false });
+      if (error) throw error;
       setCustomers(data || []);
-    }
-    setLoading(false);
-  };
+      return data;
+    },
+    enabled: isAdmin,
+  });
 
   // ─── جلب المحادثات ───
-  const fetchConversation = async (customerId: string) => {
-    setMessagesLoading(true);
-    const { data, error } = await (supabase as any)
-      .from("bot_conversation_messages")
-      .select("*")
-      .eq("bot_customer_id", customerId)
-      .order("created_at", { ascending: true })
-      .limit(100);
-
-    if (error) {
-      console.error("Failed to fetch conversation:", error);
-      toast({
-        title: "خطأ",
-        description: "فشل في جلب المحادثة",
-        variant: "destructive",
-      });
-    } else {
+  const { isLoading: messagesLoading } = useQuery({
+    queryKey: ['bot-conversation', selectedCustomer?.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("bot_conversation_messages")
+        .select("*")
+        .eq("bot_customer_id", selectedCustomer!.id)
+        .order("created_at", { ascending: true })
+        .limit(100);
+      if (error) throw error;
       setMessages(data || []);
-    }
-    setMessagesLoading(false);
-  };
+      return data;
+    },
+    enabled: !!selectedCustomer,
+  });
 
   // ─── اختيار عميل ───
   const selectCustomer = (customer: BotCustomer) => {
     setSelectedCustomer(customer);
-    fetchConversation(customer.id);
   };
 
   // ─── إرسال رسالة جديدة ───
-  const sendMessage = async () => {
-    if (!selectedCustomer || !newMessage.trim()) return;
-
-    try {
+  const sendMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedCustomer || !newMessage.trim()) throw new Error('missing data');
       const { error } = await (supabase as any)
         .rpc("log_bot_outgoing_message", {
           p_bot_customer_id: selectedCustomer.id,
@@ -158,34 +139,31 @@ const AdminBotChats = () => {
           p_platform: selectedCustomer.platform,
           p_metadata: { sent_from_admin: true }
         });
-
       if (error) throw error;
-
-      // إضافة الرسالة للقائمة المحلية
+      return newMessage.trim();
+    },
+    onSuccess: (sentText) => {
       const newMsg: ConversationMessage = {
-        id: Date.now().toString(), // temporary ID
-        message: newMessage.trim(),
+        id: Date.now().toString(),
+        message: sentText,
         direction: "outgoing",
-        platform: selectedCustomer.platform,
+        platform: selectedCustomer!.platform,
         created_at: new Date().toISOString(),
         metadata: { sent_from_admin: true }
       };
-
       setMessages(prev => [...prev, newMsg]);
       setNewMessage("");
-
-      toast({
-        title: "تم الإرسال",
-        description: "تم إرسال الرسالة بنجاح",
-      });
-    } catch (error) {
+      toast({ title: "تم الإرسال", description: "تم إرسال الرسالة بنجاح" });
+    },
+    onError: (error) => {
       console.error("Failed to send message:", error);
-      toast({
-        title: "خطأ",
-        description: "فشل في إرسال الرسالة",
-        variant: "destructive",
-      });
-    }
+      toast({ title: "خطأ", description: "فشل في إرسال الرسالة", variant: "destructive" });
+    },
+  });
+
+  const sendMessage = () => {
+    if (!selectedCustomer || !newMessage.trim()) return;
+    sendMutation.mutate();
   };
 
   // ─── تصفية العملاء ───
@@ -237,7 +215,7 @@ const AdminBotChats = () => {
             <h1 className="text-3xl font-bold">محادثات البوت</h1>
             <p className="text-gray-600 mt-1">إدارة المحادثات عبر جميع المنصات</p>
           </div>
-          <Button onClick={fetchCustomers} variant="outline" size="sm">
+          <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['bot-chat-customers'] })} variant="outline" size="sm">
             <RefreshCw className="h-4 w-4 mr-2" />
             تحديث
           </Button>

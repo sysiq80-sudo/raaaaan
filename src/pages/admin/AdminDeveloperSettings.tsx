@@ -8,7 +8,8 @@
  * v2 — 2026-02-23: إعادة تصميم كامل من Table إلى Card Grid
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -235,9 +236,7 @@ const AdminDeveloperSettings = () => {
   const { toast } = useToast();
   const { loading: authLoading, isAdmin } = useAdminAuth();
 
-  const [configs, setConfigs] = useState<SystemConfig[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("whatsapp");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -254,46 +253,27 @@ const AdminDeveloperSettings = () => {
   // جلب الإعدادات
   // ════════════════════════════════════════════════════════════
 
-  const fetchConfigs = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data: configs = [], isLoading: loading } = useQuery({
+    queryKey: ['system-configs'],
+    queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await (supabase as any)
         .from("system_configs")
         .select("*")
         .order("category", { ascending: true })
         .order("key_name", { ascending: true });
-
       if (res.error) throw res.error;
-      setConfigs((res.data as SystemConfig[]) || []);
-    } catch (err: unknown) {
-      console.error("Error fetching configs:", err);
-      toast({
-        title: "خطأ في جلب الإعدادات",
-        description: err instanceof Error ? err.message : "حدث خطأ غير متوقع",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    if (isAdmin) fetchConfigs();
-  }, [isAdmin, fetchConfigs]);
+      return (res.data as SystemConfig[]) || [];
+    },
+    enabled: isAdmin,
+  });
 
   // ════════════════════════════════════════════════════════════
   // حفظ (إضافة / تعديل)
   // ════════════════════════════════════════════════════════════
 
-  const handleSave = async () => {
-    if (!formData.key_name.trim()) {
-      toast({ title: "اسم المفتاح مطلوب", variant: "destructive" });
-      return;
-    }
-
-    setSaving(true);
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any;
       if (editingConfig) {
@@ -305,9 +285,7 @@ const AdminDeveloperSettings = () => {
             description: formData.description || null,
           })
           .eq("id", editingConfig.id);
-
         if (error) throw error;
-        toast({ title: "تم تحديث الإعداد بنجاح ✅" });
       } else {
         const { error } = await sb
           .from("system_configs")
@@ -318,56 +296,66 @@ const AdminDeveloperSettings = () => {
             is_secret: formData.is_secret,
             description: formData.description || null,
           });
-
         if (error) throw error;
-        toast({ title: "تم إضافة الإعداد بنجاح ✅" });
       }
-
+    },
+    onSuccess: () => {
+      toast({ title: editingConfig ? "تم تحديث الإعداد بنجاح ✅" : "تم إضافة الإعداد بنجاح ✅" });
       setDialogOpen(false);
       setEditingConfig(null);
       setFormData({ ...EMPTY_FORM });
-      await fetchConfigs();
-    } catch (err: unknown) {
+      queryClient.invalidateQueries({ queryKey: ['system-configs'] });
+    },
+    onError: (err: unknown) => {
       console.error("Save error:", err);
       toast({
         title: "خطأ في الحفظ",
         description: err instanceof Error ? err.message : "حدث خطأ غير متوقع",
         variant: "destructive",
       });
-    } finally {
-      setSaving(false);
+    },
+  });
+
+  const handleSave = () => {
+    if (!formData.key_name.trim()) {
+      toast({ title: "اسم المفتاح مطلوب", variant: "destructive" });
+      return;
     }
+    saveMutation.mutate();
   };
 
   // ════════════════════════════════════════════════════════════
   // حذف
   // ════════════════════════════════════════════════════════════
 
-  const handleDelete = async () => {
-    if (!deletingConfig) return;
-    setSaving(true);
-    try {
+  const deleteMutation = useMutation({
+    mutationFn: async (configId: string) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from("system_configs")
         .delete()
-        .eq("id", deletingConfig.id);
-
+        .eq("id", configId);
       if (error) throw error;
+    },
+    onSuccess: () => {
       toast({ title: "تم حذف الإعداد ✅" });
       setDeleteDialogOpen(false);
       setDeletingConfig(null);
-      await fetchConfigs();
-    } catch (err: unknown) {
+      queryClient.invalidateQueries({ queryKey: ['system-configs'] });
+    },
+    onError: (err: unknown) => {
       console.error("Delete error:", err);
       toast({
         title: "خطأ في الحذف",
         description: err instanceof Error ? err.message : "حدث خطأ غير متوقع",
         variant: "destructive",
       });
-    } finally {
-      setSaving(false);
-    }
+    },
+  });
+
+  const handleDelete = () => {
+    if (!deletingConfig) return;
+    deleteMutation.mutate(deletingConfig.id);
   };
 
   // ════════════════════════════════════════════════════════════
@@ -591,7 +579,7 @@ const AdminDeveloperSettings = () => {
       subtitle="مركز إدارة المفاتيح والتوكنات — كل الإعدادات من مكان واحد"
       actions={
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={fetchConfigs} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['system-configs'] })} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ml-1 ${loading ? "animate-spin" : ""}`} />
             تحديث
           </Button>
@@ -855,8 +843,8 @@ const AdminDeveloperSettings = () => {
             <DialogClose asChild>
               <Button variant="outline">إلغاء</Button>
             </DialogClose>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? (
+            <Button onClick={handleSave} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? (
                 <RefreshCw className="h-4 w-4 animate-spin ml-1" />
               ) : (
                 <Save className="h-4 w-4 ml-1" />
@@ -899,8 +887,8 @@ const AdminDeveloperSettings = () => {
             <DialogClose asChild>
               <Button variant="outline">إلغاء</Button>
             </DialogClose>
-            <Button variant="destructive" onClick={handleDelete} disabled={saving}>
-              {saving ? (
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? (
                 <RefreshCw className="h-4 w-4 animate-spin ml-1" />
               ) : (
                 <Trash2 className="h-4 w-4 ml-1" />

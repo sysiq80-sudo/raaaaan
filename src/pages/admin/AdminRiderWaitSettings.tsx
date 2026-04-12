@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,6 @@ export default function AdminRiderWaitSettings() {
   const [warningThreshold, setWarningThreshold] = useState(0.8);
   const [autoCancelEnabled, setAutoCancelEnabled] = useState(true);
   const [autoCancelMessage, setAutoCancelMessage] = useState("");
-  const [saving, setSaving] = useState(false);
 
   // Load settings when available
   useEffect(() => {
@@ -52,9 +52,8 @@ export default function AdminRiderWaitSettings() {
     }
   }, [settings]);
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async () => {
       const { error } = await supabase
         .from("rider_wait_settings")
         .update({
@@ -66,26 +65,26 @@ export default function AdminRiderWaitSettings() {
           auto_cancel_message: autoCancelMessage,
         })
         .eq("id", "00000000-0000-0000-0000-000000000001");
-
       if (error) throw error;
-
+    },
+    onSuccess: () => {
       toast({
         title: "✅ تم الحفظ بنجاح",
         description: "تم تحديث إعدادات انتظار الراكب",
       });
-
       refetch();
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error("Error saving settings:", error);
       toast({
         title: "خطأ",
         description: "فشل حفظ الإعدادات",
         variant: "destructive",
       });
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+  });
+
+  const handleSave = () => saveMutation.mutate();
 
   const addSearchMessage = () => {
     setSearchMessages([
@@ -135,8 +134,8 @@ export default function AdminRiderWaitSettings() {
               التحكم في الرسائل والمُهل الزمنية أثناء البحث عن سائق
             </p>
           </div>
-          <Button onClick={handleSave} disabled={saving} className="gap-2">
-            {saving ? (
+          <Button onClick={handleSave} disabled={saveMutation.isPending} className="gap-2">
+            {saveMutation.isPending ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
             ) : (
               <Save className="w-4 h-4" />

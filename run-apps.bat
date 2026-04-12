@@ -17,19 +17,19 @@ echo.
 
 echo [1] Rider Web App
 echo     - http://localhost:8081
-start "RAAN Rider" cmd /k "cd /d d:\projects\taksi-iraqi\RAAN\RAAN && npm run dev:rider"
+start "RAAN Rider"  cmd /k "cd /d "%~dp0" && npm run dev:rider"
 
 echo [2] Driver Web App
 echo     - http://localhost:8082
-start "RAAN Driver" cmd /k "cd /d d:\projects\taksi-iraqi\RAAN\RAAN && npm run dev:driver"
+start "RAAN Driver" cmd /k "cd /d "%~dp0" && npm run dev:driver"
 
 echo [3] Admin Web App
 echo     - http://localhost:8083
-start "RAAN Admin" cmd /k "cd /d d:\projects\taksi-iraqi\RAAN\RAAN && npm run dev:admin"
+start "RAAN Admin" cmd /k "cd /d "%~dp0" && npm run dev:admin"
 
 echo [4] Car Web App
 echo     - http://localhost:8084
-start "RAAN Car" cmd /k "cd /d d:\projects\taksi-iraqi\RAAN\RAAN && npm run dev:car"
+start "RAAN Car" cmd /k "cd /d "%~dp0" && npm run dev:car"
 
 echo.
 echo ========================================

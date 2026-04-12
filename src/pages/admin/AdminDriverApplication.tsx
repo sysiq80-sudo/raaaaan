@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -70,22 +71,13 @@ const AdminDriverApplication = () => {
   const navigate = useNavigate();
   const { isAdmin, loading: authLoading } = useAdminAuth();
   
-  const [driver, setDriver] = useState<Driver | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [region, setRegion] = useState<{ name_ar: string } | null>(null);
 
-  useEffect(() => {
-    if (isAdmin && id) {
-      fetchDriver();
-    }
-  }, [isAdmin, id]);
-
-  const fetchDriver = async () => {
-    try {
+  const { data: driverData, isLoading: loading } = useQuery({
+    queryKey: ["admin-driver-application", id],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('drivers')
         .select('*')
@@ -95,47 +87,77 @@ const AdminDriverApplication = () => {
       if (error) throw error;
       if (!data) {
         toast.error('لم يتم العثور على السائق');
-        setLoading(false);
-        return;
+        return { driver: null as Driver | null, region: null as { name_ar: string } | null };
       }
-      setDriver(data);
 
+      let regionData = null;
       if (data.working_region_id) {
-        const { data: regionData } = await supabase
+        const { data: region } = await supabase
           .from('regions')
           .select('name_ar')
           .eq('id', data.working_region_id)
           .single();
-        setRegion(regionData);
+        regionData = region;
       }
-    } catch (error) {
-      console.error('Error fetching driver:', error);
-      toast.error('فشل في تحميل بيانات السائق');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleApprove = async () => {
-    if (!driver) return;
-    setProcessing(true);
-    
-    try {
+      return { driver: data as Driver, region: regionData };
+    },
+    enabled: isAdmin && !!id,
+  });
+
+  const driver = driverData?.driver || null;
+  const region = driverData?.region || null;
+
+  const approveMutation = useMutation({
+    mutationFn: async () => {
       const { error } = await supabase
         .from('drivers')
         .update({ status: 'approved' })
-        .eq('id', driver.id);
-
+        .eq('id', driver!.id);
       if (error) throw error;
-      
+    },
+    onSuccess: () => {
       toast.success('تمت الموافقة على السائق بنجاح');
       navigate('/admin/drivers');
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error('Error approving driver:', error);
       toast.error('فشل في الموافقة على السائق');
-    } finally {
-      setProcessing(false);
-    }
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('drivers')
+        .update({ status: 'rejected', is_online: false, is_available: false })
+        .eq('id', driver!.id);
+      if (error) throw error;
+
+      await supabase.from('driver_notifications').insert({
+        driver_id: driver!.id,
+        title: 'تم رفض طلبك',
+        body: `سبب الرفض: ${rejectionReason}`,
+        type: 'application_rejected',
+        data: { reason: rejectionReason }
+      });
+    },
+    onSuccess: () => {
+      toast.success('تم رفض الطلب');
+      setShowRejectDialog(false);
+      navigate('/admin/drivers');
+    },
+    onError: (error) => {
+      console.error('Error rejecting driver:', error);
+      toast.error('فشل في رفض الطلب');
+    },
+  });
+
+  const processing = approveMutation.isPending || rejectMutation.isPending;
+
+  const handleApprove = async () => {
+    if (!driver) return;
+    approveMutation.mutate();
   };
 
   const handleReject = async () => {
@@ -143,35 +165,7 @@ const AdminDriverApplication = () => {
       toast.error('يرجى إدخال سبب الرفض');
       return;
     }
-    
-    setProcessing(true);
-    
-    try {
-      const { error } = await supabase
-        .from('drivers')
-        .update({ status: 'rejected' })
-        .eq('id', driver.id);
-
-      if (error) throw error;
-      
-      // Create notification for driver about rejection
-      await supabase.from('driver_notifications').insert({
-        driver_id: driver.id,
-        title: 'تم رفض طلبك',
-        body: `سبب الرفض: ${rejectionReason}`,
-        type: 'application_rejected',
-        data: { reason: rejectionReason }
-      });
-      
-      toast.success('تم رفض الطلب');
-      setShowRejectDialog(false);
-      navigate('/admin/drivers');
-    } catch (error) {
-      console.error('Error rejecting driver:', error);
-      toast.error('فشل في رفض الطلب');
-    } finally {
-      setProcessing(false);
-    }
+    rejectMutation.mutate();
   };
 
   const handleDownload = (url: string, filename: string) => {

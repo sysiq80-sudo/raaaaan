@@ -1,11 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { 
   Map, 
+  MapPin,
+  Navigation,
+  Image,
   DollarSign,
   TrendingUp,
   Activity,
@@ -67,44 +71,30 @@ interface ApiStats {
 const AdminApiStats = () => {
   const navigate = useNavigate();
   const { user, loading, isAdmin } = useAdminAuth();
-  const [stats, setStats] = useState<ApiStats>({
+  const [dateRange, setDateRange] = useState("30");
+
+  const { data: stats = {
     totalRequests: 0,
     totalCost: 0,
     todayRequests: 0,
     todayCost: 0,
     byType: {},
     dailyTrend: [],
-  });
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [dateRange, setDateRange] = useState("30");
-
-  useEffect(() => {
-    if (isAdmin) {
-      fetchStats();
-    }
-  }, [isAdmin, dateRange]);
-
-  const fetchStats = async () => {
-    setStatsLoading(true);
-    try {
+  }, isLoading: statsLoading } = useQuery({
+    queryKey: ["admin-api-stats", dateRange],
+    queryFn: async () => {
       const daysAgo = parseInt(dateRange);
       const startDate = format(subDays(new Date(), daysAgo), 'yyyy-MM-dd');
       const today = format(new Date(), 'yyyy-MM-dd');
 
-      // Fetch all logs within date range
       const { data: logs, error } = await supabase
         .from("api_usage_logs")
         .select("*")
         .gte("date", startDate)
         .order("created_at", { ascending: true });
 
-      if (error) {
-        console.error("Error fetching API logs:", error);
-        setStatsLoading(false);
-        return;
-      }
+      if (error) throw error;
 
-      // Process data
       const byType: Record<string, { requests: number; cost: number }> = {};
       const dailyData: Record<string, { requests: number; cost: number }> = {};
       let totalRequests = 0;
@@ -118,14 +108,12 @@ const AdminApiStats = () => {
         const costPer1000 = MAPBOX_PRICING[type as keyof typeof MAPBOX_PRICING] || 0;
         const cost = (requests / 1000) * costPer1000;
 
-        // By type
         if (!byType[type]) {
           byType[type] = { requests: 0, cost: 0 };
         }
         byType[type].requests += requests;
         byType[type].cost += cost;
 
-        // By date
         const dateKey = log.date;
         if (!dailyData[dateKey]) {
           dailyData[dateKey] = { requests: 0, cost: 0 };
@@ -133,18 +121,15 @@ const AdminApiStats = () => {
         dailyData[dateKey].requests += requests;
         dailyData[dateKey].cost += cost;
 
-        // Totals
         totalRequests += requests;
         totalCost += cost;
 
-        // Today
         if (log.date === today) {
           todayRequests += requests;
           todayCost += cost;
         }
       });
 
-      // Convert daily data to array
       const dailyTrend = Object.entries(dailyData)
         .map(([date, data]) => ({
           date: format(new Date(date), 'MM/dd', { locale: ar }),
@@ -153,20 +138,17 @@ const AdminApiStats = () => {
         }))
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      setStats({
+      return {
         totalRequests,
         totalCost,
         todayRequests,
         todayCost,
         byType,
         dailyTrend,
-      });
-    } catch (error) {
-      console.error("Error processing stats:", error);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
+      } as ApiStats;
+    },
+    enabled: isAdmin,
+  });
 
   const pieData = Object.entries(stats.byType).map(([type, data]) => ({
     name: API_TYPE_LABELS[type] || type,

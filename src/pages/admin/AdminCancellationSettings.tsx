@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,47 +26,34 @@ interface CancellationFeeSettings {
 }
 
 export default function AdminCancellationSettings() {
+  const { isAdmin, loading: authLoading } = useAdminAuth();
   const [settings, setSettings] = useState<CancellationFeeSettings>({
     amount: 2000,
     enabled: true,
     applies_after_acceptance: true
   });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('app_settings')
-          .select('value')
-          .eq('key', 'cancellation_fee')
-          .maybeSingle();
-
-        if (error) throw error;
-
-        if (data?.value) {
-          const val = data.value as unknown as CancellationFeeSettings;
-          setSettings(val);
-        }
-      } catch (error: any) {
-        toast({
-          title: "خطأ في تحميل الإعدادات",
-          description: error.message,
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
+  const { isLoading: loading } = useQuery({
+    queryKey: ['cancellation-fee-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'cancellation_fee')
+        .maybeSingle();
+      if (error) throw error;
+      if (data?.value) {
+        const val = data.value as unknown as CancellationFeeSettings;
+        setSettings(val);
       }
-    };
+      return data;
+    },
+    enabled: isAdmin,
+  });
 
-    fetchSettings();
-  }, [toast]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async () => {
       const { error } = await supabase
         .from('app_settings')
         .upsert({
@@ -73,25 +62,36 @@ export default function AdminCancellationSettings() {
           description: 'غرامة إلغاء الرحلة بعد قبول السائق (بالدينار العراقي)',
           updated_at: new Date().toISOString()
         }, { onConflict: 'key' });
-
       if (error) throw error;
-
+    },
+    onSuccess: () => {
       toast({
         title: "تم الحفظ بنجاح",
         description: "تم تحديث إعدادات غرامة الإلغاء",
       });
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       toast({
         title: "خطأ في الحفظ",
         description: error.message,
         variant: "destructive"
       });
-    } finally {
-      setSaving(false);
+    },
+  });
+
+  const handleSave = () => {
+    if (settings.amount < 0) {
+      toast({ title: "خطأ", description: "مبلغ الغرامة لا يمكن أن يكون سالباً", variant: "destructive" });
+      return;
     }
+    if (settings.amount > 50000) {
+      toast({ title: "خطأ", description: "مبلغ الغرامة لا يمكن أن يتجاوز 50,000 د.ع", variant: "destructive" });
+      return;
+    }
+    saveMutation.mutate();
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <AdminLayout title="إعدادات غرامة الإلغاء">
         <div className="space-y-6">
@@ -107,8 +107,8 @@ export default function AdminCancellationSettings() {
       title="إعدادات غرامة الإلغاء" 
       subtitle="إدارة الغرامات المفروضة عند إلغاء الرحلة بعد قبول السائق"
       actions={
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? (
+        <Button onClick={handleSave} disabled={saveMutation.isPending}>
+          {saveMutation.isPending ? (
             <>
               <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin ml-2" />
               جاري الحفظ...

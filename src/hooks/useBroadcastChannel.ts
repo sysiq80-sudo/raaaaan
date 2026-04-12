@@ -45,6 +45,8 @@ export const useBroadcastChannel = ({
   const broadcastChannel = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const previousStatusRef = useRef<string>(ride.status);
+  // منع تكرار إشعار إكمال الرحلة من الـ broadcast والـ DB fallback معاً
+  const completedNotifiedRef = useRef(false);
 
   // Refs for callbacks to prevent stale closures without re-subscribing channels
   const onRideUpdateRef = useRef(onRideUpdate);
@@ -131,15 +133,16 @@ export const useBroadcastChannel = ({
           status: "completed",
           completed_at: new Date().toISOString(),
         });
-        playSound("completed");
-        vibrate(VibrationPatterns.completed);
-
-        toast({
-          title: "✅ تم إكمال الرحلة!",
-          description: "الحمد لله على السلامة 🤲",
-          duration: 8000,
-        });
-
+        if (!completedNotifiedRef.current) {
+          completedNotifiedRef.current = true;
+          playSound("completed");
+          vibrate(VibrationPatterns.completed);
+          toast({
+            title: "✅ تم إكمال الرحلة!",
+            description: "الحمد لله على السلامة 🤲",
+            duration: 8000,
+          });
+        }
         // ✅ useActiveRide يتولى عرض شاشة التقييم عبر الـ Realtime الخاص به
       })
       .on(
@@ -214,6 +217,7 @@ export const useBroadcastChannel = ({
 
     return () => {
       console.log("[useBroadcastChannel] Cleaning up channel");
+      completedNotifiedRef.current = false;
       supabase.removeChannel(channel);
       broadcastChannel.current = null;
       setIsConnected(false);
@@ -287,13 +291,16 @@ export const useBroadcastChannel = ({
             }
 
             if (newStatus === "completed") {
-              playSound("completed");
-              vibrate(VibrationPatterns.completed);
-              toast({
-                title: "✅ تم إكمال الرحلة!",
-                description: "الحمد لله على السلامة 🤲",
-                duration: 8000,
-              });
+              if (!completedNotifiedRef.current) {
+                completedNotifiedRef.current = true;
+                playSound("completed");
+                vibrate(VibrationPatterns.completed);
+                toast({
+                  title: "✅ تم إكمال الرحلة!",
+                  description: "الحمد لله على السلامة 🤲",
+                  duration: 8000,
+                });
+              }
               // ✅ useActiveRide يتولى عرض شاشة التقييم عبر الـ Realtime الخاص به
             }
 
@@ -376,14 +383,16 @@ export const useBroadcastChannel = ({
   );
 
   const handleRiderArrived = useCallback(async () => {
-    // 1. إنهاء الرحلة فوراً في قاعدة البيانات
+    // 1. إنهاء الرحلة فقط إذا لا تزال في الحالة in_progress
+    //    (يمنع تفعيل trigger المكافآت مرتين لو أنهى السائق الرحلة في نفس الوقت)
     const { error } = await supabase
       .from("rides")
       .update({
         status: "completed",
         completed_at: new Date().toISOString(),
       })
-      .eq("id", ride.id);
+      .eq("id", ride.id)
+      .eq("status", "in_progress");  // guard: لا تحديث إذا أُكملت مسبقاً
 
     if (error) {
       console.error("[handleRiderArrived] Error completing ride:", error);

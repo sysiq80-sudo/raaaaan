@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -53,9 +54,7 @@ interface TopupRequest {
 export default function AdminWalletRequests() {
   const { loading: authLoading } = useAdminAuth();
   const { toast } = useToast();
-  const [requests, setRequests] = useState<TopupRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("pending");
 
@@ -63,10 +62,10 @@ export default function AdminWalletRequests() {
   const [selectedRequest, setSelectedRequest] = useState<TopupRequest | null>(null);
   const [actionType, setActionType] = useState<"approve" | "reject" | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
-  const [processing, setProcessing] = useState(false);
 
-  const fetchRequests = async () => {
-    try {
+  const { data: requests = [], isLoading: loading } = useQuery({
+    queryKey: ["wallet-topup-requests", statusFilter],
+    queryFn: async () => {
       let query = supabase
         .from("wallet_topup_requests")
         .select("*")
@@ -77,107 +76,84 @@ export default function AdminWalletRequests() {
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
 
-      // Fetch user details for each request
-      const enrichedData = await Promise.all(
-        (data || []).map(async (request) => {
-          let userName = "غير معروف";
-          let userPhone = "";
+      const reqs = data || [];
+      const riderUserIds = [...new Set(reqs.filter(r => r.user_type === "rider").map(r => r.user_id))];
+      const driverUserIds = [...new Set(reqs.filter(r => r.user_type !== "rider").map(r => r.user_id))];
 
-          if (request.user_type === "rider") {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("full_name, phone")
-              .eq("user_id", request.user_id)
-              .single();
-            if (profile) {
-              userName = profile.full_name || "غير معروف";
-              userPhone = profile.phone || "";
-            }
-          } else {
-            const { data: driver } = await supabase
-              .from("drivers")
-              .select("full_name, phone")
-              .eq("user_id", request.user_id)
-              .maybeSingle();
-            if (driver) {
-              userName = driver.full_name || "غير معروف";
-              userPhone = driver.phone || "";
-            }
-          }
+      const [profilesResult, driversResult] = await Promise.all([
+        riderUserIds.length > 0
+          ? supabase.from("profiles").select("user_id, full_name, phone").in("user_id", riderUserIds)
+          : { data: [] },
+        driverUserIds.length > 0
+          ? supabase.from("drivers").select("user_id, full_name, phone").in("user_id", driverUserIds)
+          : { data: [] },
+      ]);
 
-          return {
-            ...request,
-            user_name: userName,
-            user_phone: userPhone
-          };
-        })
-      );
+      const profileMap = new Map((profilesResult.data || []).map(p => [p.user_id, p]));
+      const driverMap = new Map((driversResult.data || []).map(d => [d.user_id, d]));
 
-      setRequests(enrichedData);
-    } catch (error: any) {
-      toast({
-        title: "خطأ",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchRequests();
-  }, [statusFilter]);
+      return reqs.map((request) => {
+        const userData = request.user_type === "rider"
+          ? profileMap.get(request.user_id)
+          : driverMap.get(request.user_id);
+        return {
+          ...request,
+          user_name: userData?.full_name || "غير معروف",
+          user_phone: userData?.phone || "",
+        };
+      }) as TopupRequest[];
+    },
+  });
 
   const handleRefresh = () => {
-    setRefreshing(true);
-    fetchRequests();
+    queryClient.invalidateQueries({ queryKey: ["wallet-topup-requests"] });
   };
 
-  const handleAction = async () => {
-    if (!selectedRequest || !actionType) return;
-
-    setProcessing(true);
-    try {
+  const actionMutation = useMutation({
+    mutationFn: async ({ request, type, notes }: { request: TopupRequest; type: "approve" | "reject"; notes: string }) => {
       const { data, error } = await supabase.rpc(
-        actionType === "approve" ? "approve_topup_request" : "reject_topup_request",
+        type === "approve" ? "approve_topup_request" : "reject_topup_request",
         {
-          p_request_id: selectedRequest.id,
-          p_admin_notes: adminNotes || null
+          p_request_id: request.id,
+          p_admin_notes: notes || null
         }
       );
 
       if (error) throw error;
-
       const result = data as { success: boolean; error?: string };
       if (!result.success) {
         throw new Error(result.error || "حدث خطأ");
       }
-
+      return { type, amount: request.amount };
+    },
+    onSuccess: (result) => {
       toast({
-        title: actionType === "approve" ? "تمت الموافقة" : "تم الرفض",
-        description: actionType === "approve" 
-          ? `تم إضافة ${selectedRequest.amount.toLocaleString()} د.ع للمستخدم`
+        title: result.type === "approve" ? "تمت الموافقة" : "تم الرفض",
+        description: result.type === "approve"
+          ? `تم إضافة ${result.amount.toLocaleString()} د.ع للمستخدم`
           : "تم رفض الطلب"
       });
-
       setSelectedRequest(null);
       setActionType(null);
       setAdminNotes("");
-      fetchRequests();
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ["wallet-topup-requests"] });
+    },
+    onError: (error: any) => {
       toast({
         title: "خطأ",
         description: error.message,
         variant: "destructive"
       });
-    } finally {
-      setProcessing(false);
-    }
+    },
+  });
+
+  const processing = actionMutation.isPending;
+
+  const handleAction = async () => {
+    if (!selectedRequest || !actionType) return;
+    actionMutation.mutate({ request: selectedRequest, type: actionType, notes: adminNotes });
   };
 
   const getPaymentMethodName = (method: string) => {
@@ -247,8 +223,8 @@ export default function AdminWalletRequests() {
                 {pendingCount} طلب معلق
               </Badge>
             )}
-            <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
-              <RefreshCw className={`w-4 h-4 ml-2 ${refreshing ? 'animate-spin' : ''}`} />
+            <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 ml-2 ${loading ? 'animate-spin' : ''}`} />
               تحديث
             </Button>
           </div>

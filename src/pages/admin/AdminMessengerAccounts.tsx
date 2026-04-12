@@ -3,7 +3,7 @@
  * إضافة صفحات Facebook وربطها بالبوت
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -445,10 +445,6 @@ const AdminMessengerAccounts: React.FC = () => {
     createAccount, deleteAccount, toggleActive, testConnection,
   } = useMessengerAccounts();
   const [dialogOpen, setDialogOpen] = useState(false);
-
-  useEffect(() => {
-    fetchAccounts();
-  }, [fetchAccounts]);
 
   return (
     <AdminLayout title="حسابات Messenger" subtitle="إدارة صفحات Facebook و Instagram المرتبطة بالبوت">

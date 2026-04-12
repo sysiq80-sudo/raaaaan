@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useToast } from "@/hooks/use-toast";
@@ -22,8 +23,7 @@ interface SystemSetting {
 
 const AdminEmergencySettings = () => {
   const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
 
   // الإعدادات
   const [detectionInterval, setDetectionInterval] = useState("3");
@@ -34,83 +34,48 @@ const AdminEmergencySettings = () => {
 
   useAdminAuth();
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
+  const SETTING_KEYS = [
+    'dual_stop_detection_interval',
+    'dual_stop_warning_threshold',
+    'dual_stop_critical_threshold',
+    'dual_stop_distance_threshold',
+    'emergency_abuse_limit'
+  ];
 
-  const fetchSettings = async () => {
-    try {
-      setLoading(true);
+  const { data: settingsData, isLoading: loading } = useQuery({
+    queryKey: ['emergency-settings'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('app_settings')
         .select('*')
-        .in('key', [
-          'dual_stop_detection_interval',
-          'dual_stop_warning_threshold',
-          'dual_stop_critical_threshold',
-          'dual_stop_distance_threshold',
-          'emergency_abuse_limit'
-        ]);
-
+        .in('key', SETTING_KEYS);
       if (error) throw error;
+      return data;
+    },
+  });
 
-      if (data) {
-        data.forEach((setting) => {
-          const val = String(setting.value);
-          switch (setting.key) {
-            case 'dual_stop_detection_interval':
-              setDetectionInterval(val);
-              break;
-            case 'dual_stop_warning_threshold':
-              setWarningThreshold(val);
-              break;
-            case 'dual_stop_critical_threshold':
-              setCriticalThreshold(val);
-              break;
-            case 'dual_stop_distance_threshold':
-              setDistanceThreshold(val);
-              break;
-            case 'emergency_abuse_limit':
-              setAbuseLimit(val);
-              break;
-          }
-        });
-      }
-    } catch (error: any) {
-      console.error('Error fetching settings:', error);
-      toast({
-        title: "خطأ في التحميل",
-        description: error.message,
-        variant: "destructive",
+  useEffect(() => {
+    if (settingsData) {
+      settingsData.forEach((setting) => {
+        const val = String(setting.value);
+        switch (setting.key) {
+          case 'dual_stop_detection_interval':
+            setDetectionInterval(val); break;
+          case 'dual_stop_warning_threshold':
+            setWarningThreshold(val); break;
+          case 'dual_stop_critical_threshold':
+            setCriticalThreshold(val); break;
+          case 'dual_stop_distance_threshold':
+            setDistanceThreshold(val); break;
+          case 'emergency_abuse_limit':
+            setAbuseLimit(val); break;
+        }
       });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [settingsData]);
 
-  const handleSave = async () => {
-    // التحقق من القيم
-    if (parseInt(warningThreshold) >= parseInt(criticalThreshold)) {
-      toast({
-        title: "قيم غير صحيحة",
-        description: "يجب أن يكون الحد الحرج أكبر من حد التحذير",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (parseInt(detectionInterval) < 1 || parseInt(detectionInterval) > 10) {
-      toast({
-        title: "قيم غير صحيحة",
-        description: "فترة الكشف يجب أن تكون بين 1 و 10 دقائق",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setSaving(true);
-
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async () => {
       const updates = [
         { key: 'dual_stop_detection_interval', value: detectionInterval },
         { key: 'dual_stop_warning_threshold', value: warningThreshold },
@@ -126,21 +91,27 @@ const AdminEmergencySettings = () => {
       );
       const failed = results.find(r => r.error);
       if (failed?.error) throw failed.error;
-
-      toast({
-        title: "✅ تم الحفظ",
-        description: "تم تحديث الإعدادات بنجاح",
-      });
-    } catch (error: any) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['emergency-settings'] });
+      toast({ title: "✅ تم الحفظ", description: "تم تحديث الإعدادات بنجاح" });
+    },
+    onError: (error: any) => {
       console.error('Error saving settings:', error);
-      toast({
-        title: "خطأ في الحفظ",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
+      toast({ title: "خطأ في الحفظ", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleSave = () => {
+    if (parseInt(warningThreshold) >= parseInt(criticalThreshold)) {
+      toast({ title: "قيم غير صحيحة", description: "يجب أن يكون الحد الحرج أكبر من حد التحذير", variant: "destructive" });
+      return;
     }
+    if (parseInt(detectionInterval) < 1 || parseInt(detectionInterval) > 10) {
+      toast({ title: "قيم غير صحيحة", description: "فترة الكشف يجب أن تكون بين 1 و 10 دقائق", variant: "destructive" });
+      return;
+    }
+    saveMutation.mutate();
   };
 
   const handleReset = () => {
@@ -318,10 +289,10 @@ const AdminEmergencySettings = () => {
         <div className="flex gap-3">
           <Button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saveMutation.isPending}
             className="flex-1"
           >
-            {saving ? (
+            {saveMutation.isPending ? (
               <Loader2 className="w-4 h-4 ml-2 animate-spin" />
             ) : (
               <Save className="w-4 h-4 ml-2" />
@@ -331,7 +302,7 @@ const AdminEmergencySettings = () => {
           <Button
             onClick={handleReset}
             variant="outline"
-            disabled={saving}
+            disabled={saveMutation.isPending}
           >
             <RotateCcw className="w-4 h-4 ml-2" />
             استعادة الافتراضي

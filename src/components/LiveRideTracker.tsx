@@ -354,22 +354,40 @@ export const LiveRideTracker = ({
     setShowArrivedAlert(false);
   };
 
-  const handleShareRide = () => {
-    if (navigator.share && ride) {
-      navigator
-        .share({
-          title: "تتبع رحلتي مع ران",
-          text: `أنا في رحلة مع ران. يمكنك متابعة موقعي مباشرة. السائق: ${ride.driver?.full_name}.`,
-          url: window.location.href, // Or a dedicated tracking link
-        })
-        .then(() => toast({ title: "تمت مشاركة الرحلة" }))
-        .catch((error) => console.log("Error sharing", error));
+  const handleShareRide = async () => {
+    if (!ride) return;
+
+    const shareText = `أنا في رحلة مع ران 🚗\nالسائق: ${ride.driver?.full_name || 'غير محدد'}\nالسيارة: ${ride.driver?.vehicle_color || ''} ${ride.driver?.vehicle_model || ''}\nرقم اللوحة: ${ride.driver?.vehicle_plate || '---'}\n\nعبر تطبيق ران`;
+
+    // 1. Capacitor Share (Android)
+    try {
+      const { isNativePlatform } = await import('@/lib/capacitorBridge');
+      if (isNativePlatform) {
+        const { Share } = await import('@capacitor/share');
+        await Share.share({
+          title: 'تتبع رحلتي — ران',
+          text: shareText,
+          dialogTitle: 'مشاركة رحلتي',
+        });
+        return;
+      }
+    } catch (e: any) {
+      if (e?.message?.includes('cancel')) return;
+    }
+
+    // 2. Web Share API
+    if (navigator.share) {
+      navigator.share({ title: 'تتبع رحلتي مع ران', text: shareText })
+        .then(() => toast({ title: '✅ تمت مشاركة الرحلة' }))
+        .catch(() => {});
     } else {
-      toast({
-        title: "المشاركة غير مدعومة",
-        description: "متصفحك لا يدعم ميزة المشاركة.",
-        variant: "destructive",
-      });
+      // 3. Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(shareText);
+        toast({ title: '✅ تم نسخ تفاصيل الرحلة' });
+      } catch {
+        toast({ title: 'المشاركة غير مدعومة', variant: 'destructive' });
+      }
     }
   };
 

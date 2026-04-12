@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import SplashScreen from "@/components/common/SplashScreen";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,6 +39,8 @@ import logo from "@/assets/logo.png";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
 import { acceptRideFromNotification } from "@/services/driverNotificationService";
+import { saveLastKnownLocation, getLastKnownLocation } from "@/services/lastKnownLocationService";
+import { MapNetworkOverlay } from "@/components/common/MapNetworkOverlay";
 import {
   Menu,
   X,
@@ -49,6 +51,25 @@ import {
   Lock,
   LockOpen,
 } from "lucide-react";
+
+// ✅ حساب المسافة بين نقطتين — يمنع re-render إذا لم يتحرك السائق
+const hasMoved = (
+  prev: { lat: number; lng: number } | null,
+  next: { lat: number; lng: number },
+  thresholdMeters: number
+): boolean => {
+  if (!prev) return true; // أول موقع
+  const R = 6371000; // نصف قطر الأرض بالمتر
+  const dLat = ((next.lat - prev.lat) * Math.PI) / 180;
+  const dLng = ((next.lng - prev.lng) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((prev.lat * Math.PI) / 180) *
+      Math.cos((next.lat * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return distance >= thresholdMeters;
+};
 
 const DriverHome = () => {
   const navigate = useNavigate();
@@ -73,10 +94,12 @@ const DriverHome = () => {
   const [isDriverRegistered, setIsDriverRegistered] = useState<boolean | null>(
     null
   );
+  // ✅ تهيئة من آخر موقع مخزن لعرض فوري بدون انتظار GPS
+  const cachedLoc = getLastKnownLocation();
   const [currentLocation, setCurrentLocation] = useState<{
     lat: number;
     lng: number;
-  } | null>(null);
+  } | null>(cachedLoc ? { lat: cachedLoc.lat, lng: cachedLoc.lng } : null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showNavigationModal, setShowNavigationModal] = useState(false);
   const [navigationDestination, setNavigationDestination] = useState<{ lat: number; lng: number } | null>(null);
@@ -100,6 +123,7 @@ const DriverHome = () => {
   const watchIdRef = useRef<number | null>(null);
   const locationUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
+  const lastRenderedLocationRef = useRef<{ lat: number; lng: number } | null>(null);
   const [rating, setRating] = useState(5.0);
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [adminActivated, setAdminActivated] = useState(true);
@@ -323,10 +347,10 @@ const DriverHome = () => {
     const autoRequestNotifications = async () => {
       // Only for approved drivers who haven't been asked yet
       if (!driverId || driverStatus !== "approved") return;
-      if (typeof window === "undefined" || !("Notification" in window)) return;
-      
-      // Check if already asked (not default)
-      if (Notification.permission !== "default") return;
+      if (typeof window === "undefined") return;
+      try {
+        if (typeof Notification === 'undefined' || Notification.permission !== "default") return;
+      } catch { return; }
 
       // Check if already shown before (using localStorage)
       const hasAskedBefore = localStorage.getItem(`notification_asked_${driverId}`);
@@ -351,6 +375,17 @@ const DriverHome = () => {
 
   // Location ref for stable reference in interval
   const latestLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  const driverIdRef = useRef(driverId);
+  driverIdRef.current = driverId;
+  const driverStatusRef = useRef(driverStatus);
+  driverStatusRef.current = driverStatus;
+  const isOnlineRef = useRef(isOnline);
+  isOnlineRef.current = isOnline;
+  const isPausedRef = useRef(isPaused);
+  isPausedRef.current = isPaused;
+  const hasActiveRideRef = useRef(hasActiveRide);
+  hasActiveRideRef.current = hasActiveRide;
 
   // Update driver location in database with retry
   const updateDriverLocation = useCallback(
@@ -442,20 +477,35 @@ const DriverHome = () => {
       gpsOptions
     );
 
-    // Watch position changes with throttle (تحديث كل 10 ثوان كحد أدنى)
-    // هذا يوفر استهلاك البطارية ويقلل كتابات قاعدة البيانات بنسبة 60%
+    // Watch position changes with throttle
     let lastUpdateTime = 0;
+    let lastUiUpdateTime = 0;
     const MIN_UPDATE_INTERVAL = 10000; // 10 ثوان
+    const UI_UPDATE_INTERVAL = 5000; // تحديث الواجهة كل 5 ثوانٍ كحد أقصى — مع شرط التحرك > 10 متر
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, heading, speed } = position.coords;
         const newLocation = { lat: latitude, lng: longitude, heading, speed };
-        setCurrentLocation(newLocation as any);
+        
         latestLocationRef.current = newLocation as any;
         
-        // Throttle: أرسل التحديث فقط إذا مرت 10 ثوان
+        // ✅ تحديث driverStore مباشرة عبر ref — بدون setState = بدون re-render
+        useDriverStore.getState().setLocation(newLocation as any);
+        
         const now = Date.now();
+        
+        // 1. Throttle + Distance gate: تحديث الواجهة فقط إذا تحرك > 10 متر أو كل 5 ثوان
+        const moved = hasMoved(lastRenderedLocationRef.current, newLocation, 10);
+        if (moved && now - lastUiUpdateTime >= UI_UPDATE_INTERVAL) {
+          lastUiUpdateTime = now;
+          lastRenderedLocationRef.current = newLocation;
+          setCurrentLocation(newLocation as any);
+          // ✅ حفظ آخر موقع معروف للاستخدام عند فقدان النت
+          saveLastKnownLocation(latitude, longitude);
+        }
+        
+        // 2. Throttle: تحديث قاعدة البيانات (الأساسي الموجود سابقاً)
         if (now - lastUpdateTime >= MIN_UPDATE_INTERVAL) {
           lastUpdateTime = now;
           updateDriverLocation(latitude, longitude);
@@ -617,14 +667,12 @@ const DriverHome = () => {
   }, [driverId, isOnline]);
 
   // 🔄 مزامنة driverStore مع الحالة المحلية
+  // ✅ currentLocation أُزيل من الـ deps — setLocation يتم عبر ref في watchPosition
   useEffect(() => {
     const store = useDriverStore.getState();
     store.setOnline(isOnline);
     store.setAvailable(isOnline && !isPaused);
-    if (currentLocation) {
-      store.setLocation(currentLocation);
-    }
-  }, [isOnline, isPaused, currentLocation]);
+  }, [isOnline, isPaused]);
 
   // عند وجود رحلة نشطة: إلغاء وضع "مشغول" تلقائياً
   // يُعالج حالة التعارض بين تحميل بيانات السائق (is_available=false) وتحميل الرحلة النشطة
@@ -774,16 +822,16 @@ const DriverHome = () => {
   };
 
   // Improved online toggle with proper error handling
-  const handleOnlineToggle = async (online: boolean) => {
-    console.log('🔄 handleOnlineToggle called:', { online, driverId, driverStatus, currentLocation });
-    if (!driverId) {
+  const handleOnlineToggle = useCallback(async (online: boolean) => {
+    console.log('🔄 handleOnlineToggle called:', { online, driverId: driverIdRef.current, driverStatus: driverStatusRef.current, currentLocation: latestLocationRef.current });
+    if (!driverIdRef.current) {
       console.log('❌ handleOnlineToggle: No driverId');
       return;
     }
 
     // Check driver status
-    if (online && driverStatus !== "approved") {
-      console.log('❌ handleOnlineToggle: Driver not approved:', driverStatus);
+    if (online && driverStatusRef.current !== "approved") {
+      console.log('❌ handleOnlineToggle: Driver not approved:', driverStatusRef.current);
       toast({
         title: "لا يمكن الاتصال",
         description: "حسابك قيد المراجعة أو غير معتمد بعد",
@@ -792,11 +840,36 @@ const DriverHome = () => {
       return;
     }
 
+    if (online) {
+      // التحقق من الرصيد والحد الأدنى المسموح للعمل (سقف الديون)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const [settingsRes, profileRes] = await Promise.all([
+          supabase.from("app_settings").select("value").eq("key", "commission").maybeSingle(),
+          supabase.from("profiles").select("wallet_balance").eq("user_id", user.id).maybeSingle()
+        ]);
+        
+        // @ts-ignore (تجنب أخطاء JSON parsing)
+        const minBalance = settingsRes.data?.value?.min_driver_balance ?? -10000;
+        const currentBalance = profileRes.data?.wallet_balance ?? 0;
+        
+        if (currentBalance < minBalance) {
+          toast({
+            title: "لا يمكنك العمل بسبب الرصيد",
+            description: `رصيدك الحالي (${currentBalance.toLocaleString()} د.ع) أقل من الحد المسموح للعمل (${minBalance.toLocaleString()} د.ع). يرجى شحن محفظتك أولاً.`,
+            variant: "destructive",
+            duration: 8000,
+          });
+          return;
+        }
+      }
+    }
+
     setOnlineToggleLoading(true);
 
     try {
       // ✅ التحقق من GPS قبل الاتصال - يجب تحديد الموقع أولاً
-      if (online && !currentLocation) {
+      if (online && !latestLocationRef.current) {
         console.log('📍 handleOnlineToggle: Requesting GPS...');
         try {
           const position = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -865,15 +938,16 @@ const DriverHome = () => {
         releaseWakeLock();
       }
 
-      console.log('📤 handleOnlineToggle: Updating Supabase...', { online, driverId });
+      const currentLoc = latestLocationRef.current;
+      console.log('📤 handleOnlineToggle: Updating Supabase...', { online, driverId: driverIdRef.current });
       const { error } = await supabase
         .from("drivers")
         .update({
           is_online: online,
           is_available: online,
-          current_location: online ? currentLocation : hasActiveRide ? currentLocation : null,
+          current_location: online ? currentLoc : hasActiveRideRef.current ? currentLoc : null,
         })
-        .eq("id", driverId);
+        .eq("id", driverIdRef.current);
 
       if (error) throw error;
       console.log('✅ handleOnlineToggle: Supabase update successful!');
@@ -899,14 +973,14 @@ const DriverHome = () => {
     } finally {
       setOnlineToggleLoading(false);
     }
-  };
+  }, [toast, requestWakeLock, releaseWakeLock]);
 
   // تبديل وضع الإيقاف المؤقت (Pause/Resume)
   // is_online يبقى true، لكن is_available يتبدل
-  const handlePauseToggle = async () => {
-    if (!driverId || !isOnline) return;
+  const handlePauseToggle = useCallback(async () => {
+    if (!driverIdRef.current || !isOnlineRef.current) return;
 
-    const newPaused = !isPaused;
+    const newPaused = !isPausedRef.current;
     
     try {
       const { error } = await supabase
@@ -914,7 +988,7 @@ const DriverHome = () => {
         .update({
           is_available: !newPaused, // إذا مشغول: is_available = false
         })
-        .eq("id", driverId);
+        .eq("id", driverIdRef.current);
 
       if (error) throw error;
 
@@ -934,7 +1008,7 @@ const DriverHome = () => {
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
 
   const handleLogout = async () => {
     // Set offline before logout
@@ -1115,6 +1189,8 @@ const DriverHome = () => {
                 isOnline={isOnline}
                 hasActiveRide={hasActiveRide}
               />
+              {/* ✅ مؤشر حالة الشبكة فوق الخريطة */}
+              <MapNetworkOverlay />
 
               {hasActiveRide ? (
                 /* تأثير التدرج فوق الخريطة أثناء الرحلة */

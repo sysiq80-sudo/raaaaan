@@ -2,9 +2,12 @@
  * Hook للتحقق من وضع الصيانة
  * يقرأ إعداد maintenance_mode من جدول app_settings
  * يستخدم في RiderLayout و DriverLayout لمنع الاستخدام أثناء الصيانة
+ *
+ * ✅ محمي ضد crash عند فقدان React context
+ * (يحصل عند فتح التطبيق من إشعار FCM يسبب race condition مؤقت)
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface GeneralSettings {
@@ -13,25 +16,68 @@ interface GeneralSettings {
   [key: string]: unknown;
 }
 
-export function useMaintenanceMode() {
-  const { data: isMaintenanceMode = false, isLoading } = useQuery({
-    queryKey: ['maintenance-mode'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('value')
-        .eq('key', 'general')
-        .single();
+// ✅ Cache عالمي لمنع طلبات متكررة عبر مكونات متعددة
+let cachedResult: boolean | null = null;
+let lastFetchTime = 0;
+const CACHE_TTL = 30_000; // 30 ثانية
 
-      if (error || !data?.value) return false;
+async function fetchMaintenanceMode(): Promise<boolean> {
+  const now = Date.now();
+  if (cachedResult !== null && now - lastFetchTime < CACHE_TTL) {
+    return cachedResult;
+  }
 
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'general')
+      .single();
+
+    if (error || !data?.value) {
+      cachedResult = false;
+    } else {
       const settings = data.value as unknown as GeneralSettings;
-      return settings.maintenance_mode === true;
-    },
-    staleTime: 1000 * 30, // 30 ثانية — فحص متكرر لأن الصيانة حالة طوارئ
-    gcTime: 1000 * 60 * 5, // 5 دقائق
-    refetchInterval: 1000 * 60, // إعادة فحص كل دقيقة
-  });
+      cachedResult = settings.maintenance_mode === true;
+    }
+    lastFetchTime = now;
+    return cachedResult;
+  } catch {
+    return cachedResult ?? false;
+  }
+}
+
+/**
+ * ✅ hook بدون useQuery — يتجنب crash "useContext is null"
+ * الذي يحصل عند فتح التطبيق من إشعار FCM قبل تهيئة QueryClientProvider
+ */
+export function useMaintenanceMode() {
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(cachedResult ?? false);
+  const [isLoading, setIsLoading] = useState(cachedResult === null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const check = async () => {
+      const result = await fetchMaintenanceMode();
+      if (!cancelled) {
+        setIsMaintenanceMode(result);
+        setIsLoading(false);
+      }
+    };
+
+    // فحص فوري
+    check();
+
+    // إعادة فحص كل دقيقة
+    intervalRef.current = setInterval(check, 60_000);
+
+    return () => {
+      cancelled = true;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
   return { isMaintenanceMode, isLoading };
 }

@@ -590,7 +590,7 @@ const AdminPromoBanners = () => {
                         <div className="col-span-2">
                             <Label className="mb-3 block">معاينة</Label>
                             <div className="relative overflow-hidden rounded-2xl">
-                                <div className={`absolute inset-0 bg-gradient-to-br from-${formData.gradient_from} via-${formData.gradient_via} to-${formData.gradient_to}`} />
+                                <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom right, ${formData.gradient_from}, ${formData.gradient_via}, ${formData.gradient_to})` }} />
                                 <div className="absolute inset-0 opacity-20">
                                     <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/20 rounded-full blur-2xl" />
                                 </div>

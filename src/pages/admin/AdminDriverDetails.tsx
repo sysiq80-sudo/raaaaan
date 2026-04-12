@@ -81,34 +81,39 @@ const AdminDriverDetails = () => {
   const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
-    // ✅ FIX: نبدأ جلب البيانات فور توفر driverId — حتى لو authLoading لا يزال true
-    // نستخدم timeout كشبكة أمان للخروج من التحميل بعد 8 ثوانٍ
     if (!driverId) {
       setLoading(false);
       return;
     }
-
-    // إذا أُكّد أنه أدمن — ابدأ الجلب فوراً
     if (isAdmin) {
       fetchDriverData();
       return;
     }
-
-    // إذا لم يتضح الدور بعد (authLoading) — انتظر قليلاً ثم ابدأ
     if (!authLoading) {
-      // authLoading انتهى لكن isAdmin=false → useAdminAuth ستوجهه للخارج
       setLoading(false);
       return;
     }
-
-    // ✅ Safety: ابدأ الجلب بعد 1.5 ثانية بغض النظر عن isAdmin
-    // (useAdminAuth ستعيد التوجيه إن لم يكن مشرفاً)
     const fallbackTimer = setTimeout(() => {
       if (driverId) fetchDriverData();
     }, 1500);
-
     return () => clearTimeout(fallbackTimer);
   }, [isAdmin, driverId, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ✅ BUG-5: Real-time subscription لتحديث حالة السائق فوراً
+  useEffect(() => {
+    if (!driverId || !isAdmin) return;
+    const channel = supabase
+      .channel(`admin-driver-rt-${driverId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "drivers", filter: `id=eq.${driverId}` },
+        (payload) => {
+          setDriver(prev => prev ? { ...prev, ...(payload.new as Driver) } : null);
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [driverId, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchDriverData = async () => {
     if (!driverId) return;
@@ -242,19 +247,15 @@ const AdminDriverDetails = () => {
         .eq("status", "completed")
         .gte("completed_at", commStartOfMonth.toISOString());
 
-      const { data: driverRating } = await supabase
-        .from("drivers")
-        .select("rating")
-        .eq("id", driverId)
-        .single();
-
-      if (monthlyRides && driverRating) {
+      // استخدام driverData.rating مباشرة بدلاً من استعلام منفصل
+      if (monthlyRides !== null && monthlyRides !== undefined) {
+        const driverRatingValue = driverData?.rating ?? 5.0;
         const { data: tierData, error: tierError } = await supabase
           .from("commission_tiers")
           .select("*")
           .eq("is_active", true)
           .lte("min_rides_monthly", monthlyRides)
-          .lte("min_rating", driverRating.rating || 5.0)
+          .lte("min_rating", driverRatingValue)
           .order("priority", { ascending: false })
           .limit(1);
 

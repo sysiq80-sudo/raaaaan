@@ -12,6 +12,7 @@ import { useOptimizedNearbyDrivers } from "@/hooks/useOptimizedNearbyDrivers";
 
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
 import NetworkStatusBar from "@/components/common/NetworkStatusBar";
+import { MapNetworkOverlay } from "@/components/common/MapNetworkOverlay";
 import StaticMapPlaceholder from "@/components/common/StaticMapPlaceholder";
 import { motion, AnimatePresence } from "framer-motion";
 import { roundFare } from "@/lib/constants";
@@ -1681,6 +1682,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           }}
         />
 
+        {/* ✅ مؤشر حالة الشبكة فوق الخريطة */}
+        <MapNetworkOverlay />
         {/* Favorite Markers Layer */}
         {map.current && !isPickup && (
           <FavoriteMarkersLayer

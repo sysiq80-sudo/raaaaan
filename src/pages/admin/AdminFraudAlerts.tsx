@@ -3,7 +3,8 @@
  * عرض وإدارة التنبيهات المشبوهة
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 
@@ -47,35 +48,30 @@ interface FraudAlert {
 
 const AdminFraudAlerts = () => {
   const { toast } = useToast();
-  const [alerts, setAlerts] = useState<FraudAlert[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [scanning, setScanning] = useState(false);
   const [activeTab, setActiveTab] = useState("pending");
-  const [stats, setStats] = useState({ pending: 0, high: 0, today: 0, actioned: 0 });
 
-  useAdminAuth();
+  const { isAdmin } = useAdminAuth();
 
-  const fetchAlerts = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data: alerts = [], isLoading: loading } = useQuery({
+    queryKey: ["fraud-alerts", activeTab],
+    queryFn: async () => {
       const { data, error } = await (supabase as unknown as SupabaseUntyped)
         .from("fraud_alerts")
         .select("*")
         .eq("status", activeTab)
         .order("created_at", { ascending: false })
         .limit(100);
-
       if (error) throw error;
-      setAlerts(data || []);
-    } catch (err) {
-      console.error("Error fetching fraud alerts:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeTab]);
+      return (data || []) as FraudAlert[];
+    },
+    enabled: isAdmin,
+  });
 
-  const fetchStats = useCallback(async () => {
-    try {
+  const { data: stats = { pending: 0, high: 0, today: 0, actioned: 0 } } = useQuery({
+    queryKey: ["fraud-stats"],
+    queryFn: async () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -86,22 +82,20 @@ const AdminFraudAlerts = () => {
         db.from("fraud_alerts").select("id", { count: "exact", head: true }).gte("created_at", today.toISOString()),
         db.from("fraud_alerts").select("id", { count: "exact", head: true }).eq("status", "actioned"),
       ]);
-
-      setStats({
+      return {
         pending: pending.count || 0,
         high: high.count || 0,
         today: todayAlerts.count || 0,
         actioned: actioned.count || 0,
-      });
-    } catch (err) {
-      console.error("Error fetching stats:", err);
-    }
-  }, []);
+      };
+    },
+    enabled: isAdmin,
+  });
 
-  useEffect(() => {
-    fetchAlerts();
-    fetchStats();
-  }, [activeTab, fetchAlerts, fetchStats]);
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["fraud-alerts"] });
+    queryClient.invalidateQueries({ queryKey: ["fraud-stats"] });
+  };
 
   const runScan = async () => {
     setScanning(true);
@@ -112,8 +106,7 @@ const AdminFraudAlerts = () => {
         title: "تم الفحص",
         description: `تم العثور على ${data?.alerts_count || 0} تنبيه جديد`,
       });
-      fetchAlerts();
-      fetchStats();
+      invalidateAll();
     } catch (err) {
       toast({ title: "خطأ في الفحص", description: (err as Error).message, variant: "destructive" });
     } finally {
@@ -121,19 +114,25 @@ const AdminFraudAlerts = () => {
     }
   };
 
-  const updateAlertStatus = async (alertId: string, status: string) => {
-    try {
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ alertId, status }: { alertId: string; status: string }) => {
       const { error } = await (supabase as unknown as SupabaseUntyped)
         .from("fraud_alerts")
         .update({ status, reviewed_at: new Date().toISOString() })
         .eq("id", alertId);
       if (error) throw error;
-      toast({ title: status === "dismissed" ? "تم التجاهل" : "تم التنفيذ" });
-      fetchAlerts();
-      fetchStats();
-    } catch (err) {
+    },
+    onSuccess: (_data, variables) => {
+      toast({ title: variables.status === "dismissed" ? "تم التجاهل" : "تم التنفيذ" });
+      invalidateAll();
+    },
+    onError: (err) => {
       toast({ title: "خطأ", description: (err as Error).message, variant: "destructive" });
-    }
+    },
+  });
+
+  const updateAlertStatus = (alertId: string, status: string) => {
+    updateStatusMutation.mutate({ alertId, status });
   };
 
   const getSeverityBadge = (severity: string) => {

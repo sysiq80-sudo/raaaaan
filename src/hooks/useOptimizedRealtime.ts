@@ -114,6 +114,14 @@ export const useOptimizedRealtime = (
                 timestamp: Date.now(),
               };
 
+              // ✅ تغييرات الحالة (مثل accepted/arrived/completed) — تطبيق فوري بدون batching
+              const newData = payload.new as Record<string, unknown>;
+              if (newData.status) {
+                setLastUpdate(update.changes);
+                return;
+              }
+
+              // تحديثات غير حرجة (موقع/بيانات) — تجميع عادي
               setPendingUpdates((prev) => new Map(prev).set(rideId, update));
             },
           )

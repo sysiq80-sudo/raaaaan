@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,8 +27,7 @@ interface CommissionTier {
 }
 
 const AdminCommissionTiers = () => {
-  const [tiers, setTiers] = useState<CommissionTier[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTier, setEditingTier] = useState<CommissionTier | null>(null);
   const [formData, setFormData] = useState({
@@ -42,87 +42,92 @@ const AdminCommissionTiers = () => {
     priority: 0,
   });
 
-  useEffect(() => {
-    fetchTiers();
-  }, []);
+  const { data: tiers = [], isLoading: loading } = useQuery({
+    queryKey: ['commission-tiers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('commission_tiers')
+        .select('*')
+        .order('priority');
+      if (error) throw error;
+      return (data || []) as CommissionTier[];
+    },
+  });
 
-  const fetchTiers = async () => {
-    const { data, error } = await supabase
-      .from('commission_tiers')
-      .select('*')
-      .order('priority');
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      if (editingTier) {
+        const { error } = await supabase
+          .from('commission_tiers')
+          .update(formData)
+          .eq('id', editingTier.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('commission_tiers')
+          .insert(formData);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commission-tiers'] });
+      toast.success(editingTier ? 'تم التحديث بنجاح' : 'تم الإضافة بنجاح');
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: () => {
+      toast.error(editingTier ? 'خطأ في التحديث' : 'خطأ في الإضافة');
+    },
+  });
 
-    if (error) {
-      toast.error('خطأ في جلب البيانات');
-      console.error(error);
-    } else {
-      setTiers(data || []);
-    }
-    setLoading(false);
-  };
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('commission_tiers')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commission-tiers'] });
+      toast.success('تم الحذف بنجاح');
+    },
+    onError: () => {
+      toast.error('خطأ في الحذف');
+    },
+  });
 
-  const handleSubmit = async () => {
+  const toggleMutation = useMutation({
+    mutationFn: async (tier: CommissionTier) => {
+      const { error } = await supabase
+        .from('commission_tiers')
+        .update({ is_active: !tier.is_active })
+        .eq('id', tier.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commission-tiers'] });
+    },
+    onError: () => {
+      toast.error('خطأ في التحديث');
+    },
+  });
+
+  const handleSubmit = () => {
     if (!formData.name_ar) {
       toast.error('يرجى ملء جميع الحقول المطلوبة');
       return;
     }
-
-    if (editingTier) {
-      const { error } = await supabase
-        .from('commission_tiers')
-        .update(formData)
-        .eq('id', editingTier.id);
-
-      if (error) {
-        toast.error('خطأ في التحديث');
-      } else {
-        toast.success('تم التحديث بنجاح');
-        fetchTiers();
-      }
-    } else {
-      const { error } = await supabase
-        .from('commission_tiers')
-        .insert(formData);
-
-      if (error) {
-        toast.error('خطأ في الإضافة');
-      } else {
-        toast.success('تم الإضافة بنجاح');
-        fetchTiers();
-      }
-    }
-
-    setDialogOpen(false);
-    resetForm();
+    submitMutation.mutate();
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!confirm('هل أنت متأكد من الحذف؟')) return;
-
-    const { error } = await supabase
-      .from('commission_tiers')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      toast.error('خطأ في الحذف');
-    } else {
-      toast.success('تم الحذف بنجاح');
-      fetchTiers();
-    }
+    deleteMutation.mutate(id);
   };
 
-  const toggleActive = async (tier: CommissionTier) => {
-    const { error } = await supabase
-      .from('commission_tiers')
-      .update({ is_active: !tier.is_active })
-      .eq('id', tier.id);
-
-    if (error) {
-      toast.error('خطأ في التحديث');
-    } else {
-      fetchTiers();
-    }
+  const toggleActive = (tier: CommissionTier) => {
+    toggleMutation.mutate(tier);
   };
 
   const openEditDialog = (tier: CommissionTier) => {

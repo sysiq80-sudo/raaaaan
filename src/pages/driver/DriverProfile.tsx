@@ -2,9 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import SplashScreen from "@/components/common/SplashScreen";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -25,22 +22,25 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  User, 
-  Car, 
-  MapPin, 
-  Star, 
-  Phone, 
+  User,
+  Car,
+  MapPin,
+  Star,
+  Phone,
   Mail,
   Shield,
-  Edit,
+  Edit3,
   Loader2,
   Clock,
-  CheckCircle,
+  CheckCircle2,
   XCircle,
-  Send
+  Send,
+  ChevronLeft,
+  TrendingUp,
+  Award,
+  Wallet,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
-import DriverPageHeader from "@/components/driver/DriverPageHeader";
 import { useDriverSession } from "@/hooks/useDriverSession";
 
 interface DriverData {
@@ -80,7 +80,7 @@ interface EditRequest {
 const EDITABLE_FIELDS = [
   { value: "full_name", label: "الاسم الكامل" },
   { value: "phone", label: "رقم الهاتف" },
-  { value: "email", label: "البريد الإلكتروني" },
+  { value: "email", label: "البريد الالكتروني" },
   { value: "vehicle_model", label: "موديل السيارة" },
   { value: "vehicle_color", label: "لون السيارة" },
   { value: "vehicle_plate", label: "رقم اللوحة" },
@@ -94,31 +94,15 @@ const DriverProfile = () => {
   const [driver, setDriver] = useState<DriverData | null>(null);
   const [region, setRegion] = useState<RegionData | null>(null);
   const [editRequests, setEditRequests] = useState<EditRequest[]>([]);
-  
-  // Edit request dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedField, setSelectedField] = useState("");
   const [requestedValue, setRequestedValue] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // إزالة driver-mode لتفعيل السكرول
-  useEffect(() => {
-    const hadDriverMode = document.body.classList.contains('driver-mode');
-    document.body.classList.remove('driver-mode');
-    document.body.style.overflow = 'auto';
-    document.body.style.position = 'static';
-    return () => {
-      if (hadDriverMode) document.body.classList.add('driver-mode');
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-    };
-  }, []);
-
   useEffect(() => {
     if (!sessionDriver) return;
     const fetchDriverProfile = async () => {
-
       const { data: driverData, error } = await supabase
         .from("drivers")
         .select("*")
@@ -132,27 +116,23 @@ const DriverProfile = () => {
 
       setDriver(driverData as any);
 
-      // Fetch region name if exists
       if ((driverData as any).working_region_id) {
         const { data: regionData } = await supabase
           .from("regions")
           .select("id, name_ar")
           .eq("id", (driverData as any).working_region_id)
           .maybeSingle();
-        
         if (regionData) setRegion(regionData as any);
       }
 
-      // Fetch edit requests
       const { data: requests } = await supabase
         .from("driver_edit_requests")
         .select("*")
         .eq("driver_id", (driverData as any).id)
         .order("created_at", { ascending: false })
         .limit(10);
-      
-      if (requests) setEditRequests(requests as any);
 
+      if (requests) setEditRequests(requests as any);
       setLoading(false);
     };
 
@@ -169,32 +149,26 @@ const DriverProfile = () => {
     }
   };
 
-  const getStatusBadge = (status: string | null) => {
+  const getStatusInfo = (status: string | null) => {
     switch (status) {
-      case "approved":
-        return <Badge className="bg-green-500/20 text-green-600 border-green-500/30">معتمد</Badge>;
-      case "pending":
-        return <Badge className="bg-yellow-500/20 text-yellow-600 border-yellow-500/30">قيد المراجعة</Badge>;
-      case "rejected":
-        return <Badge className="bg-red-500/20 text-red-600 border-red-500/30">مرفوض</Badge>;
-      case "suspended":
-        return <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">موقوف</Badge>;
-      default:
-        return <Badge variant="secondary">غير معروف</Badge>;
+      case "approved":  return { label: "معتمد",        color: "text-[#5bdda6]",  bg: "bg-[#5bdda6]/10 border-[#5bdda6]/30" };
+      case "pending":   return { label: "قيد المراجعة", color: "text-amber-400",   bg: "bg-amber-400/10 border-amber-400/30" };
+      case "rejected":  return { label: "مرفوض",        color: "text-red-400",    bg: "bg-red-400/10 border-red-400/30" };
+      case "suspended": return { label: "موقوف",         color: "text-orange-400", bg: "bg-orange-400/10 border-orange-400/30" };
+      default:          return { label: "غير معروف",     color: "text-slate-400",  bg: "bg-slate-400/10 border-slate-400/30" };
     }
   };
 
   const getGenderName = (gender: string | null) => {
     switch (gender) {
-      case "male": return "ذكر";
-      case "female": return "أنثى";
-      default: return "غير محدد";
+      case "male":   return "ذكر";
+      case "female": return "انثى";
+      default:       return "غير محدد";
     }
   };
 
-  const getFieldLabel = (fieldName: string) => {
-    return EDITABLE_FIELDS.find(f => f.value === fieldName)?.label || fieldName;
-  };
+  const getFieldLabel = (fieldName: string) =>
+    EDITABLE_FIELDS.find(f => f.value === fieldName)?.label || fieldName;
 
   const getCurrentFieldValue = (fieldName: string): string => {
     if (!driver) return "";
@@ -202,60 +176,26 @@ const DriverProfile = () => {
     return value?.toString() || "";
   };
 
-  const getRequestStatusBadge = (status: string) => {
+  const getRequestStatusInfo = (status: string) => {
     switch (status) {
-      case "pending":
-        return (
-          <Badge className="bg-yellow-500/20 text-yellow-600 border-yellow-500/30">
-            <Clock className="w-3 h-3 ml-1" />
-            قيد المراجعة
-          </Badge>
-        );
-      case "approved":
-        return (
-          <Badge className="bg-green-500/20 text-green-600 border-green-500/30">
-            <CheckCircle className="w-3 h-3 ml-1" />
-            تمت الموافقة
-          </Badge>
-        );
-      case "rejected":
-        return (
-          <Badge className="bg-red-500/20 text-red-600 border-red-500/30">
-            <XCircle className="w-3 h-3 ml-1" />
-            مرفوض
-          </Badge>
-        );
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
+      case "pending":  return { label: "قيد المراجعة", icon: <Clock className="w-3 h-3" />,       color: "text-amber-400 bg-amber-400/10 border-amber-400/20" };
+      case "approved": return { label: "تمت الموافقة", icon: <CheckCircle2 className="w-3 h-3" />, color: "text-[#5bdda6] bg-[#5bdda6]/10 border-[#5bdda6]/20" };
+      case "rejected": return { label: "مرفوض",        icon: <XCircle className="w-3 h-3" />,      color: "text-red-400 bg-red-400/10 border-red-400/20" };
+      default:         return { label: status,          icon: null,                                  color: "text-slate-400 bg-slate-400/10 border-slate-400/20" };
     }
   };
 
   const handleSubmitRequest = async () => {
     if (!driver || !selectedField || !requestedValue.trim()) {
-      toast({
-        title: "خطأ",
-        description: "يرجى ملء جميع الحقول المطلوبة",
-        variant: "destructive",
-      });
+      toast({ title: "خطأ", description: "يرجى ملء جميع الحقول المطلوبة", variant: "destructive" });
       return;
     }
-
-    // Check if there's already a pending request for this field
-    const hasPendingRequest = editRequests.some(
-      r => r.field_name === selectedField && r.status === "pending"
-    );
-
+    const hasPendingRequest = editRequests.some(r => r.field_name === selectedField && r.status === "pending");
     if (hasPendingRequest) {
-      toast({
-        title: "طلب موجود",
-        description: "لديك طلب تعديل قيد المراجعة لهذا الحقل",
-        variant: "destructive",
-      });
+      toast({ title: "طلب موجود", description: "لديك طلب تعديل قيد المراجعة لهذا الحقل", variant: "destructive" });
       return;
     }
-
     setSubmitting(true);
-
     const { data, error } = await supabase
       .from("driver_edit_requests")
       .insert({
@@ -267,292 +207,233 @@ const DriverProfile = () => {
       } as any)
       .select()
       .single();
-
     setSubmitting(false);
-
     if (error) {
-      console.error("Error submitting edit request:", error);
-      toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء إرسال الطلب",
-        variant: "destructive",
-      });
+      toast({ title: "خطأ", description: "حدث خطأ اثناء ارسال الطلب", variant: "destructive" });
       return;
     }
-
-    toast({
-      title: "تم إرسال الطلب",
-      description: "سيتم مراجعة طلبك من قبل الإدارة",
-    });
-
-    // Add to local state
-    if (data) {
-      setEditRequests(prev => [data as any, ...prev]);
-    }
-
-    // Reset form
+    toast({ title: "تم ارسال الطلب", description: "سيتم مراجعة طلبك من قبل الادارة" });
+    if (data) setEditRequests(prev => [data as any, ...prev]);
     setDialogOpen(false);
     setSelectedField("");
     setRequestedValue("");
     setReason("");
   };
 
-  if (authLoading || loading) {
-    return <SplashScreen />;
-  }
+  if (authLoading || loading) return <SplashScreen />;
+  if (!driver) return null;
 
-  if (!driver) {
-    return null;
-  }
-
-  const pendingRequestsCount = editRequests.filter(r => r.status === "pending").length;
+  const statusInfo = getStatusInfo(driver.status);
+  const pendingCount = editRequests.filter(r => r.status === "pending").length;
 
   return (
-    <div className="min-h-screen bg-[#0b1326] overflow-y-auto" dir="rtl">
-      <DriverPageHeader title="الملف الشخصي" />
-      <main className="pt-20 pb-8 px-4">
-        <div className="container max-w-lg space-y-6">
-          
-          {/* Profile Header Card */}
-          <Card className="overflow-hidden driver-geometric-card">
-            <div className="bg-gradient-to-br from-primary/20 to-primary/5 p-6">
-              <div className="flex items-center gap-4">
-                <img 
-                  src={driver.profile_image_url || logo} 
-                  alt="صورة السائق"
-                  className="w-20 h-20 rounded-full object-cover border-4 border-background shadow-lg"
-                  onError={(e) => { e.currentTarget.src = logo; }}
-                />
-                <div className="flex-1">
-                  <h2 className="text-xl font-bold text-foreground">{driver.full_name}</h2>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Star className="w-4 h-4 text-warning fill-warning" />
-                    <span className="font-medium">{driver.rating?.toFixed(1) || "5.0"}</span>
-                    <span className="text-muted-foreground text-sm">
-                      ({driver.total_rides || 0} رحلة)
-                    </span>
-                  </div>
-                  <div className="mt-2">
-                    {getStatusBadge(driver.status)}
-                  </div>
-                </div>
+    <div
+      className="fixed inset-0 z-[200] overflow-y-auto bg-[#080e1d]"
+      dir="rtl"
+    >
+      {/* HEADER */}
+      <header
+        className="sticky top-0 z-10 flex items-center justify-between h-16 px-4 bg-[#0b1326]/95 backdrop-blur border-b border-[#5bdda6]/10"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <button
+          onClick={() => navigate("/driver")}
+          className="flex items-center gap-1.5 bg-slate-800/60 border border-slate-700/50 hover:bg-slate-700/60 active:scale-90 transition-all rounded-xl px-3 py-2"
+        >
+          <ChevronLeft className="w-5 h-5 text-slate-300" />
+          <span className="text-sm font-medium text-slate-300">رجوع</span>
+        </button>
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+          <img src={logo} alt="RAAN" className="w-8 h-8 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]" />
+          <span className="font-black text-white text-base tracking-wider">الملف الشخصي</span>
+        </div>
+        <div className="w-20" />
+      </header>
+
+      {/* MAIN CONTENT */}
+      <main className="px-4 py-6 pb-16 max-w-lg mx-auto space-y-5">
+
+        {/* Hero Card */}
+        <div className="relative rounded-2xl overflow-hidden border border-[#5bdda6]/15 bg-gradient-to-br from-[#0f1a2e] to-[#0b1326]">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-24 bg-[#5bdda6]/5 blur-3xl pointer-events-none" />
+          <div className="relative p-6 flex flex-col items-center gap-4">
+            <div className="relative">
+              <img
+                src={driver.profile_image_url || logo}
+                alt="profile"
+                className="w-24 h-24 rounded-2xl object-cover border-2 border-[#5bdda6]/30 shadow-[0_0_30px_rgba(91,221,166,0.15)]"
+                onError={(e) => { e.currentTarget.src = logo; }}
+              />
+              <span className={`absolute -bottom-2 -right-2 text-[11px] font-bold px-2.5 py-1 rounded-full border ${statusInfo.bg} ${statusInfo.color}`}>
+                {statusInfo.label}
+              </span>
+            </div>
+            <div className="text-center">
+              <h1 className="text-xl font-black text-white tracking-wide">{driver.full_name}</h1>
+              <div className="flex items-center justify-center gap-1.5 mt-1.5">
+                <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                <span className="text-white font-bold text-lg">{driver.rating?.toFixed(1) || "5.0"}</span>
+                <span className="text-slate-500 text-sm">({driver.total_rides || 0} رحلة)</span>
               </div>
             </div>
-          </Card>
+            <div className="w-full grid grid-cols-3 gap-3 mt-1">
+              {[
+                { icon: <TrendingUp className="w-4 h-4" />, val: String(driver.total_rides || 0), label: "رحلة" },
+                { icon: <Award className="w-4 h-4" />,      val: driver.rating?.toFixed(1) || "5.0", label: "تقييم" },
+                { icon: <Wallet className="w-4 h-4" />,     val: `${((driver.total_earnings || 0) / 1000).toFixed(0)}K`, label: "دينار" },
+              ].map((s, i) => (
+                <div key={i} className="flex flex-col items-center gap-1 p-3 bg-[#0b1326] rounded-xl border border-slate-700/40">
+                  <span className="text-[#5bdda6]">{s.icon}</span>
+                  <span className="text-white font-black text-lg tabular-nums">{s.val}</span>
+                  <span className="text-slate-500 text-[10px]">{s.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
-          {/* Edit Request Button */}
-          <Card className="border-primary/30 bg-primary/5 driver-geometric-card">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-start gap-3">
-                  <Shield className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-foreground">طلب تعديل البيانات</p>
-                    <p className="text-sm text-muted-foreground">
-                      {pendingRequestsCount > 0 
-                        ? `لديك ${pendingRequestsCount} طلب قيد المراجعة`
-                        : "أرسل طلب للإدارة لتعديل بياناتك"
-                      }
+        {/* Edit Request Banner */}
+        <div className="flex items-center justify-between p-4 rounded-2xl border border-[#5bdda6]/20 bg-[#5bdda6]/5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#5bdda6]/10 border border-[#5bdda6]/20 flex-shrink-0">
+              <Shield className="w-5 h-5 text-[#5bdda6]" />
+            </div>
+            <div>
+              <p className="text-white font-semibold text-sm">طلب تعديل البيانات</p>
+              <p className="text-slate-400 text-xs mt-0.5">
+                {pendingCount > 0 ? `لديك ${pendingCount} طلب قيد المراجعة` : "ارسل طلب للادارة لتعديل بياناتك"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setDialogOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#5bdda6] text-[#0b1326] font-bold text-sm active:scale-95 transition-all hover:bg-[#4ac99a] flex-shrink-0"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            تعديل
+          </button>
+        </div>
+
+        {/* Personal Info */}
+        <ProfileSection icon={<User className="w-4 h-4 text-[#5bdda6]" />} title="المعلومات الشخصية">
+          <ProfileRow label="الاسم الكامل" value={driver.full_name} />
+          <ProfileRow label="الجنس" value={getGenderName(driver.gender)} />
+          <ProfileRow label="رقم الهاتف" value={driver.phone} icon={<Phone className="w-3.5 h-3.5 text-slate-500" />} />
+          {driver.email && <ProfileRow label="البريد الالكتروني" value={driver.email} icon={<Mail className="w-3.5 h-3.5 text-slate-500" />} />}
+        </ProfileSection>
+
+        {/* Vehicle Info */}
+        <ProfileSection icon={<Car className="w-4 h-4 text-[#5bdda6]" />} title="معلومات المركبة">
+          <ProfileRow label="نوع الخدمة" value={getVehicleTypeName(driver.vehicle_type)} />
+          <ProfileRow label="موديل السيارة" value={driver.vehicle_model || "غير محدد"} />
+          <ProfileRow label="لون السيارة" value={driver.vehicle_color || "غير محدد"} />
+          <ProfileRow label="رقم اللوحة" value={driver.vehicle_plate || "غير محدد"} />
+        </ProfileSection>
+
+        {/* Work Area */}
+        <ProfileSection icon={<MapPin className="w-4 h-4 text-[#5bdda6]" />} title="منطقة العمل">
+          <ProfileRow label="المنطقة الحالية" value={region?.name_ar || "غير محددة"} />
+        </ProfileSection>
+
+        {/* Edit Requests History */}
+        {editRequests.length > 0 && (
+          <ProfileSection icon={<Clock className="w-4 h-4 text-[#5bdda6]" />} title="طلبات التعديل السابقة">
+            <div className="space-y-3 py-3">
+              {editRequests.slice(0, 6).map((req) => {
+                const si = getRequestStatusInfo(req.status);
+                return (
+                  <div key={req.id} className="p-3 rounded-xl bg-[#0b1326] border border-slate-700/40">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-white font-semibold text-sm">{getFieldLabel(req.field_name)}</span>
+                      <span className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full border ${si.color}`}>
+                        {si.icon}
+                        {si.label}
+                      </span>
+                    </div>
+                    <p className="text-slate-400 text-xs">
+                      القيمة المطلوبة: <span className="text-slate-200">{req.requested_value}</span>
+                    </p>
+                    {req.admin_notes && (
+                      <p className="text-orange-400 text-xs mt-1">ملاحظات الادارة: {req.admin_notes}</p>
+                    )}
+                    <p className="text-slate-600 text-[11px] mt-1">
+                      {new Date(req.created_at).toLocaleDateString("ar-IQ")}
                     </p>
                   </div>
-                </div>
-                <Button size="sm" onClick={() => setDialogOpen(true)}>
-                  <Edit className="w-4 h-4 ml-1" />
-                  طلب تعديل
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                );
+              })}
+            </div>
+          </ProfileSection>
+        )}
 
-          {/* Pending Requests */}
-          {editRequests.length > 0 && (
-            <Card className="driver-geometric-card">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-primary" />
-                  طلبات التعديل السابقة
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {editRequests.slice(0, 5).map((request) => (
-                  <div 
-                    key={request.id} 
-                    className="p-3 bg-secondary/30 rounded-lg border border-border"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-sm">
-                        {getFieldLabel(request.field_name)}
-                      </span>
-                      {getRequestStatusBadge(request.status)}
-                    </div>
-                    <div className="text-xs text-muted-foreground space-y-1">
-                      <p>القيمة المطلوبة: <span className="text-foreground">{request.requested_value}</span></p>
-                      {request.admin_notes && (
-                        <p className="text-orange-600">ملاحظات الإدارة: {request.admin_notes}</p>
-                      )}
-                      <p>{new Date(request.created_at).toLocaleDateString('ar-IQ')}</p>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Personal Info */}
-          <Card className="driver-geometric-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <User className="w-5 h-5 text-primary" />
-                المعلومات الشخصية
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <InfoRow label="الاسم الكامل" value={driver.full_name} />
-              <InfoRow label="الجنس" value={getGenderName(driver.gender)} />
-              <InfoRow 
-                label="رقم الهاتف" 
-                value={driver.phone} 
-                icon={<Phone className="w-4 h-4 text-muted-foreground" />}
-              />
-              {driver.email && (
-                <InfoRow 
-                  label="البريد الإلكتروني" 
-                  value={driver.email} 
-                  icon={<Mail className="w-4 h-4 text-muted-foreground" />}
-                />
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Vehicle Info */}
-          <Card className="driver-geometric-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Car className="w-5 h-5 text-primary" />
-                معلومات المركبة
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <InfoRow label="نوع الخدمة" value={getVehicleTypeName(driver.vehicle_type)} />
-              <InfoRow label="موديل السيارة" value={driver.vehicle_model || "غير محدد"} />
-              <InfoRow label="لون السيارة" value={driver.vehicle_color || "غير محدد"} />
-              <InfoRow label="رقم اللوحة" value={driver.vehicle_plate || "غير محدد"} />
-            </CardContent>
-          </Card>
-
-          {/* Work Area */}
-          <Card className="driver-geometric-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-primary" />
-                منطقة العمل
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <InfoRow 
-                label="المنطقة الحالية" 
-                value={region?.name_ar || "غير محددة"} 
-              />
-            </CardContent>
-          </Card>
-
-          {/* Stats Summary */}
-          <Card className="driver-geometric-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Star className="w-5 h-5 text-primary" />
-                ملخص الإحصائيات
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="p-3 bg-secondary/50 rounded-lg">
-                  <p className="text-2xl font-bold text-primary">{driver.total_rides || 0}</p>
-                  <p className="text-xs text-muted-foreground">رحلة مكتملة</p>
-                </div>
-                <div className="p-3 bg-secondary/50 rounded-lg">
-                  <p className="text-2xl font-bold text-primary">{driver.rating?.toFixed(1) || "5.0"}</p>
-                  <p className="text-xs text-muted-foreground">التقييم</p>
-                </div>
-                <div className="p-3 bg-secondary/50 rounded-lg">
-                  <p className="text-2xl font-bold text-primary">
-                    {((driver.total_earnings || 0) / 1000).toFixed(0)}K
-                  </p>
-                  <p className="text-xs text-muted-foreground">دينار</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-        </div>
       </main>
 
       {/* Edit Request Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md" dir="rtl">
+        <DialogContent className="max-w-[92vw] sm:max-w-md bg-[#0f1a2e] border-slate-700/50 text-white" dir="rtl">
           <DialogHeader>
-            <DialogTitle>طلب تعديل البيانات</DialogTitle>
-            <DialogDescription>
-              اختر الحقل الذي تريد تعديله وأدخل القيمة الجديدة
+            <DialogTitle className="text-white">طلب تعديل البيانات</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              اختر الحقل الذي تريد تعديله وادخل القيمة الجديدة
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>الحقل المراد تعديله *</Label>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-slate-300 text-sm">الحقل المراد تعديله *</Label>
               <Select value={selectedField} onValueChange={setSelectedField}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-[#0b1326] border-slate-700/50 text-white h-11">
                   <SelectValue placeholder="اختر الحقل" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-[#0f1a2e] border-slate-700/50">
                   {EDITABLE_FIELDS.map((field) => (
-                    <SelectItem key={field.value} value={field.value}>
+                    <SelectItem key={field.value} value={field.value} className="text-white focus:bg-slate-700/50">
                       {field.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
             {selectedField && (
-              <div className="p-3 bg-secondary/30 rounded-lg text-sm">
-                <p className="text-muted-foreground">القيمة الحالية:</p>
-                <p className="font-medium">{getCurrentFieldValue(selectedField) || "غير محدد"}</p>
+              <div className="p-3 bg-[#0b1326] rounded-xl border border-slate-700/40 text-sm">
+                <p className="text-slate-500 text-xs mb-1">القيمة الحالية:</p>
+                <p className="text-white font-medium">{getCurrentFieldValue(selectedField) || "غير محدد"}</p>
               </div>
             )}
-
-            <div className="space-y-2">
-              <Label>القيمة الجديدة *</Label>
+            <div className="space-y-1.5">
+              <Label className="text-slate-300 text-sm">القيمة الجديدة *</Label>
               <Input
                 value={requestedValue}
                 onChange={(e) => setRequestedValue(e.target.value)}
-                placeholder="أدخل القيمة الجديدة"
+                placeholder="ادخل القيمة الجديدة"
+                className="bg-[#0b1326] border-slate-700/50 text-white placeholder:text-slate-600 h-11 focus:border-[#5bdda6]/50"
               />
             </div>
-
-            <div className="space-y-2">
-              <Label>سبب التعديل (اختياري)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-slate-300 text-sm">سبب التعديل (اختياري)</Label>
               <Textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="اشرح سبب طلب التعديل..."
                 rows={3}
+                className="bg-[#0b1326] border-slate-700/50 text-white placeholder:text-slate-600 focus:border-[#5bdda6]/50 resize-none"
               />
             </div>
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              إلغاء
-            </Button>
-            <Button onClick={handleSubmitRequest} disabled={submitting}>
-              {submitting ? (
-                <Loader2 className="w-4 h-4 animate-spin ml-2" />
-              ) : (
-                <Send className="w-4 h-4 ml-2" />
-              )}
-              إرسال الطلب
-            </Button>
+          <DialogFooter className="gap-2 flex-row-reverse sm:flex-row-reverse">
+            <button
+              onClick={() => setDialogOpen(false)}
+              className="flex-1 h-11 rounded-xl border border-slate-700/50 text-slate-300 text-sm font-medium hover:bg-slate-700/30 transition-colors"
+            >
+              الغاء
+            </button>
+            <button
+              onClick={handleSubmitRequest}
+              disabled={submitting}
+              className="flex-1 h-11 rounded-xl bg-gradient-to-r from-[#5bdda6] to-[#3eba89] text-[#0b1326] font-bold text-sm flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(91,221,166,0.3)] transition-all disabled:opacity-40"
+            >
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              ارسال الطلب
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -560,21 +441,38 @@ const DriverProfile = () => {
   );
 };
 
-// Helper component for info rows
-const InfoRow = ({ 
-  label, 
-  value, 
-  icon 
-}: { 
-  label: string; 
-  value: string; 
-  icon?: React.ReactNode 
+const ProfileSection = ({
+  icon,
+  title,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
 }) => (
-  <div className="flex items-center justify-between py-2 border-b border-border last:border-0">
-    <span className="text-muted-foreground text-sm">{label}</span>
-    <div className="flex items-center gap-2">
+  <div className="rounded-2xl border border-slate-700/40 bg-[#0f1a2e] overflow-hidden">
+    <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-slate-700/30">
+      <div className="w-7 h-7 rounded-lg bg-[#5bdda6]/10 flex items-center justify-center">{icon}</div>
+      <h2 className="text-white font-bold text-sm">{title}</h2>
+    </div>
+    <div className="divide-y divide-slate-700/20 px-4">{children}</div>
+  </div>
+);
+
+const ProfileRow = ({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon?: React.ReactNode;
+}) => (
+  <div className="flex items-center justify-between py-3">
+    <span className="text-slate-400 text-sm">{label}</span>
+    <div className="flex items-center gap-1.5 max-w-[55%]">
       {icon}
-      <span className="font-medium text-foreground">{value}</span>
+      <span className="text-white font-medium text-sm truncate">{value}</span>
     </div>
   </div>
 );

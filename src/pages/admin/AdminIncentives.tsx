@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,9 +39,7 @@ interface IncentiveClaim {
 }
 
 const AdminIncentives = () => {
-  const [incentives, setIncentives] = useState<Incentive[]>([]);
-  const [claims, setClaims] = useState<IncentiveClaim[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIncentive, setEditingIncentive] = useState<Incentive | null>(null);
   const [formData, setFormData] = useState({
@@ -51,29 +50,23 @@ const AdminIncentives = () => {
     period: "daily",
   });
 
-  const [stats, setStats] = useState({
-    totalBonusesPaid: 0,
-    totalClaims: 0,
-    activeIncentives: 0,
-    driversRewarded: 0,
-  });
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      const { data: incentivesData, error: incentivesError } = await supabase
+  const { data: incentives = [], isLoading: loading } = useQuery({
+    queryKey: ['driver-incentives'],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("driver_incentives")
         .select("*")
         .order("period", { ascending: true })
         .order("rides_required", { ascending: true });
+      if (error) throw error;
+      return (data || []) as Incentive[];
+    },
+  });
 
-      if (incentivesError) throw incentivesError;
-      setIncentives(incentivesData || []);
-
-      const { data: claimsData, error: claimsError } = await supabase
+  const { data: claims = [] } = useQuery({
+    queryKey: ['driver-incentive-claims'],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("driver_incentive_claims")
         .select(`
           *,
@@ -82,39 +75,28 @@ const AdminIncentives = () => {
         `)
         .order("claimed_at", { ascending: false })
         .limit(50);
+      if (error) throw error;
+      return (data || []) as IncentiveClaim[];
+    },
+  });
 
-      if (claimsError) throw claimsError;
-      setClaims(claimsData || []);
-
-      // Fetch accurate stats from DB
-      const { count: totalClaimsCount } = await supabase
-        .from("driver_incentive_claims")
-        .select("*", { count: "exact", head: true });
-
-      const { data: sumData } = await supabase
-        .from("driver_incentive_claims")
-        .select("bonus_earned, driver_id");
-
-      const totalBonuses = (sumData || []).reduce((sum, c) => sum + c.bonus_earned, 0);
-      const uniqueDrivers = new Set((sumData || []).map(c => c.driver_id)).size;
-      const activeCount = (incentivesData || []).filter(i => i.is_active).length;
-
-      setStats({
-        totalBonusesPaid: totalBonuses,
-        totalClaims: totalClaimsCount || 0,
+  const { data: stats = { totalBonusesPaid: 0, totalClaims: 0, activeIncentives: 0, driversRewarded: 0 } } = useQuery({
+    queryKey: ['incentives-stats', incentives],
+    queryFn: async () => {
+      const { data: statsData } = await supabase.rpc("get_incentives_stats");
+      const activeCount = incentives.filter(i => i.is_active).length;
+      return {
+        totalBonusesPaid: statsData?.total_bonus_paid || 0,
+        totalClaims: statsData?.total_claims || 0,
         activeIncentives: activeCount,
-        driversRewarded: uniqueDrivers,
-      });
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("حدث خطأ في جلب البيانات");
-    } finally {
-      setLoading(false);
-    }
-  };
+        driversRewarded: statsData?.unique_drivers || 0,
+      };
+    },
+    enabled: incentives.length >= 0,
+  });
 
-  const handleSubmit = async () => {
-    try {
+  const submitMutation = useMutation({
+    mutationFn: async () => {
       if (editingIncentive) {
         const { error } = await supabase
           .from("driver_incentives")
@@ -126,9 +108,7 @@ const AdminIncentives = () => {
             period: formData.period,
           })
           .eq("id", editingIncentive.id);
-
         if (error) throw error;
-        toast.success("تم تحديث الحافز بنجاح");
       } else {
         const { error } = await supabase
           .from("driver_incentives")
@@ -139,52 +119,69 @@ const AdminIncentives = () => {
             bonus_amount: formData.bonus_amount,
             period: formData.period,
           });
-
         if (error) throw error;
-        toast.success("تم إضافة الحافز بنجاح");
       }
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['driver-incentives'] });
+      queryClient.invalidateQueries({ queryKey: ['incentives-stats'] });
+      toast.success(editingIncentive ? "تم تحديث الحافز بنجاح" : "تم إضافة الحافز بنجاح");
       setDialogOpen(false);
       resetForm();
-      fetchData();
-    } catch (error) {
-      console.error("Error saving incentive:", error);
+    },
+    onError: () => {
       toast.error("حدث خطأ في حفظ الحافز");
-    }
-  };
+    },
+  });
 
-  const handleToggleActive = async (id: string, isActive: boolean) => {
-    try {
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
       const { error } = await supabase
         .from("driver_incentives")
         .update({ is_active: !isActive })
         .eq("id", id);
-
       if (error) throw error;
+      return isActive;
+    },
+    onSuccess: (_, { isActive }) => {
+      queryClient.invalidateQueries({ queryKey: ['driver-incentives'] });
+      queryClient.invalidateQueries({ queryKey: ['incentives-stats'] });
       toast.success(isActive ? "تم تعطيل الحافز" : "تم تفعيل الحافز");
-      fetchData();
-    } catch (error) {
-      console.error("Error toggling incentive:", error);
+    },
+    onError: () => {
       toast.error("حدث خطأ");
-    }
-  };
+    },
+  });
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذا الحافز؟")) return;
-
-    try {
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("driver_incentives")
         .delete()
         .eq("id", id);
-
       if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['driver-incentives'] });
+      queryClient.invalidateQueries({ queryKey: ['incentives-stats'] });
       toast.success("تم حذف الحافز");
-      fetchData();
-    } catch (error) {
-      console.error("Error deleting incentive:", error);
+    },
+    onError: () => {
       toast.error("حدث خطأ في الحذف");
-    }
+    },
+  });
+
+  const handleSubmit = () => {
+    submitMutation.mutate();
+  };
+
+  const handleToggleActive = (id: string, isActive: boolean) => {
+    toggleMutation.mutate({ id, isActive });
+  };
+
+  const handleDelete = (id: string) => {
+    if (!confirm("هل أنت متأكد من حذف هذا الحافز؟")) return;
+    deleteMutation.mutate(id);
   };
 
   const handleEdit = (incentive: Incentive) => {

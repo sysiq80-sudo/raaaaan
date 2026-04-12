@@ -11,15 +11,19 @@ import { toast } from "sonner";
 import { Loader2, Save } from "lucide-react";
 import { DriverRegistrationSettings as SettingsType } from "@/hooks/useDriverRegSettings";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { useAdminAuth } from "@/hooks/useAdminAuth"; // ✅ REG-2 FIX
 
 export default function DriverRegistrationSettings() {
   const [settings, setSettings] = useState<SettingsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // ✅ REG-2 FIX: تحقق من صلاحيات الأدمن
+  const { isAdmin, loading: authLoading } = useAdminAuth();
 
   useEffect(() => {
-    loadSettings();
-  }, []);
+    // ✅ ابدأ الجلب فقط بعد التحقق من صلاحية الأدمن
+    if (isAdmin) loadSettings();
+  }, [isAdmin]);
 
   const loadSettings = async () => {
     try {
@@ -44,13 +48,15 @@ export default function DriverRegistrationSettings() {
 
     try {
       setSaving(true);
+      // ✅ REG-1 FIX: إرسال الحقول القابلة للتعديل فقط — بدون id, created_at, updated_at
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id, created_at, updated_at, ...updatePayload } = settings as any;
       const { error } = await supabase
         .from("driver_registration_settings")
-        .update(settings)
+        .update(updatePayload)
         .eq("id", settings.id);
 
       if (error) throw error;
-      
       toast.success("تم حفظ الإعدادات بنجاح");
     } catch (error) {
       console.error("Error saving settings:", error);
@@ -64,6 +70,17 @@ export default function DriverRegistrationSettings() {
     if (!settings) return;
     setSettings({ ...settings, [field]: value });
   };
+
+  // Guard: authLoading
+  if (authLoading) {
+    return (
+      <AdminLayout title="إعدادات تسجيل السائقين">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin" />
+        </div>
+      </AdminLayout>
+    );
+  }
 
   if (loading) {
     return (

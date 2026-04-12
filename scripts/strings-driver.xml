@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">ران كابتن</string>
-    <string name="title_activity_main">ران كابتن</string>
-    <string name="package_name">com.raan.captain</string>
-    <string name="custom_url_scheme">com.raan.captain</string>
-</resources>

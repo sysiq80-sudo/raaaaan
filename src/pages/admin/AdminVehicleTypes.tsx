@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,36 +45,24 @@ const emptyVehicleType: Omit<VehicleType, 'id'> & { id: string } = {
 
 const AdminVehicleTypes = () => {
   const { loading: authLoading, isAdmin } = useAdminAuth();
-  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
   const [editingType, setEditingType] = useState<VehicleType | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
   const [deleteType, setDeleteType] = useState<VehicleType | null>(null);
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetchVehicleTypes();
-    }
-  }, [isAdmin]);
-
-  const fetchVehicleTypes = async () => {
-    try {
+  const { data: vehicleTypes = [], isLoading: loading } = useQuery({
+    queryKey: ['vehicle-types'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('vehicle_types')
         .select('*')
         .order('sort_order');
-
       if (error) throw error;
-      setVehicleTypes(data || []);
-    } catch (error) {
-      console.error('Error fetching vehicle types:', error);
-      toast.error("حدث خطأ أثناء تحميل أنواع السيارات");
-    } finally {
-      setLoading(false);
-    }
-  };
+      return (data || []) as VehicleType[];
+    },
+    enabled: isAdmin,
+  });
 
   const handleAdd = () => {
     const maxOrder = Math.max(...vehicleTypes.map(v => v.sort_order), 0);
@@ -88,116 +77,118 @@ const AdminVehicleTypes = () => {
     setIsDialogOpen(true);
   };
 
-  const handleSave = async () => {
-    if (!editingType) return;
-
-    if (!editingType.id.trim() || !editingType.name_ar.trim()) {
-      toast.error("يرجى ملء جميع الحقول المطلوبة");
-      return;
-    }
-
-    // Validate ID format (lowercase, no spaces)
-    const idRegex = /^[a-z_]+$/;
-    if (!idRegex.test(editingType.id)) {
-      toast.error("معرف النوع يجب أن يكون بالإنجليزية الصغيرة بدون مسافات");
-      return;
-    }
-
-    setSaving(true);
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async (type: VehicleType) => {
       if (isAddMode) {
-        // Check if ID already exists
-        const existing = vehicleTypes.find(v => v.id === editingType.id);
-        if (existing) {
-          toast.error("معرف النوع موجود مسبقاً");
-          setSaving(false);
-          return;
-        }
+        const existing = vehicleTypes.find(v => v.id === type.id);
+        if (existing) throw new Error('معرف النوع موجود مسبقاً');
 
         const { error } = await supabase
           .from('vehicle_types')
           .insert({
-            id: editingType.id,
-            name_ar: editingType.name_ar,
-            name_en: editingType.name_en,
-            icon: editingType.icon,
-            description_ar: editingType.description_ar,
-            description_en: editingType.description_en,
-            multiplier: editingType.multiplier,
-            min_fare: editingType.min_fare,
-            commission_rate: editingType.commission_rate,
-            is_active: editingType.is_active,
-            sort_order: editingType.sort_order
+            id: type.id,
+            name_ar: type.name_ar,
+            name_en: type.name_en,
+            icon: type.icon,
+            description_ar: type.description_ar,
+            description_en: type.description_en,
+            multiplier: type.multiplier,
+            min_fare: type.min_fare,
+            commission_rate: type.commission_rate,
+            is_active: type.is_active,
+            sort_order: type.sort_order
           });
-
         if (error) throw error;
-        toast.success("تم إضافة نوع السيارة بنجاح");
       } else {
         const { error } = await supabase
           .from('vehicle_types')
           .update({
-            name_ar: editingType.name_ar,
-            name_en: editingType.name_en,
-            icon: editingType.icon,
-            description_ar: editingType.description_ar,
-            description_en: editingType.description_en,
-            multiplier: editingType.multiplier,
-            min_fare: editingType.min_fare,
-            commission_rate: editingType.commission_rate,
-            is_active: editingType.is_active,
-            sort_order: editingType.sort_order
+            name_ar: type.name_ar,
+            name_en: type.name_en,
+            icon: type.icon,
+            description_ar: type.description_ar,
+            description_en: type.description_en,
+            multiplier: type.multiplier,
+            min_fare: type.min_fare,
+            commission_rate: type.commission_rate,
+            is_active: type.is_active,
+            sort_order: type.sort_order
           })
-          .eq('id', editingType.id);
-
+          .eq('id', type.id);
         if (error) throw error;
-        toast.success("تم حفظ التغييرات بنجاح");
       }
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vehicle-types'] });
+      toast.success(isAddMode ? 'تم إضافة نوع السيارة بنجاح' : 'تم حفظ التغييرات بنجاح');
       setIsDialogOpen(false);
-      fetchVehicleTypes();
-    } catch (error) {
+    },
+    onError: (error: Error) => {
       console.error('Error saving vehicle type:', error);
-      toast.error("حدث خطأ أثناء حفظ التغييرات");
-    } finally {
-      setSaving(false);
-    }
-  };
+      toast.error(error.message === 'معرف النوع موجود مسبقاً' ? error.message : 'حدث خطأ أثناء حفظ التغييرات');
+    },
+  });
 
-  const handleDelete = async () => {
-    if (!deleteType) return;
-
-    try {
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('vehicle_types')
         .delete()
-        .eq('id', deleteType.id);
-
+        .eq('id', id);
       if (error) throw error;
-      
-      toast.success("تم حذف نوع السيارة");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vehicle-types'] });
+      toast.success('تم حذف نوع السيارة');
       setDeleteType(null);
-      fetchVehicleTypes();
-    } catch (error) {
-      console.error('Error deleting vehicle type:', error);
-      toast.error("حدث خطأ أثناء الحذف - قد يكون النوع مستخدماً في رحلات سابقة");
-    }
-  };
+    },
+    onError: () => {
+      toast.error('حدث خطأ أثناء الحذف - قد يكون النوع مستخدماً في رحلات سابقة');
+    },
+  });
 
-  const handleToggleActive = async (type: VehicleType) => {
-    try {
+  const toggleMutation = useMutation({
+    mutationFn: async (type: VehicleType) => {
       const { error } = await supabase
         .from('vehicle_types')
         .update({ is_active: !type.is_active })
         .eq('id', type.id);
-
       if (error) throw error;
-      
-      toast.success(type.is_active ? "تم تعطيل النوع" : "تم تفعيل النوع");
-      fetchVehicleTypes();
-    } catch (error) {
-      console.error('Error toggling vehicle type:', error);
-      toast.error("حدث خطأ");
+      return type;
+    },
+    onSuccess: (_, type) => {
+      queryClient.invalidateQueries({ queryKey: ['vehicle-types'] });
+      toast.success(type.is_active ? 'تم تعطيل النوع' : 'تم تفعيل النوع');
+    },
+    onError: () => {
+      toast.error('حدث خطأ');
+    },
+  });
+
+  const handleSave = () => {
+    if (!editingType) return;
+
+    if (!editingType.id.trim() || !editingType.name_ar.trim()) {
+      toast.error('يرجى ملء جميع الحقول المطلوبة');
+      return;
     }
+
+    const idRegex = /^[a-z_]+$/;
+    if (!idRegex.test(editingType.id)) {
+      toast.error('معرف النوع يجب أن يكون بالإنجليزية الصغيرة بدون مسافات');
+      return;
+    }
+
+    saveMutation.mutate(editingType);
+  };
+
+  const handleDelete = () => {
+    if (!deleteType) return;
+    deleteMutation.mutate(deleteType.id);
+  };
+
+  const handleToggleActive = (type: VehicleType) => {
+    toggleMutation.mutate(type);
   };
 
   if (authLoading || loading) {
@@ -217,7 +208,7 @@ const AdminVehicleTypes = () => {
       subtitle="إدارة أنواع السيارات ونسب العمولة"
       actions={
         <div className="flex gap-2">
-          <Button variant="outline" onClick={fetchVehicleTypes}>
+          <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['vehicle-types'] })}>
             <RefreshCw className="w-4 h-4 ml-2" />
             تحديث
           </Button>
@@ -500,8 +491,8 @@ const AdminVehicleTypes = () => {
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               إلغاء
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
+            <Button onClick={handleSave} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
               {isAddMode ? 'إضافة' : 'حفظ التغييرات'}
             </Button>
           </DialogFooter>

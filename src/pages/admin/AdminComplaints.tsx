@@ -84,35 +84,53 @@ const AdminComplaints = () => {
   const [financialDecision, setFinancialDecision] = useState<string>("");
   const [resolving, setResolving] = useState(false);
   const [activeTab, setActiveTab] = useState("pending");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 50;
 
   useAdminAuth();
 
   useEffect(() => {
+    setCurrentPage(1);
     fetchComplaints();
   }, [activeTab]);
+
+  useEffect(() => {
+    fetchComplaints();
+  }, [currentPage]);
 
   const fetchComplaints = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('ride_complaints')
-        .select(`
-          *,
-          rides!inner (
-            id,
-            final_fare,
-            rider_id,
-            driver_id,
-            pickup_address,
-            dropoff_address
-          )
-        `)
-        .eq('status', activeTab)
-        .order('created_at', { ascending: false });
+      const from = (currentPage - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const [countResult, { data, error }] = await Promise.all([
+        supabase
+          .from('ride_complaints')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', activeTab),
+        supabase
+          .from('ride_complaints')
+          .select(`
+            *,
+            rides!inner (
+              id,
+              final_fare,
+              rider_id,
+              driver_id,
+              pickup_address,
+              dropoff_address
+            )
+          `)
+          .eq('status', activeTab)
+          .order('created_at', { ascending: false })
+          .range(from, to),
+      ]);
 
       if (error) throw error;
       let complaintsData: any[] = data || [];
-
+      setTotalCount(countResult.count || 0);
       // gather unique rider/driver ids for profile lookup
       const riderIds = Array.from(
         new Set(complaintsData.map(c => c.rides?.rider_id).filter(Boolean))
@@ -561,6 +579,33 @@ const AdminComplaints = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Pagination */}
+      {totalCount > PAGE_SIZE && (
+        <div className="flex items-center justify-between mt-4">
+          <span className="text-sm text-muted-foreground">
+            صفحة {currentPage} من {Math.ceil(totalCount / PAGE_SIZE)} — إجمالي {totalCount} شكوى
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+            >
+              السابق
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.min(Math.ceil(totalCount / PAGE_SIZE), p + 1))}
+              disabled={currentPage >= Math.ceil(totalCount / PAGE_SIZE)}
+            >
+              التالي
+            </Button>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 };

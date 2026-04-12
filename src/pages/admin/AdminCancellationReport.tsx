@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,27 +56,10 @@ interface CancellerDistribution {
 
 const AdminCancellationReport = () => {
   const { loading: authLoading, isAdmin } = useAdminAuth();
-  const [cancelledRides, setCancelledRides] = useState<CancelledRide[]>([]);
-  const [dailyStats, setDailyStats] = useState<DailyCancellation[]>([]);
-  const [cancellerDistribution, setCancellerDistribution] = useState<CancellerDistribution[]>([]);
-  const [totals, setTotals] = useState({
-    totalCancellations: 0,
-    totalFeesCollected: 0,
-    totalFeesPending: 0,
-    cancellationRate: 0,
-    riderCancellations: 0,
-    driverCancellations: 0,
-  });
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetchCancellationData();
-    }
-  }, [isAdmin]);
-
-  const fetchCancellationData = async () => {
-    try {
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["admin-cancellation-report"],
+    queryFn: async () => {
       // Fetch total ride count efficiently
       const { count: totalRideCount, error: countError } = await supabase
         .from("rides")
@@ -94,32 +77,36 @@ const AdminCancellationReport = () => {
 
       if (error) throw error;
 
-      setCancelledRides(rides || []);
+      const cancelledRides = rides || [];
 
-      if (!rides || rides.length === 0) {
-        setLoading(false);
-        return;
+      if (cancelledRides.length === 0) {
+        return {
+          cancelledRides: [] as CancelledRide[],
+          dailyStats: [] as DailyCancellation[],
+          cancellerDistribution: [] as CancellerDistribution[],
+          totals: { totalCancellations: 0, totalFeesCollected: 0, totalFeesPending: 0, cancellationRate: 0, riderCancellations: 0, driverCancellations: 0 },
+        };
       }
 
       // Calculate totals
       const totalRides = totalRideCount || 0;
-      const riderCancellations = rides.filter(r => r.cancelled_by === "rider").length;
-      const driverCancellations = rides.filter(r => r.cancelled_by === "driver").length;
-      const feesCollected = rides
+      const riderCancellations = cancelledRides.filter(r => r.cancelled_by === "rider").length;
+      const driverCancellations = cancelledRides.filter(r => r.cancelled_by === "driver").length;
+      const feesCollected = cancelledRides
         .filter(r => r.cancellation_fee_paid)
         .reduce((sum, r) => sum + (r.cancellation_fee || 0), 0);
-      const feesPending = rides
+      const feesPending = cancelledRides
         .filter(r => !r.cancellation_fee_paid && (r.cancellation_fee || 0) > 0)
         .reduce((sum, r) => sum + (r.cancellation_fee || 0), 0);
 
-      setTotals({
-        totalCancellations: rides.length,
+      const totals = {
+        totalCancellations: cancelledRides.length,
         totalFeesCollected: feesCollected,
         totalFeesPending: feesPending,
-        cancellationRate: totalRides > 0 ? (rides.length / totalRides) * 100 : 0,
+        cancellationRate: totalRides > 0 ? (cancelledRides.length / totalRides) * 100 : 0,
         riderCancellations,
         driverCancellations,
-      });
+      };
 
       // Calculate daily stats (last 7 days)
       const last7Days = eachDayOfInterval({
@@ -127,9 +114,9 @@ const AdminCancellationReport = () => {
         end: new Date(),
       });
 
-      const dailyData = last7Days.map(day => {
+      const dailyStats = last7Days.map(day => {
         const dayStart = startOfDay(day);
-        const dayRides = rides.filter(r => {
+        const dayRides = cancelledRides.filter(r => {
           const rideDate = startOfDay(new Date(r.created_at));
           return rideDate.getTime() === dayStart.getTime();
         });
@@ -144,21 +131,22 @@ const AdminCancellationReport = () => {
         };
       });
 
-      setDailyStats(dailyData);
-
       // Canceller distribution
-      setCancellerDistribution([
+      const cancellerDistribution = [
         { name: "الراكب", value: riderCancellations, color: "hsl(var(--chart-1))" },
         { name: "السائق", value: driverCancellations, color: "hsl(var(--chart-2))" },
-        { name: "النظام", value: rides.length - riderCancellations - driverCancellations, color: "hsl(var(--chart-3))" },
-      ].filter(item => item.value > 0));
+        { name: "النظام", value: cancelledRides.length - riderCancellations - driverCancellations, color: "hsl(var(--chart-3))" },
+      ].filter(item => item.value > 0);
 
-    } catch (error) {
-      console.error("Error fetching cancellation data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return { cancelledRides, dailyStats, cancellerDistribution, totals };
+    },
+    enabled: isAdmin,
+  });
+
+  const cancelledRides = data?.cancelledRides || [];
+  const dailyStats = data?.dailyStats || [];
+  const cancellerDistribution = data?.cancellerDistribution || [];
+  const totals = data?.totals || { totalCancellations: 0, totalFeesCollected: 0, totalFeesPending: 0, cancellationRate: 0, riderCancellations: 0, driverCancellations: 0 };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("ar-IQ", {

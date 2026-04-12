@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   CheckCircle2, 
@@ -55,64 +56,55 @@ const priorityLabels = {
 };
 
 export default function AdminDevelopmentTasks() {
+  const queryClient = useQueryClient();
   const [tasks, setTasks] = useState<AppTask[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const fetchTasks = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      // NOTE: Expecting the app_tasks table. If it doesn't exist yet because migration wasn't pushed,
-      // it might yield an error, and we handle it gracefully here.
+  const { isLoading: loading } = useQuery({
+    queryKey: ['app-tasks'],
+    queryFn: async () => {
       const { data, error: err } = await supabase
         .from('app_tasks' as any)
         .select('*')
-        .order('status', { ascending: false }) // 'todo' -> 'in_progress' -> 'done' roughly depending on translation, better manual sort later
+        .order('status', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (err) throw err;
       
-      // Sort manually: 'todo' > 'in_progress' > 'done'
       const statusOrder = { todo: 1, in_progress: 2, done: 3 };
       const sortedData = (data as AppTask[]).sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
       
       setTasks(sortedData);
-    } catch (err: any) {
-      console.error("Error fetching tasks:", err);
-      // If table doesn't exist, we show a friendly message guiding the user to push migrations
-      setError("لم يتم العثور على المهام. تأكد من تشغيل أمر الترحيل (Migration) لقاعدة البيانات: npx supabase db push");
-    } finally {
-      setLoading(false);
+      setError(null);
+      return sortedData;
+    },
+    meta: {
+      onError: () => {
+        setError("لم يتم العثور على المهام. تأكد من تشغيل أمر الترحيل (Migration) لقاعدة البيانات: npx supabase db push");
+      }
     }
-  };
+  });
 
-  useEffect(() => {
-    fetchTasks();
-  }, []);
-
-  const updateTaskStatus = async (id: string, newStatus: AppTask['status']) => {
-    try {
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, newStatus }: { id: string; newStatus: AppTask['status'] }) => {
       const { error } = await supabase
         .from('app_tasks' as any)
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq('id', id);
-
       if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "تم التحديث", description: "تم تحديث حالة المهمة بنجاح" });
+      queryClient.invalidateQueries({ queryKey: ['app-tasks'] });
+    },
+    onError: () => {
+      toast({ title: "خطأ", description: "تعذر تحديث المهمة", variant: "destructive" });
+    },
+  });
 
-      setTasks(tasks.map(t => t.id === id ? { ...t, status: newStatus } : t));
-      toast({
-        title: "تم التحديث",
-        description: "تم تحديث حالة المهمة بنجاح",
-      });
-    } catch (err: any) {
-      toast({
-        title: "خطأ",
-        description: "تعذر تحديث المهمة",
-        variant: "destructive",
-      });
-    }
+  const updateTaskStatus = (id: string, newStatus: AppTask['status']) => {
+    updateStatusMutation.mutate({ id, newStatus });
   };
 
   if (loading) {

@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -68,9 +69,8 @@ interface ControllerAccount {
 const AdminControllerUsers = () => {
   const { toast } = useToast();
   const { loading: authLoading, isAdmin } = useAdminAuth();
+  const queryClient = useQueryClient();
   const [accounts, setAccounts] = useState<ControllerAccount[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // حوارات
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -84,54 +84,61 @@ const AdminControllerUsers = () => {
   const [newPassword, setNewPassword] = useState("");
   const [newFullName, setNewFullName] = useState("");
   const [newRole, setNewRole] = useState("admin");
-  const [adding, setAdding] = useState(false);
 
   // نموذج تعديل
   const [editFullName, setEditFullName] = useState("");
   const [editRole, setEditRole] = useState("");
-  const [editing, setEditing] = useState(false);
 
   // نموذج كلمة المرور
   const [resetPassword, setResetPassword] = useState("");
-  const [resettingPassword, setResettingPassword] = useState(false);
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetchAccounts();
-      return;
-    }
-    if (!authLoading) {
-      setLoading(false);
-      return;
-    }
-    const fallbackTimer = setTimeout(() => fetchAccounts(), 2000);
-    return () => clearTimeout(fallbackTimer);
-  }, [isAdmin, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { isLoading: loading, error: fetchErrorObj } = useQuery({
+    queryKey: ['controller-accounts'],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)("list_controller_accounts");
+      if (error) throw error;
+      setAccounts((data as ControllerAccount[]) || []);
+      return data;
+    },
+    enabled: isAdmin,
+  });
 
-  const fetchAccounts = async () => {
-    setLoading(true);
-    setFetchError(null);
+  const fetchError = fetchErrorObj instanceof Error ? `فشل جلب بيانات المدراء: ${fetchErrorObj.message}` : fetchErrorObj ? String(fetchErrorObj) : null;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.rpc as any)("list_controller_accounts");
-
-    if (error) {
-      console.error("[AdminControllerUsers] Fetch error:", error);
-      setFetchError(`فشل جلب بيانات المدراء: ${error.message}`);
+  const addMutation = useMutation({
+    mutationFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)("create_controller_account", {
+        p_email: newEmail.trim().toLowerCase(),
+        p_password: newPassword,
+        p_full_name: newFullName.trim() || "Admin",
+        p_role: newRole,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast({ title: "تم", description: "تم إنشاء حساب المدير بنجاح" });
+      setAddDialogOpen(false);
+      setNewEmail("");
+      setNewPassword("");
+      setNewFullName("");
+      setNewRole("admin");
+      queryClient.invalidateQueries({ queryKey: ['controller-accounts'] });
+    },
+    onError: (error: any) => {
+      console.error("[AdminControllerUsers] Create error:", error);
+      const isDuplicate = error.message?.includes("duplicate") || error.message?.includes("unique");
       toast({
         title: "خطأ",
-        description: "فشل في جلب بيانات مدراء النظام",
+        description: isDuplicate ? "البريد الإلكتروني مسجل مسبقاً" : `فشل إنشاء الحساب: ${error.message}`,
         variant: "destructive",
       });
-      setLoading(false);
-      return;
-    }
+    },
+  });
 
-    setAccounts((data as ControllerAccount[]) || []);
-    setLoading(false);
-  };
-
-  const handleAddAccount = async () => {
+  const handleAddAccount = () => {
     if (!newEmail || !newPassword) {
       toast({ title: "خطأ", description: "البريد الإلكتروني وكلمة المرور مطلوبان", variant: "destructive" });
       return;
@@ -140,112 +147,92 @@ const AdminControllerUsers = () => {
       toast({ title: "خطأ", description: "كلمة المرور يجب أن تكون 8 أحرف على الأقل", variant: "destructive" });
       return;
     }
+    addMutation.mutate();
+  };
 
-    setAdding(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.rpc as any)("create_controller_account", {
-      p_email: newEmail.trim().toLowerCase(),
-      p_password: newPassword,
-      p_full_name: newFullName.trim() || "Admin",
-      p_role: newRole,
-    });
-
-    if (error) {
-      console.error("[AdminControllerUsers] Create error:", error);
-      const isDuplicate = error.message?.includes("duplicate") || error.message?.includes("unique");
-      toast({
-        title: "خطأ",
-        description: isDuplicate ? "البريد الإلكتروني مسجل مسبقاً" : `فشل إنشاء الحساب: ${error.message}`,
-        variant: "destructive",
+  const editMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedAccount) throw new Error('No account selected');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.rpc as any)("update_controller_account", {
+        p_id: selectedAccount.id,
+        p_full_name: editFullName.trim() || null,
+        p_role: editRole || null,
+        p_is_active: null,
       });
-      setAdding(false);
-      return;
-    }
-
-    toast({ title: "تم", description: "تم إنشاء حساب المدير بنجاح" });
-    setAddDialogOpen(false);
-    setNewEmail("");
-    setNewPassword("");
-    setNewFullName("");
-    setNewRole("admin");
-    setAdding(false);
-    fetchAccounts();
-  };
-
-  const handleEditAccount = async () => {
-    if (!selectedAccount) return;
-    setEditing(true);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.rpc as any)("update_controller_account", {
-      p_id: selectedAccount.id,
-      p_full_name: editFullName.trim() || null,
-      p_role: editRole || null,
-      p_is_active: null,
-    });
-
-    if (error) {
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "تم", description: "تم تحديث بيانات المدير" });
+      setEditDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['controller-accounts'] });
+    },
+    onError: (error: any) => {
       toast({ title: "خطأ", description: `فشل التحديث: ${error.message}`, variant: "destructive" });
-      setEditing(false);
-      return;
-    }
+    },
+  });
 
-    toast({ title: "تم", description: "تم تحديث بيانات المدير" });
-    setEditDialogOpen(false);
-    setEditing(false);
-    fetchAccounts();
+  const handleEditAccount = () => {
+    if (!selectedAccount) return;
+    editMutation.mutate();
   };
 
-  const handleResetPassword = async () => {
+  const resetPasswordMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedAccount) throw new Error('No account selected');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.rpc as any)("reset_controller_password", {
+        p_id: selectedAccount.id,
+        p_new_password: resetPassword,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "تم", description: "تم تغيير كلمة المرور بنجاح" });
+      setResetPasswordDialogOpen(false);
+      setResetPassword("");
+    },
+    onError: (error: any) => {
+      toast({ title: "خطأ", description: `فشل تغيير كلمة المرور: ${error.message}`, variant: "destructive" });
+    },
+  });
+
+  const handleResetPassword = () => {
     if (!selectedAccount || !resetPassword) return;
     if (resetPassword.length < 8) {
       toast({ title: "خطأ", description: "كلمة المرور يجب أن تكون 8 أحرف على الأقل", variant: "destructive" });
       return;
     }
-
-    setResettingPassword(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.rpc as any)("reset_controller_password", {
-      p_id: selectedAccount.id,
-      p_new_password: resetPassword,
-    });
-
-    if (error) {
-      toast({ title: "خطأ", description: `فشل تغيير كلمة المرور: ${error.message}`, variant: "destructive" });
-      setResettingPassword(false);
-      return;
-    }
-
-    toast({ title: "تم", description: "تم تغيير كلمة المرور بنجاح" });
-    setResetPasswordDialogOpen(false);
-    setResetPassword("");
-    setResettingPassword(false);
+    resetPasswordMutation.mutate();
   };
 
-  const handleToggleActive = async () => {
-    if (!selectedAccount) return;
-
-    const newStatus = !selectedAccount.is_active;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.rpc as any)("update_controller_account", {
-      p_id: selectedAccount.id,
-      p_full_name: null,
-      p_role: null,
-      p_is_active: newStatus,
-    });
-
-    if (error) {
+  const toggleActiveMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedAccount) throw new Error('No account selected');
+      const newStatus = !selectedAccount.is_active;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.rpc as any)("update_controller_account", {
+        p_id: selectedAccount.id,
+        p_full_name: null,
+        p_role: null,
+        p_is_active: newStatus,
+      });
+      if (error) throw error;
+      return newStatus;
+    },
+    onSuccess: (newStatus) => {
+      toast({ title: "تم", description: newStatus ? "تم تفعيل الحساب" : "تم تعطيل الحساب" });
+      setDeactivateDialogOpen(false);
+      setSelectedAccount(null);
+      queryClient.invalidateQueries({ queryKey: ['controller-accounts'] });
+    },
+    onError: (error: any) => {
       toast({ title: "خطأ", description: `فشل تغيير الحالة: ${error.message}`, variant: "destructive" });
-      return;
-    }
+    },
+  });
 
-    toast({
-      title: "تم",
-      description: newStatus ? "تم تفعيل الحساب" : "تم تعطيل الحساب",
-    });
-    setDeactivateDialogOpen(false);
-    setSelectedAccount(null);
-    fetchAccounts();
+  const handleToggleActive = () => {
+    toggleActiveMutation.mutate();
   };
 
   const openEditDialog = (account: ControllerAccount) => {
@@ -315,7 +302,7 @@ const AdminControllerUsers = () => {
           <div className="text-center">
             <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
             <p className="text-destructive font-medium">{fetchError}</p>
-            <Button onClick={fetchAccounts} className="mt-4">إعادة المحاولة</Button>
+            <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['controller-accounts'] })} className="mt-4">إعادة المحاولة</Button>
           </div>
         </div>
       </AdminLayout>
@@ -529,7 +516,7 @@ const AdminControllerUsers = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>إلغاء</Button>
-            <Button onClick={handleAddAccount} disabled={adding}>
+            <Button onClick={handleAddAccount} disabled={addMutation.isPending}>
               {adding ? "جاري الإنشاء..." : "إنشاء الحساب"}
             </Button>
           </DialogFooter>
@@ -571,7 +558,7 @@ const AdminControllerUsers = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>إلغاء</Button>
-            <Button onClick={handleEditAccount} disabled={editing}>
+            <Button onClick={handleEditAccount} disabled={editMutation.isPending}>
               {editing ? "جاري الحفظ..." : "حفظ التعديلات"}
             </Button>
           </DialogFooter>
@@ -602,7 +589,7 @@ const AdminControllerUsers = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetPasswordDialogOpen(false)}>إلغاء</Button>
-            <Button onClick={handleResetPassword} disabled={resettingPassword}>
+            <Button onClick={handleResetPassword} disabled={resetPasswordMutation.isPending}>
               {resettingPassword ? "جاري التغيير..." : "تغيير كلمة المرور"}
             </Button>
           </DialogFooter>

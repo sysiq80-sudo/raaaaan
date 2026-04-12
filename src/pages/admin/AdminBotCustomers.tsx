@@ -3,7 +3,8 @@
  * عرض وإدارة العملاء الذين تفاعلوا عبر واتساب وتليجرام
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -57,11 +58,14 @@ interface BotCustomer {
 const AdminBotCustomers = () => {
   const { toast } = useToast();
   const { loading: authLoading, isAdmin } = useAdminAuth();
+  const queryClient = useQueryClient();
 
   const [customers, setCustomers] = useState<BotCustomer[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 50;
 
   // ─── إحصائيات ───
   const stats = useMemo(() => {
@@ -81,34 +85,31 @@ const AdminBotCustomers = () => {
   }, [customers]);
 
   // ─── جلب البيانات ───
-  useEffect(() => {
-    if (isAdmin) fetchCustomers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
+  const { isLoading: loading } = useQuery({
+    queryKey: ['bot-customers', currentPage],
+    queryFn: async () => {
+      const from = (currentPage - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-  const fetchCustomers = async () => {
-    setLoading(true);
-    // bot_customers جدول جديد — لم يُضاف بعد للتايبات المولّدة
-    const { data, error } = await (supabase as any)
-      .from("bot_customers")
-      .select("*")
-      .order("last_active", { ascending: false })
-      .limit(500);
+      const [countResult, dataResult] = await Promise.all([
+        (supabase as any)
+          .from("bot_customers")
+          .select("*", { count: "exact", head: true }),
+        (supabase as any)
+          .from("bot_customers")
+          .select("*")
+          .order("last_active", { ascending: false })
+          .range(from, to),
+      ]);
 
-    if (error) {
-      console.error("Failed to fetch bot_customers:", error);
-      toast({
-        title: "خطأ",
-        description: "فشل في جلب بيانات العملاء",
-        variant: "destructive",
-      });
-      setLoading(false);
-      return;
-    }
+      if (dataResult.error) throw dataResult.error;
 
-    setCustomers((data as BotCustomer[]) || []);
-    setLoading(false);
-  };
+      setTotalCount(countResult.count || 0);
+      setCustomers((dataResult.data as BotCustomer[]) || []);
+      return dataResult.data;
+    },
+    enabled: isAdmin,
+  });
 
   // ─── الفلترة ───
   const filteredCustomers = useMemo(() => {
@@ -182,14 +183,14 @@ const AdminBotCustomers = () => {
   return (
     <AdminLayout
       title="عملاء البوت 🤖"
-      subtitle={`${filteredCustomers.length} من ${customers.length} عميل`}
+      subtitle={`${filteredCustomers.length} من ${totalCount} عميل`}
       actions={
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={exportCSV}>
             <Download className="h-4 w-4 ml-1" />
             تصدير CSV
           </Button>
-          <Button variant="outline" size="sm" onClick={fetchCustomers}>
+          <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['bot-customers'] })}>
             <RefreshCw className="h-4 w-4 ml-1" />
             تحديث
           </Button>
@@ -387,6 +388,32 @@ const AdminBotCustomers = () => {
               </TableBody>
             </Table>
           </div>
+          {/* Pagination */}
+          {totalCount > PAGE_SIZE && (
+            <div className="flex items-center justify-between p-4 border-t">
+              <span className="text-sm text-muted-foreground">
+                صفحة {currentPage} من {Math.ceil(totalCount / PAGE_SIZE)} — إجمالي {totalCount} عميل
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                >
+                  السابق
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(Math.ceil(totalCount / PAGE_SIZE), p + 1))}
+                  disabled={currentPage >= Math.ceil(totalCount / PAGE_SIZE)}
+                >
+                  التالي
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
     </AdminLayout>

@@ -9,7 +9,7 @@
  * 3. Offline (رمادي) - غير متصل
  */
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Power, Loader2, WifiOff, Wifi, Shield, PauseCircle, Coffee, Navigation } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -52,17 +52,11 @@ const DutyToggle = ({
   const isDisabled = isLoading || driverStatus !== "approved";
   const isApproved = driverStatus === "approved";
 
-  // \u062a\u0634\u062e\u064a\u0635 \u0634\u0627\u0645\u0644 \u0639\u0646\u062f \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0645\u0643\u0648\u0646
-  console.log('\ud83d\udfe1 DutyToggle RENDER:', { isDisabled, isOnline, isPaused, isLoading, driverStatus, hasActiveRide, hasRideRequest });
-
   const handlePress = async () => {
-    console.log('\ud83d\udd18 DutyToggle handlePress called!', { isDisabled, isOnline, isPaused, isLoading, driverStatus });
     setClickCount(prev => prev + 1);
     if (isDisabled) {
-      console.log('🚫 DutyToggle DISABLED — isLoading:', isLoading, 'driverStatus:', driverStatus);
       return;
     }
-    console.log('✅ DutyToggle proceeding with toggle to:', !isOnline);
     // تهيئة AudioContext عند أول تفاعل مستخدم (Go Online)
     initAudioContext();
     resumeAudioContext();
@@ -175,20 +169,15 @@ const DutyToggle = ({
 
         {/* Main Button */}
         <button
-          onClick={(e) => {
-            console.log('\ud83d\udc49 DutyToggle onClick fired!', e.type);
+          onClick={() => {
             handlePress();
           }}
           onTouchEnd={(e) => {
-            console.log('\ud83d\udc46 DutyToggle onTouchEnd fired!');
             e.preventDefault();
             handlePress();
           }}
           disabled={isDisabled}
-          onPointerDown={() => {
-            console.log('\u2b07\ufe0f DutyToggle onPointerDown');
-            !isDisabled && setPressing(true);
-          }}
+          onPointerDown={() => !isDisabled && setPressing(true)}
           onPointerUp={() => setPressing(false)}
           onPointerLeave={() => setPressing(false)}
           className={cn(
@@ -362,4 +351,20 @@ const DutyToggle = ({
   );
 };
 
-export default DutyToggle;
+export default memo(DutyToggle, (prevProps, nextProps) => {
+  return (
+    prevProps.isOnline === nextProps.isOnline &&
+    prevProps.isPaused === nextProps.isPaused &&
+    prevProps.isLoading === nextProps.isLoading &&
+    prevProps.isSearching === nextProps.isSearching &&
+    prevProps.driverStatus === nextProps.driverStatus &&
+    prevProps.locationTracking === nextProps.locationTracking &&
+    prevProps.onToggle === nextProps.onToggle &&
+    prevProps.onPauseToggle === nextProps.onPauseToggle &&
+    prevProps.hasRideRequest === nextProps.hasRideRequest &&
+    prevProps.hasActiveRide === nextProps.hasActiveRide &&
+    prevProps.maxPickupRadius === nextProps.maxPickupRadius &&
+    // نتأكد فقط من وجود الموقع أو عدمه، التجاهل يمنع الوميض!
+    !!prevProps.driverLocation === !!nextProps.driverLocation
+  );
+});

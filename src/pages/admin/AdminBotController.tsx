@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
@@ -25,33 +26,25 @@ interface BotConfig {
 const AdminBotController: React.FC = () => {
   const navigate = useNavigate();
   const { isAdmin, loading: authLoading } = useAdminAuth();
+  const queryClient = useQueryClient();
   const [config, setConfig] = useState<BotConfig>({
     mode: 'hardcoded',
     active_workflow_id: null,
     fallback_to_hardcoded: true,
   });
   const [workflows, setWorkflows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Load config from system_configs table
-  const loadConfig = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    try {
+  const { isLoading: loading, error: loadErrorObj } = useQuery({
+    queryKey: ['bot-controller-config'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('system_configs')
         .select('key_value')
         .eq('key_name', 'bot_controller_mode')
         .maybeSingle();
 
-      if (error) {
-        setLoadError(error.message || 'فشل تحميل الإعدادات');
-        toast.error('فشل تحميل إعدادات البوت: ' + (error.message || 'تحقق من صلاحيات المدير'));
-        setLoading(false);
-        return;
-      }
+      if (error) throw error;
 
       if (data?.key_value) {
         try {
@@ -70,20 +63,14 @@ const AdminBotController: React.FC = () => {
         toast.error('فشل تحميل قائمة التدفقات: ' + wfError.message);
       }
       setWorkflows(wfData || []);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'خطأ غير متوقع';
-      setLoadError(msg);
-      toast.error('فشل تحميل إعدادات البوت: ' + msg);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return data;
+    },
+  });
 
-  useEffect(() => { loadConfig(); }, [loadConfig]);
+  const loadError = loadErrorObj instanceof Error ? loadErrorObj.message : loadErrorObj ? String(loadErrorObj) : null;
 
-  const saveConfig = async (newConfig: BotConfig) => {
-    setSaving(true);
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async (newConfig: BotConfig) => {
       const { data: existing, error: fetchError } = await supabase
         .from('system_configs')
         .select('id')
@@ -112,17 +99,22 @@ const AdminBotController: React.FC = () => {
           });
         if (error) throw error;
       }
-
+      return newConfig;
+    },
+    onSuccess: (newConfig) => {
       setConfig(newConfig);
-      setLoadError(null);
       toast.success('تم حفظ إعدادات البوت ✅');
-    } catch (err: unknown) {
+      queryClient.invalidateQueries({ queryKey: ['bot-controller-config'] });
+    },
+    onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : 'خطأ غير معروف';
       toast.error('فشل في حفظ الإعدادات: ' + message);
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+  });
+
+  const saving = saveMutation.isPending;
+  const saveConfig = (newConfig: BotConfig) => saveMutation.mutate(newConfig);
+  const loadConfig = () => queryClient.invalidateQueries({ queryKey: ['bot-controller-config'] });
 
   const modeOptions = [
     {

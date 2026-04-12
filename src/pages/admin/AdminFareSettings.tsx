@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,12 +23,12 @@ interface FareSettings {
 interface CommissionSettings {
   rate: number;
   min_amount: number;
+  min_driver_balance: number;
 }
 
 const AdminFareSettings = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
   
   const [fareSettings, setFareSettings] = useState<FareSettings>({
     service_fee_percentage: 5,
@@ -41,77 +42,80 @@ const AdminFareSettings = () => {
   const [commissionSettings, setCommissionSettings] = useState<CommissionSettings>({
     rate: 15,
     min_amount: 500,
+    min_driver_balance: -10000,
+  });
+
+  const { data: settingsData, isLoading: loading } = useQuery({
+    queryKey: ['fare-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('key, value')
+        .in('key', ['fare_calculation', 'commission']);
+      if (error) throw error;
+      return data;
+    },
+    select: (data) => {
+      const result: { fare?: FareSettings; commission?: CommissionSettings } = {};
+      data?.forEach((setting) => {
+        if (setting.key === 'fare_calculation' && setting.value) {
+          result.fare = setting.value as unknown as FareSettings;
+        }
+        if (setting.key === 'commission' && setting.value) {
+          result.commission = setting.value as unknown as CommissionSettings;
+        }
+      });
+      return result;
+    },
   });
 
   useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    const { data, error } = await supabase
-      .from('app_settings')
-      .select('key, value')
-      .in('key', ['fare_calculation', 'commission']);
-
-    if (error) {
-      toast.error('خطأ في جلب الإعدادات');
-      console.error(error);
-    } else if (data) {
-      data.forEach((setting) => {
-        if (setting.key === 'fare_calculation' && setting.value) {
-          const val = setting.value as unknown as FareSettings;
-          setFareSettings(prev => ({ ...prev, ...val }));
-        }
-        if (setting.key === 'commission' && setting.value) {
-          const val = setting.value as unknown as CommissionSettings;
-          setCommissionSettings(prev => ({ ...prev, ...val }));
-        }
-      });
+    if (settingsData?.fare) {
+      setFareSettings(prev => ({ ...prev, ...settingsData.fare }));
     }
-    setLoading(false);
-  };
-
-  const handleSave = async () => {
-    if (fareSettings.max_surge_multiplier > 2.0) {
-      toast.error('الحد الأقصى لمعامل الزيادة لا يمكن أن يتجاوز 2.0');
-      return;
+    if (settingsData?.commission) {
+      setCommissionSettings(prev => ({ ...prev, ...settingsData.commission }));
     }
+  }, [settingsData]);
 
-    setSaving(true);
-    
-    try {
-      // Upsert fare_calculation settings (يُنشئ الصف إن لم يكن موجوداً)
+  const saveMutation = useMutation({
+    mutationFn: async () => {
       const { error: fareError } = await supabase
         .from('app_settings')
         .upsert(
           { key: 'fare_calculation', value: { ...fareSettings } },
           { onConflict: 'key' }
         );
-
       if (fareError) throw fareError;
 
-      // Upsert commission settings
       const { error: commissionError } = await supabase
         .from('app_settings')
         .upsert(
           { key: 'commission', value: { ...commissionSettings } },
           { onConflict: 'key' }
         );
-
       if (commissionError) throw commissionError;
 
-      // مزامنة معدل العمولة مع wallet_settings المستخدم من Edge Function
       await supabase.from('wallet_settings')
         .update({ default_commission_rate: commissionSettings.rate })
         .not('id', 'is', null);
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fare-settings'] });
       toast.success('تم حفظ الإعدادات بنجاح');
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error(error);
       toast.error('خطأ في حفظ الإعدادات');
-    } finally {
-      setSaving(false);
+    },
+  });
+
+  const handleSave = () => {
+    if (fareSettings.max_surge_multiplier > 2.0) {
+      toast.error('الحد الأقصى لمعامل الزيادة لا يمكن أن يتجاوز 2.0');
+      return;
     }
+    saveMutation.mutate();
   };
 
   if (loading) {
@@ -219,6 +223,21 @@ const AdminFareSettings = () => {
                 />
                 <p className="text-xs text-muted-foreground">
                   أقل عمولة يتم خصمها حتى لو كانت النسبة أقل
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>الحد الأدنى للرصيد للعمل (سقف الدين د.ع)</Label>
+                <Input
+                  type="number"
+                  step="1000"
+                  value={commissionSettings.min_driver_balance}
+                  onChange={(e) => setCommissionSettings({ 
+                    ...commissionSettings, 
+                    min_driver_balance: parseInt(e.target.value) 
+                  })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  أقل رصيد مسموح للسائق لكي يتمكن من بدء العمل (يمكن وضع قيمة سالبة).
                 </p>
               </div>
             </div>
@@ -354,9 +373,9 @@ const AdminFareSettings = () => {
 
         {/* Save Button */}
         <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={saving} className="gap-2">
+          <Button onClick={handleSave} disabled={saveMutation.isPending} className="gap-2">
             <Save className="h-4 w-4" />
-            {saving ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
+            {saveMutation.isPending ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
           </Button>
         </div>
       </div>
