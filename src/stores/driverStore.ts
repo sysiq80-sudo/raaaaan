@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { zustandCapacitorStorage } from '@/lib/zustandCapacitorStorage';
 
@@ -340,7 +340,7 @@ export const useDriverStore = create<DriverState & DriverActions>()(
         }),
         {
             name: 'raan-driver-store',
-            storage: zustandCapacitorStorage,
+            storage: createJSONStorage(() => zustandCapacitorStorage),
             partialize: (state) => ({
                 // حفظ فقط الإعدادات
                 autoAccept: state.autoAccept,

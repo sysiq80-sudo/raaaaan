@@ -1,0 +1,187 @@
+[
+  {
+    "i": 0,
+    "ok": true,
+    "preview": "-- ════════════════════════════════════════════════════════════════ -- Phase 1 — Security "
+  },
+  {
+    "i": 1,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"user_insert_own_topup\" ON public.rider_wallet_transactions"
+  },
+  {
+    "i": 2,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"Users can create their own topup requests\" ON public.rider_wallet_t"
+  },
+  {
+    "i": 3,
+    "ok": true,
+    "preview": "-- Only admins can directly INSERT rider wallet rows. All normal flows -- (top-up callback"
+  },
+  {
+    "i": 4,
+    "ok": true,
+    "preview": "-- ─── Fix #2: driver_wallet_transactions INSERT lockdown ────────── DROP POLICY IF EXISTS"
+  },
+  {
+    "i": 5,
+    "ok": true,
+    "preview": "CREATE POLICY \"driver_wallet_admin_insert\" ON public.driver_wallet_transactions FOR INSERT"
+  },
+  {
+    "i": 6,
+    "ok": true,
+    "preview": "-- ─── Fix #2b: same pattern for driver_incentive_claims & company_earnings ── DROP POLICY"
+  },
+  {
+    "i": 7,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"service_insert_claims\" ON public.driver_incentive_claims"
+  },
+  {
+    "i": 8,
+    "ok": true,
+    "preview": "CREATE POLICY \"driver_incentive_admin_insert\" ON public.driver_incentive_claims FOR INSERT"
+  },
+  {
+    "i": 9,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"System can insert earnings\" ON public.company_earnings"
+  },
+  {
+    "i": 10,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"authenticated_insert_company_earnings\" ON public.company_earnings"
+  },
+  {
+    "i": 11,
+    "ok": true,
+    "preview": "CREATE POLICY \"company_earnings_admin_insert\" ON public.company_earnings FOR INSERT TO aut"
+  },
+  {
+    "i": 12,
+    "ok": true,
+    "preview": "-- ─── Fix #2c: wallet_topup_requests / withdrawal_requests user-scoped INSERT -- These we"
+  },
+  {
+    "i": 13,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"user_insert_own_topup\" ON public.wallet_topup_requests"
+  },
+  {
+    "i": 14,
+    "ok": true,
+    "preview": "CREATE POLICY \"topup_user_insert_own\" ON public.wallet_topup_requests FOR INSERT TO authen"
+  },
+  {
+    "i": 15,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"driver_insert_own_withdrawal\" ON public.withdrawal_requests"
+  },
+  {
+    "i": 16,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"drivers_create_withdrawal\" ON public.withdrawal_requests"
+  },
+  {
+    "i": 17,
+    "ok": true,
+    "preview": "CREATE POLICY \"withdrawal_driver_insert_own\" ON public.withdrawal_requests FOR INSERT TO a"
+  },
+  {
+    "i": 18,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"Users create own promo usage\" ON public.promo_code_usage"
+  },
+  {
+    "i": 19,
+    "ok": true,
+    "preview": "CREATE POLICY \"promo_usage_user_insert_own\" ON public.promo_code_usage FOR INSERT TO authe"
+  },
+  {
+    "i": 20,
+    "ok": true,
+    "preview": "-- ─── Fix #3: saved_cards — enable RLS + owner-only access ──────── ALTER TABLE public.sa"
+  },
+  {
+    "i": 21,
+    "ok": true,
+    "preview": "ALTER TABLE public.saved_cards FORCE ROW LEVEL SECURITY"
+  },
+  {
+    "i": 22,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"saved_cards_owner_select\" ON public.saved_cards"
+  },
+  {
+    "i": 23,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"saved_cards_owner_update\" ON public.saved_cards"
+  },
+  {
+    "i": 24,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"saved_cards_owner_delete\" ON public.saved_cards"
+  },
+  {
+    "i": 25,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"saved_cards_admin_all\" ON public.saved_cards"
+  },
+  {
+    "i": 26,
+    "ok": true,
+    "preview": "CREATE POLICY \"saved_cards_owner_select\" ON public.saved_cards FOR SELECT TO authenticated"
+  },
+  {
+    "i": 27,
+    "ok": true,
+    "preview": "CREATE POLICY \"saved_cards_owner_update\" ON public.saved_cards FOR UPDATE TO authenticated"
+  },
+  {
+    "i": 28,
+    "ok": true,
+    "preview": "CREATE POLICY \"saved_cards_owner_delete\" ON public.saved_cards FOR DELETE TO authenticated"
+  },
+  {
+    "i": 29,
+    "ok": true,
+    "preview": "-- INSERT must come from server (after provider tokenization) — not direct. -- No INSERT p"
+  },
+  {
+    "i": 30,
+    "ok": true,
+    "preview": "-- ─── Fix #4: app_settings — hide secret keys from public ───────── DROP POLICY IF EXISTS"
+  },
+  {
+    "i": 31,
+    "ok": true,
+    "preview": "DROP POLICY IF EXISTS \"public_read_app_settings\" ON public.app_settings"
+  },
+  {
+    "i": 32,
+    "ok": true,
+    "preview": "-- Public can read only non-secret config keys. Secrets stay admin-only. CREATE POLICY \"ap"
+  },
+  {
+    "i": 33,
+    "ok": true,
+    "preview": "-- ─── Fix #5: Lock down 10 risky financial SECURITY DEFINER RPCs ── -- Default function A"
+  },
+  {
+    "i": 34,
+    "ok": true,
+    "preview": "-- ─── Sanity recheck markers ────────────────────────────────────── COMMENT ON TABLE publ"
+  },
+  {
+    "i": 35,
+    "ok": true,
+    "preview": "COMMENT ON TABLE public.rider_wallet_transactions IS 'Rider wallet ledger. INSERT/UPDATE o"
+  },
+  {
+    "i": 36,
+    "ok": true,
+    "preview": "COMMENT ON TABLE public.driver_wallet_transactions IS 'Driver wallet ledger. INSERT/UPDATE"
+  }
+]

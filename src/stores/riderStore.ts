@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { zustandCapacitorStorage } from '@/lib/zustandCapacitorStorage';
 
 // أنواع البيانات
@@ -219,7 +219,7 @@ export const useRiderStore = create<RiderState & RiderActions>()(
         }),
         {
             name: 'raan-rider-store',
-            storage: zustandCapacitorStorage,
+            storage: createJSONStorage(() => zustandCapacitorStorage),
             partialize: (state) => ({
                 // حفظ فقط الإعدادات والتفضيلات
                 selectedVehicle: state.selectedVehicle,

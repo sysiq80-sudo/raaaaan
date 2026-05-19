@@ -118,103 +118,56 @@ const DutyToggle = ({
       };
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 w-full max-w-md mx-auto px-2">
+    <div className="flex flex-col-reverse items-center gap-3 w-full">
 
-      {/* ═══ الزر الرئيسي — يختفي عند وجود رحلة نشطة ═══ */}
+      {/* ═══ الزر الرئيسي — نفس تنسيق زر "احجز الآن" ═══ */}
       {!hasActiveRide && (
-        <div className="relative pointer-events-auto">
-        {/* Pulse rings */}
-        <AnimatePresence>
-          {isOnline && !isPaused && !isLoading && (
-            <>
-              <motion.div
-                key="ring-1"
-                className={cn("absolute inset-0 rounded-full border-2 pointer-events-none", stateConfig.ringColor)}
-                initial={{ scale: 1, opacity: 0.6 }}
-                animate={{ scale: 2.2, opacity: 0 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
-              />
-              <motion.div
-                key="ring-2"
-                className={cn("absolute inset-0 rounded-full border-2 pointer-events-none", stateConfig.ringColor)}
-                initial={{ scale: 1, opacity: 0.4 }}
-                animate={{ scale: 2.5, opacity: 0 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.7 }}
-              />
-            </>
-          )}
-          {isOnline && isPaused && !isLoading && (
-            <motion.div
-              key="ring-paused"
-              className="absolute inset-0 rounded-full border-2 border-amber-500/25 pointer-events-none"
-              initial={{ scale: 1, opacity: 0.4 }}
-              animate={{ scale: 1.8, opacity: 0 }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeOut" }}
-            />
-          )}
-        </AnimatePresence>
-
-        {/* Glow */}
-        <motion.div
-          className={cn(
-            "absolute inset-[-8px] rounded-full blur-xl transition-colors duration-500 pointer-events-none",
-            isOnline ? (isPaused ? "bg-amber-500/20" : "bg-[#00E676]/25") : "bg-gray-500/10"
-          )}
-          animate={{
-            scale: isOnline && !isPaused ? [1, 1.15, 1] : 1,
-            opacity: isOnline ? (isPaused ? 0.3 : [0.4, 0.7, 0.4]) : 0.2,
-          }}
-          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-        />
-
-        {/* Main Button */}
-        <button
-          onClick={() => {
-            handlePress();
-          }}
-          onTouchEnd={(e) => {
-            e.preventDefault();
-            handlePress();
-          }}
-          disabled={isDisabled}
-          onPointerDown={() => !isDisabled && setPressing(true)}
-          onPointerUp={() => setPressing(false)}
-          onPointerLeave={() => setPressing(false)}
-          className={cn(
-            "relative z-10 w-20 h-20 rounded-full flex items-center justify-center transition-all duration-200",
-            "touch-manipulation pointer-events-auto select-none",
-            stateConfig.bg, stateConfig.glow,
-            isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-            pressing && !isDisabled ? "scale-90" : "scale-100",
-            "border-2", stateConfig.borderColor
-          )}
-          aria-label={isOnline ? (isPaused ? "استئناف استقبال الطلبات" : "قطع الاتصال") : "الاتصال واستقبال الطلبات"}
-          aria-pressed={isOnline}
-        >
-          {/* عداد ضغطات للتشخيص - يظهر فقط عند الضغط */}
-          {clickCount > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center z-50 pointer-events-none">
-              {clickCount}
-            </span>
-          )}
-          <AnimatePresence mode="wait">
-            {isLoading ? (
-              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <Loader2 className="w-8 h-8 text-white animate-spin" />
-              </motion.div>
-            ) : isPaused && isOnline ? (
-              <motion.div key="paused" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ type: "spring", stiffness: 500, damping: 25 }}>
-                <Coffee className="w-8 h-8 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]" strokeWidth={2.5} />
-              </motion.div>
-            ) : (
-              <motion.div key="power" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ type: "spring", stiffness: 500, damping: 25 }}>
-                <Power className={cn("w-8 h-8 transition-colors duration-300", isOnline ? "text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" : "text-gray-300")} strokeWidth={2.5} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <div className={cn("absolute inset-1 rounded-full border transition-colors duration-500 pointer-events-none", isOnline ? (isPaused ? "border-white/15" : "border-white/20") : "border-white/5")} />
-        </button>
-      </div>
+        <div className="w-full pointer-events-auto flex bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0px)' }}>
+          <button
+            onClick={() => {
+              handlePress();
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              handlePress();
+            }}
+            disabled={isDisabled}
+            style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+            className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
+              isOnline
+                ? isPaused
+                  ? "border-amber-500/30 text-white bg-amber-500 hover:bg-amber-600 active:bg-amber-700"
+                  : "border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]"
+                : "border-yellow-500/30 text-[#064e3b] bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-600"
+            }`}
+            aria-label={isOnline ? (isPaused ? "استئناف استقبال الطلبات" : "قطع الاتصال") : "الاتصال واستقبال الطلبات"}
+            aria-pressed={isOnline}
+          >
+            <AnimatePresence mode="wait">
+              {isLoading ? (
+                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  <span>جاري التحميل...</span>
+                </motion.div>
+              ) : isPaused && isOnline ? (
+                <motion.div key="paused" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                  <Coffee className="w-5 h-5" strokeWidth={2.5} />
+                  <span>استئناف</span>
+                </motion.div>
+              ) : isOnline ? (
+                <motion.div key="online" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                  <Wifi className="w-5 h-5" />
+                  <span>نشط - جاهز لاستقبال الطلبات</span>
+                </motion.div>
+              ) : (
+                <motion.div key="offline" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                  <Power className="w-5 h-5" strokeWidth={2.5} />
+                  <span>غير نشط - الطلبات لا تصلك الان</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </button>
+        </div>
       )}
 
       {/* ═══ كارد الحالة — يختفي بالكامل عند ورود طلب رحلة أو رحلة نشطة ═══ */}

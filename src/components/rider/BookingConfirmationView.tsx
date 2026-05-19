@@ -5,6 +5,7 @@ import CompactVehicleSelector from "@/components/rider/CompactVehicleSelector";
 import PaymentMethodSheet from "@/components/rider/PaymentMethodSheet";
 import VehicleTypeSheet, { VEHICLE_NAMES } from "@/components/rider/VehicleTypeSheet";
 import { ScheduleRideDialog } from "@/components/rider/ScheduleRideDialog";
+import MultiStopSelector from "@/components/rider/MultiStopSelector";
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
 import logo from "@/assets/logo.png";
 import { roundFare } from "@/lib/constants";
@@ -20,6 +21,14 @@ interface LocationType {
   address: string;
 }
 
+interface IntermediateStop {
+  id: string;
+  address: string;
+  location: { lat: number; lng: number } | null;
+  estimatedTime?: number;
+  distanceFromPrevious?: number;
+}
+
 export interface BookingConfirmationViewProps {
   // Route
   pickupLocation: LocationType;
@@ -27,7 +36,7 @@ export interface BookingConfirmationViewProps {
   routeDistance: number | null;
   routeDuration: number | null;
   // Map
-  bookingMapContainerRef: React.RefCallback<HTMLDivElement> | React.RefObject<HTMLDivElement | null>;
+  bookingMapContainerRef: React.RefCallback<HTMLDivElement> | React.RefObject<HTMLDivElement>;
   onGeolocate: () => void;
   // Fare
   fareBreakdown: FareBreakdown | null;
@@ -42,9 +51,12 @@ export interface BookingConfirmationViewProps {
   onBookRide: () => void;
   // Navigation
   onEditLocation: (mode: "pickup" | "dropoff") => void;
+  intermediateStops: IntermediateStop[];
+  onStopsChange: (stops: IntermediateStop[]) => void;
+  onStopSelect: (stopId: string) => void;
   onSwapLocations: () => void;
   // Schedule
-  scheduleDialogRef: React.RefObject<{ openDialog: () => void } | null>;
+  scheduleDialogRef: React.RefObject<{ openDialog: () => void }>;
   onScheduled: () => void;
   // Status
   isOnline: boolean;
@@ -75,6 +87,9 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
   isBooking,
   onBookRide,
   onEditLocation,
+  intermediateStops,
+  onStopsChange,
+  onStopSelect,
   onSwapLocations,
   scheduleDialogRef,
   onScheduled,
@@ -89,13 +104,42 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
 }) => {
   const [vehicleSheetOpen, setVehicleSheetOpen] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+  const [bookingMode, setBookingMode] = useState<"now" | "schedule">("now");
   const { toast } = useToast();
+
+  const handlePrimaryBookAction = () => {
+    if (isBooking) return;
+
+    if (bookingMode === "schedule") {
+      scheduleDialogRef.current?.openDialog();
+      return;
+    }
+
+    if (fareLoading) {
+      toast({
+        title: "جاري حساب المسار ⏳",
+        description: "يرجى الانتظار لحظة",
+      });
+      return;
+    }
+
+    if (!fareBreakdown) {
+      toast({
+        title: "عذراً، تعذر الحجز 😔",
+        description: "النقطة المحددة خارج التغطية",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    onBookRide();
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-50 bg-background flex flex-col overflow-hidden touch-none overscroll-none"
+      className="relative h-full w-full z-10 bg-background flex flex-col overflow-hidden overscroll-none"
     >
       {/* Offline status indicator */}
       {!isOnline && (
@@ -271,6 +315,22 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
           </div>
 
           {/* Vehicle + Payment + Schedule */}
+          <MultiStopSelector
+            pickup={{
+              address: buildDescriptiveAddress(pickupLocation.address || ''),
+              location: { lat: pickupLocation.lat, lng: pickupLocation.lng },
+            }}
+            dropoff={{
+              address: buildDescriptiveAddress(dropoffLocation.address || ''),
+              location: { lat: dropoffLocation.lat, lng: dropoffLocation.lng },
+            }}
+            intermediateStops={intermediateStops}
+            onStopsChange={onStopsChange}
+            onStopSelect={onStopSelect}
+            disabled={isBooking}
+          />
+
+          {/* Vehicle + Payment + Schedule */}
           <div className="shrink-0 flex gap-2">
             <button
               onClick={() => setVehicleSheetOpen(true)}
@@ -294,46 +354,55 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
-            <div className="flex-1">
-              <ScheduleRideDialog
-                ref={scheduleDialogRef}
-                pickup={pickupLocation}
-                dropoff={dropoffLocation}
-                vehicleType={selectedVehicle}
-                paymentMethod={paymentMethod}
-                estimatedFare={fareBreakdown?.total_fare || null}
-                onScheduled={onScheduled}
-              />
+            <div className="flex-1 rounded-xl p-1 bg-card border border-border/40 flex items-center gap-1">
+              <button
+                onClick={() => setBookingMode("now")}
+                className={`flex-1 rounded-lg px-2 py-1.5 text-[10px] font-bold transition-colors ${
+                  bookingMode === "now"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                aria-label="رحلة الآن"
+              >
+                الآن
+              </button>
+              <button
+                onClick={() => setBookingMode("schedule")}
+                className={`flex-1 rounded-lg px-2 py-1.5 text-[10px] font-bold transition-colors ${
+                  bookingMode === "schedule"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                aria-label="جدولة الرحلة"
+              >
+                جدولة
+              </button>
             </div>
+          </div>
+
+          {/* Mounted dialog ref for schedule mode */}
+          <div className="hidden">
+            <ScheduleRideDialog
+              ref={scheduleDialogRef}
+              pickup={pickupLocation}
+              dropoff={dropoffLocation}
+              vehicleType={selectedVehicle}
+              paymentMethod={paymentMethod}
+              estimatedFare={fareBreakdown?.total_fare || null}
+              onScheduled={onScheduled}
+            />
           </div>
         </div>
 
         {/* Book button */}
         {!bottomNavEnabled && (
-          <div className="flex w-full mt-auto shrink-0 z-[100] bg-[#163d30]" style={{ paddingBottom: "max(env(safe-area-inset-bottom, 32px), 32px)" }}>
+          <div className="flex w-full mt-auto shrink-0 z-[100] bg-[#163d30] pointer-events-auto" style={{ paddingBottom: "max(env(safe-area-inset-bottom, 32px), 32px)" }}>
             <button
-              onClick={() => {
-                if (isBooking) return;
-                if (fareLoading) {
-                  toast({
-                    title: "جاري حساب المسار ⏳",
-                    description: "يرجى الانتظار لحظة",
-                  });
-                  return;
-                }
-                if (!fareBreakdown) {
-                  toast({
-                    title: "عذراً، تعذر الحجز 😔",
-                    description: "النقطة المحددة خارج التغطية",
-                    variant: "destructive"
-                  });
-                  return;
-                }
-                onBookRide();
-              }}
+              type="button"
+              onClick={handlePrimaryBookAction}
               disabled={(!fareBreakdown || isBooking)}
               style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-              className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation active:scale-[0.98] transition-colors disabled:opacity-50 border-t border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]`}
+              className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]`}
             >
               {isBooking ? (
                 <>
@@ -342,8 +411,12 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
                 </>
               ) : (
                 <>
-                  <Navigation className="w-5 h-5 ml-1" />
-                  <span>احجز الآن</span>
+                  {bookingMode === "schedule" ? (
+                    <Clock className="w-5 h-5 ml-1" />
+                  ) : (
+                    <Navigation className="w-5 h-5 ml-1" />
+                  )}
+                  <span>{bookingMode === "schedule" ? "جدولة الرحلة" : "احجز الآن"}</span>
                   <span className="bg-[#0b1326]/10 border border-[#0b1326]/10 px-3 py-1 rounded-xl text-base font-black flex items-center gap-1 shadow-sm mr-2">
                     {fareLoading && <Loader2 className="w-4 h-4 animate-spin opacity-70" />}
                     {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع
@@ -357,30 +430,13 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
 
       {/* Bottom nav book button */}
       {bottomNavEnabled && (
-        <div className="absolute bottom-0 left-0 right-0 w-full flex z-[100] bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
+        <div className="absolute bottom-0 left-0 right-0 w-full flex z-[100] bg-[#163d30] pointer-events-auto" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
           <button
-            onClick={() => {
-              if (isBooking) return;
-              if (fareLoading) {
-                toast({
-                  title: "جاري حساب المسار ⏳",
-                  description: "يرجى الانتظار لحظة",
-                });
-                return;
-              }
-              if (!fareBreakdown) {
-                toast({
-                  title: "عذراً، تعذر الحجز 😔",
-                  description: "النقطة المحددة خارج التغطية",
-                  variant: "destructive"
-                });
-                return;
-              }
-              onBookRide();
-            }}
+            type="button"
+            onClick={handlePrimaryBookAction}
             disabled={(!fareBreakdown || isBooking)}
             style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-            className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation active:scale-[0.98] transition-colors disabled:opacity-50 border-t border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]`}
+            className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]`}
           >
             {isBooking ? (
               <>
@@ -389,8 +445,12 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
               </>
             ) : (
               <>
-                <Navigation className="w-5 h-5 ml-1" />
-                <span>احجز الآن</span>
+                  {bookingMode === "schedule" ? (
+                    <Clock className="w-5 h-5 ml-1" />
+                  ) : (
+                    <Navigation className="w-5 h-5 ml-1" />
+                  )}
+                  <span>{bookingMode === "schedule" ? "جدولة الرحلة" : "احجز الآن"}</span>
                 <span className="bg-[#0b1326]/10 border border-[#0b1326]/10 px-3 py-1 rounded-xl text-base font-black flex items-center gap-1 shadow-sm mr-2">
                   {fareLoading && <Loader2 className="w-4 h-4 animate-spin opacity-70" />}
                   {fareBreakdown?.total_fare ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'} د.ع

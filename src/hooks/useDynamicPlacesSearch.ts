@@ -17,6 +17,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useGoogleMapsApiKey } from "./useGoogleMapsApiKey";
 import { useToast } from "./use-toast";
+import { NominatimGeocodingAdapter } from "@/lib/adapters/NominatimGeocodingAdapter";
+
+// Nominatim fallback singleton (بدون Google Places API)
+const nominatimAdapter = new NominatimGeocodingAdapter();
 
 export interface PlacePrediction {
   place_id: string;
@@ -149,16 +153,61 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
     return () => clearTimeout(timer);
   }, [googleMapsApiKey]);
 
-  // البحث الأساسي باستخدام AutocompleteSuggestion API الجديد + Cache + Cancellation
+  // البحث عبر Nominatim (مجاني) مع cache + cancellation
   const performSearch = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async (_query: string) => {
-      // 🛑 تم إيقاف الميزة بالكامل بناءً على طلبك لتجنب أي تكاليف إضافية من Google Places API
-      setPredictions([]);
-      return;
+    async (query: string) => {
+      if (!query || query.trim().length < 2) {
+        setPredictions([]);
+        return;
+      }
+
+      const currentSearchId = ++searchIdRef.current;
+
+      // فحص الكاش أولاً
+      const cached = searchCache.get(query, userLocation?.lat, userLocation?.lng);
+      if (cached && !cached.isStale) {
+        if (currentSearchId === searchIdRef.current) {
+          setPredictions(cached.data);
+        }
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const center = userLocation
+          ? { lat: userLocation.lat, lng: userLocation.lng }
+          : undefined;
+
+        const results = await nominatimAdapter.searchPlaces(query, center);
+
+        // تجاهل النتائج إذا جاء بحث أحدث أثناء التنفيذ
+        if (currentSearchId !== searchIdRef.current) return;
+
+        const predictions: PlacePrediction[] = results.map((r) => ({
+          place_id: r.place_id,
+          main_text: r.main_text,
+          secondary_text: r.secondary_text,
+          description: r.description,
+          lat: r.lat,
+          lng: r.lng,
+          distance_meters: r.distance_meters,
+          distance_text: r.distance_meters ? formatDistance(r.distance_meters) : undefined,
+        }));
+
+        searchCache.set(query, predictions, userLocation?.lat, userLocation?.lng);
+        setPredictions(predictions);
+      } catch (err) {
+        console.error('❌ Nominatim search failed:', err);
+        if (currentSearchId === searchIdRef.current) {
+          setPredictions([]);
+        }
+      } finally {
+        if (currentSearchId === searchIdRef.current) {
+          setIsSearching(false);
+        }
+      }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [userLocation, formatDistance]
   );
 
   // Adaptive debounce search
@@ -207,14 +256,43 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
 
-  // جلب تفاصيل المكان باستخدام Place (New) API
+  // جلب تفاصيل المكان — إذا كان lat/lng محفوظاً في الذاكرة من searchCache أو predictions
   const getPlaceDetails = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async (_placeId: string): Promise<PlaceDetails | null> => {
-      // 🛑 تم إيقاف الميزة لتجنب تكاليف تفاصيل الأماكن
-      return null;
+    async (placeId: string): Promise<PlaceDetails | null> => {
+      try {
+        // البحث في الكاش الحالي للـ predictions
+        const foundInPredictions = predictions.find((p) => p.place_id === placeId);
+        if (foundInPredictions?.lat && foundInPredictions?.lng) {
+          return {
+            lat: foundInPredictions.lat,
+            lng: foundInPredictions.lng,
+            address: foundInPredictions.description || foundInPredictions.main_text,
+            name: foundInPredictions.main_text,
+            placeId: foundInPredictions.place_id,
+          };
+        }
+
+        // Fallback: Geocoding عبر Nominatim إذا لم نجد إحداثيات
+        setIsLoadingDetails(true);
+        const coord = await nominatimAdapter.geocode(placeId);
+        if (coord) {
+          return {
+            lat: coord.lat,
+            lng: coord.lng,
+            address: placeId,
+            name: placeId,
+            placeId,
+          };
+        }
+        return null;
+      } catch (err) {
+        console.error('❌ getPlaceDetails failed:', err);
+        return null;
+      } finally {
+        setIsLoadingDetails(false);
+      }
     },
-    []
+    [predictions]
   );
 
   // Clear search

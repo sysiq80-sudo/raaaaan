@@ -13,6 +13,7 @@ import {
   registerFCMToken,
   syncNotificationPreferences 
 } from "@/services/driverNotificationService";
+import { NotificationRouter } from "@/lib/notificationRouter";
 
 /**
  * Safe wrapper for Web Notifications API.
@@ -73,6 +74,9 @@ export const useDriverNotifications = (
   const dedupeMapRef = useRef<Map<string, number>>(new Map());
   const lastRealtimeEventAtRef = useRef<number>(Date.now());
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
+
+  // NotificationRouter: dedup 3 ثوانٍ + logging للإشعارات الجديدة
+  const notifRouterRef = useRef(new NotificationRouter());
 
   // ═══ Refs لتثبيت handleNewRide — تمنع إعادة إنشاء الاشتراك عند تغيير الموقع ═══
   const driverLocationRef = useRef(driverLocation);
@@ -168,72 +172,91 @@ export const useDriverNotifications = (
     const distance = (ride.distance_km as number) || 0;
     const rideId = ride.id as string;
 
-    // ═══ التحقق من إعدادات الصوت والاهتزاز من المخزن المركزي ═══
     const storeState = useDriverStore.getState();
-    const shouldPlaySound = storeState.soundsEnabled;
-    const shouldVibrate = storeState.vibrationEnabled;
 
-    // 🔊 تشغيل تنبيه صوتي قوي ومتكرر (Loud Alert System)
-    if (shouldPlaySound) {
-      startRideAlert();
-      // ⚠️ لا نستدعي playNotificationSound() هنا — startRideAlert() يتضمن 3 تكرارات صوتية + سارينة
-      // استدعاء كليهما كان يسبب صوتين متراكبين
-    }
-    
-    // Vibrate device — استخدام اهتزاز أصلي في Capacitor
-    if (shouldVibrate) {
-      if (isNativePlatform) {
-        nativeHaptic('heavy');
-      } else {
-        vibrateDevice();
+    // NotificationRouter: dedup 3 ثوانٍ + قرار الصوت والاهتزاز
+    notifRouterRef.current.routeNotification(
+      'new-ride-request',
+      { rideId, fare: estimatedFare, pickup: pickupAddress },
+      { isDriving: false, isActiveRide: false, isInForeground: true }
+    ).then((routerResult) => {
+      if (!routerResult) {
+        // مكرر — عرض Toast صامت فقط (دون صوت/اهتزاز)
+        console.debug(`[showPushNotification] Suppressed duplicate: ${rideId}`);
+        toast({
+          title: "🚗 طلب رحلة جديد!",
+          description: `${estimatedFare.toLocaleString()} د.ع - ${pickupAddress}`,
+          duration: 20000,
+        });
+        return;
       }
-    }
 
-    // Show enhanced toast notification
-    toast({
-      title: "🚗 طلب رحلة جديد!",
-      description: `${estimatedFare.toLocaleString()} د.ع - ${pickupAddress}`,
-      duration: 20000,
-    });
+      // ═══ التحقق من إعدادات الصوت والاهتزاز من المخزن المركزي ═══
+      const shouldPlaySound = routerResult.delivery.sound && storeState.soundsEnabled;
+      const shouldVibrate = routerResult.delivery.vibration && storeState.vibrationEnabled;
 
-    // إشعار أصلي عبر Capacitor — يُتخطى على Android لأن FCM يُرسل إشعار النظام
-    // showNativeNotification يُستخدم فقط على الويب أو إذا لم يكن FCM مفعلاً
-    // على Native: التنبيه الصوتي + الاهتزاز + Toast كافية، و FCM يتكفل بإشعار النظام
-    // if (isNativePlatform) { ... } — مُعطّل لتجنب تكرار الإشعارات مع FCM
+      // 🔊 تشغيل تنبيه صوتي قوي ومتكرر (Loud Alert System)
+      if (shouldPlaySound) {
+        startRideAlert();
+        // ⚠️ لا نستدعي playNotificationSound() هنا — startRideAlert() يتضمن 3 تكرارات صوتية + سارينة
+        // استدعاء كليهما كان يسبب صوتين متراكبين
+      }
 
-    // Browser Push Notification (للويب فقط)
-    const WebNotif = getWebNotification();
-    if (!isNativePlatform && WebNotif && WebNotif.permission === 'granted') {
-      const notificationBody = [
-        `💰 الأجرة: ${estimatedFare.toLocaleString()} د.ع`,
-        `📍 من: ${pickupAddress}`,
-        dropoffAddress ? `🎯 إلى: ${dropoffAddress}` : '',
-        distance > 0 ? `📏 المسافة: ${distance.toFixed(1)} كم` : ''
-      ].filter(Boolean).join('\n');
-
-      const notification = new WebNotif('🚗 طلب رحلة جديد!', {
-        body: notificationBody,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        tag: `new-ride-${rideId}`,
-        requireInteraction: true,
-        silent: false,
-        vibrate: [300, 100, 300, 100, 400],
-        data: {
-          rideId,
-          url: `/driver?ride_id=${rideId}&action=open_request`
+      // Vibrate device — استخدام اهتزاز أصلي في Capacitor
+      if (shouldVibrate) {
+        if (isNativePlatform) {
+          nativeHaptic('heavy');
+        } else {
+          vibrateDevice();
         }
-      } as NotificationOptions);
+      }
 
-      notification.onclick = () => {
-        window.focus();
-        openRideRequestFromNotification(rideId);
-        notification.close();
-      };
+      // Show enhanced toast notification
+      toast({
+        title: "🚗 طلب رحلة جديد!",
+        description: `${estimatedFare.toLocaleString()} د.ع - ${pickupAddress}`,
+        duration: 20000,
+      });
 
-      // Auto close after 20 seconds
-      setTimeout(() => notification.close(), 20000);
-    }
+      // إشعار أصلي عبر Capacitor — يُتخطى على Android لأن FCM يُرسل إشعار النظام
+      // showNativeNotification يُستخدم فقط على الويب أو إذا لم يكن FCM مفعلاً
+      // على Native: التنبيه الصوتي + الاهتزاز + Toast كافية، و FCM يتكفل بإشعار النظام
+      // if (isNativePlatform) { ... } — مُعطّل لتجنب تكرار الإشعارات مع FCM
+
+      // Browser Push Notification (للويب فقط)
+      const WebNotif = getWebNotification();
+      if (!isNativePlatform && WebNotif && WebNotif.permission === 'granted') {
+        const notificationBody = [
+          `💰 الأجرة: ${estimatedFare.toLocaleString()} د.ع`,
+          `📍 من: ${pickupAddress}`,
+          dropoffAddress ? `🎯 إلى: ${dropoffAddress}` : '',
+          distance > 0 ? `📏 المسافة: ${distance.toFixed(1)} كم` : ''
+        ].filter(Boolean).join('\n');
+
+        const notification = new WebNotif('🚗 طلب رحلة جديد!', {
+          body: notificationBody,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          tag: `new-ride-${rideId}`,
+          requireInteraction: true,
+          silent: false,
+          vibrate: [300, 100, 300, 100, 400],
+          data: {
+            rideId,
+            url: `/driver?ride_id=${rideId}&action=open_request`
+          }
+        } as NotificationOptions);
+
+        notification.onclick = () => {
+          window.focus();
+          openRideRequestFromNotification(rideId);
+          notification.close();
+        };
+
+        // Auto close after 20 seconds
+        setTimeout(() => notification.close(), 20000);
+      }
+    });
   }, [toast, openRideRequestFromNotification]);
 
   // تحديث ref لتجنب إعادة إنشاء handleNewRide عند تغير showPushNotification

@@ -5,12 +5,14 @@
  */
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { useGoogleMapsApiKey } from "./useGoogleMapsApiKey";
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { useToast } from "./use-toast";
 import { getMapStyle, watchThemeChanges } from "@/utils/mapStyles";
 import { getGeocoder } from "@/lib/googleMapService";
 import { saveLastKnownLocation, getLastKnownLocation } from "@/services/lastKnownLocationService";
+import { useMapContext } from "@/contexts/MapContext";
+import type { IGeocodingAdapter } from "@/lib/adapters";
+import { NominatimGeocodingAdapter } from "@/lib/adapters/NominatimGeocodingAdapter";
 
 interface LocationType {
   lat: number;
@@ -32,25 +34,31 @@ interface ServiceAreaCheck {
   } | null;
 }
 
+type ActiveMapProvider = "google" | "osm" | "none";
+
 export const useLocationPicker = (
   mapToken: string | null,
   userLocation: { lat: number; lng: number } | null,
   reloadKey?: number,
-  currentMode?: "pickup" | "dropoff" | "booking",
+  currentMode?: "pickup" | "dropoff" | "booking" | "stop",
 ) => {
   const { toast } = useToast();
-  const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
+  const { googleMapsApiKey, isGoogleConfigured } = useMapContext();
 
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
   const userMarkerRef = useRef<google.maps.Marker | null>(null);
   const userAccuracyCircleRef = useRef<google.maps.Circle | null>(null);
+  const osmMapRef = useRef<any>(null);
+  const osmUserMarkerRef = useRef<any>(null);
+  const osmAccuracyCircleRef = useRef<any>(null);
   const hasPannedToUserOnce = useRef(false);
   const skipNextReverseGeocodeRef = useRef(false); // ✨ Flag لمنع reverseGeocode بعد البحث
   const lastHandledReloadKeyRef = useRef<number | null>(null);
   const centerAddressRef = useRef<string>(""); // ✨ Ref لتجنب stale closure في idle listener
   const isDraggingRef = useRef(false); // ✨ Ref بدل state لتجنب stale closure في idle listener
   const lastGeocodedLatLngRef = useRef<{ lat: number; lng: number } | null>(null); // ✨ لمنع تكرار geocoding لنفس الإحداثيات
+  const geocodingAdaptersRef = useRef<IGeocodingAdapter[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -61,6 +69,30 @@ export const useLocationPicker = (
     useState<ServiceAreaCheck | null>(null);
   const [isCheckingService, setIsCheckingService] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [mapProvider, setMapProvider] = useState<ActiveMapProvider>("none");
+
+  // تحميل Geocoding adapters (Nominatim مجاني كـ fallback عن Google)
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        const nominatim = new NominatimGeocodingAdapter();
+        await nominatim.load();
+
+        if (!mounted) return;
+
+        geocodingAdaptersRef.current = [nominatim];
+        console.log("✅ Geocoding adapter ready: nominatim");
+      } catch (error) {
+        console.warn("⚠️ Adaptive geocoding adapter unavailable:", error);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Force reinitialization when requested (e.g., after ride end/cancel)
   useEffect(() => {
@@ -80,6 +112,13 @@ export const useLocationPicker = (
     if (map.current) {
       console.warn("🔄 Forcing map reinitialization");
       map.current = null;
+    }
+
+    if (osmMapRef.current) {
+      osmMapRef.current.remove();
+      osmMapRef.current = null;
+      osmUserMarkerRef.current = null;
+      osmAccuracyCircleRef.current = null;
     }
 
     lastGeocodedLatLngRef.current = null; // ✨ إعادة تعيين عند إعادة تهيئة الخريطة
@@ -146,11 +185,6 @@ export const useLocationPicker = (
    */
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
-      if (!window.google?.maps) {
-        console.warn("Google Maps not yet loaded");
-        return;
-      }
-
       // ✨ تخطي إذا الإحداثيات لم تتغير (أقل من 5 متر)
       const last = lastGeocodedLatLngRef.current;
       if (last && haversineDistance(lat, lng, last.lat, last.lng) < 5) {
@@ -159,9 +193,49 @@ export const useLocationPicker = (
       }
 
       try {
+        // 1) محاولة عبر geocoding adapters (مجاني/أرخص) أولاً
+        const adapters = geocodingAdaptersRef.current;
+        for (const adapter of adapters) {
+          try {
+            const adapterAddress = await adapter.reverseGeocode(lat, lng);
+            if (!adapterAddress || adapterAddress.trim().length === 0) {
+              continue;
+            }
+
+            centerAddressRef.current = adapterAddress;
+            setCenterAddress(adapterAddress);
+            setCenterLat(lat);
+            setCenterLng(lng);
+            lastGeocodedLatLngRef.current = { lat, lng };
+            checkServiceArea(lat, lng);
+
+            // إذا Google غير متوفر، نكتفي بعنوان الـ adapter
+            if (!window.google?.maps) {
+              return;
+            }
+
+            // إذا Google متوفر نتابع لتحسين عنوان POI، لكن نحتفظ بالعنوان الحالي كـ fallback
+            break;
+          } catch (adapterError) {
+            console.warn("Adaptive reverse geocode failed, trying next provider:", adapterError);
+          }
+        }
+
+        // 2) Google-based enrichment (POI first) إذا متوفر
+        if (!window.google?.maps) {
+          const fallbackAddr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          centerAddressRef.current = fallbackAddr;
+          setCenterAddress(fallbackAddr);
+          setCenterLat(lat);
+          setCenterLng(lng);
+          lastGeocodedLatLngRef.current = { lat, lng };
+          checkServiceArea(lat, lng);
+          return;
+        }
+
         const geocoder = await getGeocoder();
         if (!geocoder) {
-          console.warn("Geocoder not available");
+          console.warn("Google geocoder not available, keeping adapter/fallback result");
           return;
         }
 
@@ -371,12 +445,90 @@ export const useLocationPicker = (
     [checkServiceArea, toast],
   );
 
+  const initOsmFallbackMap = useCallback(
+    async (reason: string) => {
+      if (!mapContainer.current || osmMapRef.current) return;
+
+      try {
+        const L = await import("leaflet");
+        const cachedLocation = getLastKnownLocation();
+        const initialCenter = userLocation || cachedLocation || ramadiCenter;
+
+        mapContainer.current.innerHTML = "";
+
+        const osmMap = L.map(mapContainer.current, {
+          zoomControl: false,
+          attributionControl: true,
+          dragging: true,
+        });
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: "&copy; OpenStreetMap contributors",
+        }).addTo(osmMap);
+
+        osmMap.setView([initialCenter.lat, initialCenter.lng], 15);
+
+        osmMap.on("movestart", () => {
+          setIsDragging(true);
+          isDraggingRef.current = true;
+          centerAddressRef.current = "جاري تحديد العنوان...";
+          setCenterAddress("جاري تحديد العنوان...");
+        });
+
+        osmMap.on("moveend", () => {
+          setIsDragging(false);
+          isDraggingRef.current = false;
+          const c = osmMap.getCenter();
+          reverseGeocode(c.lat, c.lng);
+        });
+
+        osmMapRef.current = osmMap;
+
+        // Shim لأكثر دوال google.maps.Map استخداماً داخل GoPage
+        map.current = {
+          panTo: ({ lat, lng }: { lat: number; lng: number }) => {
+            osmMap.panTo([lat, lng]);
+          },
+          setZoom: (zoom: number) => {
+            osmMap.setZoom(zoom);
+          },
+          getCenter: () => {
+            const c = osmMap.getCenter();
+            return {
+              lat: () => c.lat,
+              lng: () => c.lng,
+            };
+          },
+        } as any;
+
+        setMapProvider("osm");
+        setMapError(null);
+        setIsLoading(false);
+
+        console.log(`🗺️ OSM fallback initialized (${reason})`);
+        reverseGeocode(initialCenter.lat, initialCenter.lng);
+      } catch (error) {
+        console.error("❌ OSM fallback init failed:", error);
+        setMapError("تعذر تحميل Google Maps وOpenStreetMap. حاول مرة أخرى.");
+        setIsLoading(false);
+      }
+    },
+    [ramadiCenter, reverseGeocode, userLocation],
+  );
+
   // Load Google Maps API script if not already loaded
   useEffect(() => {
     if (typeof window === "undefined" || window.google) return;
 
+    if (!isGoogleConfigured) {
+      initOsmFallbackMap("google_not_configured");
+      return;
+    }
+
     if (!googleMapsApiKey) {
       console.warn("No Google Maps API key available");
+      initOsmFallbackMap("missing_google_api_key");
       return;
     }
 
@@ -384,30 +536,32 @@ export const useLocationPicker = (
       console.log("✅ Google Maps API loaded via centralized loader");
     }).catch((err) => {
       console.error("❌ Failed to load Google Maps API:", err);
-      setMapError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API");
-      setIsLoading(false);
+      initOsmFallbackMap("google_script_load_failed");
     });
 
     // معالجة أخطاء المصادقة مثل RefererNotAllowedMapError
     window.gm_authFailure = () => {
       console.error("❌ Google Maps authentication failure (RefererNotAllowed)");
-      setMapError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API");
-      setIsLoading(false);
+      initOsmFallbackMap("google_auth_failure");
     };
 
     return () => {
       // Don't remove the script as it may be used by other components
     };
-  }, [googleMapsApiKey]);
+  }, [googleMapsApiKey, initOsmFallbackMap, isGoogleConfigured]);
 
   // Initialize map (only once with API key)
   // ⚡ Instant load: always starts with ramadiCenter, then panTo userLocation when available
   useEffect(() => {
-    if (!mapContainer.current || !googleMapsApiKey) {
+    if (!mapContainer.current) {
       console.log("Map initialization waiting:", {
         hasContainer: !!mapContainer.current,
         hasApiKey: !!googleMapsApiKey,
       });
+      return;
+    }
+
+    if (!googleMapsApiKey || !isGoogleConfigured) {
       return;
     }
 
@@ -434,13 +588,7 @@ export const useLocationPicker = (
       if (checkAttempts > maxAttempts) {
         clearInterval(checkGoogleMaps);
         console.error("❌ Google Maps API failed to load after 5 seconds");
-        setIsLoading(false);
-        setMapError("عذراً، الخريطة لا تعمل. يرجى التحقق من مفتاح API أو إعادة تحميل الصفحة");
-        toast({
-          title: "⚠️ خطأ في تحميل الخريطة",
-          description: "يرجى إعادة تحميل الصفحة",
-          variant: "destructive",
-        });
+        initOsmFallbackMap("google_init_timeout");
         return;
       }
 
@@ -488,6 +636,7 @@ export const useLocationPicker = (
           });
 
           console.log("✅ Map loaded successfully with adaptive theme styles");
+          setMapProvider("google");
           setIsLoading(false);
 
           // 🎨 مراقبة تغيير الثيم لتحديث نمط الخريطة تلقائياً
@@ -617,12 +766,7 @@ export const useLocationPicker = (
           }
         } catch (error) {
           console.error("❌ Map initialization error:", error);
-          setIsLoading(false);
-          toast({
-            title: "⚠️ خطأ في تحميل الخريطة",
-            description: "يرجى إعادة تحميل الصفحة",
-            variant: "destructive",
-          });
+          initOsmFallbackMap("google_map_init_exception");
           return;
         }
       }
@@ -631,27 +775,74 @@ export const useLocationPicker = (
     return () => clearInterval(checkGoogleMaps);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleMapsApiKey, reloadKey]); // Re-run when API key or reload key changes
+  }, [googleMapsApiKey, initOsmFallbackMap, isGoogleConfigured, reloadKey]); // Re-run when API key or reload key changes
 
   // ✅ إصلاح الخريطة البيضاء: trigger resize بعد كل تغيير في reloadKey
   useEffect(() => {
     if (reloadKey === undefined || reloadKey === 0) return;
     const timer = setTimeout(() => {
-      if (map.current && window.google?.maps?.event) {
+      if (mapProvider === "google" && map.current && window.google?.maps?.event) {
         window.google.maps.event.trigger(map.current, "resize");
         const center = map.current.getCenter();
         if (center) map.current.setCenter(center);
         console.log("🔄 Map resize triggered after reloadKey change");
       }
+
+      if (mapProvider === "osm" && osmMapRef.current) {
+        osmMapRef.current.invalidateSize();
+      }
     }, 150);
     return () => clearTimeout(timer);
-  }, [reloadKey]);
+  }, [mapProvider, reloadKey]);
 
   // (تم نقل userMarkerRef, userAccuracyCircleRef, و hasPannedToUserOnce إلى الأعلى لتسهيل إدارتها عند التحديث)
 
   useEffect(() => {
-    if (!map.current || !userLocation || isLoading) return;
-    if (!window.google?.maps) return;
+    if (!userLocation || isLoading) return;
+
+    if (mapProvider === "osm" && osmMapRef.current) {
+      const updateOsmUserMarker = async () => {
+        const L = await import("leaflet");
+
+        if (!hasPannedToUserOnce.current) {
+          hasPannedToUserOnce.current = true;
+          osmMapRef.current.panTo([userLocation.lat, userLocation.lng]);
+          osmMapRef.current.setZoom(16);
+          saveLastKnownLocation(userLocation.lat, userLocation.lng);
+        }
+
+        if (osmUserMarkerRef.current) {
+          osmUserMarkerRef.current.setLatLng([userLocation.lat, userLocation.lng]);
+        } else {
+          osmUserMarkerRef.current = L.circleMarker([userLocation.lat, userLocation.lng], {
+            radius: 8,
+            color: "#ffffff",
+            weight: 2,
+            fillColor: "#5bdda6",
+            fillOpacity: 0.9,
+          }).addTo(osmMapRef.current);
+        }
+
+        if (osmAccuracyCircleRef.current) {
+          osmAccuracyCircleRef.current.setLatLng([userLocation.lat, userLocation.lng]);
+        } else {
+          osmAccuracyCircleRef.current = L.circle([userLocation.lat, userLocation.lng], {
+            radius: 25,
+            color: "#5bdda6",
+            weight: 1,
+            fillColor: "#5bdda6",
+            fillOpacity: 0.08,
+          }).addTo(osmMapRef.current);
+        }
+      };
+
+      updateOsmUserMarker().catch((e) => {
+        console.warn("OSM user marker update failed:", e);
+      });
+      return;
+    }
+
+    if (!map.current || !window.google?.maps) return;
 
     // ✅ Pan لموقع المستخدم مرة واحدة فقط — بعدها المستخدم يتحكم بالسحب
     if (!hasPannedToUserOnce.current) {
@@ -715,7 +906,7 @@ export const useLocationPicker = (
         zIndex: 4,
       });
     }
-  }, [userLocation, isLoading]);
+  }, [userLocation, isLoading, mapProvider]);
 
   // ✨ دالة لتعيين العنوان يدوياً (من البحث) مع منع reverseGeocode التلقائي
   const setManualAddress = useCallback((address: string) => {
@@ -734,6 +925,10 @@ export const useLocationPicker = (
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      if (osmMapRef.current) {
+        osmMapRef.current.remove();
+        osmMapRef.current = null;
+      }
       if (map.current) {
         // Google Maps doesn't have a remove() method
         // Just nullify the reference to allow garbage collection
@@ -752,6 +947,7 @@ export const useLocationPicker = (
     centerLng,
     serviceAreaStatus,
     isCheckingService,
+    mapProvider,
     mapError, // ✨ خطأ تحميل الخريطة
     setCenterAddress,
     setCenterLat,

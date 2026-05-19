@@ -6,6 +6,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 import {
     ArrowRight,
     Shield,
@@ -27,13 +28,13 @@ import logo from '@/assets/logo.png';
 import { APP_INFO } from '@/lib/constants';
 
 // ── Animation Variants ──
-const stagger = {
+const stagger: Variants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.08 } },
 };
-const fadeUp = {
+const fadeUp: Variants = {
     hidden: { opacity: 0, y: 24 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
 };
 
 const About: React.FC = () => {

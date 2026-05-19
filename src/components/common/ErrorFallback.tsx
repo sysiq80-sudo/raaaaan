@@ -28,7 +28,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
     description = 'عذراً، حدث خطأ أثناء عرض هذا القسم. يمكنك المحاولة مرة أخرى.',
     showHomeButton = true,
     showBackButton = true,
-    showDetails = process.env.NODE_ENV === 'development',
+    showDetails = import.meta.env.DEV,
     className = '',
 }) => {
     const navigate = useNavigate();

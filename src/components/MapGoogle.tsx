@@ -126,8 +126,7 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
   const sharedInfoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   // Refs مستقرة لمنع إعادة إنشاء الخريطة عند كل drag
   const isDraggingRef = useRef(false);
-  const reverseGeocodeCenterRef = useRef(reverseGeocodeCenter);
-  reverseGeocodeCenterRef.current = reverseGeocodeCenter;
+  const reverseGeocodeCenterRef = useRef<() => Promise<void>>(async () => {});
 
   // State
   const [isLoading, setIsLoading] = useState(true);
@@ -194,6 +193,8 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
       checkServiceArea(center.lat(), center.lng());
     }
   }, [selectingLocation, checkServiceArea]);
+
+  reverseGeocodeCenterRef.current = reverseGeocodeCenter;
 
   /**
    * Reverse geocode a marker

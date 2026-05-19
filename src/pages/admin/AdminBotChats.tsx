@@ -3,7 +3,7 @@
  * عرض وإدارة المحادثات عبر واتساب وتليجرام وسي إم إس
  */
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
@@ -187,7 +187,7 @@ const AdminBotChats = () => {
 
   if (authLoading) {
     return (
-      <AdminLayout>
+      <AdminLayout title="محادثات البوت">
         <div className="flex items-center justify-center h-64">
           <RefreshCw className="h-8 w-8 animate-spin" />
         </div>
@@ -197,7 +197,7 @@ const AdminBotChats = () => {
 
   if (!isAdmin) {
     return (
-      <AdminLayout>
+      <AdminLayout title="محادثات البوت">
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold text-red-600">غير مصرح لك</h2>
           <p className="text-gray-600 mt-2">تحتاج صلاحيات مدير للوصول لهذه الصفحة</p>
@@ -207,7 +207,7 @@ const AdminBotChats = () => {
   }
 
   return (
-    <AdminLayout>
+    <AdminLayout title="محادثات البوت">
       <div className="space-y-6">
         {/* ─── العنوان ─── */}
         <div className="flex items-center justify-between">

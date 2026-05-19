@@ -66,6 +66,13 @@ interface LocationType {
   lng: number;
   address: string;
 }
+interface IntermediateStop {
+  id: string;
+  address: string;
+  location: { lat: number; lng: number } | null;
+  estimatedTime?: number;
+  distanceFromPrevious?: number;
+}
 type VehicleType = "economy" | "comfort" | "premium" | "women_only";
 // أنواع الدفع المبسطة - 3 خيارات فقط
 import type { PaymentMethod as PaymentMethodType } from "@/types/savedCards";
@@ -144,7 +151,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   const bottomNavEnabled = useRiderStore((state) => state.bottomNavEnabled);
 
   // Core state - must be defined before useLocationPicker
-  const [currentMode, setCurrentMode] = useState<"pickup" | "dropoff" | "booking">("pickup");
+  const [currentMode, setCurrentMode] = useState<"pickup" | "dropoff" | "booking" | "stop">("pickup");
 
   // Location picker
   const {
@@ -157,6 +164,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     centerLng,
     serviceAreaStatus,
     isCheckingService,
+    mapProvider,
     mapError, // ✨ خطأ تحميل الخريطة
     setCenterAddress,
     setManualAddress, // ✨ NEW
@@ -511,6 +519,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   
   const [pickupLocation, setPickupLocation] = useState<LocationType | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<LocationType | null>(null);
+  const [intermediateStops, setIntermediateStops] = useState<IntermediateStop[]>([]);
+  const [activeStopId, setActiveStopId] = useState<string | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [localServiceAreaStatus, setLocalServiceAreaStatus] = useState<any>(null);
   const [geofenceResult, setGeofenceResult] = useState<GeofenceResult | null>(null);
@@ -537,8 +547,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     if (state.savedDropoff) {
       setDropoffLocation(state.savedDropoff);
     }
-    if (state.preferredMode === 'dropoff' || state.preferredMode === 'pickup' || state.preferredMode === 'booking') {
-      setCurrentMode(state.preferredMode as 'pickup' | 'dropoff' | 'booking');
+    if (state.preferredMode === 'dropoff' || state.preferredMode === 'pickup' || state.preferredMode === 'booking' || state.preferredMode === 'stop') {
+      setCurrentMode(state.preferredMode as 'pickup' | 'dropoff' | 'booking' | 'stop');
     }
     // مسح الـ state حتى لا يتكرر عند الـ refresh
     window.history.replaceState({}, '');
@@ -613,10 +623,58 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
   // Reset center address when mode changes
   useEffect(() => {
-    if (currentMode === "dropoff" || currentMode === "booking") {
+    if (currentMode === "dropoff" || currentMode === "booking" || currentMode === "stop") {
       setCenterAddress("");
     }
   }, [currentMode]);
+
+  const applySelectedLocation = useCallback((location: LocationType) => {
+    let applied = true;
+
+    if (currentMode === 'pickup') {
+      setPickupLocation(location);
+      setCurrentMode(dropoffLocation ? 'booking' : 'dropoff');
+      toast({ title: 'تم تحديد موقع الانطلاق ✅', description: location.address });
+    } else if (currentMode === 'stop') {
+      if (!activeStopId) {
+        toast({
+          title: 'حدد محطة أولاً',
+          description: 'اضغط على محطة من شاشة الحجز ثم اختر موقعها',
+          variant: 'destructive',
+        });
+        applied = false;
+      } else {
+        setIntermediateStops((prev) =>
+          prev.map((stop) =>
+            stop.id === activeStopId
+              ? { ...stop, address: location.address, location: { lat: location.lat, lng: location.lng } }
+              : stop,
+          ),
+        );
+        setActiveStopId(null);
+        setCurrentMode(dropoffLocation ? 'booking' : 'dropoff');
+        toast({ title: 'تم تحديد المحطة ✅', description: location.address });
+      }
+    } else {
+      setDropoffLocation(location);
+      setCurrentMode(pickupLocation ? 'booking' : 'pickup');
+      toast({ title: 'تم تحديد الوجهة ✅', description: location.address });
+    }
+
+    if (!applied) return false;
+
+    if (map.current) {
+      map.current.panTo({ lat: location.lat, lng: location.lng });
+      map.current.setZoom(16);
+    }
+
+    setCenterAddress('');
+    setLocationSearchQuery('');
+    setSearchQuery('');
+    setIsLocationFocused(false);
+    setActiveCategory(null);
+    return true;
+  }, [currentMode, dropoffLocation, pickupLocation, activeStopId, map, toast, setSearchQuery, setCenterAddress]);
 
   // Track bottom panel height for map padding
   useEffect(() => {
@@ -941,7 +999,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
       // إذا الموقع خارج منطقة الخدمة — إظهار إشعار واضح
       if (serviceCheck && serviceCheck.in_service === false) {
-        const modeLabel = currentMode === 'pickup' ? 'موقع الانطلاق' : 'الوجهة';
+        const modeLabel = currentMode === 'pickup' ? 'موقع الانطلاق' : currentMode === 'stop' ? 'المحطة' : 'الوجهة';
         toast({
           title: `⚠️ ${modeLabel} خارج نطاق الخدمة`,
           description: serviceCheck.nearest_city
@@ -982,7 +1040,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           title: pickupLocation ? "تم تحديث موقع الانطلاق ✅" : "تم تحديد موقع الانطلاق ✅",
           description: address
         });
-      } else if (currentMode === "dropoff") {
+      } else if (currentMode === "dropoff" || currentMode === "stop") {
         // فحص Geofencing قبل تحديد الوجهة
         const geofenceCheck = await checkDestinationGeofence(actualLat, actualLng, mapToken);
         
@@ -993,13 +1051,37 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           return; // إيقاف العملية
         }
         
-        // الوجهة داخل العراق - متابعة الحجز
-        setDropoffLocation(location);
-        setCurrentMode("booking");
-        toast({
-          title: dropoffLocation ? "تم تحديث الوجهة ✅" : "تم تحديد الوجهة ✅",
-          description: address
-        });
+        // الوجهة أو المحطة داخل العراق - متابعة الحجز
+        if (currentMode === 'stop') {
+          if (!activeStopId) {
+            toast({
+              title: 'حدد محطة أولاً',
+              description: 'اضغط على محطة من شاشة الحجز ثم اختر موقعها',
+              variant: 'destructive',
+            });
+            return;
+          }
+          setIntermediateStops((prev) =>
+            prev.map((stop) =>
+              stop.id === activeStopId
+                ? { ...stop, address, location: { lat: actualLat, lng: actualLng } }
+                : stop,
+            ),
+          );
+          setActiveStopId(null);
+          setCurrentMode(dropoffLocation ? 'booking' : 'dropoff');
+          toast({
+            title: "تم تحديد المحطة ✅",
+            description: address
+          });
+        } else {
+          setDropoffLocation(location);
+          setCurrentMode("booking");
+          toast({
+            title: dropoffLocation ? "تم تحديث الوجهة ✅" : "تم تحديد الوجهة ✅",
+            description: address
+          });
+        }
       }
     } catch (error) {
       console.error("Confirm error:", error);
@@ -1011,7 +1093,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     } finally {
       setIsConfirming(false);
     }
-  }, [currentMode, centerAddress, isConfirming, map, checkServiceArea, toast, pickupLocation, dropoffLocation, setCurrentMode, setSearchQuery, setMapReloadKey]);
+  }, [currentMode, centerAddress, isConfirming, map, checkServiceArea, toast, pickupLocation, dropoffLocation, activeStopId, setCurrentMode, setSearchQuery, setMapReloadKey]);
 
   // Track first drag to hide tooltip permanently
   useEffect(() => {
@@ -1027,6 +1109,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     // Clear all booking-related state
     setPickupLocation(null);
     setDropoffLocation(null);
+    setIntermediateStops([]);
+    setActiveStopId(null);
     setRouteDistance(null);
     setRouteDuration(null);
     setShowWaitingScreen(false);
@@ -1065,6 +1149,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     setMapReloadKey((prev) => prev + 1);
 
     // انتقال إلى وضع التعديل المطلوب
+    setActiveStopId(null);
     setCurrentMode(mode);
     setSearchQuery("");
     setCenterAddress("");
@@ -1384,7 +1469,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         const {
           data: ride,
           error
-        } = await supabase.from("rides").insert([{
+        } = await (supabase.from("rides" as any).insert([{
           rider_id: userId,
           pickup_location: { lat: pickupLocation.lat, lng: pickupLocation.lng },
           dropoff_location: { lat: dropoffLocation.lat, lng: dropoffLocation.lng },
@@ -1393,12 +1478,27 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           vehicle_type: selectedVehicle,
           payment_method: mapPaymentToDb(paymentMethod),
           estimated_fare: roundFare(fareBreakdown?.total_fare || 0),
+          stops: intermediateStops
+            .filter((stop) => stop.location)
+            .map((stop) => ({
+              id: stop.id,
+              lat: stop.location?.lat,
+              lng: stop.location?.lng,
+              address: stop.address,
+            })) as Record<string, unknown>[],
+          metadata: {
+            final_dropoff: {
+              lat: dropoffLocation.lat,
+              lng: dropoffLocation.lng,
+              address: dropoffLocation.address,
+            },
+          } as Record<string, unknown>,
           distance_km: routeDistance ? Number(routeDistance.toFixed(2)) : null,
           duration_minutes: routeDuration ? Math.round(routeDuration) : null,
           status: "pending" as const,
           trip_type: "app" as const,
           region_id: fareBreakdown?.region_id || null,
-        }]).select().single();
+        }] as any).select().single()) as { data: any; error: any };
         if (error) throw error;
 
         setIgnorePolling?.(false);
@@ -1454,14 +1554,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         const errorMessage = String(error?.message || "");
         if (errorMessage.includes("انتهت مهلة إنشاء الرحلة")) {
           try {
-            const { data: fallbackRide } = await supabase
-              .from("rides")
+            const { data: fallbackRide } = await (supabase
+              .from("rides" as any)
               .select("*")
-              .eq("rider_id", userId)
-              .eq("status", "pending")
+              .eq("rider_id", userId as string)
+              .eq("status", "pending" as any)
               .order("created_at", { ascending: false })
               .limit(1)
-              .maybeSingle();
+              .maybeSingle()) as { data: any; error: any };
 
             if (fallbackRide) {
               const pickupLoc = fallbackRide.pickup_location as unknown as { lat: number; lng: number };
@@ -1491,7 +1591,13 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           }
         }
 
-        logger.error("GoPage", "Booking failed", error);
+        logger.error("GoPage", "Booking failed", {
+          message: error?.message,
+          code: error?.code,
+          details: error?.details,
+          hint: error?.hint,
+          status: error?.status,
+        });
         showErrorToast(toast, "فشل الحجز", error?.message || "حدث خطأ غير متوقع");
       }
     } finally {
@@ -1503,8 +1609,47 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
 
   const isPickup = currentMode === "pickup";
+  const isStopMode = currentMode === "stop";
   const isDropoff = currentMode === "dropoff";
   const isBookingMode = currentMode === "booking";
+  const currentSelectionLabel = isPickup
+    ? "موقع الانطلاق"
+    : isStopMode
+      ? "المحطة"
+      : "الوجهة";
+  const currentSelectionAddress = centerAddress
+    ? buildDescriptiveAddress(centerAddress)
+    : "حرّك الخريطة أو ابحث عن المكان";
+  const pickupPreviewAddress = pickupLocation
+    ? buildDescriptiveAddress(pickupLocation.address)
+    : isPickup && centerAddress
+      ? currentSelectionAddress
+      : "حدد نقطة الانطلاق";
+  const dropoffPreviewAddress = dropoffLocation
+    ? buildDescriptiveAddress(dropoffLocation.address)
+    : (isDropoff || isStopMode) && centerAddress
+      ? currentSelectionAddress
+      : "حدد الوجهة";
+  const selectionReady = Boolean(centerAddress && !isCheckingService && !isConfirming);
+  const flowSteps = [
+    {
+      key: "pickup",
+      title: "الانطلاق",
+      caption: pickupLocation ? pickupPreviewAddress : "حدد نقطة البداية",
+      active: isPickup,
+      completed: Boolean(pickupLocation) && !isPickup,
+      tone: "emerald",
+    },
+    {
+      key: "dropoff",
+      title: isStopMode ? "المحطة" : "الوصول",
+      caption: dropoffLocation ? dropoffPreviewAddress : isStopMode ? "أضف محطة" : "حدد الوجهة",
+      active: isDropoff || isStopMode,
+      completed: Boolean(dropoffLocation) && !(isDropoff || isStopMode),
+      tone: "sky",
+    },
+  ] as const;
+  const confirmButtonLabel = `تأكيد ${currentSelectionLabel}`;
 
   // Show location permission prompt
   if (showLocationPrompt) {
@@ -1590,13 +1735,20 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         isBooking={isBooking}
         onBookRide={handleBookRide}
         onEditLocation={startLocationEdit}
+        intermediateStops={intermediateStops}
+        onStopsChange={setIntermediateStops}
+        onStopSelect={(stopId) => {
+          setActiveStopId(stopId);
+          setCurrentMode('stop');
+        }}
         onSwapLocations={() => {
           const temp = pickupLocation;
           setPickupLocation(dropoffLocation);
           setDropoffLocation(temp);
+          setIntermediateStops([]);
           toast({
             title: "تم عكس الاتجاه ✅",
-            description: "تم تبديل موقع الانطلاق مع الوجهة",
+            description: "تم تبديل موقع الانطلاق مع الوجهة وتم مسح المحطات الوسطية",
             duration: 2000,
           });
         }}
@@ -1608,7 +1760,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         isOnline={isOnline}
         bottomNavEnabled={bottomNavEnabled}
         buildDescriptiveAddress={buildDescriptiveAddress}
-        availableDriversByType={availableDriversByType}
+        availableDriversByType={availableDriversByType || {}}
         user={user}
         menuOpen={menuOpen}
         onMenuToggle={setMenuOpen}
@@ -1622,7 +1774,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
   // Location picker screen
   return (
-    <div className="fixed inset-0 z-50 flex flex-col">
+    <div className="relative h-full w-full z-10 flex flex-col">
       {/* Map Container - لا نضع touchAction هنا حتى لا يتعارض مع Google Maps */}
       <div 
         className="flex-1 relative w-full h-full overflow-hidden"
@@ -1684,11 +1836,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
         {/* ✅ مؤشر حالة الشبكة فوق الخريطة */}
         <MapNetworkOverlay />
-        {/* Favorite Markers Layer */}
-        {map.current && !isPickup && (
+        {/* Favorite Markers Layer (Google-only) */}
+        {mapProvider === "google" && map.current && !isPickup && (
           <FavoriteMarkersLayer
             map={map.current}
-            onMarkerClick={(id, lat, lng, address) => {
+            onMarkerClick={(_id, lat, lng, address) => {
               if (map.current) {
                 map.current.panTo({ lat, lng });
                 map.current.setZoom(16);
@@ -1701,7 +1853,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
         {/* Header — نفس أسلوب السائق مع خلفية شفافة */}
         <header
-          className="fixed top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top)] transition-colors duration-300"
+          className="absolute top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top)] transition-colors duration-300"
           style={{
             background: 'rgba(11, 19, 38, 0.4)',
             borderBottom: '1px solid rgba(91, 221, 166, 0.2)',
@@ -1744,11 +1896,13 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
         {/* زر تحديد موقعي (ملتصق تحت الهيدر مباشرة) */}
         <div 
-          className="fixed right-6 z-40 pointer-events-auto flex flex-col items-center"
+          className="absolute right-6 z-40 pointer-events-auto flex flex-col items-center"
           style={{ top: 'calc(3.5rem + env(safe-area-inset-top))' }}
         >
           <button
-            onClick={manualGeolocateMain}
+            onClick={() => {
+              manualGeolocateMain();
+            }}
             className="w-12 h-12 flex items-center justify-center rounded-b-xl bg-[rgba(11,19,38,0.7)] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.15)] border-b border-x border-[#5bdda6]/30 hover:bg-[rgba(11,19,38,0.9)] transition-colors duration-200 group"
             title="تحديد موقعي"
             aria-label="تحديد موقعي"
@@ -1777,7 +1931,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
         {/* Location pin - دبوس CSS بدون صور خارجية - pointer-events-none للسماح بتحريك الخريطة */}
         <div 
-          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full z-[70]"
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full z-[15]"
         >
           <motion.div 
             initial={{ scale: 0.8, opacity: 0 }} 
@@ -1795,7 +1949,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0 ${
                   isPickup ? 'bg-green-500' : 'bg-sky-500'
                 }`}>
-                  {isPickup ? '🚀 انطلاق' : '📍 وصول'}
+                  {isPickup ? '🚀 انطلاق' : isStopMode ? '🟡 محطة' : '📍 وصول'}
                 </span>
                 {/* العنوان الديناميكي */}
                 {centerAddress && (
@@ -1883,22 +2037,23 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             }
           }
         }}
-        className={`bg-[#0b1326]/98 backdrop-blur-xl border-t border-[#5bdda6]/10 shadow-[0_-10px_40px_rgba(11,19,38,0.6)] z-20 rounded-t-3xl pointer-events-auto fixed left-0 right-0 ${panelExpanded ? 'overflow-visible' : 'overflow-hidden'} flex flex-col`}
+        className={`bg-[#07111f]/95 backdrop-blur-2xl border-t border-white/10 shadow-[0_-24px_60px_rgba(1,8,18,0.7)] z-[60] rounded-t-[32px] pointer-events-auto absolute left-0 right-0 ${(panelExpanded || isLocationFocused) ? 'overflow-visible' : 'overflow-hidden'} flex flex-col before:absolute before:inset-x-0 before:top-0 before:h-24 before:bg-[radial-gradient(circle_at_top,rgba(91,221,166,0.14),transparent_65%)] before:pointer-events-none`}
         style={{
           bottom: 0,
+          top: isLocationFocused ? 0 : 'auto',
           WebkitBackdropFilter: 'blur(20px)',
-          maxHeight: panelExpanded ? '72vh' : 'auto',
+          maxHeight: isLocationFocused ? '100dvh' : panelExpanded ? '72vh' : 'auto',
+          transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1), top 0.35s cubic-bezier(0.4,0,0.2,1)',
         }}
       >
         {/* خط توهج أعلى البانل */}
-        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#5bdda6]/30 to-transparent blur-sm" />
+        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#5bdda6]/35 to-transparent blur-sm" />
 
         {/* Drag Handle — قابل للسحب */}
         <div
-          className="flex flex-col items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none select-none"
+          className="flex flex-col items-center justify-center pt-3 pb-3 px-4 cursor-grab active:cursor-grabbing touch-none select-none relative z-10"
           onClick={() => setPanelExpanded(prev => !prev)}
         >
-          {/* مؤشر السحب */}
           <motion.div
             className="rounded-full"
             animate={{
@@ -1908,6 +2063,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             }}
             transition={{ duration: 0.3 }}
           />
+
+
         </div>
 
         {/* ═══ الحالة المصغّرة — ملخص العنوان + زر التأكيد ═══ */}
@@ -1915,32 +2072,45 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="px-4 flex flex-col gap-2"
+            className="px-4 flex flex-col gap-3"
             style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)' }}
           >
-            {/* عرض العنوان المحدد */}
-            <div 
-              className="flex items-center gap-3 p-3 rounded-2xl bg-[#131d35] border border-[#5bdda6]/10 cursor-pointer active:scale-[0.98] transition-transform"
+            <div
+              className="rounded-[24px] border border-white/10 bg-white/[0.04] p-3 shadow-[0_12px_28px_rgba(0,0,0,0.22)] cursor-pointer active:scale-[0.99] transition-transform"
               onClick={() => setPanelExpanded(true)}
             >
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                isPickup 
-                  ? 'bg-green-500/20 border border-green-500/30' 
-                  : 'bg-sky-500/20 border border-sky-500/30'
-              }`}>
-                {isPickup 
-                  ? <Navigation className="w-4 h-4 text-green-400" /> 
-                  : <MapPin className="w-4 h-4 text-sky-400" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold tracking-wider text-[#5bdda6]/50 uppercase mb-0.5">
-                  {isPickup ? 'الموقع المحدد' : 'الوجهة المحددة'}
-                </p>
-                <p className="text-sm font-semibold text-slate-200 truncate leading-snug">
-                  {centerAddress ? buildDescriptiveAddress(centerAddress) : 'جاري تحديد العنوان...'}
-                </p>
+              <div className="flex items-center gap-2 mb-2.5">
+                {flowSteps.map((step, index) => (
+                  <React.Fragment key={step.key}>
+                    <div className={`flex-1 rounded-2xl border px-3 py-2 ${step.active ? step.tone === 'emerald' ? 'border-emerald-400/35 bg-emerald-500/8' : 'border-sky-400/35 bg-sky-500/8' : 'border-white/8 bg-transparent'}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 text-right">
+                          <p className="text-[10px] text-slate-500 font-bold tracking-[0.16em] uppercase mb-1">{step.title}</p>
+                          <p className="text-[12px] font-semibold text-slate-200 truncate">{step.caption}</p>
+                        </div>
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${step.tone === 'emerald' ? 'bg-emerald-500/18 text-emerald-300' : 'bg-sky-500/18 text-sky-300'}`}>
+                          {step.tone === 'emerald' ? <Rocket className="w-4 h-4" /> : <MapPin className="w-4 h-4" />}
+                        </div>
+                      </div>
+                    </div>
+                    {index === 0 && <ArrowRight className="w-4 h-4 text-slate-600 shrink-0 mt-3" />}
+                  </React.Fragment>
+                ))}
               </div>
 
+              <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-black/10 px-3 py-2">
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${isPickup ? 'bg-emerald-500/16 text-emerald-300' : 'bg-sky-500/16 text-sky-300'}`}>
+                  {isPickup ? <Navigation className="w-4 h-4" /> : <MapPin className="w-4 h-4" />}
+                </div>
+                <div className="flex-1 min-w-0 text-right">
+                  <p className="text-[10px] font-bold tracking-[0.18em] text-slate-500 uppercase mb-1">
+                    {currentSelectionLabel}
+                  </p>
+                  <p className="text-sm font-semibold text-slate-100 truncate leading-snug">
+                    {currentSelectionAddress}
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* زر التأكيد المصغّر */}
@@ -1951,11 +2121,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               }}
               disabled={!centerAddress || isCheckingService || isConfirming}
               whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.95 }}
-              className={`w-full py-3.5 rounded-2xl font-bold text-[15px] flex items-center justify-center gap-2 transition-all duration-300 ${
-                centerAddress && !isCheckingService && !isConfirming
+              className={`w-full py-4 rounded-[22px] font-bold text-[15px] flex items-center justify-center gap-2 transition-all duration-300 shadow-[0_14px_30px_rgba(0,0,0,0.22)] ${
+                selectionReady
                   ? isPickup
-                    ? 'bg-gradient-to-r from-[#5bdda6] to-[#27b481] text-[#003825] shadow-[0_8px_24px_rgba(39,180,129,0.25)]'
-                    : 'bg-gradient-to-r from-[#38bdf8] to-[#0ea5e9] text-white shadow-[0_8px_24px_rgba(14,165,233,0.25)]'
+                    ? 'bg-gradient-to-r from-[#7cf0bd] via-[#5bdda6] to-[#27b481] text-[#003825]'
+                    : 'bg-gradient-to-r from-[#5fd0ff] via-[#38bdf8] to-[#0ea5e9] text-white'
                   : 'bg-slate-800 text-slate-500 cursor-not-allowed'
               }`}
             >
@@ -1971,7 +2141,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 </>
               ) : (
                 <>
-                  <span>تأكيد {isPickup ? 'موقع الانطلاق' : 'الوجهة'}</span>
+                  <span>{confirmButtonLabel}</span>
                   <Navigation className="w-4 h-4 -rotate-90" />
                 </>
               )}
@@ -1989,7 +2159,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               transition={{ duration: 0.3, ease: 'easeInOut' }}
               style={{ overflow: 'visible' }}
             >
-              <div className="px-4 pb-[120px] flex flex-col gap-3 overflow-visible" style={{ maxHeight: 'calc(72vh - 80px)' }}>
+              <div className="px-4 pb-[132px] flex flex-col gap-3 overflow-visible" style={{ maxHeight: 'calc(72vh - 80px)' }}>
+
+
           {/* Service area warning */}
           {localServiceAreaStatus && !localServiceAreaStatus.in_service && <div className="flex items-center gap-3 p-3 mb-1 rounded-2xl bg-red-500/10 border border-red-500/20">
               <div className="w-8 h-8 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
@@ -2006,162 +2178,92 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               </div>
             </div>}
 
-          {/* حقل البحث — تصميم فاخر مطابق للصورة */}
-          <div className="relative pointer-events-auto -mx-4 overflow-visible z-50">
-            <DynamicSearchHeader
-              headerLabel={
-                <div className="flex flex-col items-center justify-center gap-1.5">
-                  <p className="text-[13px] font-bold tracking-widest text-[#5bdda6]/80 uppercase">
-                    {isPickup ? 'موقع الانطلاق' : 'الوجهة'}
-                  </p>
-                </div>
-              }
-              query={locationSearchQuery}
-              onQueryChange={(v) => {
-                setLocationSearchQuery(v);
-                setSearchQuery(v);
-                if (v) setIsLocationFocused(true);
-                // إذا اختار المستخدم تصنيف سريع والآن يعدل النص يدوياً
-                if (!v) setActiveCategory(null);
-              }}
-              onClear={() => {
-                setLocationSearchQuery('');
-                clearSearch();
-                setIsLocationFocused(false);
-                setCenterAddress(null);
-                setManualAddress(null);
-                setActiveCategory(null);
-              }}
-              isSearching={isSearching}
-              isOffline={searchOffline}
-              placeholder={isPickup ? 'اختر موقع الانطلاق ....' : 'اختر جهة الوصول ....'}
-              onFocus={() => setIsLocationFocused(true)}
-              showAddress={!locationSearchQuery && centerAddress ? buildDescriptiveAddress(centerAddress) : undefined}
-              onAddressClick={() => {
-                if (!centerAddress || centerAddress.includes('بدون اسم') || centerAddress.includes('غير مفعل')) {
-                  manualGeolocateMain(true);
-                } else {
-                  setIsLocationFocused(true);
-                }
-              }}
-              onCurrentLocation={() => manualGeolocateMain(true)}
-              onSaveLocation={() => {
-                if (centerAddress && centerLat && centerLng) setShowSaveModal(true);
-              }}
-              isFavorite={!!isFav}
-              onClearAddress={() => {
-                setCenterAddress(null);
-                setManualAddress(null);
-                setLocationSearchQuery('');
-                setSearchQuery('');
-                setLocalServiceAreaStatus(null);
-              }}
-              voiceSupported={voiceSupported}
-              voiceState={voiceState}
-              onVoiceToggle={toggleListening}
-              voiceTranscript={voiceTranscript}
-            />
+          {/* حقل البحث — ضمن بطاقة رحلة أوضح */}
+          <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-3 shadow-[0_12px_30px_rgba(0,0,0,0.2)]">
 
-            <DynamicSearchResults
-              query={locationSearchQuery}
-              results={predictions}
-              unifiedResults={locationSearchQuery
-                ? unified.mergeResults(
-                    unified.searchLocal(locationSearchQuery, recentSearches),
-                    predictions ?? []
-                  )
-                : undefined}
-              recentSearches={recentSearches}
-              smartSuggestions={unified.getSmartSuggestions()}
-              nearbyLandmarks={unified.getNearbyLandmarks(5)}
-              savedPlaces={supabaseSavedPlaces}
-              isSearching={isSearching}
-              isLoadingDetails={isLoadingDetails}
-              isOffline={searchOffline}
-              isOpen={isLocationFocused}
-              activeCategory={activeCategory}
-              onCategorySelect={(cat: CategoryFilter) => {
-                if (activeCategory === cat.id) {
+
+            <div className="relative pointer-events-auto overflow-visible z-50">
+              <DynamicSearchHeader
+                query={locationSearchQuery}
+                onQueryChange={(v) => {
+                  setLocationSearchQuery(v);
+                  setSearchQuery(v);
+                  if (v) setIsLocationFocused(true);
+                  if (!v) setActiveCategory(null);
+                }}
+                onClear={() => {
+                  setLocationSearchQuery('');
+                  clearSearch();
+                  setIsLocationFocused(false);
+                  setCenterAddress('');
+                  setManualAddress('');
                   setActiveCategory(null);
+                }}
+                isSearching={isSearching}
+                isOffline={searchOffline}
+                placeholder={isPickup ? 'اختر موقع الانطلاق ....' : isStopMode ? 'اختر موقع المحطة ....' : 'اختر جهة الوصول ....'}
+                onFocus={() => {
+                  setIsLocationFocused(true);
+                  setPanelExpanded(true);
+                }}
+                showAddress={!locationSearchQuery && centerAddress ? currentSelectionAddress : undefined}
+                onAddressClick={() => {
+                  if (!centerAddress || centerAddress.includes('بدون اسم') || centerAddress.includes('غير مفعل')) {
+                    manualGeolocateMain(true);
+                  } else {
+                    setIsLocationFocused(true);
+                  }
+                }}
+                onCurrentLocation={() => manualGeolocateMain(true)}
+                onSaveLocation={() => {
+                  if (centerAddress && centerLat && centerLng) setShowSaveModal(true);
+                }}
+                isFavorite={!!isFav}
+                onClearAddress={() => {
+                  setCenterAddress('');
+                  setManualAddress('');
                   setLocationSearchQuery('');
                   setSearchQuery('');
-                } else {
-                  setActiveCategory(cat.id);
-                  setLocationSearchQuery(cat.keyword);
-                  setSearchQuery(cat.keyword);
-                }
-              }}
-              onSelect={async (placeId) => {
-                const placeDetails = await getPlaceDetails(placeId);
-                if (!placeDetails) return;
-                addRecentSearch({
-                  mainText: placeDetails.name,
-                  secondaryText: placeDetails.address,
-                  address: placeDetails.address,
-                  lat: placeDetails.lat,
-                  lng: placeDetails.lng,
-                });
-                const geofenceCheck = await checkDestinationGeofence(placeDetails.lat, placeDetails.lng, mapToken);
-                if (!geofenceCheck.allowed) {
-                  setGeofenceResult(geofenceCheck);
-                  setShowGeofenceAlert(true);
-                  return;
-                }
-                // ✅ حفظ مباشر كموقع انطلاق أو وجهة والانتقال للخطوة التالية
-                const location: LocationType = {
-                  lat: placeDetails.lat,
-                  lng: placeDetails.lng,
-                  address: placeDetails.name || placeDetails.address,
-                };
-                if (isPickup) {
-                  setPickupLocation(location);
-                  if (dropoffLocation) {
-                    setCurrentMode('booking');
-                  } else {
-                    setCurrentMode('dropoff');
-                  }
-                  toast({ title: 'تم تحديد موقع الانطلاق ✅', description: location.address });
-                } else {
-                  setDropoffLocation(location);
-                  if (pickupLocation) {
-                    setCurrentMode('booking');
-                  } else {
-                    setCurrentMode('pickup');
-                  }
-                  toast({ title: 'تم تحديد الوجهة ✅', description: location.address });
-                }
-                if (map.current) {
-                  map.current.panTo({ lat: placeDetails.lat, lng: placeDetails.lng });
-                  map.current.setZoom(16);
-                }
-                setCenterAddress('');
-                setLocationSearchQuery('');
-                setSearchQuery('');
-                setIsLocationFocused(false);
-                setActiveCategory(null);
-              }}
-              onSelectUnified={async (result) => {
-                let selectedLat: number | undefined;
-                let selectedLng: number | undefined;
-                let selectedAddress: string = result.main_text;
+                  setLocalServiceAreaStatus(null);
+                }}
+                voiceSupported={voiceSupported}
+                voiceState={voiceState}
+                onVoiceToggle={toggleListening}
+                voiceTranscript={voiceTranscript}
+              />
 
-                if (result.lat && result.lng) {
-                  selectedLat = result.lat;
-                  selectedLng = result.lng;
-                  selectedAddress = result.main_text;
-                  addRecentSearch({
-                    mainText: result.main_text,
-                    secondaryText: result.secondary_text || '',
-                    address: result.secondary_text || result.main_text,
-                    lat: result.lat,
-                    lng: result.lng,
-                  });
-                } else if (result.place_id) {
-                  const placeDetails = await getPlaceDetails(result.place_id);
+              <DynamicSearchResults
+                query={locationSearchQuery}
+                results={predictions}
+                unifiedResults={locationSearchQuery
+                  ? unified.mergeResults(
+                      unified.searchLocal(locationSearchQuery, recentSearches),
+                      predictions ?? []
+                    )
+                  : undefined}
+                recentSearches={recentSearches}
+                smartSuggestions={unified.getSmartSuggestions()}
+                nearbyLandmarks={unified.getNearbyLandmarks(5)}
+                savedPlaces={supabaseSavedPlaces}
+                isSearching={isSearching}
+                isLoadingDetails={isLoadingDetails}
+                isOffline={searchOffline}
+                isOpen={isLocationFocused}
+                activeCategory={activeCategory}
+                onCategorySelect={(cat: CategoryFilter) => {
+                  if (activeCategory === cat.id) {
+                    setActiveCategory(null);
+                    setLocationSearchQuery('');
+                    setSearchQuery('');
+                  } else {
+                    setActiveCategory(cat.id);
+                    setLocationSearchQuery(cat.keyword);
+                    setSearchQuery(cat.keyword);
+                  }
+                }}
+                onSelect={async (placeId) => {
+                  const placeDetails = await getPlaceDetails(placeId);
                   if (!placeDetails) return;
-                  selectedLat = placeDetails.lat;
-                  selectedLng = placeDetails.lng;
-                  selectedAddress = placeDetails.name || placeDetails.address;
                   addRecentSearch({
                     mainText: placeDetails.name,
                     secondaryText: placeDetails.address,
@@ -2169,126 +2271,100 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                     lat: placeDetails.lat,
                     lng: placeDetails.lng,
                   });
-                }
-
-                if (!selectedLat || !selectedLng) return;
-
-                const geofenceCheck = await checkDestinationGeofence(selectedLat, selectedLng, mapToken);
-                if (!geofenceCheck.allowed) {
-                  setGeofenceResult(geofenceCheck);
-                  setShowGeofenceAlert(true);
-                  return;
-                }
-
-                // ✅ حفظ مباشر كموقع انطلاق أو وجهة
-                const location: LocationType = { lat: selectedLat, lng: selectedLng, address: selectedAddress };
-                if (isPickup) {
-                  setPickupLocation(location);
-                  setCurrentMode(dropoffLocation ? 'booking' : 'dropoff');
-                  toast({ title: 'تم تحديد موقع الانطلاق ✅', description: location.address });
-                } else {
-                  setDropoffLocation(location);
-                  setCurrentMode(pickupLocation ? 'booking' : 'pickup');
-                  toast({ title: 'تم تحديد الوجهة ✅', description: location.address });
-                }
-                if (map.current) {
-                  map.current.panTo({ lat: selectedLat, lng: selectedLng });
-                  map.current.setZoom(16);
-                }
-                setCenterAddress('');
-                setLocationSearchQuery('');
-                setSearchQuery('');
-                setIsLocationFocused(false);
-                setActiveCategory(null);
-              }}
-              onSelectRecent={async (search) => {
-                const geofenceCheck = await checkDestinationGeofence(search.lat, search.lng, mapToken);
-                if (!geofenceCheck.allowed) {
-                  setGeofenceResult(geofenceCheck);
-                  setShowGeofenceAlert(true);
-                  return;
-                }
-                // ✅ حفظ مباشر
-                const location: LocationType = { lat: search.lat, lng: search.lng, address: search.address };
-                if (isPickup) {
-                  setPickupLocation(location);
-                  setCurrentMode(dropoffLocation ? 'booking' : 'dropoff');
-                  toast({ title: 'تم تحديد موقع الانطلاق ✅', description: location.address });
-                } else {
-                  setDropoffLocation(location);
-                  setCurrentMode(pickupLocation ? 'booking' : 'pickup');
-                  toast({ title: 'تم تحديد الوجهة ✅', description: location.address });
-                }
-                if (map.current) {
-                  map.current.panTo({ lat: search.lat, lng: search.lng });
-                  map.current.setZoom(16);
-                }
-                setCenterAddress('');
-                setLocationSearchQuery('');
-                setSearchQuery('');
-                setIsLocationFocused(false);
-              }}
-              onSelectSmart={async (suggestion) => {
-                if (suggestion.lat && suggestion.lng) {
-                  const geofenceCheck = await checkDestinationGeofence(suggestion.lat, suggestion.lng, mapToken);
+                  const geofenceCheck = await checkDestinationGeofence(placeDetails.lat, placeDetails.lng, mapToken ?? undefined);
                   if (!geofenceCheck.allowed) {
                     setGeofenceResult(geofenceCheck);
                     setShowGeofenceAlert(true);
                     return;
                   }
-                  // ✅ حفظ مباشر
-                  const location: LocationType = { lat: suggestion.lat, lng: suggestion.lng, address: suggestion.title };
-                  if (isPickup) {
-                    setPickupLocation(location);
-                    setCurrentMode(dropoffLocation ? 'booking' : 'dropoff');
-                    toast({ title: 'تم تحديد موقع الانطلاق ✅', description: location.address });
-                  } else {
-                    setDropoffLocation(location);
-                    setCurrentMode(pickupLocation ? 'booking' : 'pickup');
-                    toast({ title: 'تم تحديد الوجهة ✅', description: location.address });
+                  const location: LocationType = {
+                    lat: placeDetails.lat,
+                    lng: placeDetails.lng,
+                    address: placeDetails.name || placeDetails.address,
+                  };
+                  applySelectedLocation(location);
+                }}
+                onSelectUnified={async (result) => {
+                  let selectedLat: number | undefined;
+                  let selectedLng: number | undefined;
+                  let selectedAddress: string = result.main_text;
+
+                  if (result.lat && result.lng) {
+                    selectedLat = result.lat;
+                    selectedLng = result.lng;
+                    selectedAddress = result.main_text;
+                    addRecentSearch({
+                      mainText: result.main_text,
+                      secondaryText: result.secondary_text || '',
+                      address: result.secondary_text || result.main_text,
+                      lat: result.lat,
+                      lng: result.lng,
+                    });
+                  } else if (result.place_id) {
+                    const placeDetails = await getPlaceDetails(result.place_id);
+                    if (!placeDetails) return;
+                    selectedLat = placeDetails.lat;
+                    selectedLng = placeDetails.lng;
+                    selectedAddress = placeDetails.name || placeDetails.address;
+                    addRecentSearch({
+                      mainText: placeDetails.name,
+                      secondaryText: placeDetails.address,
+                      address: placeDetails.address,
+                      lat: placeDetails.lat,
+                      lng: placeDetails.lng,
+                    });
                   }
-                  if (map.current) {
-                    map.current.panTo({ lat: suggestion.lat, lng: suggestion.lng });
-                    map.current.setZoom(16);
+
+                  if (!selectedLat || !selectedLng) return;
+
+                  const geofenceCheck = await checkDestinationGeofence(selectedLat, selectedLng, mapToken ?? undefined);
+                  if (!geofenceCheck.allowed) {
+                    setGeofenceResult(geofenceCheck);
+                    setShowGeofenceAlert(true);
+                    return;
                   }
-                  setCenterAddress('');
-                  setLocationSearchQuery('');
-                  setSearchQuery('');
-                  setIsLocationFocused(false);
-                }
-              }}
-              onSelectSavedPlace={async (place) => {
-                const geofenceCheck = await checkDestinationGeofence(place.lat, place.lng, mapToken);
-                if (!geofenceCheck.allowed) {
-                  setGeofenceResult(geofenceCheck);
-                  setShowGeofenceAlert(true);
-                  return;
-                }
-                // ✅ حفظ مباشر
-                const location: LocationType = { lat: place.lat, lng: place.lng, address: place.name || place.address };
-                if (isPickup) {
-                  setPickupLocation(location);
-                  setCurrentMode(dropoffLocation ? 'booking' : 'dropoff');
-                  toast({ title: 'تم تحديد موقع الانطلاق ✅', description: location.address });
-                } else {
-                  setDropoffLocation(location);
-                  setCurrentMode(pickupLocation ? 'booking' : 'pickup');
-                  toast({ title: 'تم تحديد الوجهة ✅', description: location.address });
-                }
-                if (map.current) {
-                  map.current.panTo({ lat: place.lat, lng: place.lng });
-                  map.current.setZoom(16);
-                }
-                setCenterAddress('');
-                setLocationSearchQuery('');
-                setSearchQuery('');
-                setIsLocationFocused(false);
-              }}
-              onRemoveRecent={removeRecentSearch}
-              maxResults={6}
-              maxRecentResults={3}
-              onClose={() => setIsLocationFocused(false)}
-            />
+
+                  const location: LocationType = { lat: selectedLat, lng: selectedLng, address: selectedAddress };
+                  applySelectedLocation(location);
+                }}
+                onSelectRecent={async (search) => {
+                  const geofenceCheck = await checkDestinationGeofence(search.lat, search.lng, mapToken ?? undefined);
+                  if (!geofenceCheck.allowed) {
+                    setGeofenceResult(geofenceCheck);
+                    setShowGeofenceAlert(true);
+                    return;
+                  }
+                  const location: LocationType = { lat: search.lat, lng: search.lng, address: search.address };
+                  applySelectedLocation(location);
+                }}
+                onSelectSmart={async (suggestion) => {
+                  if (suggestion.lat && suggestion.lng) {
+                    const geofenceCheck = await checkDestinationGeofence(suggestion.lat, suggestion.lng, mapToken ?? undefined);
+                    if (!geofenceCheck.allowed) {
+                      setGeofenceResult(geofenceCheck);
+                      setShowGeofenceAlert(true);
+                      return;
+                    }
+                    const location: LocationType = { lat: suggestion.lat, lng: suggestion.lng, address: suggestion.title };
+                    applySelectedLocation(location);
+                  }
+                }}
+                onSelectSavedPlace={async (place) => {
+                  const geofenceCheck = await checkDestinationGeofence(place.lat, place.lng, mapToken ?? undefined);
+                  if (!geofenceCheck.allowed) {
+                    setGeofenceResult(geofenceCheck);
+                    setShowGeofenceAlert(true);
+                    return;
+                  }
+                  const location: LocationType = { lat: place.lat, lng: place.lng, address: place.name || place.address };
+                  applySelectedLocation(location);
+                }}
+                onRemoveRecent={removeRecentSearch}
+                maxResults={6}
+                maxRecentResults={3}
+                onClose={() => setIsLocationFocused(false)}
+              />
+            </div>
           </div>
 
 
@@ -2301,7 +2377,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="w-[calc(100%+2rem)] -mx-4 bg-[#0b1326]/95 border-t border-[#5bdda6]/10"
+                className="rounded-[20px] border border-white/10 bg-white/[0.025] overflow-hidden"
               >
                 {loadingSavedPlaces ? (
                   <div className="flex items-center justify-center py-4 gap-2">
@@ -2335,26 +2411,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                           whileTap={{ scale: 0.93 }}
                           onClick={() => {
                             const location = { lat: place.lat, lng: place.lng, address: place.address || place.name };
-                            if (isPickup) {
-                              // وضع الانطلاق: تعيين كموقع انطلاق + التحول لاختيار الوجهة
-                              setPickupLocation(location);
-                              setCurrentMode('dropoff');
-                              toast({ title: 'تم تحديد موقع الانطلاق ✅', description: place.name });
-                            } else {
-                              // وضع الوجهة: تعيين كوجهة وصول + التحول للحجز
-                              setDropoffLocation(location);
-                              setCurrentMode('booking');
-                              toast({ title: 'تم تحديد الوجهة ✅', description: place.name });
+                            if (applySelectedLocation(location)) {
+                              setShowSavedPlacesDropdown(false);
                             }
-                            if (map.current) {
-                              map.current.panTo({ lat: place.lat, lng: place.lng });
-                              map.current.setZoom(16);
-                            }
-                            setCenterAddress('');
-                            setSearchQuery('');
-                            setLocationSearchQuery('');
-                            setIsLocationFocused(false);
-                            setShowSavedPlacesDropdown(false);
                           }}
                           className="shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-[#151f30] border border-slate-700/50 hover:border-[#5bdda6]/30 hover:bg-[#5bdda6]/5 active:bg-[#5bdda6]/15 transition-all"
                         >
@@ -2373,7 +2432,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
           {/* زر التأكيد + زر الأماكن المحفوظة */}
           {/* زر التأكيد + زر الأماكن المحفوظة */}
-          <div className="absolute bottom-0 left-0 right-0 flex z-[100] bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
+          <div className="absolute bottom-0 left-0 right-0 flex z-[100] gap-2 p-3 bg-[linear-gradient(180deg,rgba(7,17,31,0),rgba(7,17,31,0.94)_36%,rgba(7,17,31,0.99)_100%)]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 24px), 24px)' }}>
             {/* زر الأماكن المحفوظة */}
             <motion.button
               whileTap={{ scale: 0.98 }}
@@ -2383,11 +2442,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 setIsLocationFocused(false);
                 if (willOpen) fetchSavedPlaces();
               }}
-              className="w-16 shrink-0 flex items-center justify-center bg-[#0f2922] border-r border-t border-[#34d399]/20 transition-all hover:bg-[#5bdda6]/10 h-[72px] rounded-none"
+              className="w-[72px] shrink-0 flex flex-col items-center justify-center gap-1 bg-[#0f2922] border border-[#34d399]/20 transition-all hover:bg-[#5bdda6]/10 h-[72px] rounded-[18px]"
               title="الأماكن المحفوظة"
               aria-label="عرض الأماكن المحفوظة"
             >
               <Bookmark className={`w-6 h-6 transition-colors ${showSavedPlacesDropdown ? 'text-[#5bdda6] fill-[#5bdda6]/30' : 'text-[#5bdda6]/70'}`} />
+              <span className="text-[10px] font-bold text-[#5bdda6]/75">المحفوظة</span>
             </motion.button>
 
             {/* زر التأكيد */}
@@ -2399,9 +2459,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               disabled={!centerAddress || isCheckingService || isConfirming}
               whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.98 }}
               style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-              className={`flex-auto h-[72px] rounded-none border-t border-emerald-500/20 flex items-center justify-center gap-2 text-lg font-black transition-all duration-300 touch-manipulation ${
-                centerAddress && !isCheckingService && !isConfirming
-                  ? 'bg-[#34d399] text-[#064e3b] hover:bg-[#2dd392] active:bg-[#10b981]'
+              className={`flex-auto h-[72px] rounded-[18px] border flex items-center justify-center gap-2 text-lg font-black transition-all duration-300 touch-manipulation shadow-[0_12px_28px_rgba(0,0,0,0.22)] ${
+                selectionReady
+                  ? isPickup
+                    ? 'bg-gradient-to-r from-[#7cf0bd] via-[#5bdda6] to-[#27b481] text-[#064e3b] border-emerald-400/30 hover:brightness-105 active:brightness-95'
+                    : 'bg-gradient-to-r from-[#5fd0ff] via-[#38bdf8] to-[#0ea5e9] text-white border-sky-400/30 hover:brightness-105 active:brightness-95'
                   : 'bg-slate-800 text-slate-500 cursor-not-allowed'
               }`}
             >
@@ -2418,7 +2480,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               ) : (
                 <>
                   <Navigation className="w-6 h-6 ml-1" />
-                  <span className="tracking-tight">تأكيد {isPickup ? 'موقع الانطلاق' : 'الوجهة'}</span>
+                  <span className="tracking-tight">{confirmButtonLabel}</span>
                 </>
               )}
             </motion.button>
@@ -2445,12 +2507,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               // حذف من المفضلة
               const { favorites } = useFavoritesStore.getState();
               const fav = favorites.find(f => Math.abs(f.lat - centerLat) < 0.001 && Math.abs(f.lng - centerLng) < 0.001);
-              if (fav) { removeFavorite(fav.id); await supabase.from('saved_places').delete().eq('id', fav.id); }
+                if (fav) { removeFavorite(fav.id); await (supabase.from('saved_places' as any).delete().eq('id', fav.id as any)); }
             } else {
-              const { error } = await supabase.from('saved_places').insert({
+              const { error } = await (supabase.from('saved_places' as any).insert({
                 user_id: authUser.id, name: name || 'موقع محفوظ', address: addr,
                 lat: centerLat, lng: centerLng, icon, label: icon
-              });
+              } as any) as any);
               if (!error) addFavorite({ id: `${centerLat}-${centerLng}-${Date.now()}`, name: name || 'موقع محفوظ', address: addr, lat: centerLat, lng: centerLng, icon: icon as 'home' | 'work' | 'cafe' | 'gym' | 'diwaniya' | 'carwash' | 'other', createdAt: Date.now(), color: '#22c55e' });
             }
             toast({ title: isFav ? 'محذوف من المفضلة ✅' : 'تم حفظ الموقع ✅', duration: 1500 });

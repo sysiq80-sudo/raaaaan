@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +9,6 @@ import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Badge } from "@/components/ui/badge";
 import {
-  Shield,
   Save,
   RefreshCw,
   MessageCircle,
@@ -127,12 +125,12 @@ export default function AdminSecuritySettings() {
       subtitle="إعدادات حماية النظام وحدود الاستخدام — قابلة للتعديل في أي وقت"
       actions={
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleReset} disabled={saveMutation.isPending}>
+          <Button variant="outline" onClick={handleReset} disabled={saving}>
             <RefreshCw className="w-4 h-4 ml-2" />
             إعادة تعيين
           </Button>
-          <Button onClick={handleSave} disabled={saveMutation.isPending || loading}>
-            {saveMutation.isPending ? (
+          <Button onClick={handleSave} disabled={saving || loading}>
+            {saving ? (
               <RefreshCw className="w-4 h-4 ml-2 animate-spin" />
             ) : (
               <Save className="w-4 h-4 ml-2" />

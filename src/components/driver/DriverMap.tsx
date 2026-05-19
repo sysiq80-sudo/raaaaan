@@ -5,6 +5,9 @@ import { getMarkerIcon, getDarkMapStyle } from "@/lib/googleMapService";
 import { MapPin, Loader2, AlertCircle, RefreshCw, Zap, ShieldAlert, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import carIcon from "@/assets/white color car .png";
+import { useAutoAccept } from "@/stores/driverStore";
+import useDriverStore from "@/stores/driverStore";
 
 // متغير على مستوى الوحدة — يبقى حتى بعد unmount/remount للمكون
 let googleMapsAuthFailedGlobal = false;
@@ -26,7 +29,8 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
   const [error, setError] = useState<string | null>(null);
   const [authFailed, setAuthFailed] = useState(googleMapsAuthFailedGlobal);
   const [isMapReady, setIsMapReady] = useState(false);
-  const [autoAccept, setAutoAccept] = useState(false);
+  const autoAccept = useAutoAccept();
+  const toggleAutoAccept = useDriverStore((s) => s.toggleAutoAccept);
   const { apiKey, isLoading: isApiKeyLoading } = useGoogleMapsApiKey();
   const retryCountRef = useRef(0);
 
@@ -213,12 +217,9 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
         map: map.current,
         title: "السائق",
         icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          fillColor: "#5bdda6",
-          fillOpacity: 1,
-          strokeColor: "#0b1326",
-          strokeWeight: 3,
-          scale: 7,
+          url: carIcon,
+          scaledSize: new google.maps.Size(40, 52),
+          anchor: new google.maps.Point(20, 26),
         },
         zIndex: 10,
       });
@@ -380,19 +381,19 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
           <ShieldAlert className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
         </button>
 
-        {/* Auto-Accept Toggle */}
-        {!hasActiveRide && (
+        {/* Auto-Accept Toggle — يظهر فقط عندما السائق نشط */}
+        {!hasActiveRide && isOnline && (
           <button
             className={`w-12 h-12 flex items-center justify-center rounded-full border-none outline-none ring-0 transition-all backdrop-blur group ${
               autoAccept
                 ? 'bg-[#5bdda6] shadow-[0_0_15px_rgba(91,221,166,0.4)] hover:shadow-[0_0_25px_rgba(91,221,166,0.6)]'
                 : 'bg-black/80 shadow-[0_0_15px_rgba(0,0,0,0.3)] hover:bg-black/90'
             }`}
-            title="القبول التلقائي"
+            title={autoAccept ? "إيقاف القبول التلقائي" : "تفعيل القبول التلقائي"}
             onClick={() => {
-              setAutoAccept(!autoAccept);
+              toggleAutoAccept();
               if (!autoAccept) {
-                toast.success("تم تفعيل القبول التلقائي للطلبات");
+                toast.success("⚡ تم تفعيل القبول التلقائي — سيتم قبول الطلبات مباشرة");
               } else {
                 toast.info("تم إيقاف القبول التلقائي");
               }

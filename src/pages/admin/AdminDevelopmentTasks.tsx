@@ -61,7 +61,7 @@ export default function AdminDevelopmentTasks() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const { isLoading: loading } = useQuery({
+  const { isLoading: loading, refetch } = useQuery({
     queryKey: ['app-tasks'],
     queryFn: async () => {
       const { data, error: err } = await supabase
@@ -70,7 +70,10 @@ export default function AdminDevelopmentTasks() {
         .order('status', { ascending: false })
         .order('created_at', { ascending: false });
 
-      if (err) throw err;
+      if (err) {
+        setError("لم يتم العثور على المهام. تأكد من تشغيل أمر الترحيل (Migration) لقاعدة البيانات: npx supabase db push");
+        return [] as AppTask[];
+      }
       
       const statusOrder = { todo: 1, in_progress: 2, done: 3 };
       const sortedData = (data as AppTask[]).sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
@@ -79,11 +82,6 @@ export default function AdminDevelopmentTasks() {
       setError(null);
       return sortedData;
     },
-    meta: {
-      onError: () => {
-        setError("لم يتم العثور على المهام. تأكد من تشغيل أمر الترحيل (Migration) لقاعدة البيانات: npx supabase db push");
-      }
-    }
   });
 
   const updateStatusMutation = useMutation({
@@ -124,7 +122,9 @@ export default function AdminDevelopmentTasks() {
         </div>
         <div className="flex gap-2">
           <button 
-            onClick={fetchTasks}
+            onClick={() => {
+              void refetch();
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
           >
             <RefreshCcw className="w-4 h-4" /> تحديث

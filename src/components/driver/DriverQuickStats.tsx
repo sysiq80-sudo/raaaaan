@@ -57,47 +57,52 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
 
   if (loading) {
     return (
-      <div className="flex bg-[#171f33]/90 backdrop-blur-xl border-b border-[#5bdda6]/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-        <div className="flex-1 h-[68px] animate-pulse border-l border-white/5" />
-        <div className="flex-1 h-[68px] animate-pulse" />
+      <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+        <div className="h-11 w-36 rounded-2xl bg-[#0d1729]/80 animate-pulse" />
+        <div className="h-11 w-28 rounded-2xl bg-[#0d1729]/80 animate-pulse" />
+        <div className="h-10 w-10 rounded-2xl bg-[#0d1729]/80 animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center z-20 w-full">
+    <div className="flex items-center gap-2 px-4 pt-3 pb-1 w-full">
       <AnimatePresence initial={false}>
         {isVisible && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="flex w-full bg-[#171f33]/90 backdrop-blur-xl border-b border-[#5bdda6]/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden"
+            initial={{ opacity: 0, x: -12, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -12, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 380, damping: 28 }}
+            className="flex gap-2 flex-1"
           >
             {/* بطاقة الأرباح */}
-            <div className="flex-1 flex flex-col justify-center items-center py-3 border-l border-white/5 relative">
-              <div className="absolute top-0 right-1/2 translate-x-1/2 w-10 h-[2px] bg-[#5bdda6] shadow-[0_0_12px_rgba(91,221,166,1)]" />
-              <div className="flex items-center gap-1.5 mb-1">
+            <div className="flex items-center gap-2 bg-[#0d1729]/90 backdrop-blur-xl rounded-2xl px-3.5 py-2.5 border border-[#5bdda6]/20 shadow-[0_4px_20px_rgba(0,0,0,0.45)]">
+              <div className="w-7 h-7 rounded-xl bg-[#5bdda6]/12 flex items-center justify-center shrink-0">
                 <DollarSign className="w-3.5 h-3.5 text-[#5bdda6]" />
-                <p className="text-slate-400 text-[10px] font-bold tracking-wider">الأرباح اليوم</p>
               </div>
-              <p className="text-xl font-black text-white leading-none whitespace-nowrap" style={{ fontFamily: "Inter, sans-serif" }}>
-                {todayEarnings.toLocaleString('en-US')}
-                <span className="text-xs font-bold text-[#5bdda6] mr-1" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>د.ع</span>
-              </p>
+              <div className="flex flex-col min-w-0">
+                <p className="text-[9px] text-slate-500 font-bold tracking-widest uppercase leading-none mb-0.5">الأرباح</p>
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-sm font-black text-white leading-none" style={{ fontFamily: "Inter, sans-serif" }}>
+                    {todayEarnings.toLocaleString('en-US')}
+                  </span>
+                  <span className="text-[10px] font-bold text-[#5bdda6]/70">د.ع</span>
+                </div>
+              </div>
             </div>
 
-            {/* بطاقة الطلبات */}
-            <div className="flex-1 flex flex-col justify-center items-center py-3 relative">
-              <div className="absolute top-0 right-1/2 translate-x-1/2 w-10 h-[2px] bg-sky-400 shadow-[0_0_12px_rgba(56,189,248,1)]" />
-              <div className="flex items-center gap-1.5 mb-1">
+            {/* بطاقة الرحلات */}
+            <div className="flex items-center gap-2 bg-[#0d1729]/90 backdrop-blur-xl rounded-2xl px-3.5 py-2.5 border border-sky-500/20 shadow-[0_4px_20px_rgba(0,0,0,0.45)]">
+              <div className="w-7 h-7 rounded-xl bg-sky-500/12 flex items-center justify-center shrink-0">
                 <Car className="w-3.5 h-3.5 text-sky-400" />
-                <p className="text-slate-400 text-[10px] font-bold tracking-wider">الطلبات اليوم</p>
               </div>
-              <p className="text-xl font-black text-white leading-none" style={{ fontFamily: "Inter, sans-serif" }}>
-                {todayRides.toLocaleString('en-US')}
-              </p>
+              <div className="flex flex-col min-w-0">
+                <p className="text-[9px] text-slate-500 font-bold tracking-widest uppercase leading-none mb-0.5">الرحلات</p>
+                <span className="text-sm font-black text-white leading-none" style={{ fontFamily: "Inter, sans-serif" }}>
+                  {todayRides.toLocaleString('en-US')}
+                </span>
+              </div>
             </div>
           </motion.div>
         )}
@@ -106,17 +111,17 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
       {/* زر إخفاء وإظهار التفاصيل */}
       <button
         onClick={() => setIsVisible(!isVisible)}
-        className="w-14 h-6 flex items-center justify-center bg-[#22c55e]/90 backdrop-blur-xl border border-t-0 border-[#5bdda6]/40 rounded-b-2xl shadow-[0_4px_12px_rgba(0,0,0,0.3)] hover:bg-[#16a34a] transition-colors focus:outline-none z-30 pointer-events-auto -translate-y-[1px]"
-        aria-label={isVisible ? "إخفاء التفاصيل" : "إظهار التفاصيل"}
+        className="w-12 h-12 flex items-center justify-center rounded-full border-none outline-none ring-0 shadow-[0_0_15px_rgba(0,0,0,0.3)] transition-all bg-black/80 hover:bg-black/90 backdrop-blur group shrink-0 pointer-events-auto"
+        aria-label={isVisible ? "إخفاء الإحصائيات" : "إظهار الإحصائيات"}
       >
         <motion.div
           animate={{ rotate: isVisible ? 0 : 180 }}
           transition={{ duration: 0.3 }}
         >
           {isVisible ? (
-            <EyeOff className="w-4 h-4 text-slate-400" />
+            <EyeOff className="w-5 h-5 text-slate-300 group-hover:scale-110 transition-transform" />
           ) : (
-            <Eye className="w-4 h-4 text-[#5bdda6]" />
+            <Eye className="w-5 h-5 text-[#5bdda6] group-hover:scale-110 transition-transform" />
           )}
         </motion.div>
       </button>

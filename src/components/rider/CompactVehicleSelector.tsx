@@ -61,7 +61,7 @@ const CompactVehicleSelector = ({
             )}
           >
             {/* رسالة الأكثر طلباً */}
-            {v.isPopular && (
+            {Boolean((v as { isPopular?: boolean }).isPopular) && (
               <div className={cn(
                 "absolute -top-3 px-3 py-0.5 rounded-full z-10 transition-colors",
                 isSelected ? "bg-[#5bdda6]" : "bg-[#2d3449]"

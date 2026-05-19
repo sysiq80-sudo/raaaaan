@@ -8,6 +8,7 @@ import { useRiderLocation } from "@/hooks/useRiderLocation";
 import DriverInfoCard from "@/components/rider/DriverInfoCard";
 import ChangeDestinationSheet from "@/components/rider/ChangeDestinationSheet";
 import { RideChat } from "@/components/rider/RideChat";
+import FareBreakdownCard from "@/components/driver/FareBreakdownCard";
 import { useBroadcastChannel } from "@/hooks/useBroadcastChannel";
 import {
   playSound,
@@ -137,7 +138,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   const { sendQuickMessage, handleRiderArrived } = useBroadcastChannel({
     ride,
     driver,
-    onRideUpdate,
+    onRideUpdate: (updatedRide) => onRideUpdate(updatedRide as unknown as Ride),
     onDriverLocationUpdate: handleDriverLocationUpdate,
     onClose,
     onDriverCancelled: () => setDriverCancelledRide(true),
@@ -1153,7 +1154,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
             driver={driver}
             rideId={ride.id}
             rideStatus={ride.status}
-            estimatedFare={ride.estimated_fare}
+            estimatedFare={ride.estimated_fare ?? undefined}
             currentLocation={driver?.current_location || ride.pickup_location}
           >
             {/* ─── 2. شريط الإجراءات السريعة ─── */}

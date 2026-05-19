@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">سيارة ران</string>
+    <string name="title_activity_main">سيارة ران</string>
+    <string name="package_name">com.raan.car</string>
+    <string name="custom_url_scheme">com.raan.car</string>
+</resources>

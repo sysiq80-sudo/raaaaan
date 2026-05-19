@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-// @ts-expect-error — no types for canvas-confetti
 import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "framer-motion";
 

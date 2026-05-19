@@ -14,6 +14,17 @@
 // ════════════════════════════════════════════════════════════
 
 function getAllowedOrigin(requestOrigin?: string | null): string {
+  if (
+    requestOrigin &&
+    (
+      requestOrigin === "capacitor://localhost" ||
+      requestOrigin === "ionic://localhost" ||
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin)
+    )
+  ) {
+    return requestOrigin;
+  }
+
   const envOrigins = Deno.env.get("ALLOWED_ORIGINS");
   if (!envOrigins) return "*";
   const allowed = envOrigins.split(",").map((o) => o.trim());

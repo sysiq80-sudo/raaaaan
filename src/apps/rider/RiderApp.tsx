@@ -11,6 +11,7 @@ import { BrowserRouter, HashRouter, Routes, Route, Navigate } from "react-router
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { RaanThemeProvider } from "@/contexts/RaanThemeContext";
+import { MapProviderContext } from "@/contexts/MapContext";
 import SplashScreen from "@/components/SplashScreen";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import DevInspector from "@/components/DevInspector";
@@ -65,23 +66,25 @@ const RiderApp = () => {
       <TooltipProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <Sonner />
-            <RiderNotificationBootstrap />
-            {isNativePlatform ? (
-              <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                <Suspense fallback={<LoadingFallback />}>
-                  <RiderRoutes />
-                </Suspense>
-                <DevInspector />
-              </HashRouter>
-            ) : (
-              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                <Suspense fallback={<LoadingFallback />}>
-                  <RiderRoutes />
-                </Suspense>
-                <DevInspector />
-              </BrowserRouter>
-            )}
+            <MapProviderContext>
+              <Sonner />
+              <RiderNotificationBootstrap />
+              {isNativePlatform ? (
+                <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <RiderRoutes />
+                  </Suspense>
+                  <DevInspector />
+                </HashRouter>
+              ) : (
+                <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <RiderRoutes />
+                  </Suspense>
+                  <DevInspector />
+                </BrowserRouter>
+              )}
+            </MapProviderContext>
           </AuthProvider>
         </QueryClientProvider>
       </TooltipProvider>
@@ -158,7 +161,7 @@ const RiderRoutes = () => {
       <Route path="/track/:token" element={<ErrorBoundary><TrackRide /></ErrorBoundary>} />
       <Route path="/payment/result" element={<ErrorBoundary><PaymentResult /></ErrorBoundary>} />
 
-      <Route path="/rider" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><AIVoiceHome /></ProtectedRoute></ErrorBoundary>} />
+      <Route path="/rider" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><AIVoiceHome /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
       <Route path="/rider/go" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><GoPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
       <Route path="/rider/schedule" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><GoPage scheduleMode={true} /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
       <Route path="/rider/rides" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><RiderRidesPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />

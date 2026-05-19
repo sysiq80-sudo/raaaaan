@@ -75,10 +75,7 @@ const DriverBottomNav = () => {
       aria-label="القائمة الرئيسية للسائق"
     >
       <div
-        className="backdrop-blur-xl flex items-center h-[68px] transition-colors duration-300 bg-[#0b1326]"
-        style={{
-          paddingBottom: 'max(env(safe-area-inset-bottom, 24px), 24px)'
-        }}
+        className="backdrop-blur-xl flex items-center h-[68px] transition-colors duration-300 bg-[#0b1326] pb-[env(safe-area-inset-bottom)]"
       >
         {navItems.map((item, index) => {
           const isActive = index === activeIndex;

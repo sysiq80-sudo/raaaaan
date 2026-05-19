@@ -8,6 +8,8 @@ import {
   VibrationPatterns,
 } from "@/utils/rideNotificationSounds";
 import { cacheActiveRide, getCachedActiveRide } from "@/hooks/useOfflineMode";
+import { EventDeduplicator } from "@/lib/eventDeduplication";
+import type { RideEvent } from "@/lib/eventDeduplication";
 
 const LOG_CONTEXT = "useActiveRide";
 
@@ -52,6 +54,9 @@ export const useActiveRide = (userId: string | null) => {
   const setIgnorePolling = useCallback((v: boolean) => {
     ignorePollingRef.current = v;
   }, []);
+
+  // EventDeduplicator: منع معالجة أحداث Realtime المكررة
+  const dedupRef = useRef(new EventDeduplicator());
 
   // Helper to parse ride data
   const parseRideData = useCallback(
@@ -318,10 +323,28 @@ export const useActiveRide = (userId: string | null) => {
           if (payload.eventType === "INSERT") {
             const newRide = payload.new as any;
             if (newRide.status === "pending") {
-              setActiveRide(parseRideData(newRide));
-              setPendingRideId(newRide.id);
-              setShowWaitingScreen(true);
-              previousStatusRef.current = "pending";
+              // EventDeduplicator: تجنب معالجة INSERT مكرر (مثل Realtime reconnect)
+              const insertEventId = `insert-${newRide.id}`;
+              const rideEvent: RideEvent = {
+                eventId: insertEventId,
+                lamportTimestamp: Date.now(),
+                eventType: 'ride-accepted',
+                source: 'system',
+                destination: 'rider',
+                rideId: newRide.id,
+                payload: { status: newRide.status },
+                timestamp: Date.now(),
+              };
+              dedupRef.current.processEvent(rideEvent).then((result) => {
+                if (!result) {
+                  logger.debug(LOG_CONTEXT, "Duplicate INSERT filtered by EventDeduplicator", insertEventId);
+                  return;
+                }
+                setActiveRide(parseRideData(newRide));
+                setPendingRideId(newRide.id);
+                setShowWaitingScreen(true);
+                previousStatusRef.current = "pending";
+              });
             }
           }
 
@@ -336,17 +359,45 @@ export const useActiveRide = (userId: string | null) => {
               return;
             }
 
-            // ✅ FIX: تجاهل تحديثات "completed → completed" المتكررة لمنع إعادة تعيين شاشة التقييم
-            if (newStatus === "completed" && prevStatus === "completed") {
-              logger.debug(LOG_CONTEXT, "Ignoring duplicate completed update - rating screen already shown");
-              return;
-            }
+            // EventDeduplicator: تجنب معالجة UPDATE مكرر
+            // eventId فريد لكل تحولة حالة واحدة في دورة حياة الرحلة
+            const statusToEventType = (s: string): RideEvent['eventType'] => {
+              if (s === 'accepted') return 'ride-accepted';
+              if (s === 'completed') return 'ride-completed';
+              if (s === 'cancelled') return 'ride-cancelled';
+              if (s === 'arrived') return 'driver-arrived';
+              return 'ride-accepted'; // fallback for pending/in_progress
+            };
 
-            // Update previous status ref
-            previousStatusRef.current = newStatus;
+            const updateEventId = `${updatedRide.id}-${newStatus}`;
+            const rideEvent: RideEvent = {
+              eventId: updateEventId,
+              lamportTimestamp: Date.now(),
+              eventType: statusToEventType(newStatus),
+              source: 'system',
+              destination: 'rider',
+              rideId: updatedRide.id,
+              payload: { status: newStatus, prevStatus },
+              timestamp: Date.now(),
+            };
 
-            // Handle the status change
-            handleStatusChange(newStatus, prevStatus, updatedRide);
+            dedupRef.current.processEvent(rideEvent).then((result) => {
+              if (!result) {
+                logger.debug(LOG_CONTEXT, "Duplicate UPDATE filtered by EventDeduplicator", updateEventId);
+                return;
+              }
+
+              // Update previous status ref
+              previousStatusRef.current = newStatus;
+
+              // Handle the status change
+              handleStatusChange(newStatus, prevStatus, updatedRide);
+
+              // تنظيف الذاكرة عند انتهاء الرحلة
+              if (newStatus === 'completed' || newStatus === 'cancelled') {
+                setTimeout(() => dedupRef.current.clearRideEvents(updatedRide.id), 5000);
+              }
+            });
           }
         }
       )

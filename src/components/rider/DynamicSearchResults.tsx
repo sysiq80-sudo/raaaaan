@@ -198,13 +198,13 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, y: -10 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
+        exit={{ opacity: 0, y: 10 }}
         transition={{ duration: 0.2 }}
         className={cn(
-          "absolute bottom-full left-0 right-0 mb-2 z-[100]",
-          "bg-[#0f1a2e] border border-white/[0.08] rounded-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.6)]",
+          "relative left-0 right-0 mt-2 z-[100]",
+          "bg-[#0f1a2e] border border-white/[0.08] rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.6)]",
           "max-h-[60vh] overflow-y-auto scrollbar-thin",
           className
         )}
@@ -543,7 +543,6 @@ export const DynamicSearchHeader: React.FC<{
   isFavorite?: boolean;
   showAddress?: string;
   onClearAddress?: () => void;
-  onShowSavedPlaces?: () => void;
   onShowSavedPlaces?: () => void;
   // ─── بحث صوتي ───
   voiceSupported?: boolean;

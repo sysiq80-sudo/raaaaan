@@ -9,6 +9,7 @@ import { useToast } from "./use-toast";
 import { getDirections, drawPolyline, ROUTE_STYLES } from "@/lib/googleMapService";
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { useGoogleMapsApiKey } from "./useGoogleMapsApiKey";
+import { useAdaptiveRouting } from "@/hooks/useAdaptiveRouting";
 import { logger } from "@/lib/logger";
 import { showErrorToast } from "@/lib/toastHelpers";
 import type { PaymentMethod } from "@/types/savedCards";
@@ -27,6 +28,9 @@ export const useBookingFlow = () => {
   const { toast } = useToast();
   const { apiKey: googleApiKey } = useGoogleMapsApiKey();
 
+  // Phase 7: Adaptive routing — OSRM primary, Haversine fallback
+  const { currentAdapter: routingAdapter, getRoute: getAdaptiveRoute } = useAdaptiveRouting();
+
   const bookingMapContainer = useRef<HTMLDivElement>(null);
   const bookingMap = useRef<google.maps.Map | null>(null);
 
@@ -44,48 +48,70 @@ export const useBookingFlow = () => {
   // Helper function to fetch and draw route
   const fetchRouteAndDraw = useCallback(
     async (pickupLocation: LocationType, dropoffLocation: LocationType) => {
-      if (!googleApiKey || !bookingMap.current) {
-        logger.warn(LOG_CONTEXT, "Cannot fetch route - missing map or API key");
+      if (!bookingMap.current) {
+        logger.warn(LOG_CONTEXT, "Cannot fetch route - missing map");
         return;
       }
 
+      const origin = { lat: pickupLocation.lat, lng: pickupLocation.lng };
+      const destination = { lat: dropoffLocation.lat, lng: dropoffLocation.lng };
+
       try {
-        logger.debug(LOG_CONTEXT, "Fetching route...");
-        const result = await getDirections(
-          { lat: pickupLocation.lat, lng: pickupLocation.lng },
-          { lat: dropoffLocation.lat, lng: dropoffLocation.lng }
-        );
+        // ─── Phase 7: Adaptive Routing (OSRM → Haversine fallback) ───────────
+        if (routingAdapter) {
+          logger.debug(LOG_CONTEXT, "Using adaptive routing...");
+          const routeResult = await getAdaptiveRoute(origin, destination);
+
+          const distanceKm = routeResult.distance / 1000;
+          const durationMin = Math.ceil(routeResult.duration / 60);
+          setRouteDistance(Math.round(distanceKm * 10) / 10);
+          setRouteDuration(durationMin);
+          logger.debug(LOG_CONTEXT, "Adaptive route received", { distanceKm, durationMin });
+
+          if (routeResult.path.length > 0 && bookingMap.current) {
+            drawPolyline(bookingMap.current, routeResult.path, ROUTE_STYLES.main);
+
+            const bounds = new google.maps.LatLngBounds();
+            routeResult.path.forEach((point) => {
+              bounds.extend(new google.maps.LatLng(point.lat, point.lng));
+            });
+            bounds.extend(new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng));
+            bounds.extend(new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng));
+            bookingMap.current.fitBounds(bounds, 100);
+          }
+          return; // ✅ تم — لا حاجة لـ Google Directions
+        }
+
+        // ─── Fallback: Google Directions API ─────────────────────────────────
+        if (!googleApiKey) {
+          logger.warn(LOG_CONTEXT, "Cannot fetch route - missing API key and no routing adapter");
+          return;
+        }
+
+        logger.debug(LOG_CONTEXT, "Fetching route via Google Directions...");
+        const result = await getDirections(origin, destination);
 
         if (result && result.route && result.distanceMeters > 0) {
           logger.debug(LOG_CONTEXT, "Route received", { distance: result.distance, duration: result.duration });
-          // ✅ استخدام القيم الرقمية بدلاً من تحليل النص المحلي (قد يكون بالعربية)
           const distanceKm = result.distanceMeters / 1000;
           const durationMin = Math.ceil(result.durationSeconds / 60);
-          setRouteDistance(Math.round(distanceKm * 10) / 10); // تقريب لأقرب 0.1 كم
+          setRouteDistance(Math.round(distanceKm * 10) / 10);
           setRouteDuration(durationMin);
 
-          // Draw route on booking map
-          logger.debug(LOG_CONTEXT, "Drawing polyline on map");
           drawPolyline(bookingMap.current, result.route, ROUTE_STYLES.main);
-          logger.debug(LOG_CONTEXT, "Polyline drawn");
 
-          // Fit map to route bounds
           const bounds = new google.maps.LatLngBounds();
           result.route.forEach((point) => {
             bounds.extend(new google.maps.LatLng(point.lat, point.lng));
           });
           bounds.extend(new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng));
           bounds.extend(new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng));
-          
           if (bookingMap.current) {
-            logger.debug(LOG_CONTEXT, "Fitting map to bounds");
             bookingMap.current.fitBounds(bounds, 100);
-            logger.debug(LOG_CONTEXT, "Map bounds fitted");
           }
         } else {
-          logger.warn(LOG_CONTEXT, "No route data received, using fallback distance calculation");
-          // Fallback: Calculate straight-line distance (Haversine formula)
-          const R = 6371; // Earth's radius in km
+          logger.warn(LOG_CONTEXT, "No route data received from Google, using Haversine fallback");
+          const R = 6371;
           const dLat = (dropoffLocation.lat - pickupLocation.lat) * Math.PI / 180;
           const dLng = (dropoffLocation.lng - pickupLocation.lng) * Math.PI / 180;
           const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -93,12 +119,8 @@ export const useBookingFlow = () => {
                     Math.sin(dLng/2) * Math.sin(dLng/2);
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
           const distanceKm = R * c;
-          const estimatedDurationMin = Math.ceil(distanceKm / 2.5 * 60); // Assume 2.5 km/min avg speed
-          
-          logger.debug(LOG_CONTEXT, "Fallback distance calculated (km)", Math.round(distanceKm * 10) / 10);
           setRouteDistance(Math.round(distanceKm * 10) / 10);
-          setRouteDuration(estimatedDurationMin);
-          
+          setRouteDuration(Math.ceil(distanceKm / 2.5 * 60));
           toast({
             title: "المسار التقريبي ⚠️",
             description: "تم استخدام مسافة تقريبية بسبب عدم توفر التفاصيل الدقيقة",
@@ -110,7 +132,7 @@ export const useBookingFlow = () => {
         showErrorToast(toast, "خطأ في الاتجاهات", "فشل في جلب المسار - تحقق من الإنترنت");
       }
     },
-    [googleApiKey, toast]
+    [routingAdapter, getAdaptiveRoute, googleApiKey, toast]
   );
 
   // Initialize booking map

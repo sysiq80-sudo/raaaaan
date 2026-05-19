@@ -1,14 +1,14 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { MapPin } from "lucide-react";
-import { useMapProvider } from "@/hooks/useMapProvider";
+import { useMapContext } from "@/contexts/MapContext";
 
 /**
  * MapProviderSelector - Now only supports Google Maps
  * Mapbox option removed as the app has migrated to Google Maps
  */
 const MapProviderSelector: React.FC = () => {
-  const { provider, isGoogleConfigured, loading } = useMapProvider();
+  const { provider, isGoogleConfigured, isLoading } = useMapContext();
 
   return (
     <div className="flex items-center gap-3">
@@ -16,7 +16,7 @@ const MapProviderSelector: React.FC = () => {
       <div className="flex-1">
         <p className="font-medium">مزود الخريطة</p>
         <p className="text-xs text-muted-foreground">
-          {loading ? "جارٍ التحقق..." : "Google Maps ✓"}
+          {isLoading ? "جارٍ التحقق..." : "Google Maps ✓"}
         </p>
       </div>
 

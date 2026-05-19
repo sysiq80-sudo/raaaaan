@@ -213,7 +213,7 @@ export const registerFCMToken = async (driverId: string): Promise<boolean> => {
         
         const cleanup = () => {
           if (listenerHandle) {
-            listenerHandle.remove().catch(() => {});
+            listenerHandle.remove();
           }
         };
 

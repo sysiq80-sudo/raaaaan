@@ -9,7 +9,7 @@ import React, { useEffect } from "react";
 import MaintenanceScreen from "@/components/MaintenanceScreen";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import useCarMode from "@/hooks/useCarMode";
-import CarModeQuickDock from "@/components/driver/CarModeQuickDock";
+import RootLayout from "@/components/layout/RootLayout";
 
 
 interface DriverLayoutProps {
@@ -33,18 +33,15 @@ const DriverLayout: React.FC<DriverLayoutProps> = ({ children }) => {
   }
 
   return (
-    <div
-      className={`driver-luxury driver-page-shell pb-[env(safe-area-inset-bottom)] flex flex-col h-[100dvh] overflow-hidden ${isCarMode ? "car-mode-layout" : ""}`}
-      data-driver-theme="dark-luxury-geometric"
+    <RootLayout
+      className={`driver-luxury driver-page-shell ${isCarMode ? "car-mode-layout" : ""}`}
+      mainClassName="pb-[env(safe-area-inset-bottom)]"
       dir="rtl"
     >
-      {/* المحتوى الرئيسي — يملأ المساحة المتبقية ويسمح بالتمرير */}
-      <div className="flex-1 overflow-y-auto">
+      <div data-driver-theme="dark-luxury-geometric" className="h-full">
         {children}
       </div>
-
-      {isCarMode && <CarModeQuickDock />}
-    </div>
+    </RootLayout>
   );
 };
 

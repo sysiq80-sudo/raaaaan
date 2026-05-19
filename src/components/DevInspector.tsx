@@ -99,7 +99,7 @@ function collectMapIds(element: HTMLElement): MapIdInfo[] {
 
 function getReactFiber(node: HTMLElement): unknown {
   const key = Object.keys(node).find((entry) => entry.startsWith('__reactFiber$'));
-  return key ? (node as Record<string, unknown>)[key] : null;
+  return key ? ((node as unknown as Record<string, unknown>)[key]) : null;
 }
 
 function getComponentInfo(element: HTMLElement): { name: string | null; filePath: string | null } {

@@ -81,35 +81,36 @@ export async function startNativeTracking(opts: NativeLocationOptions): Promise<
     // تكوين الخدمة
     await BackgroundGeolocation.ready({
       // ── إعدادات الموقع ──
-      desiredAccuracy: BackgroundGeolocation.DESIRED_ACCURACY_HIGH,
-      distanceFilter: 10,                    // تحديث كل 10 أمتار
-      locationUpdateInterval: opts.updateInterval || 5000,
-      fastestLocationUpdateInterval: 2000,
-
-      // ── منع القتل بواسطة Android ──
-      stopOnTerminate: false,                // يبقى حتى بعد إغلاق التطبيق
-      startOnBoot: true,                     // يبدأ مع تشغيل الجهاز
-      foregroundService: true,               // Foreground Service = إشعار دائم
-
-      // ── إعدادات الإشعار (Android) ──
-      notification: {
-        title: 'ران كابتن 🚗',
-        text: 'جارٍ تتبع رحلتك...',
-        channelName: 'raan-location-tracking',
-        sticky: true,
-        smallIcon: 'mipmap/ic_launcher',
-        largeIcon: 'mipmap/ic_launcher',
+      geolocation: {
+        desiredAccuracy: BackgroundGeolocation.DesiredAccuracy.High,
+        distanceFilter: 10,                    // تحديث كل 10 أمتار
+        locationUpdateInterval: opts.updateInterval || 5000,
+        fastestLocationUpdateInterval: 2000,
       },
 
-      // ── Headless mode (يعمل بدون UI) ──
-      enableHeadless: true,
+      // ── منع القتل بواسطة Android ──
+      app: {
+        stopOnTerminate: false,                // يبقى حتى بعد إغلاق التطبيق
+        startOnBoot: true,                     // يبدأ مع تشغيل الجهاز
+        enableHeadless: true,
+        preventSuspend: true,
+        heartbeatInterval: 60,                 // نبض كل 60 ثانية
 
-      // ── تقليل استهلاك البطارية ──
-      preventSuspend: true,
-      heartbeatInterval: 60,                 // نبض كل 60 ثانية
+        // ── إعدادات الإشعار (Android) ──
+        notification: {
+          title: 'ران كابتن 🚗',
+          text: 'جارٍ تتبع رحلتك...',
+          channelName: 'raan-location-tracking',
+          sticky: true,
+          smallIcon: 'mipmap/ic_launcher',
+          largeIcon: 'mipmap/ic_launcher',
+        },
+      },
 
       // ── عدم إرسال للسيرفر تلقائياً (نتحكم يدوياً) ──
-      autoSync: false,
+      http: {
+        autoSync: false,
+      },
     });
 
     // ── مستمع تحديث الموقع ──

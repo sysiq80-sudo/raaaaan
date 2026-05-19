@@ -1,7 +1,7 @@
 // Service Worker for RAAN - Push Notifications + Advanced Caching
 // يتم حقن CACHE_VERSION و SUPABASE_URL تلقائياً أثناء البناء عبر vite plugin
 
-const CACHE_VERSION = 'v1776001852339';
+const CACHE_VERSION = 'v1776586934930';
 const SUPABASE_FUNCTIONS_URL = '';
 const STATIC_CACHE = `raan-static-${CACHE_VERSION}`;
 const API_CACHE = `raan-api-${CACHE_VERSION}`;

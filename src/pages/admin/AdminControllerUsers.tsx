@@ -235,6 +235,10 @@ const AdminControllerUsers = () => {
     toggleActiveMutation.mutate();
   };
 
+  const adding = addMutation.isPending;
+  const editing = editMutation.isPending;
+  const resettingPassword = resetPasswordMutation.isPending;
+
   const openEditDialog = (account: ControllerAccount) => {
     setSelectedAccount(account);
     setEditFullName(account.full_name || "");
@@ -284,7 +288,7 @@ const AdminControllerUsers = () => {
 
   if (loading || authLoading) {
     return (
-      <AdminLayout>
+      <AdminLayout title="مدراء النظام">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
@@ -297,7 +301,7 @@ const AdminControllerUsers = () => {
 
   if (fetchError) {
     return (
-      <AdminLayout>
+      <AdminLayout title="مدراء النظام">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
@@ -310,7 +314,7 @@ const AdminControllerUsers = () => {
   }
 
   return (
-    <AdminLayout>
+    <AdminLayout title="مدراء النظام">
       <div className="space-y-6">
         {/* العنوان */}
         <div className="flex items-center justify-between">

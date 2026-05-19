@@ -13,7 +13,7 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   );
 }
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+export const supabase: any = createClient<any>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: capacitorStorageSync,
     persistSession: true,
@@ -21,7 +21,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     detectSessionInUrl: true,
     // تجاوز navigator.locks الذي قد يعلق إذا بقي قفل قديم من تبويب سابق
     // lockNoOp: ينفذ العملية مباشرة بدون قفل — آمن لتطبيق تبويب واحد
-    lock: async (name: string, acquireTimeout: number, fn: () => Promise<unknown>) => {
+    lock: async <R>(name: string, acquireTimeout: number, fn: () => Promise<R>): Promise<R> => {
       return await fn();
     },
   },

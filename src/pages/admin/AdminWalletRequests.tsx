@@ -51,6 +51,12 @@ interface TopupRequest {
   user_phone?: string;
 }
 
+interface UserLookupRow {
+  user_id: string;
+  full_name: string | null;
+  phone: string | null;
+}
+
 export default function AdminWalletRequests() {
   const { loading: authLoading } = useAdminAuth();
   const { toast } = useToast();
@@ -91,8 +97,12 @@ export default function AdminWalletRequests() {
           : { data: [] },
       ]);
 
-      const profileMap = new Map((profilesResult.data || []).map(p => [p.user_id, p]));
-      const driverMap = new Map((driversResult.data || []).map(d => [d.user_id, d]));
+      const profileMap = new Map(
+        ((profilesResult.data as UserLookupRow[] | null) || []).map((p) => [p.user_id, p])
+      );
+      const driverMap = new Map(
+        ((driversResult.data as UserLookupRow[] | null) || []).map((d) => [d.user_id, d])
+      );
 
       return reqs.map((request) => {
         const userData = request.user_type === "rider"

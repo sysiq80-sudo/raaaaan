@@ -700,10 +700,10 @@ export const startNativeSpeechRecognition = async (
     );
 
     // التحقق من الإذن
-    const permStatus = await SpeechRecognition.hasPermission();
-    if (!permStatus.permission) {
-      const req = await SpeechRecognition.requestPermission();
-      if (!req.permission) {
+    const permStatus = await SpeechRecognition.checkPermissions();
+    if (permStatus.speechRecognition !== 'granted') {
+      const req = await SpeechRecognition.requestPermissions();
+      if (req.speechRecognition !== 'granted') {
         onError('إذن الميكروفون مرفوض');
         return false;
       }

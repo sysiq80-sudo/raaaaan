@@ -71,14 +71,15 @@ export const useBroadcastChannel = ({
     channel
       .on("broadcast", { event: "ride_accepted" }, (payload: Record<string, unknown>) => {
         console.log("[Broadcast] ⚡ ride_accepted received");
+        const eventPayload = payload.payload as Record<string, unknown> | undefined;
         if (onRideUpdateRef.current) onRideUpdateRef.current({ ...ride, status: "accepted" });
         playSound("accepted");
         vibrate(VibrationPatterns.accepted);
 
         toast({
           title: "🎉 تم قبول طلبك!",
-          description: payload.payload?.driverName
-            ? `${payload.payload.driverName} في الطريق إليك`
+          description: typeof eventPayload?.driverName === "string"
+            ? `${eventPayload.driverName} في الطريق إليك`
             : "السائق في الطريق إليك الآن",
           duration: 8000,
         });
@@ -150,13 +151,14 @@ export const useBroadcastChannel = ({
         { event: "ride_cancelled_by_driver" },
         (payload: Record<string, unknown>) => {
           console.log("[Broadcast] ⚡ ride_cancelled_by_driver received");
+          const eventPayload = payload.payload as Record<string, unknown> | undefined;
           playSound("cancelled");
           vibrate(VibrationPatterns.cancelled);
 
           toast({
             title: "❌ تم إلغاء الرحلة من السائق",
             description:
-              payload.payload?.reason ||
+              (typeof eventPayload?.reason === "string" ? eventPayload.reason : undefined) ||
               "السائق ألغى الرحلة - يمكنك طلب سائق آخر",
             variant: "destructive",
             duration: 10000,
@@ -170,10 +172,11 @@ export const useBroadcastChannel = ({
         }
       )
       .on("broadcast", { event: "driver_location_update" }, (payload: Record<string, unknown>) => {
-        const newLocation = payload.payload?.location;
+        const eventPayload = payload.payload as Record<string, unknown> | undefined;
+        const newLocation = eventPayload?.location as { lat?: number; lng?: number } | undefined;
         if (newLocation?.lat && newLocation?.lng) {
           console.log("[Broadcast] 📍 Driver location updated (Real-time):", newLocation);
-          if (onDriverLocationUpdateRef.current) onDriverLocationUpdateRef.current(newLocation);
+          if (onDriverLocationUpdateRef.current) onDriverLocationUpdateRef.current({ lat: newLocation.lat, lng: newLocation.lng });
         }
       })
       .on("broadcast", { event: "driver_approaching_soon" }, () => {
@@ -244,7 +247,7 @@ export const useBroadcastChannel = ({
         (payload) => {
           console.log("[DB Update] Ride update received:", payload.new);
           const updatedRide = payload.new as Record<string, unknown>;
-          const newStatus = updatedRide.status;
+          const newStatus = typeof updatedRide.status === "string" ? updatedRide.status : "";
           const prevStatus = previousStatusRef.current;
 
           // Only process if status actually changed
@@ -310,7 +313,7 @@ export const useBroadcastChannel = ({
               toast({
                 title: "❌ تم إلغاء الرحلة",
                 description:
-                  updatedRide.cancellation_reason || "تم إلغاء الرحلة",
+                  (typeof updatedRide.cancellation_reason === "string" ? updatedRide.cancellation_reason : undefined) || "تم إلغاء الرحلة",
                 variant: "destructive",
               });
               if (onDriverCancelled && updatedRide.cancelled_by !== "rider") {

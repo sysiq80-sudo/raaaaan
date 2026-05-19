@@ -37,6 +37,8 @@ import type { Database } from "@/integrations/supabase/types";
 
 type Driver = Database["public"]["Tables"]["drivers"]["Row"] & {
   email?: string | null;
+  residency_image_url?: string | null;
+  guarantor_image_url?: string | null;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

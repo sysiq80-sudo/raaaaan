@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { haversineDistance, calculateETA, corsHeaders, getAuthUser, jsonResponse, errorResponse, corsPreflightResponse } from "../_shared/utils.ts";
+import { getBatchETA, type ETAResult } from "../_shared/eta.ts";
+import { getConfigBatch } from "../_shared/config.ts";
 
 // ═══ Defaults (overridden by app_settings.matching_settings) ═══
 const DEFAULT_MAX_RETRY_ROUNDS = 5;
@@ -9,7 +11,18 @@ const DEFAULT_RADIUS_EXPANSION_KM = 3;
 const DEFAULT_MATCHING_MODE = "hybrid"; // "sequential" | "broadcast" | "hybrid"
 const DEFAULT_MAX_DRIVERS_NOTIFY = 5;
 const DEFAULT_SEQUENTIAL_DELAY_MS = 8000;
-const DEFAULT_FAIRNESS_WEIGHT = 0.1; // وزن التوزيع العادل في المعادلة
+const DEFAULT_FAIRNESS_WEIGHT = 0.1;
+
+// ═══ Phase 3 (Dispatch v2) defaults ═══
+const DEFAULT_DISPATCH_VERSION: "v1" | "v2" = "v2";
+const DEFAULT_WEIGHT_ETA = 0.45;
+const DEFAULT_WEIGHT_RATING = 0.20;
+const DEFAULT_WEIGHT_ACCEPTANCE = 0.20;
+const DEFAULT_WEIGHT_CANCELLATION = 0.10; // (penalty: cancellation_rate * weight is subtracted)
+const DEFAULT_WEIGHT_FAIRNESS_V2 = 0.05;
+const DEFAULT_ETA_TOPK = 10;        // عدد المرشحين الذين سنطلب ETA حقيقي لهم
+const DEFAULT_ETA_MAX_SECONDS = 1200; // 20 دقيقة = score 0
+const DEFAULT_NEW_DRIVER_ACCEPTANCE = 0.700; // افتراضي للسائقين بدون سجل
 
 // إعدادات المطابقة - تُقرأ من app_settings
 interface MatchingConfig {
@@ -20,7 +33,17 @@ interface MatchingConfig {
   max_drivers_notify: number;
   sequential_delay_ms: number;
   fairness_weight: number;
-  admin_default_radius: number; // النطاق الافتراضي من لوحة التحكم (للسائقين بدون max_pickup_radius)
+  admin_default_radius: number;
+  // Phase 3
+  dispatch_version: "v1" | "v2";
+  weight_eta: number;
+  weight_rating: number;
+  weight_acceptance: number;
+  weight_cancellation: number;
+  weight_fairness_v2: number;
+  eta_topk: number;
+  eta_max_seconds: number;
+  new_driver_acceptance: number;
 }
 
 async function getMatchingConfig(supabase: any): Promise<MatchingConfig> {
@@ -40,6 +63,16 @@ async function getMatchingConfig(supabase: any): Promise<MatchingConfig> {
       sequential_delay_ms: v.sequential_delay_ms ?? DEFAULT_SEQUENTIAL_DELAY_MS,
       fairness_weight: v.fairness_weight ?? DEFAULT_FAIRNESS_WEIGHT,
       admin_default_radius: r.max_search_radius ?? 10,
+      // Phase 3
+      dispatch_version: (v.dispatch_version === "v1" || v.dispatch_version === "v2") ? v.dispatch_version : DEFAULT_DISPATCH_VERSION,
+      weight_eta: v.weight_eta ?? DEFAULT_WEIGHT_ETA,
+      weight_rating: v.weight_rating ?? DEFAULT_WEIGHT_RATING,
+      weight_acceptance: v.weight_acceptance ?? DEFAULT_WEIGHT_ACCEPTANCE,
+      weight_cancellation: v.weight_cancellation ?? DEFAULT_WEIGHT_CANCELLATION,
+      weight_fairness_v2: v.weight_fairness_v2 ?? DEFAULT_WEIGHT_FAIRNESS_V2,
+      eta_topk: v.eta_topk ?? DEFAULT_ETA_TOPK,
+      eta_max_seconds: v.eta_max_seconds ?? DEFAULT_ETA_MAX_SECONDS,
+      new_driver_acceptance: v.new_driver_acceptance ?? DEFAULT_NEW_DRIVER_ACCEPTANCE,
     };
   } catch {
     return {
@@ -51,6 +84,15 @@ async function getMatchingConfig(supabase: any): Promise<MatchingConfig> {
       sequential_delay_ms: DEFAULT_SEQUENTIAL_DELAY_MS,
       fairness_weight: DEFAULT_FAIRNESS_WEIGHT,
       admin_default_radius: 10,
+      dispatch_version: DEFAULT_DISPATCH_VERSION,
+      weight_eta: DEFAULT_WEIGHT_ETA,
+      weight_rating: DEFAULT_WEIGHT_RATING,
+      weight_acceptance: DEFAULT_WEIGHT_ACCEPTANCE,
+      weight_cancellation: DEFAULT_WEIGHT_CANCELLATION,
+      weight_fairness_v2: DEFAULT_WEIGHT_FAIRNESS_V2,
+      eta_topk: DEFAULT_ETA_TOPK,
+      eta_max_seconds: DEFAULT_ETA_MAX_SECONDS,
+      new_driver_acceptance: DEFAULT_NEW_DRIVER_ACCEPTANCE,
     };
   }
 }
@@ -338,44 +380,149 @@ serve(async (req) => {
           driverLoc.lat,
           driverLoc.lng,
         );
-        const eta = calculateETA(distance);
         const maxRadius =
           (driver.max_pickup_radius || matchConfig.admin_default_radius) + (ride.high_priority ? 5 : 0) + radiusBonus;
-
-        // Weighted dispatch: distance + rating + fairness + experience tie-breaker
-        const normalizedDistance = Math.max(0, 1 - distance / maxRadius);
-        const normalizedRating = Math.min(5, driver.rating || 5.0) / 5;
-        const fw = matchConfig.fairness_weight;
-        const distanceWeight = 0.7 * (1 - fw);
-        const ratingWeight = 0.3 * (1 - fw);
-        const experienceBonus = Math.min(
-          0.05,
-          (driver.total_rides || 0) / 1000,
-        );
-        // التوزيع العادل: تقليل أولوية السائقين الذين أكملوا رحلات كثيرة اليوم
-        const driverTodayRides = todayRideCounts[driver.id] || 0;
-        const fairnessScore = Math.max(0, 1 - driverTodayRides / 20); // 20 رحلة = صفر عدالة
-        const weightedScore =
-          normalizedDistance * distanceWeight +
-          normalizedRating * ratingWeight +
-          fairnessScore * fw +
-          experienceBonus;
-        const priorityScore = Math.round(weightedScore * 100);
 
         return {
           ...driver,
           distance_km: Math.round(distance * 100) / 100,
-          eta_minutes: eta,
-          priority_score: Math.round(priorityScore),
+          eta_minutes: calculateETA(distance), // placeholder — قد يُستبدل بـ ETA حقيقي v2
+          eta_seconds: 0,                      // يُملأ في v2
+          eta_source: "haversine_fallback" as ETAResult["source"],
           max_radius: maxRadius,
+          priority_score: 0,                   // يُحسب أدناه حسب الإصدار
         };
       })
-      .filter((driver) => driver.distance_km <= driver.max_radius)
+      .filter((driver) => driver.distance_km <= driver.max_radius);
+
+    // ═══════════════════════════════════════════════════════════════
+    // Phase 3 — Dispatch v2: ETA حقيقي + acceptance/cancellation factors
+    // ═══════════════════════════════════════════════════════════════
+    let candidatePool = driversWithDistance;
+    let driverStatsMap: Record<string, { acceptance_rate: number; cancellation_rate: number }> = {};
+    let etaMap: Map<string, ETAResult> = new Map();
+
+    if (matchConfig.dispatch_version === "v2" && candidatePool.length > 0) {
+      // 1) Pre-filter: top-K الأقرب جوياً (لتوفير تكلفة Directions API)
+      const topKByHaversine = [...candidatePool]
+        .sort((a, b) => a.distance_km - b.distance_km)
+        .slice(0, matchConfig.eta_topk);
+
+      // 2) جلب Google API key
+      let googleApiKey = "";
+      try {
+        const cfg = await getConfigBatch(supabase, ["GOOGLE_MAPS_API_KEY"]);
+        googleApiKey = cfg["GOOGLE_MAPS_API_KEY"] || Deno.env.get("GOOGLE_MAPS_API_KEY") || "";
+      } catch {
+        googleApiKey = Deno.env.get("GOOGLE_MAPS_API_KEY") || "";
+      }
+
+      // 3) ETA حقيقي بالتوازي للـ top-K (cache → google → haversine fallback)
+      const t0 = performance.now();
+      etaMap = await getBatchETA(
+        supabase,
+        googleApiKey,
+        { lat: pickupLoc.lat, lng: pickupLoc.lng },
+        topKByHaversine.map((d) => {
+          const loc = d.current_location as { lat: number; lng: number };
+          return { id: d.id, lat: loc.lat, lng: loc.lng };
+        }),
+      );
+      const etaMs = Math.round(performance.now() - t0);
+
+      // إحصاء مصادر ETA لـ logs
+      const sourceCount: Record<string, number> = { cache: 0, google: 0, haversine_fallback: 0 };
+      for (const r of etaMap.values()) sourceCount[r.source] = (sourceCount[r.source] || 0) + 1;
+      console.log(`⏱️ ETA batch (${etaMap.size} drivers, ${etaMs}ms): cache=${sourceCount.cache}, google=${sourceCount.google}, fallback=${sourceCount.haversine_fallback}`);
+
+      // 4) جلب driver_matching_stats للـ top-K
+      try {
+        const { data: statsRows } = await supabase
+          .from("driver_matching_stats")
+          .select("driver_id, acceptance_rate, cancellation_rate")
+          .in("driver_id", topKByHaversine.map((d) => d.id));
+        if (statsRows) {
+          for (const s of statsRows) {
+            driverStatsMap[s.driver_id] = {
+              acceptance_rate: Number(s.acceptance_rate) || matchConfig.new_driver_acceptance,
+              cancellation_rate: Number(s.cancellation_rate) || 0,
+            };
+          }
+        }
+      } catch (e) {
+        console.warn("[match-ride] ⚠️ Failed to fetch driver_matching_stats:", e);
+      }
+
+      // 5) ضيق pool المرشحين على top-K (الذين حصلوا على ETA حقيقي)
+      candidatePool = topKByHaversine;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // حساب priority_score حسب الإصدار + sort
+    // ═══════════════════════════════════════════════════════════════
+    const driversScored = candidatePool
+      .map((driver) => {
+        const fw = matchConfig.fairness_weight;
+        const driverTodayRides = todayRideCounts[driver.id] || 0;
+        const fairnessScore = Math.max(0, 1 - driverTodayRides / 20);
+        const normalizedRating = Math.min(5, driver.rating || 5.0) / 5;
+        const experienceBonus = Math.min(0.05, (driver.total_rides || 0) / 1000);
+
+        let weightedScore: number;
+        let usedEta = driver.eta_minutes;
+        let usedEtaSource = driver.eta_source;
+        let usedEtaSeconds = driver.eta_seconds;
+
+        if (matchConfig.dispatch_version === "v2") {
+          // ETA الحقيقي (إن وُجد)
+          const etaRes = etaMap.get(driver.id);
+          if (etaRes) {
+            usedEta = etaRes.eta_minutes;
+            usedEtaSource = etaRes.source;
+            usedEtaSeconds = etaRes.duration_seconds;
+          } else {
+            usedEtaSeconds = usedEta * 60;
+          }
+
+          const etaScore = Math.max(0, 1 - usedEtaSeconds / matchConfig.eta_max_seconds);
+          const stats = driverStatsMap[driver.id];
+          const acceptanceRate = stats?.acceptance_rate ?? matchConfig.new_driver_acceptance;
+          const cancellationRate = stats?.cancellation_rate ?? 0;
+
+          weightedScore =
+            etaScore * matchConfig.weight_eta +
+            normalizedRating * matchConfig.weight_rating +
+            acceptanceRate * matchConfig.weight_acceptance -
+            cancellationRate * matchConfig.weight_cancellation +
+            fairnessScore * matchConfig.weight_fairness_v2 +
+            experienceBonus;
+        } else {
+          // v1 — السلوك القديم (rollback آمن)
+          const normalizedDistance = Math.max(0, 1 - driver.distance_km / driver.max_radius);
+          const distanceWeight = 0.7 * (1 - fw);
+          const ratingWeight = 0.3 * (1 - fw);
+          weightedScore =
+            normalizedDistance * distanceWeight +
+            normalizedRating * ratingWeight +
+            fairnessScore * fw +
+            experienceBonus;
+        }
+
+        return {
+          ...driver,
+          eta_minutes: usedEta,
+          eta_seconds: usedEtaSeconds,
+          eta_source: usedEtaSource,
+          priority_score: Math.round(weightedScore * 100),
+        };
+      })
       .sort((a, b) => b.priority_score - a.priority_score);
 
-    console.log(`🎯 السائقين المؤهلين: ${driversWithDistance.length}`);
+    const driversWithDistanceRanked = driversScored;
 
-    if (driversWithDistance.length === 0) {
+    console.log(`🎯 السائقين المؤهلين: ${driversWithDistanceRanked.length} (dispatch=${matchConfig.dispatch_version})`);
+
+    if (driversWithDistanceRanked.length === 0) {
       const currentAttemptZero = (ride.matching_attempts || 0) + 1;
 
       // تحديث عداد المحاولات
@@ -438,7 +585,7 @@ serve(async (req) => {
     const maxDrivers = ride.high_priority
       ? Math.max(matchConfig.max_drivers_notify, 10)
       : matchConfig.max_drivers_notify;
-    const topDrivers = driversWithDistance.slice(0, maxDrivers);
+    const topDrivers = driversWithDistanceRanked.slice(0, maxDrivers);
 
     console.log(
       "🏆 أفضل السائقين:",
@@ -645,9 +792,13 @@ serve(async (req) => {
           name: d.full_name,
           distance_km: d.distance_km,
           eta_minutes: d.eta_minutes,
+          eta_seconds: d.eta_seconds,
+          eta_source: d.eta_source,
+          priority_score: d.priority_score,
           rating: d.rating,
           vehicle_type: d.vehicle_type,
         })),
+        dispatch_version: matchConfig.dispatch_version,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

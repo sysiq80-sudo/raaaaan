@@ -694,7 +694,7 @@ const AdminDrivers = () => {
         open={editRequestsDialogOpen}
         onOpenChange={(open) => {
           setEditRequestsDialogOpen(open);
-          if (!open) fetchPendingEditRequestsCount();
+          if (!open) queryClient.invalidateQueries({ queryKey: ["admin-pending-edit-requests-count"] });
         }}
       />
     </AdminLayout>

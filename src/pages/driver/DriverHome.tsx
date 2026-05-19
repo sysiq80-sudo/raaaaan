@@ -41,6 +41,8 @@ import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
 import { acceptRideFromNotification } from "@/services/driverNotificationService";
 import { saveLastKnownLocation, getLastKnownLocation } from "@/services/lastKnownLocationService";
 import { MapNetworkOverlay } from "@/components/common/MapNetworkOverlay";
+import { useNotificationRouter } from "@/hooks/useNotificationRouter";
+import { useRealtimeRideEvents } from "@/hooks/useRealtimeRideEvents";
 import {
   Menu,
   X,
@@ -113,6 +115,8 @@ const DriverHome = () => {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [hasActiveRide, setHasActiveRide] = useState(false);
+  // Phase 7: تتبع معرّف الرحلة النشطة لـ useRealtimeRideEvents
+  const [activeRideId, setActiveRideId] = useState<string | null>(null);
   const [hasRideRequest, setHasRideRequest] = useState(false);
   const [showNewRideAlert, setShowNewRideAlert] = useState(false);
   const [newRideData, setNewRideData] = useState<any>(null);
@@ -128,6 +132,26 @@ const DriverHome = () => {
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [adminActivated, setAdminActivated] = useState(true);
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
+  const lastRideRequestNotifiedAtRef = useRef<number>(0);
+
+  const { routeNotification } = useNotificationRouter({
+    nodeId: "driver",
+  });
+
+  // Phase 7: deduplication للرحلة النشطة عبر Lamport timestamps
+  useRealtimeRideEvents({
+    rideId: activeRideId,
+    nodeId: "driver",
+    onRideCompleted: () => {
+      setHasActiveRide(false);
+      setActiveRideId(null);
+      routeNotification("ride-completed", { driverId, occurredAt: Date.now() });
+    },
+    onRideCancelled: () => {
+      setHasActiveRide(false);
+      setActiveRideId(null);
+    },
+  });
   // Stable callback لمنع إعادة إنشاء subscriptions في RideRequestCard
   const handleRideRequestVisible = useCallback((visible: boolean) => {
     setHasRideRequest(visible);
@@ -166,6 +190,21 @@ const DriverHome = () => {
     // السائق يبحث عن طلبات عندما يكون متصلاً وغير مشغول وليس لديه رحلة نشطة
     setIsSearching(isOnline && !isPaused && !hasActiveRide);
   }, [isOnline, isPaused, hasActiveRide]);
+
+  // دمج المرحلة 7: إشعار ذكي عند ظهور طلب رحلة جديد
+  useEffect(() => {
+    if (!hasRideRequest || !isOnline || isPaused) return;
+
+    // حماية إضافية لمنع إعادة الإشعار بشكل متكرر خلال فترة قصيرة.
+    const now = Date.now();
+    if (now - lastRideRequestNotifiedAtRef.current < 5000) return;
+    lastRideRequestNotifiedAtRef.current = now;
+
+    routeNotification("new-ride-request", {
+      driverId,
+      occurredAt: now,
+    });
+  }, [hasRideRequest, isOnline, isPaused, driverId, routeNotification]);
 
   // إلغاء الرحلة من FloatingTripBubble
   const handleCancelRideFromBubble = async () => {
@@ -695,7 +734,10 @@ const DriverHome = () => {
         .order("created_at", { ascending: false })
         .limit(1);
 
-      setHasActiveRide(!!(data && data.length > 0));
+      const hasRide = !!(data && data.length > 0);
+      setHasActiveRide(hasRide);
+      // Phase 7: حفظ معرّف الرحلة النشطة لـ useRealtimeRideEvents
+      setActiveRideId(hasRide ? (data![0].id as string) : null);
     };
 
     fetchActiveRideStatus();
@@ -714,7 +756,11 @@ const DriverHome = () => {
           const status = (payload.new as any)?.status || (payload.old as any)?.status;
           if (["accepted", "arrived", "in_progress"].includes(status)) {
             setHasActiveRide(true);
+            // Phase 7: استخراج معرّف الرحلة من الـ payload
+            const rideId = (payload.new as any)?.id as string | undefined;
+            if (rideId) setActiveRideId(rideId);
           } else {
+            setActiveRideId(null);
             fetchActiveRideStatus();
           }
         }
@@ -1134,9 +1180,20 @@ const DriverHome = () => {
             <NotificationsBell driverId={driverId} isOpen={notificationsOpen} onToggle={() => { setNotificationsOpen(!notificationsOpen); setRewardsOpen(false); setMenuOpen(false); }} />
           </div>
 
-          {/* ═══ Center: Logo ═══ */}
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center">
-            <img src={logo} alt="RAAN" className="w-11 h-11 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]" />
+          {/* ═══ Center: Logo + Status ═══ */}
+          <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
+            <img src={logo} alt="RAAN" className="w-10 h-10 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]" />
+            {driverId && (
+              <span className={`text-[9px] font-bold tracking-wide leading-none ${
+                isOnline
+                  ? isPaused
+                    ? "text-amber-400"
+                    : "text-[#5bdda6]"
+                  : "text-slate-500"
+              }`}>
+                {isOnline ? (isPaused ? "⏸ مشغول" : "● متصل") : "○ غير متصل"}
+              </span>
+            )}
           </div>
 
           {/* Menu Button — Right side */}
@@ -1203,10 +1260,10 @@ const DriverHome = () => {
               <DemandHeatMap isOnline={isOnline} />
             </div>
 
-            {/* ═══ Driver Control Center — Centered DutyToggle ═══ */}
+            {/* ═══ Driver Control Center — Bottom Action Bar (Baly-style) ═══ */}
             {!hasRideRequest && !hasActiveRide && (
-              <div className="absolute inset-x-0 top-[55%] -translate-y-1/2 z-30 pointer-events-none flex justify-center">
-                <div className="pointer-events-auto relative flex flex-col items-center gap-3 w-full max-w-[calc(100%-1rem)] sm:max-w-sm mx-auto px-2">
+              <div className="absolute inset-x-0 bottom-0 z-30 pointer-events-none">
+                <div className="pointer-events-auto w-full">
                     <DutyToggle
                       isOnline={isOnline}
                       isPaused={isPaused}

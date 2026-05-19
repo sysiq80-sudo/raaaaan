@@ -1,0 +1,4 @@
+live_schema.sql
+live_state.json
+penetration_results.json
+*.tmp

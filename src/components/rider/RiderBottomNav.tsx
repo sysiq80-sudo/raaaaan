@@ -77,10 +77,9 @@ const RiderBottomNav = () => {
       aria-label="التنقل الرئيسي"
     >
       <div
-      className="backdrop-blur-xl flex items-center h-[68px] transition-colors duration-300"
+      className="backdrop-blur-xl flex items-center h-[68px] transition-colors duration-300 pb-[env(safe-area-inset-bottom)]"
         style={{
           background: 'var(--raan-bg)',
-          paddingBottom: 'max(env(safe-area-inset-bottom, 24px), 24px)'
         }}
       >
         {/* يمين */}

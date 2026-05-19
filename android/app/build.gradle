@@ -40,6 +40,17 @@ android {
             versionName "1.0"
         }
     }
+    sourceSets {
+        rider {
+            res.srcDirs = ['src/rider/res']
+        }
+        captain {
+            res.srcDirs = ['src/captain/res']
+        }
+        car {
+            res.srcDirs = ['src/car/res']
+        }
+    }
 }
 
 repositories {

@@ -26,7 +26,8 @@ const CarModeQuickDock = () => {
   const { pathname } = useLocation();
 
   return (
-    <div className="car-quick-dock fixed left-1/2 z-[46] w-[min(96vw,740px)] -translate-x-1/2 pb-safe-4" dir="rtl">
+    <div className="car-quick-dock shrink-0 z-50 w-full px-2 pb-[env(safe-area-inset-bottom)]" dir="rtl">
+      <div className="mx-auto w-[min(96vw,740px)]">
       <div className="car-quick-dock-panel rounded-2xl border border-emerald-400/35 bg-slate-950/85 p-2 shadow-2xl backdrop-blur-xl">
         <nav className="grid grid-cols-4 gap-2" aria-label="اختصارات القيادة">
           {SHORTCUTS.map((shortcut) => {
@@ -52,6 +53,7 @@ const CarModeQuickDock = () => {
             );
           })}
         </nav>
+      </div>
       </div>
     </div>
   );

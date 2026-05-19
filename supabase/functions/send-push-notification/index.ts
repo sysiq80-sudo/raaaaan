@@ -2,14 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authorizeSendPushRequest } from "../_shared/pushFunctionAuth.ts";
-import { corsHeaders as baseCorsHeaders } from "../_shared/utils.ts";
-
-const corsHeaders = {
-  ...baseCorsHeaders,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-internal-secret',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Max-Age': '86400',
-};
+import { getCorsHeaders } from "../_shared/utils.ts";
 
 interface PushPayload {
   title: string;
@@ -343,6 +336,14 @@ async function sendPushNotificationWithRetry(
 }
 
 serve(async (req) => {
+  const corsHeaders = {
+    ...getCorsHeaders(req),
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-internal-secret',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin',
+  };
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

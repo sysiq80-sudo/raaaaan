@@ -1,0 +1,285 @@
+[
+  {
+    "table": "driver_wallet_transactions",
+    "rls": true,
+    "forced": false,
+    "policies": 4,
+    "issues": [
+      {
+        "severity": "HIGH",
+        "msg": "Policy Admins can manage all transactions (ALL) WITH CHECK is unconditional (wcheck=\"\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy System can insert transactions (INSERT) USING is unconditional (qual=\"\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy System can insert transactions (INSERT) WITH CHECK is unconditional (wcheck=\"true\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Write policy System can insert transactions (INSERT) lacks auth/admin guards",
+        "role": [
+          "public"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "rider_wallet_transactions",
+    "rls": true,
+    "forced": false,
+    "policies": 4,
+    "issues": [
+      {
+        "severity": "HIGH",
+        "msg": "Policy Admins can manage all wallet transactions (ALL) WITH CHECK is unconditional (wcheck=\"\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy System can insert wallet transactions (INSERT) USING is unconditional (qual=\"\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy System can insert wallet transactions (INSERT) WITH CHECK is unconditional (wcheck=\"true\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Write policy System can insert wallet transactions (INSERT) lacks auth/admin guards",
+        "role": [
+          "public"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "wallet_topup_requests",
+    "rls": true,
+    "forced": false,
+    "policies": 6,
+    "issues": [
+      {
+        "severity": "HIGH",
+        "msg": "Policy Admins can manage all topup requests (ALL) WITH CHECK is unconditional (wcheck=\"\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy Users can create their own topup requests (INSERT) USING is unconditional (qual=\"\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy user_insert_own_topup (INSERT) USING is unconditional (qual=\"\")",
+        "role": [
+          "public"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "withdrawal_requests",
+    "rls": true,
+    "forced": false,
+    "policies": 6,
+    "issues": [
+      {
+        "severity": "HIGH",
+        "msg": "Policy driver_insert_own_withdrawal (INSERT) USING is unconditional (qual=\"\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy drivers_create_withdrawal (INSERT) USING is unconditional (qual=\"\")",
+        "role": [
+          "public"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "payment_accounts",
+    "rls": true,
+    "forced": false,
+    "policies": 4,
+    "issues": [
+      {
+        "severity": "HIGH",
+        "msg": "Policy Admins can manage payment accounts (ALL) WITH CHECK is unconditional (wcheck=\"\")",
+        "role": [
+          "public"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "payment_methods",
+    "rls": true,
+    "forced": false,
+    "policies": 2,
+    "issues": [
+      {
+        "severity": "HIGH",
+        "msg": "Policy everyone_can_read_payment_methods (SELECT) USING is unconditional (qual=\"true\")",
+        "role": [
+          "public"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "promo_codes",
+    "rls": true,
+    "forced": false,
+    "policies": 2,
+    "issues": [
+      {
+        "severity": "HIGH",
+        "msg": "Policy Admins manage promo codes (ALL) WITH CHECK is unconditional (wcheck=\"\")",
+        "role": [
+          "public"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "promo_code_usage",
+    "rls": true,
+    "forced": false,
+    "policies": 3,
+    "issues": [
+      {
+        "severity": "HIGH",
+        "msg": "Policy Users create own promo usage (INSERT) USING is unconditional (qual=\"\")",
+        "role": [
+          "public"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "driver_incentive_claims",
+    "rls": true,
+    "forced": false,
+    "policies": 6,
+    "issues": [
+      {
+        "severity": "HIGH",
+        "msg": "Policy Admins can manage all claims (ALL) WITH CHECK is unconditional (wcheck=\"\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy System can insert claims (INSERT) USING is unconditional (qual=\"\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy System can insert claims (INSERT) WITH CHECK is unconditional (wcheck=\"true\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Write policy System can insert claims (INSERT) lacks auth/admin guards",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy service_insert_claims (INSERT) USING is unconditional (qual=\"\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy service_insert_claims (INSERT) WITH CHECK is unconditional (wcheck=\"true\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Write policy service_insert_claims (INSERT) lacks auth/admin guards",
+        "role": [
+          "public"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "company_earnings",
+    "rls": true,
+    "forced": false,
+    "policies": 6,
+    "issues": [
+      {
+        "severity": "HIGH",
+        "msg": "Policy System can insert earnings (INSERT) USING is unconditional (qual=\"\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy System can insert earnings (INSERT) WITH CHECK is unconditional (wcheck=\"true\")",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Write policy System can insert earnings (INSERT) lacks auth/admin guards",
+        "role": [
+          "public"
+        ]
+      },
+      {
+        "severity": "HIGH",
+        "msg": "Policy authenticated_insert_company_earnings (INSERT) USING is unconditional (qual=\"\")",
+        "role": [
+          "public"
+        ]
+      }
+    ]
+  },
+  {
+    "table": "driver_wallets",
+    "rls": true,
+    "forced": false,
+    "policies": 1,
+    "issues": []
+  }
+]
