@@ -663,6 +663,19 @@ html.light-rider .dots-pattern {
     user-select: auto;
   }
 
+  /* ── إزالة الخط الأزرق عند الضغط على الأزرار ── */
+  button, a, [role="button"], input, select, textarea,
+  [tabindex]:not([tabindex="-1"]) {
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* إبقاء outline فقط للتنقل بالكيبورد (accessibility) */
+  button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
+  input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid hsl(160 100% 45%);
+    outline-offset: 2px;
+  }
+
   /* Responsive text scaling */
   h1,
   h2,
