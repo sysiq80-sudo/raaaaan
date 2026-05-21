@@ -11,24 +11,20 @@ import {
   Loader2,
   CheckCircle2,
   Smartphone,
+  Gift,
+  Sparkles,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
-
-type TopupPaymentMethod = "nass" | "zain_cash";
-
-const PRESET_AMOUNTS = [5000, 10000, 25000, 50000, 100000];
 
 const WalletTopupPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [balance, setBalance] = useState(0);
-  const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
-  const [customAmount, setCustomAmount] = useState("");
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<TopupPaymentMethod>("zain_cash");
+  const [voucherCode, setVoucherCode] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemSuccess, setRedeemSuccess] = useState<{ amount: number } | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -64,112 +60,50 @@ const WalletTopupPage: React.FC = () => {
     setLoading(false);
   };
 
-  const handleAmountSelect = (amount: number) => {
-    setSelectedAmount(amount);
-    setCustomAmount("");
-  };
-
-  const handleCustomAmountChange = (value: string) => {
-    const numValue = value.replace(/[^0-9]/g, "");
-    setCustomAmount(numValue);
-    setSelectedAmount(null);
-  };
-
-  const getFinalAmount = (): number => {
-    if (selectedAmount) return selectedAmount;
-    if (customAmount) return parseInt(customAmount, 10) || 0;
-    return 0;
-  };
-
-  const handleProceedToPayment = async () => {
-    const amount = getFinalAmount();
-    
-    if (amount < 1000) {
-      toast({
-        title: "خطأ",
-        description: "الحد الأدنى للشحن 1,000 دينار",
-        variant: "destructive",
-      });
+  const handleRedeemVoucher = async () => {
+    const code = voucherCode.trim().toUpperCase();
+    if (!code) {
+      toast({ title: "خطأ", description: "أدخل رمز الكارت", variant: "destructive" });
+      return;
+    }
+    if (!userId) {
+      toast({ title: "خطأ", description: "يرجى تسجيل الدخول", variant: "destructive" });
       return;
     }
 
-    if (amount > 5000000) {
-      toast({
-        title: "خطأ",
-        description: "الحد الأقصى للشحن 5,000,000 دينار",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setProcessing(true);
+    setRedeeming(true);
+    setRedeemSuccess(null);
 
     try {
-      // Get auth token
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        toast({
-          title: "خطأ",
-          description: "يرجى تسجيل الدخول أولاً",
-          variant: "destructive",
-        });
-        navigate("/auth?redirect=/rider/wallet-topup");
-        return;
-      }
-
-      // Call payment gateway edge function based on selected method
-      const edgeFunctionName = paymentMethod === "zain_cash" ? "zaincash-init" : "nass-init-payment";
-      const bodyPayload = paymentMethod === "zain_cash"
-        ? { amount, serviceType: "شحن محفظة رعان" }
-        : { amount, orderDesc: "شحن محفظة رعان", backRef: `${window.location.origin}/payment/result` };
-
-      const { data, error } = await supabase.functions.invoke(edgeFunctionName, {
-        body: bodyPayload,
+      const { data, error } = await supabase.rpc("redeem_voucher" as any, {
+        p_code: code,
+        p_user_id: userId,
       });
 
       if (error) {
-        console.error('Payment init error:', error);
-        toast({
-          title: "خطأ",
-          description: "فشل في بدء عملية الدفع",
-          variant: "destructive",
-        });
+        toast({ title: "خطأ", description: "فشل في معالجة الكارت", variant: "destructive" });
         return;
       }
 
-      if (!data?.success || !data?.data?.paymentUrl) {
+      const result = data as any;
+      if (result?.success) {
+        setRedeemSuccess({ amount: result.amount });
+        setBalance(result.new_balance);
+        setVoucherCode("");
         toast({
-          title: "خطأ",
-          description: data?.error || "فشل في الحصول على رابط الدفع",
-          variant: "destructive",
+          title: "✅ تم الشحن بنجاح!",
+          description: `تم إضافة ${Number(result.amount).toLocaleString()} د.ع إلى محفظتك`,
         });
-        return;
+        // إخفاء رسالة النجاح بعد 5 ثواني
+        setTimeout(() => setRedeemSuccess(null), 5000);
+      } else {
+        toast({ title: "خطأ", description: result?.error || "رمز غير صالح", variant: "destructive" });
       }
-
-      // Store order ID for status check
-      localStorage.setItem('pending_payment_order', data.data.orderId);
-
-      // Redirect to payment page
-      window.location.href = data.data.paymentUrl;
-
-    } catch (error) {
-      console.error('Payment error:', error);
-      toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء معالجة الدفع",
-        variant: "destructive",
-      });
+    } catch (e) {
+      toast({ title: "خطأ", description: "حدث خطأ غير متوقع", variant: "destructive" });
     } finally {
-      setProcessing(false);
+      setRedeeming(false);
     }
-  };
-
-  const formatAmount = (amount: number): string => {
-    if (amount >= 1000) {
-      return `${(amount / 1000).toLocaleString()}K`;
-    }
-    return amount.toLocaleString();
   };
 
   return (
@@ -185,7 +119,7 @@ const WalletTopupPage: React.FC = () => {
           >
             <ArrowRight className="w-5 h-5" />
           </Button>
-          <h1 className="text-xl font-bold">شحن المحفظة</h1>
+          <h1 className="text-xl font-bold">المحفظة</h1>
         </div>
       </div>
 
@@ -212,142 +146,102 @@ const WalletTopupPage: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* Amount Selection */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold">اختر المبلغ</h2>
-              
-              <div className="grid grid-cols-3 gap-3">
-                {PRESET_AMOUNTS.map((amount) => (
-                  <Button
-                    key={amount}
-                    variant={selectedAmount === amount ? "default" : "outline"}
-                    className={cn(
-                      "h-16 text-lg font-bold relative",
-                      selectedAmount === amount && "ring-2 ring-primary ring-offset-2"
-                    )}
-                    onClick={() => handleAmountSelect(amount)}
-                  >
-                    {selectedAmount === amount && (
-                      <CheckCircle2 className="absolute top-1 left-1 w-4 h-4" />
-                    )}
-                    {formatAmount(amount)}
-                  </Button>
-                ))}
-              </div>
-
-              {/* Custom Amount */}
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">
-                  أو أدخل مبلغ مخصص (دينار عراقي)
-                </label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="مثال: 15000"
-                  value={customAmount}
-                  onChange={(e) => handleCustomAmountChange(e.target.value)}
-                  className="text-lg h-14 text-center font-bold"
-                />
-                {customAmount && (
-                  <p className="text-sm text-muted-foreground text-center">
-                    {parseInt(customAmount, 10).toLocaleString()} دينار عراقي
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Payment Method */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold">طريقة الدفع</h2>
-              
-              <Card
-                className={cn(
-                  "border-2 cursor-pointer transition-all",
-                  paymentMethod === "zain_cash"
-                    ? "border-green-500 bg-green-500/5"
-                    : "border-muted hover:border-green-500/50"
-                )}
-                onClick={() => setPaymentMethod("zain_cash")}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-                      <Smartphone className="w-6 h-6 text-green-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold">زين كاش</p>
-                      <p className="text-sm text-muted-foreground">
-                        الدفع عبر محفظة زين كاش
-                      </p>
-                    </div>
-                    {paymentMethod === "zain_cash" && (
-                      <CheckCircle2 className="w-6 h-6 text-green-500" />
-                    )}
+            {/* 🎟️ شحن بكارت شحن */}
+            <Card className="border-2 border-blue-500/30 bg-blue-500/5">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                    <Gift className="w-5 h-5 text-blue-600" />
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card
-                className={cn(
-                  "border-2 cursor-pointer transition-all",
-                  paymentMethod === "nass"
-                    ? "border-primary bg-primary/5"
-                    : "border-muted hover:border-primary/50"
-                )}
-                onClick={() => setPaymentMethod("nass")}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-                      <CreditCard className="w-6 h-6 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold">بطاقة ائتمان / ماستر كارد</p>
-                      <p className="text-sm text-muted-foreground">
-                        الدفع الآمن عبر NASS Gateway
-                      </p>
-                    </div>
-                    {paymentMethod === "nass" && (
-                      <CheckCircle2 className="w-6 h-6 text-primary" />
-                    )}
+                  <div>
+                    <p className="font-bold text-blue-700 dark:text-blue-400">شحن بكارت شحن</p>
+                    <p className="text-xs text-muted-foreground">أدخل رمز الكارت لإضافة الرصيد</p>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Summary & Action */}
-            <div className="space-y-4 pt-4">
-              {getFinalAmount() > 0 && (
-                <div className="flex items-center justify-between p-4 rounded-xl bg-secondary/50">
-                  <span className="text-muted-foreground">المبلغ المطلوب</span>
-                  <span className="text-2xl font-bold text-primary">
-                    {getFinalAmount().toLocaleString()} د.ع
-                  </span>
                 </div>
-              )}
 
-              <Button
-                size="lg"
-                className="w-full h-14 text-lg gap-2"
-                disabled={getFinalAmount() < 1000 || processing}
-                onClick={handleProceedToPayment}
-              >
-                {processing ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    جاري التحويل...
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="w-5 h-5" />
-                    متابعة للدفع
-                  </>
+                {/* حقل إدخال الكود */}
+                <div className="space-y-3">
+                  <Input
+                    type="text"
+                    placeholder="RAAN-XXXX-XXXX"
+                    value={voucherCode}
+                    onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                    className="text-center text-lg h-14 font-mono font-bold tracking-widest border-2 border-blue-300/50 focus:border-blue-500"
+                    dir="ltr"
+                    maxLength={20}
+                    disabled={redeeming}
+                  />
+                  <Button
+                    className="w-full h-12 text-base gap-2 bg-blue-600 hover:bg-blue-700"
+                    disabled={!voucherCode.trim() || redeeming}
+                    onClick={handleRedeemVoucher}
+                  >
+                    {redeeming ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        جاري التحقق...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-5 h-5" />
+                        شحن المحفظة
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* رسالة النجاح */}
+                {redeemSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
+                    <Sparkles className="w-6 h-6 text-emerald-500 shrink-0" />
+                    <div>
+                      <p className="font-bold text-emerald-700 dark:text-emerald-400 text-sm">
+                        تم شحن {redeemSuccess.amount.toLocaleString()} د.ع بنجاح! ✨
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        رصيدك الجديد: {balance.toLocaleString()} د.ع
+                      </p>
+                    </div>
+                  </div>
                 )}
-              </Button>
+              </CardContent>
+            </Card>
 
-              <p className="text-xs text-center text-muted-foreground">
-                عند الضغط على "متابعة للدفع" سيتم تحويلك لصفحة الدفع الآمنة
-              </p>
+            {/* طرق الدفع الأخرى */}
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted-foreground">طرق الدفع المتاحة</h2>
+              
+              {/* كاش للسائق */}
+              <Card className="border border-emerald-500/20">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                      <Wallet className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">الدفع نقداً للسائق</p>
+                      <p className="text-xs text-muted-foreground">عند إكمال الرحلة</p>
+                    </div>
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* الدفع الإلكتروني — قريباً */}
+              <Card className="border border-muted opacity-50">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
+                      <Smartphone className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm text-muted-foreground">زين كاش / بطاقات</p>
+                      <p className="text-xs text-muted-foreground">قريباً</p>
+                    </div>
+                    <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground">قريباً</span>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </>
         )}

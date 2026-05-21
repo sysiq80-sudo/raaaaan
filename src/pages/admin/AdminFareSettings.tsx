@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Calculator, Percent, Settings2, Save, Zap, Crown, TrendingUp } from 'lucide-react';
+import { Calculator, Percent, Settings2, Save, Zap, Crown, TrendingUp, Banknote, CalendarDays } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface FareSettings {
@@ -24,11 +24,30 @@ interface CommissionSettings {
   rate: number;
   min_amount: number;
   min_driver_balance: number;
+  min_commission_floor: number;
+}
+
+interface MonetizationSettings {
+  mode: 'commission' | 'daily_subscription';
+  daily_fee: number;
+  debt_limit: number;
+  daily_fee_new_driver_days: number;
+  daily_fee_new_driver_amount: number;
+  commission_enabled: boolean;
 }
 
 const AdminFareSettings = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const [monetizationSettings, setMonetizationSettings] = useState<MonetizationSettings>({
+    mode: 'daily_subscription',
+    daily_fee: 3000,
+    debt_limit: -15000,
+    daily_fee_new_driver_days: 7,
+    daily_fee_new_driver_amount: 0,
+    commission_enabled: false,
+  });
   
   const [fareSettings, setFareSettings] = useState<FareSettings>({
     service_fee_percentage: 5,
@@ -43,6 +62,7 @@ const AdminFareSettings = () => {
     rate: 15,
     min_amount: 500,
     min_driver_balance: -10000,
+    min_commission_floor: 5,
   });
 
   const { data: settingsData, isLoading: loading } = useQuery({
@@ -51,18 +71,21 @@ const AdminFareSettings = () => {
       const { data, error } = await supabase
         .from('app_settings')
         .select('key, value')
-        .in('key', ['fare_calculation', 'commission']);
+        .in('key', ['fare_calculation', 'commission', 'monetization']);
       if (error) throw error;
       return data;
     },
     select: (data) => {
-      const result: { fare?: FareSettings; commission?: CommissionSettings } = {};
+      const result: { fare?: FareSettings; commission?: CommissionSettings; monetization?: MonetizationSettings } = {};
       data?.forEach((setting) => {
         if (setting.key === 'fare_calculation' && setting.value) {
           result.fare = setting.value as unknown as FareSettings;
         }
         if (setting.key === 'commission' && setting.value) {
           result.commission = setting.value as unknown as CommissionSettings;
+        }
+        if (setting.key === 'monetization' && setting.value) {
+          result.monetization = setting.value as unknown as MonetizationSettings;
         }
       });
       return result;
@@ -75,6 +98,9 @@ const AdminFareSettings = () => {
     }
     if (settingsData?.commission) {
       setCommissionSettings(prev => ({ ...prev, ...settingsData.commission }));
+    }
+    if (settingsData?.monetization) {
+      setMonetizationSettings(prev => ({ ...prev, ...(settingsData.monetization as unknown as MonetizationSettings) }));
     }
   }, [settingsData]);
 
@@ -95,6 +121,14 @@ const AdminFareSettings = () => {
           { onConflict: 'key' }
         );
       if (commissionError) throw commissionError;
+
+      const { error: monError } = await supabase
+        .from('app_settings')
+        .upsert(
+          { key: 'monetization', value: { ...monetizationSettings } },
+          { onConflict: 'key' }
+        );
+      if (monError) throw monError;
 
       await supabase.from('wallet_settings')
         .update({ default_commission_rate: commissionSettings.rate })
@@ -179,6 +213,117 @@ const AdminFareSettings = () => {
           </Card>
         </div>
 
+        {/* 💰 Monetization Mode — النموذج المالي */}
+        <Card className={`border-2 ${
+          monetizationSettings.mode === 'daily_subscription'
+            ? 'border-emerald-500/40 bg-emerald-500/5'
+            : 'border-blue-500/40 bg-blue-500/5'
+        }`}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Banknote className="h-5 w-5" />
+              النموذج المالي
+            </CardTitle>
+            <CardDescription>
+              اختر كيف تربح الشركة — اشتراك يومي أو نسبة من كل رحلة
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Toggle بين الوضعين */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setMonetizationSettings(p => ({ ...p, mode: 'daily_subscription', commission_enabled: false }))}
+                className={`p-4 rounded-xl border-2 text-center transition-all ${
+                  monetizationSettings.mode === 'daily_subscription'
+                    ? 'border-emerald-500 bg-emerald-500/10 shadow-lg'
+                    : 'border-muted hover:border-muted-foreground/30'
+                }`}
+              >
+                <CalendarDays className={`w-6 h-6 mx-auto mb-2 ${
+                  monetizationSettings.mode === 'daily_subscription' ? 'text-emerald-600' : 'text-muted-foreground'
+                }`} />
+                <p className="font-bold text-sm">اشتراك يومي</p>
+                <p className="text-xs text-muted-foreground mt-1">3,000 د.ع/يوم نشاط</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMonetizationSettings(p => ({ ...p, mode: 'commission', commission_enabled: true }))}
+                className={`p-4 rounded-xl border-2 text-center transition-all ${
+                  monetizationSettings.mode === 'commission'
+                    ? 'border-blue-500 bg-blue-500/10 shadow-lg'
+                    : 'border-muted hover:border-muted-foreground/30'
+                }`}
+              >
+                <Percent className={`w-6 h-6 mx-auto mb-2 ${
+                  monetizationSettings.mode === 'commission' ? 'text-blue-600' : 'text-muted-foreground'
+                }`} />
+                <p className="font-bold text-sm">نسبة عمولة</p>
+                <p className="text-xs text-muted-foreground mt-1">% من كل رحلة</p>
+              </button>
+            </div>
+
+            {/* إعدادات الاشتراك اليومي */}
+            {monetizationSettings.mode === 'daily_subscription' && (
+              <div className="space-y-4 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+                <h3 className="font-bold text-sm text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                  <CalendarDays className="w-4 h-4" />
+                  إعدادات الاشتراك اليومي
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>الرسم اليومي (د.ع)</Label>
+                    <Input
+                      type="number"
+                      step="500"
+                      min="0"
+                      value={monetizationSettings.daily_fee}
+                      onChange={(e) => setMonetizationSettings(p => ({ ...p, daily_fee: parseInt(e.target.value) || 0 }))}
+                    />
+                    <p className="text-xs text-muted-foreground">يُخصم عند أول رحلة مكتملة في اليوم فقط.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>سقف الدين (د.ع)</Label>
+                    <Input
+                      type="number"
+                      step="1000"
+                      value={monetizationSettings.debt_limit}
+                      onChange={(e) => setMonetizationSettings(p => ({ ...p, debt_limit: parseInt(e.target.value) || -15000 }))}
+                    />
+                    <p className="text-xs text-muted-foreground">أقل رصيد مسموح. مثال: -15,000 = 5 أيام سماح.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>أيام مجانية للسائق الجديد</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="30"
+                      value={monetizationSettings.daily_fee_new_driver_days}
+                      onChange={(e) => setMonetizationSettings(p => ({ ...p, daily_fee_new_driver_days: parseInt(e.target.value) || 0 }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>رسم الفترة المجانية (د.ع)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={monetizationSettings.daily_fee_new_driver_amount}
+                      onChange={(e) => setMonetizationSettings(p => ({ ...p, daily_fee_new_driver_amount: parseInt(e.target.value) || 0 }))}
+                    />
+                    <p className="text-xs text-muted-foreground">0 = مجاني تماماً خلال الفترة التجريبية.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {monetizationSettings.mode === 'commission' && (
+              <p className="text-sm text-muted-foreground p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                ℹ️ في وضع العمولة، يتم خصم نسبة من كل رحلة. اضبط النسبة والحد الأدنى من قسم "إعدادات العمولة" أدناه.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Commission Settings */}
         <Card>
           <CardHeader>
@@ -238,6 +383,24 @@ const AdminFareSettings = () => {
                 />
                 <p className="text-xs text-muted-foreground">
                   أقل رصيد مسموح للسائق لكي يتمكن من بدء العمل (يمكن وضع قيمة سالبة).
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>الحد الأدنى لنسبة العمولة الفعلية (%)</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="50"
+                  value={commissionSettings.min_commission_floor}
+                  onChange={(e) => setCommissionSettings({ 
+                    ...commissionSettings, 
+                    min_commission_floor: parseFloat(e.target.value) 
+                  })}
+                />
+                <p className="text-xs text-muted-foreground text-amber-600">
+                  ⚠️ أقل نسبة عمولة فعلية لا يمكن النزول تحتها حتى مع كل الخصومات (الاشتراك + المستوى).
+                  مثال: 5% = حتى لو كان للسائق خصومات 12%، العمولة لا تقل عن 5%.
                 </p>
               </div>
             </div>

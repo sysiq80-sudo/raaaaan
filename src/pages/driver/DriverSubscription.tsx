@@ -116,66 +116,48 @@ export default function DriverSubscription() {
     if (!driverId) return;
     setSubscribing(plan.id);
     try {
-      // 1. التحقق من رصيد المحفظة
-      const { data: wallet } = await supabase
-        .from("driver_wallets")
-        .select("id, balance")
-        .eq("driver_id", driverId)
-        .maybeSingle();
+      // ═══ اشتراك ذري — كل العمليات في transaction واحدة ═══
+      // يمنع Race Condition: التحقق + الخصم + التسجيل في خطوة واحدة
+      const { data: result, error: rpcError } = await supabase.rpc(
+        "subscribe_driver_to_plan",
+        {
+          p_driver_id: driverId,
+          p_plan_id: plan.id,
+        }
+      );
 
-      if (!wallet || wallet.balance < plan.price) {
-        toast({
-          title: "رصيد غير كافٍ",
-          description: `رصيدك الحالي ${(wallet?.balance || 0).toLocaleString()} د.ع — تحتاج ${plan.price.toLocaleString()} د.ع. أضف رصيداً أولاً.`,
-          variant: "destructive",
-        });
-        setSubscribing(null);
-        return;
+      if (rpcError) {
+        // التعامل مع أخطاء RPC المحددة
+        const msg = rpcError.message || "";
+        if (msg.includes("رصيد غير كافٍ") || msg.includes("INSUFFICIENT_BALANCE")) {
+          toast({
+            title: "رصيد غير كافٍ",
+            description: `تحتاج ${plan.price.toLocaleString()} د.ع للاشتراك. أضف رصيداً أولاً.`,
+            variant: "destructive",
+          });
+          setSubscribing(null);
+          return;
+        }
+        if (msg.includes("اشتراك فعّال") || msg.includes("ALREADY_SUBSCRIBED")) {
+          toast({
+            title: "لديك اشتراك فعّال",
+            description: "انتظر انتهاء اشتراكك الحالي قبل التجديد",
+            variant: "destructive",
+          });
+          setSubscribing(null);
+          return;
+        }
+        throw rpcError;
       }
 
-      // 2. خصم المبلغ من المحفظة
-      const newBalance = wallet.balance - plan.price;
-      const { error: walletError } = await supabase
-        .from("driver_wallets")
-        .update({ balance: newBalance })
-        .eq("id", wallet.id);
-
-      if (walletError) throw walletError;
-
-      // 3. تسجيل معاملة السحب
-      await supabase.from("wallet_transactions").insert({
-        wallet_id: wallet.id,
-        driver_id: driverId,
-        transaction_type: "penalty", // subscription charge
-        amount: -plan.price,
-        balance_before: wallet.balance,
-        balance_after: newBalance,
-        description: `اشتراك خطة ${plan.name_ar}`,
-        metadata: { plan_id: plan.id, plan_name: plan.name_ar },
-        status: "completed",
-      });
-
-      // 4. تسجيل الاشتراك
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + plan.duration_days);
-
-      const { error } = await supabase
-        .from("driver_subscriptions")
-        .insert({
-          driver_id: driverId,
-          plan_id: plan.id,
-          starts_at: new Date().toISOString(),
-          expires_at: expiresAt.toISOString(),
-          status: "active",
-          payment_method: "wallet",
-          amount_paid: plan.price,
-        });
-
-      if (error) throw error;
+      // نجح الاشتراك — RPC يُرجع بيانات الاشتراك الجديد
+      const expiresDate = result?.expires_at
+        ? new Date(result.expires_at).toLocaleDateString("ar-IQ")
+        : "";
 
       toast({
         title: "✅ تم الاشتراك بنجاح!",
-        description: `تم تفعيل خطة ${plan.name_ar} حتى ${expiresAt.toLocaleDateString("ar-IQ")} وخصم ${plan.price.toLocaleString()} د.ع من محفظتك`,
+        description: `تم تفعيل خطة ${plan.name_ar}${expiresDate ? ` حتى ${expiresDate}` : ""} وخصم ${plan.price.toLocaleString()} د.ع من محفظتك`,
       });
 
       if (driverId) fetchData();

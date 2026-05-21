@@ -20,6 +20,7 @@ interface RideCompletedScreenProps {
     duration_minutes: number | null;
     driver_id: string | null;
     payment_method?: string | null;
+    metadata?: Record<string, unknown> | null;
   };
   driverName: string;
   onClose: () => void;
@@ -109,6 +110,14 @@ export const RideCompletedScreen = ({
   const driverInitials   = activeDriverName.slice(0, 2) || "أ";
   const fare             = ride.final_fare || ride.estimated_fare || 0;
   const paymentLabel     = ride.payment_method === "wallet" ? "محفظة" : ride.payment_method === "card" ? "بطاقة" : "نقداً";
+
+  // جلب بيانات الإيصال من metadata الرحلة
+  const receipt = (ride.metadata as Record<string, unknown>)?.receipt as {
+    base_fare?: number;
+    final_fare?: number;
+    waiting_fare?: number;
+    fare_adjusted?: boolean;
+  } | undefined;
 
   // دالة تنسيق الأرقام بشكل ثابت بغض النظر عن لغة الجهاز
   const fmtNum = (n: number, decimals = 0) =>
@@ -295,6 +304,27 @@ export const RideCompletedScreen = ({
                       </span>
                       <span className="text-[16px] font-bold text-[#5bdda6]/50 mb-1.5">د.ع</span>
                     </div>
+
+                    {/* تفاصيل الفاتورة من الإيصال */}
+                    {receipt && (
+                      <div className="mt-3 pt-3 border-t border-white/[0.05] space-y-1.5">
+                        {receipt.base_fare != null && receipt.base_fare !== receipt.final_fare && (
+                          <div className="flex justify-between text-[11px] px-2">
+                            <span className="text-white/40">الأجرة المقدّرة</span>
+                            <span className="text-white/50">{fmtNum(receipt.base_fare)} د.ع</span>
+                          </div>
+                        )}
+                        {(receipt.waiting_fare || 0) > 0 && (
+                          <div className="flex justify-between text-[11px] px-2">
+                            <span className="text-white/40">⏳ أجرة الانتظار</span>
+                            <span className="text-amber-400/70">+{fmtNum(receipt.waiting_fare || 0)} د.ع</span>
+                          </div>
+                        )}
+                        {receipt.fare_adjusted && (
+                          <p className="text-[10px] text-amber-400/60 text-center mt-1">✦ تم تعديل الأجرة بناءً على المسار الفعلي</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-3 divide-x divide-x-reverse divide-white/[0.05] relative z-10">
                     <div className="flex flex-col items-center py-3 gap-1">

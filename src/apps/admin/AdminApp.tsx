@@ -38,6 +38,7 @@ const AdminSurgePricing = lazy(() => import("@/pages/admin/AdminSurgePricing"));
 const AdminSubscriptionPlans = lazy(() => import("@/pages/admin/AdminSubscriptionPlans"));
 const AdminCommissionTiers = lazy(() => import("@/pages/admin/AdminCommissionTiers"));
 const AdminFareSettings = lazy(() => import("@/pages/admin/AdminFareSettings"));
+const AdminVouchers = lazy(() => import("@/pages/admin/AdminVouchers"));
 const AdminBannedNames = lazy(() => import("@/pages/admin/AdminBannedNames"));
 const AdminPromoBanners = lazy(() => import("@/pages/admin/AdminPromoBanners"));
 const AdminRiderPages = lazy(() => import("@/pages/admin/AdminRiderPages"));
@@ -166,6 +167,7 @@ const AdminRoutes = () => {
       <Route path="/admin/api-stats" element={<AR><AdminApiStats /></AR>} />
       <Route path="/admin/commission-reports" element={<AR><AdminCommissionReports /></AR>} />
       <Route path="/admin/fare-settings" element={<AR><AdminFareSettings /></AR>} />
+      <Route path="/admin/vouchers" element={<AR><AdminVouchers /></AR>} />
       <Route path="/admin/surge-pricing" element={<AR><AdminSurgePricing /></AR>} />
       <Route path="/admin/subscription-plans" element={<AR><AdminSubscriptionPlans /></AR>} />
       <Route path="/admin/commission-tiers" element={<AR><AdminCommissionTiers /></AR>} />

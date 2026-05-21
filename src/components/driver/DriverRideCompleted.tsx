@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   Star, Loader2, Send, Sparkles, CheckCircle,
-  Wallet, Route, Clock, Zap,
+  Wallet, Route, Clock, Zap, TrendingDown, TrendingUp, Percent,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +17,7 @@ interface DriverRideCompletedProps {
     distance_km: number | null;
     duration_minutes: number | null;
     rider_id: string;
+    metadata?: Record<string, unknown> | null;
   };
   riderName: string;
   onClose: () => void;
@@ -50,6 +51,27 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
   const display = hovered || rating;
   const cfg     = RATING_CONFIG[display as keyof typeof RATING_CONFIG];
   const riderInitials = riderName?.slice(0, 2) || "ر";
+
+  // بيانات الإيصال المالي
+  const receipt = (ride.metadata as Record<string, unknown>)?.receipt as {
+    monetization_mode?: string;
+    commission_rate_percent?: number;
+    commission_amount?: number;
+    driver_earning?: number;
+    tier_discount?: number;
+    tier_name?: string;
+    subscription_discount?: number;
+    subscription_name?: string;
+    payment_method?: string;
+    daily_fee_charged?: boolean;
+    daily_fee_amount?: number;
+    daily_fee_reason?: string;
+  } | undefined;
+
+  const hasReceipt = !!receipt;
+  const isDailySub = receipt?.monetization_mode === "daily_subscription";
+  const netEarning = receipt?.driver_earning ?? ride.final_fare;
+  const commissionAmount = receipt?.commission_amount ?? 0;
 
   /* صوت تنبيه + confetti */
   useEffect(() => {
@@ -194,16 +216,102 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
       >
         <div className="bg-[#171f33] rounded-3xl border border-slate-700/30 overflow-hidden shadow-xl shadow-black/20">
           {/* الأرباح */}
-          <div className="px-5 pt-6 pb-5 text-center border-b border-slate-700/30 relative">
+          <div className="px-5 pt-6 pb-4 text-center border-b border-slate-700/30 relative">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-[#5bdda6]/40 to-transparent" />
-            <p className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">أرباح هذه الرحلة</p>
+            <p className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">
+              {hasReceipt ? "صافي ربحك من الرحلة" : "أرباح هذه الرحلة"}
+            </p>
             <div className="flex items-center justify-center gap-1.5" style={{ fontFamily: "Inter, sans-serif" }}>
               <Wallet className="w-6 h-6 text-[#5bdda6] mb-1" />
               <span className="text-4xl font-black text-white tabular-nums tracking-tighter">
-                {ride.final_fare.toLocaleString()}
+                {netEarning.toLocaleString()}
               </span>
               <span className="text-base font-bold text-[#5bdda6]/80 self-end mb-1">د.ع</span>
             </div>
+
+            {/* تفصيل مالي */}
+            {hasReceipt && isDailySub ? (
+              /* ═══ وضع الاشتراك اليومي — لا عمولة ═══ */
+              <div className="mt-3 pt-3 border-t border-slate-700/20 space-y-1.5">
+                <div className="flex justify-between text-[11px] px-1">
+                  <span className="text-[#5bdda6] flex items-center gap-1 font-bold">
+                    <TrendingUp className="w-3 h-3" />
+                    بدون عمولة — الأجرة لك كاملةً ✓
+                  </span>
+                </div>
+                {receipt?.daily_fee_charged && (receipt?.daily_fee_amount || 0) > 0 && (
+                  <div className="flex justify-between text-[10px] px-1 pt-1.5 border-t border-slate-700/15">
+                    <span className="text-amber-400/70 flex items-center gap-1">
+                      <Zap className="w-3 h-3" />
+                      اشتراك يومي (أول رحلة اليوم)
+                    </span>
+                    <span className="text-amber-400/80 font-bold">-{(receipt.daily_fee_amount || 0).toLocaleString()} د.ع</span>
+                  </div>
+                )}
+                {receipt?.daily_fee_reason === "already_charged_today" && (
+                  <div className="flex justify-between text-[10px] px-1">
+                    <span className="text-slate-500 flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      الاشتراك مدفوع — رحلات اليوم المتبقية مجانية
+                    </span>
+                  </div>
+                )}
+                {receipt?.daily_fee_reason === "free_period" && (
+                  <div className="flex justify-between text-[10px] px-1">
+                    <span className="text-green-400/70 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      فترة مجانية — أهلاً بك في ران!
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : hasReceipt && commissionAmount > 0 ? (
+              /* ═══ وضع العمولة الكلاسيكي ═══ */
+              <div className="mt-3 pt-3 border-t border-slate-700/20 space-y-1.5">
+                <div className="flex justify-between text-[11px] px-1">
+                  <span className="text-slate-400 flex items-center gap-1">
+                    <Wallet className="w-3 h-3" />
+                    أجرة الرحلة
+                  </span>
+                  <span className="text-slate-300 font-bold">{ride.final_fare.toLocaleString()} د.ع</span>
+                </div>
+                <div className="flex justify-between text-[11px] px-1">
+                  <span className="text-red-400/70 flex items-center gap-1">
+                    <Percent className="w-3 h-3" />
+                    عمولة ({receipt?.commission_rate_percent || 0}%)
+                  </span>
+                  <span className="text-red-400/80 font-bold">-{commissionAmount.toLocaleString()} د.ع</span>
+                </div>
+
+                {/* خصومات مُطبّقة */}
+                {(receipt?.tier_discount || 0) > 0 && (
+                  <div className="flex justify-between text-[10px] px-1">
+                    <span className="text-green-400/70 flex items-center gap-1">
+                      <TrendingDown className="w-3 h-3" />
+                      خصم {receipt?.tier_name} (-{receipt?.tier_discount}%)
+                    </span>
+                    <span className="text-green-400/70">مُطبّق ✓</span>
+                  </div>
+                )}
+                {(receipt?.subscription_discount || 0) > 0 && (
+                  <div className="flex justify-between text-[10px] px-1">
+                    <span className="text-green-400/70 flex items-center gap-1">
+                      <TrendingDown className="w-3 h-3" />
+                      خصم {receipt?.subscription_name} (-{receipt?.subscription_discount}%)
+                    </span>
+                    <span className="text-green-400/70">مُطبّق ✓</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between text-[12px] px-1 pt-2 border-t border-slate-700/20">
+                  <span className="text-[#5bdda6] font-bold flex items-center gap-1">
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    صافي ربحك
+                  </span>
+                  <span className="text-[#5bdda6] font-black text-[14px]">{netEarning.toLocaleString()} د.ع</span>
+                </div>
+              </div>
+            ) : null}
           </div>
           {/* الإحصائيات */}
           <div className="flex items-center divide-x divide-x-reverse divide-slate-700/30 bg-slate-900/20">

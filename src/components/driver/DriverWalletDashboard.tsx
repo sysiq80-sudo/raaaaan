@@ -41,7 +41,9 @@ import {
   Download,
   DollarSign,
   Gift,
-  AlertCircle
+  AlertCircle,
+  CreditCard,
+  Sparkles,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -85,6 +87,8 @@ const TRANSACTION_ICONS: Record<string, any> = {
   withdrawal: { icon: Download, color: "text-blue-500" },
   bonus: { icon: DollarSign, color: "text-emerald-500" },
   penalty: { icon: AlertCircle, color: "text-red-500" },
+  topup: { icon: CreditCard, color: "text-blue-500" },
+  daily_fee: { icon: TrendingDown, color: "text-orange-500" },
 };
 
 const TRANSACTION_LABELS: Record<string, string> = {
@@ -96,6 +100,8 @@ const TRANSACTION_LABELS: Record<string, string> = {
   bonus: "مكافأة",
   penalty: "غرامة",
   adjustment: "تعديل",
+  topup: "شحن كارت",
+  daily_fee: "اشتراك يومي",
 };
 
 export const DriverWalletDashboard = () => {
@@ -109,6 +115,10 @@ export const DriverWalletDashboard = () => {
   const [accountDetails, setAccountDetails] = useState("");
   const [accountHolderName, setAccountHolderName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [driverId, setDriverId] = useState<string | null>(null);
+  const [voucherCode, setVoucherCode] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemSuccess, setRedeemSuccess] = useState<{ amount: number } | null>(null);
   const { toast } = useToast();
 
   // تحميل بيانات المحفظة
@@ -127,6 +137,7 @@ export const DriverWalletDashboard = () => {
         .maybeSingle();
 
       if (!driverData) throw new Error("السائق غير موجود");
+      setDriverId(driverData.id);
 
       // المحفظة
       const { data: walletData, error: walletError } = await supabase
@@ -324,6 +335,67 @@ export const DriverWalletDashboard = () => {
             <Send className="w-4 h-4 ml-2" />
             طلب سحب
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* شحن بكارت */}
+      <Card className="border-2 border-blue-500/20 bg-blue-500/5">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Gift className="w-5 h-5 text-blue-600" />
+            <div>
+              <p className="font-bold text-sm">شحن بكارت شحن</p>
+              <p className="text-xs text-muted-foreground">أدخل رمز الكارت لإضافة رصيد</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="RAAN-XXXX-XXXX"
+              value={voucherCode}
+              onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+              className="text-center font-mono font-bold tracking-widest h-11 border-blue-300/50"
+              dir="ltr"
+              maxLength={20}
+              disabled={redeeming}
+            />
+            <Button
+              className="h-11 px-6 bg-blue-600 hover:bg-blue-700 shrink-0"
+              disabled={!voucherCode.trim() || redeeming || !driverId}
+              onClick={async () => {
+                if (!driverId || !voucherCode.trim()) return;
+                setRedeeming(true);
+                setRedeemSuccess(null);
+                try {
+                  const { data, error } = await supabase.rpc("redeem_voucher_driver" as any, {
+                    p_code: voucherCode.trim().toUpperCase(),
+                    p_driver_id: driverId,
+                  });
+                  if (error) { toast({ title: "خطأ", description: "فشل في معالجة الكارت", variant: "destructive" }); return; }
+                  const r = data as any;
+                  if (r?.success) {
+                    setRedeemSuccess({ amount: r.amount });
+                    setVoucherCode("");
+                    toast({ title: "✅ تم الشحن!", description: `+${Number(r.amount).toLocaleString()} د.ع` });
+                    fetchWalletData();
+                    setTimeout(() => setRedeemSuccess(null), 5000);
+                  } else {
+                    toast({ title: "خطأ", description: r?.error || "رمز غير صالح", variant: "destructive" });
+                  }
+                } catch { toast({ title: "خطأ", description: "حدث خطأ", variant: "destructive" }); } finally { setRedeeming(false); }
+              }}
+            >
+              {redeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+            </Button>
+          </div>
+          {redeemSuccess && (
+            <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 text-sm">
+              <Sparkles className="w-4 h-4 text-emerald-500" />
+              <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                تم شحن {redeemSuccess.amount.toLocaleString()} د.ع ✨
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
 

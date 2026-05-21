@@ -87,6 +87,7 @@ const AdminSurgePricing = lazy(() => import("./pages/admin/AdminSurgePricing"));
 const AdminSubscriptionPlans = lazy(() => import("./pages/admin/AdminSubscriptionPlans"));
 const AdminCommissionTiers = lazy(() => import("./pages/admin/AdminCommissionTiers"));
 const AdminFareSettings = lazy(() => import("./pages/admin/AdminFareSettings"));
+const AdminVouchers = lazy(() => import("./pages/admin/AdminVouchers"));
 const AdminBannedNames = lazy(() => import("./pages/admin/AdminBannedNames"));
 const AdminPromoBanners = lazy(() => import("./pages/admin/AdminPromoBanners"));
 const AdminRiderPages = lazy(() => import("./pages/admin/AdminRiderPages"));
@@ -914,6 +915,16 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminFareSettings />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/vouchers"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminVouchers />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }

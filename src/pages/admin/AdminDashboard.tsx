@@ -27,7 +27,10 @@ import {
   Star,
   Wallet,
   AlertTriangle,
-  FileText
+  FileText,
+  Percent,
+  Download,
+  Banknote
 } from "lucide-react";
 import { formatDistanceToNow, subDays, startOfDay, endOfDay } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -335,6 +338,28 @@ const AdminDashboard = () => {
         </Card>
       </div>
 
+      {/* 💰 Financial Health — الصحة المالية */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <FinancialCard
+          icon={<Percent className="w-5 h-5 text-emerald-600" />}
+          label="إجمالي عمولات الشركة"
+          color="emerald"
+          onClick={() => navigate("/admin/commission-reports")}
+        />
+        <FinancialCard
+          icon={<Download className="w-5 h-5 text-amber-600" />}
+          label="سحوبات معلقة"
+          color="amber"
+          onClick={() => navigate("/admin/withdrawals")}
+        />
+        <FinancialCard
+          icon={<Banknote className="w-5 h-5 text-sky-600" />}
+          label="إجمالي رصيد المحافظ"
+          color="sky"
+          onClick={() => navigate("/admin/wallets")}
+        />
+      </div>
+
       {/* Performance Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <Card>
@@ -583,5 +608,37 @@ const QuickAction = ({ icon, label, count, onClick, badge }: {
     )}
   </div>
 );
+
+const FinancialCard = ({ icon, label, color, onClick }: {
+  icon: React.ReactNode;
+  label: string;
+  color: "emerald" | "amber" | "sky";
+  onClick?: () => void;
+}) => {
+  const colorMap = {
+    emerald: "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20",
+    amber: "from-amber-500/10 to-amber-600/5 border-amber-500/20",
+    sky: "from-sky-500/10 to-sky-600/5 border-sky-500/20",
+  };
+
+  return (
+    <Card
+      className={`bg-gradient-to-br ${colorMap[color]} cursor-pointer hover:shadow-md transition-all hover:-translate-y-0.5`}
+      onClick={onClick}
+    >
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className={`w-10 h-10 rounded-lg bg-${color}-500/20 flex items-center justify-center`}>
+            {icon}
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <Button variant="ghost" size="sm" className="text-xs h-6 px-2 mt-2">
+          عرض التفاصيل ←
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
 
 export default AdminDashboard;

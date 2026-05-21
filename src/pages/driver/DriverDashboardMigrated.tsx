@@ -212,18 +212,32 @@ const DriverDashboardMigrated: React.FC = () => {
 
     if (newStatus) {
       // التحقق من الرصيد والحد الأدنى المسموح للعمل (سقف الديون)
-      const [settingsRes, profileRes] = await Promise.all([
+      const [settingsRes, monRes, walletRes] = await Promise.all([
         supabase.from("app_settings").select("value").eq("key", "commission").maybeSingle(),
-        supabase.from("profiles").select("wallet_balance").eq("user_id", driver.user_id).maybeSingle()
+        supabase.from("app_settings").select("value").eq("key", "monetization").maybeSingle(),
+        // جلب رصيد محفظة السائق (driver_wallets وليس profiles)
+        supabase.from("driver_wallets" as any).select("balance").eq("driver_id", driver.id).maybeSingle(),
       ]);
 
-      // @ts-ignore (تجنب أخطاء JSON parsing)
-      const minBalance = settingsRes.data?.value?.min_driver_balance ?? -10000;
-      const currentBalance = profileRes.data?.wallet_balance ?? 0;
+      // @ts-ignore
+      const monetizationMode = monRes.data?.value?.mode || "commission";
+      // @ts-ignore
+      const debtLimit = monRes.data?.value?.debt_limit ?? -15000;
+      // @ts-ignore
+      const commissionMinBalance = settingsRes.data?.value?.min_driver_balance ?? -10000;
+      
+      // اختيار سقف الدين حسب النموذج المالي
+      const minBalance = monetizationMode === "daily_subscription" ? debtLimit : commissionMinBalance;
+      // @ts-ignore
+      const currentBalance = walletRes.data?.balance ?? 0;
 
       if (currentBalance < minBalance) {
         setToggling(false);
-        setErrorMsg(`لا يمكنك العمل. رصيدك الحالي (${currentBalance.toLocaleString()} د.ع) أقل من الحد المسموح للعمل (${minBalance.toLocaleString()} د.ع). يرجى شحن محفظتك أولاً.`);
+        setErrorMsg(
+          monetizationMode === "daily_subscription"
+            ? `لا يمكنك العمل. رصيدك الحالي (${currentBalance.toLocaleString()} د.ع) وصل لسقف الدين المسموح (${minBalance.toLocaleString()} د.ع). يرجى تسديد المبالغ المستحقة.`
+            : `لا يمكنك العمل. رصيدك الحالي (${currentBalance.toLocaleString()} د.ع) أقل من الحد المسموح للعمل (${minBalance.toLocaleString()} د.ع). يرجى شحن محفظتك أولاً.`
+        );
         return;
       }
     }

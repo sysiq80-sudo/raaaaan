@@ -224,6 +224,18 @@ const AdminLayout = ({
       ],
     },
     {
+      id: "cards",
+      icon: Gift,
+      label: "الكاردات والأرباح",
+      items: [
+        { icon: CreditCard, label: "كروت الشحن", href: "/admin/vouchers" },
+        { icon: DollarSign, label: "إعدادات الاشتراك", href: "/admin/fare-settings" },
+        { icon: Layers, label: "شرائح العمولة", href: "/admin/commission-tiers" },
+        { icon: DollarSign, label: "تقارير العمولات", href: "/admin/commission-reports" },
+        { icon: Wallet, label: "طلبات السحب", href: "/admin/withdrawals" },
+      ],
+    },
+    {
       id: "marketing",
       icon: Megaphone,
       label: "التسويق والمحتوى",

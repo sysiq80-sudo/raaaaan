@@ -172,10 +172,11 @@ serve(async (req) => {
       finalWaitingMinutes = 0;
     }
 
-    // ═══ 4. Complete the ride in DB ═══
+    // ═══ 4. Complete the ride in DB (ATOMIC — prevents double-complete) ═══
+    // WHERE status = 'in_progress' ensures only ONE request can complete it
     const estimatedFare = ride.estimated_fare || 0;
 
-    const { error: updateError } = await supabase
+    const { data: updatedRows, error: updateError } = await supabase
       .from("rides")
       .update({
         status: "completed",
@@ -184,13 +185,37 @@ serve(async (req) => {
         waiting_minutes: finalWaitingMinutes || ride.waiting_minutes || 0,
         actual_distance_km: final_gps_distance || null,
       })
-      .eq("id", ride_id);
+      .eq("id", ride_id)
+      .eq("status", "in_progress") // ← IDEMPOTENCY GUARD
+      .select("id");
 
     if (updateError) {
       console.error("[complete-ride] Update failed:", updateError);
       return new Response(
         JSON.stringify({ error: "Failed to complete ride", details: updateError.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // إذا لم يُحدَّث أي صف = الرحلة أُكمِلت بالفعل من طلب متزامن
+    if (!updatedRows || updatedRows.length === 0) {
+      console.warn("[complete-ride] IDEMPOTENCY: ride already completed by concurrent request");
+      // جلب الأجرة النهائية الفعلية
+      const { data: freshRide } = await supabase
+        .from("rides")
+        .select("final_fare, completed_at")
+        .eq("id", ride_id)
+        .single();
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          already_completed: true,
+          ride_id,
+          final_fare: freshRide?.final_fare || estimatedFare,
+          completed_at: freshRide?.completed_at,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -282,10 +307,86 @@ serve(async (req) => {
       }
     }
 
-    // ═══ 7. Commission deduction — خصم العمولة ومعالجة أرباح السائق ═══
+    // ═══ 7. Financial Settlement — حسب النموذج المالي ═══
     let commissionResult: any = null;
+    let dailySubResult: any = null;
     try {
-      // 7a. Fetch default commission rate
+      // 7.0 Fetch monetization mode
+      let monetizationMode = "commission"; // default fallback
+      let dailyFeeConfig: any = null;
+      try {
+        const { data: monConfig } = await supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", "monetization")
+          .maybeSingle();
+        if (monConfig?.value) {
+          monetizationMode = (monConfig.value as any).mode || "commission";
+          dailyFeeConfig = monConfig.value;
+        }
+      } catch (e) {
+        console.warn("[complete-ride] Monetization config fetch failed, using commission mode:", e);
+      }
+
+      console.log(`[complete-ride] Monetization mode: ${monetizationMode}`);
+
+      if (monetizationMode === "daily_subscription") {
+        // ═══ وضع الاشتراك اليومي — لا عمولة، خصم يومي فقط ═══
+        const { data: dailyResult, error: dailyError } = await supabase.rpc(
+          "charge_daily_subscription",
+          {
+            p_driver_id: ride.driver_id,
+            p_ride_id: ride_id,
+          },
+        );
+
+        if (dailyError) {
+          console.error("[complete-ride] charge_daily_subscription failed:", dailyError.message);
+        } else {
+          dailySubResult = dailyResult;
+          console.log("[complete-ride] Daily subscription result:", JSON.stringify(dailyResult));
+        }
+
+        // سجل في company_earnings — الدخل = الرسم اليومي (إذا تم الخصم)
+        const dailyFee = dailySubResult?.charged ? (dailySubResult.daily_fee || 0) : 0;
+        await supabase.from("company_earnings").insert({
+          ride_id,
+          driver_id: ride.driver_id,
+          total_fare: finalFare,
+          commission_rate: 0,
+          commission_amount: dailyFee, // الدخل من الاشتراك اليومي
+          driver_share: finalFare,     // السائق يأخذ كامل الأجرة
+        });
+
+        // إيصال مالي — بدون عمولة
+        const receipt = {
+          base_fare: ride.estimated_fare || 0,
+          final_fare: finalFare,
+          waiting_fare: waitingFare,
+          fare_adjusted: fareAdjusted,
+          monetization_mode: "daily_subscription",
+          commission_rate_percent: 0,
+          commission_amount: 0,
+          driver_earning: finalFare,
+          daily_fee_charged: dailySubResult?.charged || false,
+          daily_fee_amount: dailySubResult?.daily_fee || 0,
+          daily_fee_reason: dailySubResult?.reason || null,
+          payment_method: ride.payment_method,
+          completed_at: new Date().toISOString(),
+        };
+
+        const existingMeta = (ride.metadata as Record<string, unknown>) || {};
+        await supabase
+          .from("rides")
+          .update({ metadata: { ...existingMeta, receipt } })
+          .eq("id", ride_id);
+
+        console.log(`[complete-ride] Daily sub receipt saved. Driver keeps full fare: ${finalFare}`);
+
+      } else {
+        // ═══ وضع العمولة — النظام الكلاسيكي ═══
+
+      // 7a. Fetch default commission rate + minimum floor
       const { data: walletSettings } = await supabase
         .from("wallet_settings")
         .select("default_commission_rate")
@@ -293,6 +394,23 @@ serve(async (req) => {
         .single();
 
       const baseRate = walletSettings?.default_commission_rate ?? 15;
+
+      // 7a.1 Fetch min commission floor from app_settings
+      let minCommissionFloor = 5; // Default 5% — الحد الأدنى للعمولة
+      let minCommissionAmount = 500; // Default 500 IQD
+      try {
+        const { data: commissionCfg } = await supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", "commission")
+          .maybeSingle();
+        if (commissionCfg?.value) {
+          minCommissionFloor = (commissionCfg.value as any).min_commission_floor ?? 5;
+          minCommissionAmount = (commissionCfg.value as any).min_amount ?? 500;
+        }
+      } catch (e) {
+        console.warn("[complete-ride] Commission config fetch failed, using defaults:", e);
+      }
 
       // 7b. Fetch driver's commission tier discount
       let tierDiscount = 0;
@@ -324,10 +442,12 @@ serve(async (req) => {
         console.warn("[complete-ride] Subscription lookup failed:", e);
       }
 
-      // 7d. Calculate effective commission rate (minimum 0%)
-      const effectiveRate = Math.max(0, baseRate - tierDiscount - subscriptionDiscount);
+      // 7d. Calculate effective commission rate with MINIMUM FLOOR
+      // لا يمكن أن تنخفض العمولة تحت الحد الأدنى (5%) حتى مع كل الخصومات
+      const rawRate = baseRate - tierDiscount - subscriptionDiscount;
+      const effectiveRate = Math.max(minCommissionFloor, rawRate);
 
-      console.log(`[complete-ride] Commission: base=${baseRate}% - tier=${tierDiscount}%(${tierName}) - sub=${subscriptionDiscount}%(${subscriptionName}) = ${effectiveRate}%`);
+      console.log(`[complete-ride] Commission: base=${baseRate}% - tier=${tierDiscount}%(${tierName}) - sub=${subscriptionDiscount}%(${subscriptionName}) = raw:${rawRate}% → effective:${effectiveRate}% (floor:${minCommissionFloor}%)`);
 
       // 7e. Process ride earnings via DB function (handles wallet + transactions)
       const { data: earnings, error: earningsError } = await supabase.rpc("process_ride_earnings", {
@@ -344,8 +464,11 @@ serve(async (req) => {
         console.log("[complete-ride] Earnings processed:", JSON.stringify(earnings));
       }
 
-      // 7f. Record in company_earnings
-      const commissionAmount = Math.round(finalFare * effectiveRate / 100);
+      // 7f. Record in company_earnings — enforce minimum commission amount
+      let commissionAmount = Math.round(finalFare * effectiveRate / 100);
+      commissionAmount = Math.max(commissionAmount, minCommissionAmount);
+      // لا يمكن أن تتجاوز العمولة الأجرة الكاملة
+      commissionAmount = Math.min(commissionAmount, finalFare);
       const driverShare = finalFare - commissionAmount;
 
       await supabase.from("company_earnings").insert({
@@ -357,10 +480,38 @@ serve(async (req) => {
         driver_share: driverShare,
       });
 
-      console.log(`[complete-ride] Company earnings recorded: fare=${finalFare}, commission=${commissionAmount}, driver=${driverShare}`);
+      console.log(`[complete-ride] Company earnings recorded: fare=${finalFare}, commission=${commissionAmount}(min:${minCommissionAmount}), driver=${driverShare}`);
+
+      // 7g. Save ride receipt in metadata — إيصال مالي كامل
+      const receipt = {
+        base_fare: ride.estimated_fare || 0,
+        final_fare: finalFare,
+        waiting_fare: waitingFare,
+        fare_adjusted: fareAdjusted,
+        monetization_mode: "commission",
+        commission_rate_percent: effectiveRate,
+        commission_amount: commissionAmount,
+        driver_earning: driverShare,
+        tier_discount: tierDiscount,
+        tier_name: tierName,
+        subscription_discount: subscriptionDiscount,
+        subscription_name: subscriptionName,
+        payment_method: ride.payment_method,
+        completed_at: new Date().toISOString(),
+      };
+
+      // Update ride metadata with receipt
+      const existingMeta = (ride.metadata as Record<string, unknown>) || {};
+      await supabase
+        .from("rides")
+        .update({ metadata: { ...existingMeta, receipt } })
+        .eq("id", ride_id);
+
+      console.log(`[complete-ride] Receipt saved in ride metadata`);
+      } // end commission mode
     } catch (e) {
-      console.error("[complete-ride] Commission processing failed (non-critical):", e);
-      // Ride is already completed — commission can be reconciled later
+      console.error("[complete-ride] Financial settlement failed (non-critical):", e);
+      // Ride is already completed — can be reconciled later
     }
 
     // ═══ 7.5. Wallet deduction for rider — خصم المبلغ من محفظة الراكب إذا كان الدفع عبر المحفظة ═══
@@ -415,6 +566,12 @@ serve(async (req) => {
         rate: commissionResult.commission ? (commissionResult.commission / finalFare * 100).toFixed(1) + "%" : null,
         amount: commissionResult.commission || null,
         driver_earning: commissionResult.driver_earning || null,
+      } : null,
+      daily_subscription: dailySubResult ? {
+        charged: dailySubResult.charged || false,
+        daily_fee: dailySubResult.daily_fee || 0,
+        reason: dailySubResult.reason || null,
+        driver_earning: finalFare, // السائق يأخذ كامل الأجرة
       } : null,
       wallet_deducted: walletDeducted,
       payment_method: ride.payment_method,
