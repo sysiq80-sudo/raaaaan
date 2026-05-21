@@ -679,22 +679,21 @@ export const RideWaitingScreen = ({
   // ═══ شاشة السائق المقبول — Dark Luxury ═══
   if (showDriverCard && acceptedDriver) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col overflow-hidden" style={{ background: "#0b1326" }} dir="rtl">
+      <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[#F7F8FA] max-w-[480px] mx-auto" dir="rtl">
 
         {/* هيدر النجاح */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="shrink-0 px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-4"
-          style={{ background: "linear-gradient(135deg, #0d1f14 0%, #0b1f16 100%)" }}
+          className="shrink-0 px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-4 bg-white border-b border-[#E4E7EC]"
         >
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "rgba(91,221,166,0.15)", border: "1px solid rgba(91,221,166,0.3)" }}>
-              <Sparkles className="w-5 h-5" style={{ color: "#5bdda6" }} />
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-[#00B3B0]/10 border border-[#00B3B0]/20">
+              <Sparkles className="w-5 h-5 text-[#00B3B0]" />
             </div>
             <div>
-              <h1 className="text-[18px] font-black text-white leading-tight">تم قبول طلبك! 🎉</h1>
-              <p className="text-[12px] mt-0.5" style={{ color: "rgba(91,221,166,0.7)" }}>السائق في الطريق إليك الآن</p>
+              <h1 className="text-[18px] font-black text-[#101828] leading-tight">تم قبول طلبك! 🎉</h1>
+              <p className="text-[12px] mt-0.5 text-[#00B3B0]">السائق في الطريق إليك الآن</p>
             </div>
           </div>
         </motion.div>
@@ -707,30 +706,29 @@ export const RideWaitingScreen = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="rounded-2xl overflow-hidden"
-            style={{ background: "#171f33", border: "1px solid rgba(91,221,166,0.12)" }}
+            className="rounded-2xl overflow-hidden bg-white border border-[#E4E7EC] shadow-sm"
           >
             <div className="p-4 flex items-center gap-3">
               <div className="relative shrink-0">
-                <Avatar className="w-16 h-16" style={{ border: "2px solid rgba(91,221,166,0.4)" }}>
+                <Avatar className="w-16 h-16 border-2 border-[#00B3B0]/30">
                   <AvatarImage src={acceptedDriver.profile_image_url || ""} alt={acceptedDriver.full_name} />
-                  <AvatarFallback className="text-xl font-black" style={{ background: "rgba(91,221,166,0.12)", color: "#5bdda6" }}>
+                  <AvatarFallback className="text-xl font-black bg-[#00B3B0]/10 text-[#00B3B0]">
                     {acceptedDriver.full_name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "#5bdda6", border: "2px solid #0b1326" }}>
-                  <User className="w-2.5 h-2.5" style={{ color: "#0b1326" }} />
+                <div className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center bg-[#00B3B0] border-2 border-white">
+                  <User className="w-2.5 h-2.5 text-white" />
                 </div>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-[16px] font-black text-white truncate">{acceptedDriver.full_name}</h3>
+                <h3 className="text-[16px] font-black text-[#101828] truncate">{acceptedDriver.full_name}</h3>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <span className="flex items-center gap-1 text-[12px] font-bold px-2 py-0.5 rounded-lg" style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}>
+                  <span className="flex items-center gap-1 text-[12px] font-bold px-2 py-0.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-200">
                     <Star className="w-3 h-3 fill-current" />
                     {acceptedDriver.rating?.toFixed(1) || '5.0'}
                   </span>
                   {acceptedDriver.vehicle_plate && (
-                    <span className="text-[11px] font-black px-2 py-0.5 rounded-lg" style={{ background: "rgba(255,255,255,0.07)", color: "#e2e8f0", border: "1px solid rgba(255,255,255,0.1)", direction: "ltr" }}>
+                    <span className="text-[11px] font-black px-2 py-0.5 rounded-lg bg-[#F2F4F7] text-[#101828] border border-[#E4E7EC]" style={{ direction: "ltr" }}>
                       {acceptedDriver.vehicle_plate}
                     </span>
                   )}
@@ -739,11 +737,11 @@ export const RideWaitingScreen = ({
             </div>
 
             {/* معلومات المركبة */}
-            <div className="px-4 py-3 flex items-center gap-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(91,221,166,0.1)" }}>
-                <Car className="w-4 h-4" style={{ color: "#5bdda6" }} />
+            <div className="px-4 py-3 flex items-center gap-2 border-t border-[#E4E7EC]">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-[#00B3B0]/10">
+                <Car className="w-4 h-4 text-[#00B3B0]" />
               </div>
-              <span className="text-[13px] text-slate-400">
+              <span className="text-[13px] text-[#475467]">
                 {getVehicleTypeName(acceptedDriver.vehicle_type)}
                 {acceptedDriver.vehicle_model && ` • ${acceptedDriver.vehicle_model}`}
                 {acceptedDriver.vehicle_color && ` • ${acceptedDriver.vehicle_color}`}
@@ -751,18 +749,16 @@ export const RideWaitingScreen = ({
             </div>
 
             {/* أزرار التواصل */}
-            <div className="grid grid-cols-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="grid grid-cols-2 border-t border-[#E4E7EC]">
               <button
                 onClick={() => window.open(`tel:${acceptedDriver.phone}`, '_self')}
-                className="flex items-center justify-center gap-2 py-3.5 text-[13px] font-bold transition-all active:opacity-70"
-                style={{ color: "#5bdda6", borderLeft: "1px solid rgba(255,255,255,0.06)" }}
+                className="flex items-center justify-center gap-2 py-3.5 text-[13px] font-bold transition-all active:opacity-70 text-[#00B3B0] border-l border-[#E4E7EC]"
               >
                 <Phone className="w-4 h-4" /> اتصال
               </button>
               <button
                 onClick={() => window.open(`https://wa.me/${acceptedDriver.phone}`, '_blank')}
-                className="flex items-center justify-center gap-2 py-3.5 text-[13px] font-bold transition-all active:opacity-70"
-                style={{ color: "#25d366" }}
+                className="flex items-center justify-center gap-2 py-3.5 text-[13px] font-bold transition-all active:opacity-70 text-[#25d366]"
               >
                 <MessageCircle className="w-4 h-4" /> واتساب
               </button>
@@ -774,61 +770,59 @@ export const RideWaitingScreen = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="rounded-2xl overflow-hidden"
-            style={{ background: "#171f33", border: "1px solid rgba(255,255,255,0.07)" }}
+            className="rounded-2xl overflow-hidden bg-white border border-[#E4E7EC] shadow-sm"
           >
             {/* الانطلاق */}
             <div className="flex items-center gap-3 px-4 py-3.5">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(91,221,166,0.15)", border: "1px solid rgba(91,221,166,0.25)" }}>
-                <Rocket className="w-4 h-4" style={{ color: "#5bdda6" }} />
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-[#12B76A]/10 border border-[#12B76A]/20">
+                <Rocket className="w-4 h-4 text-[#12B76A]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold tracking-widest mb-0.5" style={{ color: "#5bdda6" }}>الانطلاق</p>
-                <p className="text-[13px] font-semibold text-white truncate">{pickupAddress}</p>
+                <p className="text-[10px] font-bold tracking-widest mb-0.5 text-[#12B76A]">الانطلاق</p>
+                <p className="text-[13px] font-semibold text-[#101828] truncate">{pickupAddress}</p>
               </div>
             </div>
 
             {/* فاصل */}
-            <div className="flex items-center gap-3 px-4" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+            <div className="flex items-center gap-3 px-4 border-t border-[#E4E7EC]">
               <div className="w-9 flex justify-center">
                 <div className="flex flex-col items-center gap-0.5 py-1">
-                  <div className="w-px h-2 bg-slate-600" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                  <div className="w-px h-2 bg-slate-600" />
+                  <div className="w-px h-2 bg-[#D0D5DD]" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#98A2B3]" />
+                  <div className="w-px h-2 bg-[#D0D5DD]" />
                 </div>
               </div>
             </div>
 
             {/* الوجهة + الأجرة */}
-            <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(249,115,22,0.15)", border: "1px solid rgba(249,115,22,0.25)" }}>
-                <Navigation className="w-4 h-4 text-orange-400" />
+            <div className="flex items-center gap-3 px-4 py-3.5 border-t border-[#E4E7EC]">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-orange-50 border border-orange-200">
+                <Navigation className="w-4 h-4 text-orange-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold tracking-widest text-orange-400 mb-0.5">الوجهة</p>
-                <p className="text-[13px] font-semibold text-white truncate">{dropoffAddress}</p>
+                <p className="text-[10px] font-bold tracking-widest text-orange-500 mb-0.5">الوجهة</p>
+                <p className="text-[13px] font-semibold text-[#101828] truncate">{dropoffAddress}</p>
               </div>
-              <div className="shrink-0 text-left" style={{ borderRight: "1px solid rgba(255,255,255,0.08)", paddingRight: "0.75rem", marginRight: "0.25rem" }}>
-                <p className="text-[10px] text-slate-500 mb-0.5">الأجرة</p>
-                <p className="text-[18px] font-black" style={{ color: "#5bdda6" }}>{estimatedFare.toLocaleString()}</p>
-                <p className="text-[10px] text-slate-500">د.ع</p>
+              <div className="shrink-0 text-left border-r border-[#E4E7EC] pr-3 mr-1">
+                <p className="text-[10px] text-[#98A2B3] mb-0.5">الأجرة</p>
+                <p className="text-[18px] font-black text-[#00B3B0]">{estimatedFare.toLocaleString()}</p>
+                <p className="text-[10px] text-[#98A2B3]">د.ع</p>
               </div>
             </div>
           </motion.div>
         </div>
 
         {/* زر تتبع الرحلة */}
-        <div className="flex w-full mt-auto shrink-0 bg-[#0b1326]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
+        <div className="shrink-0 px-4 pb-4 bg-white border-t border-[#E4E7EC]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)', zIndex: 10 }}>
           <motion.button
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             onClick={handleContinueToTracking}
             whileTap={{ scale: 0.97 }}
-            className="flex-auto h-[72px] rounded-none border-t border-[#5bdda6]/30 flex items-center justify-center gap-2 text-[18px] font-black transition-all shadow-[0_-4px_24px_rgba(91,221,166,0.25)] touch-manipulation"
-            style={{ background: "#5bdda6", color: "#0b1326" }}
+            className="w-full min-h-[48px] rounded-2xl flex items-center justify-center gap-2 text-base font-bold transition-all shadow-lg touch-manipulation bg-[#00B3B0] text-white hover:bg-[#009E9B]"
           >
-            <Navigation className="w-6 h-6 ml-1" />
+            <Navigation className="w-5 h-5 ml-1" />
             تتبع الرحلة على الخريطة
           </motion.button>
         </div>
@@ -838,14 +832,14 @@ export const RideWaitingScreen = ({
 
   // Waiting State — Dark Luxury
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "#0b1326" }} dir="rtl">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#F7F8FA] max-w-[480px] mx-auto" dir="rtl">
 
       {/* طبقة انتقال السائق */}
       <AnimatePresence>
         {showDriverFoundTransition && acceptedDriver && (
           <motion.div
             className="fixed inset-0 z-[60] flex items-center justify-center"
-            style={{ background: "rgba(11,19,38,0.9)", backdropFilter: "blur(16px)" }}
+            style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(16px)" }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -855,14 +849,13 @@ export const RideWaitingScreen = ({
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0 }}
               transition={{ type: "spring", stiffness: 320, damping: 26 }}
-              className="rounded-3xl p-7 text-center mx-6"
-              style={{ background: "#171f33", border: "1px solid rgba(91,221,166,0.3)", boxShadow: "0 0 60px rgba(91,221,166,0.15)" }}
+              className="rounded-3xl p-7 text-center mx-6 bg-white border border-[#E4E7EC] shadow-xl"
             >
-              <div className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4" style={{ background: "rgba(91,221,166,0.15)" }}>
-                <Sparkles className="w-8 h-8" style={{ color: "#5bdda6" }} />
+              <div className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 bg-[#00B3B0]/10">
+                <Sparkles className="w-8 h-8 text-[#00B3B0]" />
               </div>
-              <h2 className="text-[20px] font-black text-white mb-2">تم العثور على سائق!</h2>
-              <p className="text-[13px] text-slate-400">{acceptedDriver.full_name} في الطريق إليك الآن</p>
+              <h2 className="text-[20px] font-black text-[#101828] mb-2">تم العثور على سائق!</h2>
+              <p className="text-[13px] text-[#475467]">{acceptedDriver.full_name} في الطريق إليك الآن</p>
             </motion.div>
           </motion.div>
         )}
@@ -870,29 +863,28 @@ export const RideWaitingScreen = ({
 
       {/* هيدر البحث */}
       <div
-        className="shrink-0 px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3"
-        style={{ background: "linear-gradient(180deg, #0d1a2e 0%, #0b1326 100%)", borderBottom: "1px solid rgba(91,221,166,0.08)" }}
+        className="shrink-0 px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-white border-b border-[#E4E7EC]"
       >
         <div className="flex flex-col items-center gap-2 text-center">
           {/* أيقونة البحث */}
           <div className="relative w-11 h-11 shrink-0">
-            <div className="absolute inset-0 rounded-full animate-ping" style={{ border: "2px solid rgba(91,221,166,0.3)" }} />
-            <div className="relative w-full h-full rounded-xl flex items-center justify-center" style={{ background: "rgba(91,221,166,0.12)", border: "1px solid rgba(91,221,166,0.2)" }}>
-              <Search className="w-5 h-5" style={{ color: "#5bdda6" }} />
+            <div className="absolute inset-0 rounded-full animate-ping" style={{ border: "2px solid rgba(0,179,176,0.3)" }} />
+            <div className="relative w-full h-full rounded-xl flex items-center justify-center bg-[#00B3B0]/10 border border-[#00B3B0]/20">
+              <Search className="w-5 h-5 text-[#00B3B0]" />
             </div>
           </div>
           {/* النصوص */}
           <div>
-            <h1 className="text-[16px] font-black text-white leading-tight">بانتظار سائق 🔍</h1>
-            <p className="text-[12px] mt-1" style={{ color: "rgba(91,221,166,0.65)" }}>
+            <h1 className="text-[16px] font-black text-[#101828] leading-tight">بانتظار سائق 🔍</h1>
+            <p className="text-[12px] mt-1 text-[#475467]">
               {encouragingMessages[encouragingMessageIndex]?.icon}{" "}
               {encouragingMessages[encouragingMessageIndex]?.text || "جاري البحث عن أفضل سائق لك..."}
             </p>
           </div>
           {/* عداد السائقين */}
           {nearbyDrivers > 0 && (
-            <div className="text-center px-4 py-1.5 rounded-xl" style={{ background: "rgba(91,221,166,0.1)", border: "1px solid rgba(91,221,166,0.2)" }}>
-              <span className="text-[13px] font-bold" style={{ color: "#5bdda6" }}>{nearbyDrivers} سائق متاح قريب منك</span>
+            <div className="text-center px-4 py-1.5 rounded-xl bg-[#00B3B0]/10 border border-[#00B3B0]/20">
+              <span className="text-[13px] font-bold text-[#00B3B0]">{nearbyDrivers} سائق متاح قريب منك</span>
             </div>
           )}
         </div>
@@ -902,75 +894,75 @@ export const RideWaitingScreen = ({
       <div className="flex-1 flex flex-col px-4 py-2 gap-2 overflow-hidden">
 
         {/* شريط التقدم */}
-        <div className="shrink-0 rounded-2xl p-3" style={{ background: "#171f33", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="shrink-0 rounded-2xl p-3 bg-white border border-[#E4E7EC] shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[14px] font-semibold text-slate-300 flex items-center gap-1.5">
-              <Clock className="w-4 h-4" style={{ color: "#5bdda6" }} />
+            <span className="text-[14px] font-semibold text-[#475467] flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-[#00B3B0]" />
               وقت الانتظار
             </span>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-[28px] font-black font-mono text-white tabular-nums leading-none">{formatTime(elapsedTime)}</span>
-              <span className="text-[13px] text-slate-500 font-medium">/ {maxWaitTimeout}:00</span>
+              <span className="text-[28px] font-black font-mono text-[#101828] tabular-nums leading-none">{formatTime(elapsedTime)}</span>
+              <span className="text-[13px] text-[#98A2B3] font-medium">/ {maxWaitTimeout}:00</span>
             </div>
           </div>
-          <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+          <div className="w-full h-2 rounded-full overflow-hidden bg-[#F2F4F7]">
             <div
               className="h-full rounded-full transition-all duration-1000"
               style={{
                 background: elapsedTime / 60 >= maxWaitTimeout * warningThreshold
                   ? "linear-gradient(90deg, #ef4444, #dc2626)"
-                  : "linear-gradient(90deg, #5bdda6, #3db886)",
+                  : "linear-gradient(90deg, #00B3B0, #009E9B)",
                 width: `${Math.min((elapsedTime / 60 / maxWaitTimeout) * 100, 100)}%`,
               }}
             />
           </div>
           {elapsedTime / 60 >= maxWaitTimeout * warningThreshold && autoCancelEnabled && (
-            <p className="text-[13px] text-center mt-1.5 font-semibold animate-pulse" style={{ color: "#f87171" }}>
+            <p className="text-[13px] text-center mt-1.5 font-semibold animate-pulse text-[#F04438]">
               {warningMessage}
             </p>
           )}
-          <div className="flex items-center justify-between mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-            <span className="text-[13px] text-slate-400">وقت الوصول المتوقع</span>
-            <span className="text-[15px] font-black" style={{ color: "#5bdda6" }}>{getEstimatedWaitTime()} دقيقة</span>
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#E4E7EC]">
+            <span className="text-[13px] text-[#475467]">وقت الوصول المتوقع</span>
+            <span className="text-[15px] font-black text-[#00B3B0]">{getEstimatedWaitTime()} دقيقة</span>
           </div>
         </div>
 
         {/* خط سير الرحلة */}
-        <div className="shrink-0 rounded-2xl overflow-hidden" style={{ background: "#171f33", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="shrink-0 rounded-2xl overflow-hidden bg-white border border-[#E4E7EC] shadow-sm">
           {/* الانطلاق */}
           <div className="flex items-center gap-2.5 px-3 py-2.5">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(91,221,166,0.12)", border: "1px solid rgba(91,221,166,0.2)" }}>
-              <Rocket className="w-3.5 h-3.5" style={{ color: "#5bdda6" }} />
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-[#12B76A]/10 border border-[#12B76A]/20">
+              <Rocket className="w-3.5 h-3.5 text-[#12B76A]" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold tracking-widest" style={{ color: "#5bdda6" }}>الانطلاق</p>
-              <p className="text-[14px] font-semibold text-white truncate">{pickupAddress}</p>
+              <p className="text-[10px] font-bold tracking-widest text-[#12B76A]">الانطلاق</p>
+              <p className="text-[14px] font-semibold text-[#101828] truncate">{pickupAddress}</p>
             </div>
           </div>
 
           {/* فاصل */}
-          <div className="flex items-center gap-2.5 px-3" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+          <div className="flex items-center gap-2.5 px-3 border-t border-[#E4E7EC]">
             <div className="w-8 flex justify-center">
               <div className="flex flex-col items-center gap-0.5 py-0.5">
-                <div className="w-px h-1.5 bg-slate-700" />
-                <div className="w-1 h-1 rounded-full bg-slate-600" />
-                <div className="w-px h-1.5 bg-slate-700" />
+                <div className="w-px h-1.5 bg-[#D0D5DD]" />
+                <div className="w-1 h-1 rounded-full bg-[#98A2B3]" />
+                <div className="w-px h-1.5 bg-[#D0D5DD]" />
               </div>
             </div>
           </div>
 
           {/* الوجهة + الأجرة */}
-          <div className="flex items-center gap-2.5 px-3 py-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.2)" }}>
-              <Navigation className="w-3.5 h-3.5 text-orange-400" />
+          <div className="flex items-center gap-2.5 px-3 py-2.5 border-t border-[#E4E7EC]">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-orange-50 border border-orange-200">
+              <Navigation className="w-3.5 h-3.5 text-orange-500" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold tracking-widest text-orange-400">الوجهة</p>
-              <p className="text-[14px] font-semibold text-white truncate">{dropoffAddress}</p>
+              <p className="text-[10px] font-bold tracking-widest text-orange-500">الوجهة</p>
+              <p className="text-[14px] font-semibold text-[#101828] truncate">{dropoffAddress}</p>
             </div>
-            <div className="shrink-0 text-left" style={{ borderRight: "1px solid rgba(255,255,255,0.07)", paddingRight: "0.5rem", marginRight: "0.25rem" }}>
-              <p className="text-[18px] font-black leading-tight" style={{ color: "#5bdda6" }}>{estimatedFare.toLocaleString()}</p>
-              <p className="text-[10px] text-slate-500">د.ع</p>
+            <div className="shrink-0 text-left border-r border-[#E4E7EC] pr-2 mr-1">
+              <p className="text-[18px] font-black leading-tight text-[#00B3B0]">{estimatedFare.toLocaleString()}</p>
+              <p className="text-[10px] text-[#98A2B3]">د.ع</p>
             </div>
           </div>
         </div>
@@ -980,14 +972,13 @@ export const RideWaitingScreen = ({
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="shrink-0 rounded-2xl p-3 flex items-center gap-3"
-            style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}
+            className="shrink-0 rounded-2xl p-3 flex items-center gap-3 bg-amber-50 border border-amber-200"
           >
             {isReMatching
-              ? <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: "#5bdda6" }} />
-              : <Sparkles className="w-4 h-4 shrink-0 text-amber-400" />
+              ? <Loader2 className="w-4 h-4 animate-spin shrink-0 text-[#00B3B0]" />
+              : <Sparkles className="w-4 h-4 shrink-0 text-amber-500" />
             }
-            <p className="text-[12px] text-amber-300 font-medium">
+            <p className="text-[12px] text-amber-700 font-medium">
               {isReMatching
                 ? "توسيع نطاق البحث..."
                 : reassignmentCount === 1 ? "جاري البحث عن سائق بديل..."
@@ -1002,22 +993,17 @@ export const RideWaitingScreen = ({
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="shrink-0 rounded-xl overflow-hidden"
-          style={{
-            background: "linear-gradient(135deg, #0f1f14 0%, #111d2c 100%)",
-            border: "1px solid rgba(91,221,166,0.15)",
-          }}
+          className="shrink-0 rounded-xl overflow-hidden bg-white border border-[#E4E7EC] shadow-sm"
         >
           {/* رأس البطاقة */}
-          <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[#E4E7EC]">
             <div className="flex items-center gap-1.5">
               <span className="text-[14px]">📿</span>
-              <span className="text-[11px] font-semibold text-white">اجعل انتظارك ذكراً</span>
+              <span className="text-[11px] font-semibold text-[#101828]">اجعل انتظارك ذكراً</span>
             </div>
             {totalDhikr > 0 && (
               <span
-                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{ background: "rgba(91,221,166,0.12)", color: "#5bdda6", border: "1px solid rgba(91,221,166,0.2)" }}
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#00B3B0]/10 text-[#00B3B0] border border-[#00B3B0]/20"
               >
                 {totalDhikr} ذكر اليوم
               </span>
@@ -1025,20 +1011,19 @@ export const RideWaitingScreen = ({
           </div>
 
           {/* أزرار الأذكار */}
-          <div className="grid grid-cols-3 gap-px" style={{ background: "rgba(255,255,255,0.04)" }}>
+          <div className="grid grid-cols-3 divide-x divide-[#E4E7EC]" style={{ direction: 'ltr' }}>
             {/* سبحان الله */}
             <button
               onClick={() => handleDhikrTap("tasbih")}
               className="flex flex-col items-center gap-1 py-2.5 transition-all active:scale-95"
               style={{
-                background: lastTappedDhikr === "tasbih" ? "rgba(91,221,166,0.12)" : "#0f1f14",
+                background: lastTappedDhikr === "tasbih" ? "rgba(0,179,176,0.08)" : "white",
               }}
             >
               <span className="text-[16px] leading-none">🌿</span>
-              <span className="text-[10px] font-bold text-white">سبحان الله</span>
+              <span className="text-[10px] font-bold text-[#101828]">سبحان الله</span>
               <span
-                className="text-[16px] font-black tabular-nums leading-none"
-                style={{ color: "#5bdda6" }}
+                className="text-[16px] font-black tabular-nums leading-none text-[#00B3B0]"
               >
                 {dhikrCounts.tasbih}
               </span>
@@ -1049,16 +1034,13 @@ export const RideWaitingScreen = ({
               onClick={() => handleDhikrTap("tahmid")}
               className="flex flex-col items-center gap-1 py-2.5 transition-all active:scale-95"
               style={{
-                background: lastTappedDhikr === "tahmid" ? "rgba(251,191,36,0.1)" : "#0f1f14",
-                borderRight: "1px solid rgba(255,255,255,0.04)",
-                borderLeft: "1px solid rgba(255,255,255,0.04)",
+                background: lastTappedDhikr === "tahmid" ? "rgba(245,158,11,0.08)" : "white",
               }}
             >
               <span className="text-[16px] leading-none">☀️</span>
-              <span className="text-[10px] font-bold text-white">الحمد لله</span>
+              <span className="text-[10px] font-bold text-[#101828]">الحمد لله</span>
               <span
-                className="text-[16px] font-black tabular-nums leading-none"
-                style={{ color: "#fbbf24" }}
+                className="text-[16px] font-black tabular-nums leading-none text-amber-500"
               >
                 {dhikrCounts.tahmid}
               </span>
@@ -1069,14 +1051,13 @@ export const RideWaitingScreen = ({
               onClick={() => handleDhikrTap("istighfar")}
               className="flex flex-col items-center gap-1 py-2.5 transition-all active:scale-95"
               style={{
-                background: lastTappedDhikr === "istighfar" ? "rgba(147,51,234,0.1)" : "#0f1f14",
+                background: lastTappedDhikr === "istighfar" ? "rgba(147,51,234,0.06)" : "white",
               }}
             >
               <span className="text-[16px] leading-none">🤲</span>
-              <span className="text-[10px] font-bold text-white">أستغفر الله</span>
+              <span className="text-[10px] font-bold text-[#101828]">أستغفر الله</span>
               <span
-                className="text-[16px] font-black tabular-nums leading-none"
-                style={{ color: "#c084fc" }}
+                className="text-[16px] font-black tabular-nums leading-none text-purple-500"
               >
                 {dhikrCounts.istighfar}
               </span>
@@ -1084,8 +1065,8 @@ export const RideWaitingScreen = ({
           </div>
 
           {/* ذيل البطاقة */}
-          <div className="px-3 py-1.5 flex items-center justify-center" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-            <p className="text-[9px] text-slate-500 text-center">
+          <div className="px-3 py-1.5 flex items-center justify-center border-t border-[#E4E7EC]">
+            <p className="text-[9px] text-[#98A2B3] text-center">
               انقر على كل ذكر لتسجيله • يُحفظ تلقائياً
             </p>
           </div>
@@ -1093,16 +1074,16 @@ export const RideWaitingScreen = ({
       </div>
 
       {/* زر الإلغاء */}
-      <div className="flex w-full mt-auto shrink-0 bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
+      <div className="shrink-0 px-4 pb-4 bg-white border-t border-[#E4E7EC]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)', zIndex: 10 }}>
         <button
           onClick={handleCancelClick}
           disabled={cancelling}
-          className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-bold text-emerald-300 bg-[#0f2922] hover:bg-[#163d30] transition-colors disabled:opacity-50 touch-manipulation border-t border-emerald-500/20 active:scale-[0.98]"
+          className="w-full min-h-[48px] rounded-2xl flex items-center justify-center gap-2 text-base font-bold bg-[#F04438] hover:bg-[#D92D20] text-white transition-all disabled:opacity-50 touch-manipulation active:scale-[0.98] shadow-sm"
         >
           {cancelling ? (
-            <><Loader2 className="w-6 h-6 animate-spin ml-1 text-emerald-400" />جاري الإلغاء...</>
+            <><Loader2 className="w-5 h-5 animate-spin" />جاري الإلغاء...</>
           ) : (
-            <><X className="w-5 h-5 ml-1 text-emerald-400" />إلغاء الطلب</>
+            <><X className="w-5 h-5" />إلغاء الطلب</>
           )}
         </button>
       </div>

@@ -15,7 +15,14 @@ dist-driver
 dist-car
 dist-admin
 local-builds
+builds
 *.local
+
+# Build artifacts
+bun.lockb
+bun.lock
+gradlew.bat
+.expo
 
 # Environment variables — NEVER commit secrets
 .env

@@ -149,8 +149,8 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
     <button
       onClick={onBookRide}
       disabled={fareLoading}
-      className="w-full h-14 flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-60 active:brightness-90 transition-all"
-      style={{ borderRadius: 0 }}
+      className="w-full min-h-[48px] flex items-center justify-center gap-3 bg-primary text-primary-foreground text-base font-bold disabled:opacity-60 active:brightness-90 transition-all rounded-2xl mx-4 mb-4 shadow-sm"
+      style={{ maxWidth: 'calc(100% - 2rem)' }}
     >
       <Navigation className="w-5 h-5 flex-shrink-0" />
       <span>احجز الآن</span>
@@ -166,7 +166,7 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="h-screen bg-background flex flex-col overflow-hidden"
+      className="h-screen bg-background flex flex-col overflow-hidden max-w-[480px] mx-auto"
       dir="rtl"
     >
       {/* مؤشر عدم الاتصال */}

@@ -156,7 +156,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="relative h-full w-full z-10 flex flex-col overflow-hidden overscroll-none"
+      className="relative h-full w-full z-10 flex flex-col overflow-hidden overscroll-none max-w-[480px] mx-auto"
       dir="rtl"
     >
       {/* Offline banner */}
@@ -193,7 +193,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
       <RiderMapHeader onMenuOpen={() => onMenuToggle(true)} />
 
       {/* Bottom Sheet */}
-      <RiderBottomSheet className="!max-h-[58dvh]">
+      <RiderBottomSheet className="!max-h-[50dvh]">
         <div className="flex-1 flex flex-col px-4 gap-3 overflow-y-auto min-h-0 pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
           {/* Route summary */}
           <RideRouteSummaryCard
@@ -224,7 +224,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
 
           {/* Vehicle selection — inline cards */}
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-[#667085] uppercase tracking-wider px-1">اختر نوع السيارة</p>
+            <p className="text-xs font-semibold text-[#475467] uppercase tracking-wider px-1">اختر نوع السيارة</p>
             {VEHICLES.map((v) => {
               const driverCount = availableDriversByType?.[v.type] ?? 0;
               const fare = fareBreakdown?.total_fare ? Math.round(fareBreakdown.total_fare * v.multiplier) : null;
@@ -257,7 +257,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
                 className={`px-3 py-2 rounded-xl text-[11px] font-bold transition-all ${
                   bookingMode === "now"
                     ? "bg-[#0A2F6E] text-white shadow-sm"
-                    : "text-[#667085] hover:text-[#101828]"
+                    : "text-[#475467] hover:text-[#101828]"
                 }`}
               >
                 الآن
@@ -267,7 +267,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
                 className={`px-3 py-2 rounded-xl text-[11px] font-bold transition-all ${
                   bookingMode === "schedule"
                     ? "bg-[#0A2F6E] text-white shadow-sm"
-                    : "text-[#667085] hover:text-[#101828]"
+                    : "text-[#475467] hover:text-[#101828]"
                 }`}
               >
                 جدولة
@@ -286,7 +286,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
             onClick={handlePrimaryBookAction}
             disabled={isBooking}
             whileTap={isBooking ? {} : { scale: 0.97 }}
-            className={`w-full h-[56px] rounded-2xl flex items-center justify-center gap-2.5 text-base font-bold transition-all duration-200 shadow-lg ${
+            className={`w-full min-h-[48px] rounded-2xl flex items-center justify-center gap-2.5 text-base font-bold transition-all duration-200 shadow-lg ${
               isBooking
                 ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
                 : fareLoading

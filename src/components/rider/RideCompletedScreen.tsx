@@ -199,7 +199,7 @@ export const RideCompletedScreen = ({
 
           <div>
             <h2 className="text-3xl font-black text-white mb-2 tracking-tight">شكراً لك! ✨</h2>
-            <p className="text-white/40 text-sm font-medium">تقييمك يساعدنا على تحسين الخدمة</p>
+            <p className="text-white/60 text-sm font-medium">تقييمك يساعدنا على تحسين الخدمة</p>
           </div>
           <div className="flex gap-1.5 mt-2" style={{ direction: "ltr" }}>
             {[1,2,3,4,5].map(s => (
@@ -215,7 +215,7 @@ export const RideCompletedScreen = ({
   /* ─── الشاشة الرئيسية ─── */
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] bg-[#070b13] font-sans flex flex-col"
+      className="fixed inset-0 z-[9999] bg-[#070b13] font-sans flex flex-col max-w-[480px] mx-auto"
       style={{ height: "100dvh" }}
       dir="rtl"
     >

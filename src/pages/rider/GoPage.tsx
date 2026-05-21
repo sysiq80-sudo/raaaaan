@@ -1776,7 +1776,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
   // Location picker screen
   return (
-    <div className="relative h-full w-full z-10 flex flex-col bg-[#F7F8FA]" dir="rtl">
+    <div className="relative h-full w-full z-10 flex flex-col bg-[#F7F8FA] max-w-[480px] mx-auto" dir="rtl">
       {/* Full-screen Map */}
       <div 
         className="absolute inset-0 overflow-hidden"
@@ -2165,7 +2165,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                     fetchSavedPlaces();
                     setShowSavedPlacesDropdown(!showSavedPlacesDropdown);
                   }}
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors text-xs font-semibold text-[#667085]"
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors text-xs font-semibold text-[#475467]"
                 >
                   <Bookmark className="w-3.5 h-3.5" />
                   <span>المحفوظة</span>
@@ -2217,7 +2217,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             }}
             disabled={!centerAddress || isCheckingService || isConfirming}
             whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.97 }}
-            className={`w-full h-[52px] rounded-2xl font-bold text-[15px] flex items-center justify-center gap-2 transition-all duration-200 shadow-lg ${
+            className={`w-full min-h-[48px] rounded-2xl font-bold text-[15px] flex items-center justify-center gap-2 transition-all duration-200 shadow-lg ${
               selectionReady
                 ? isPickup
                   ? 'bg-[#12B76A] hover:bg-[#0E9F5C] text-white shadow-[0_8px_20px_rgba(18,183,106,0.25)]'

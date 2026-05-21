@@ -40,12 +40,12 @@ const VehicleOptionCard: React.FC<VehicleOptionCardProps> = ({
     <button
       onClick={onSelect}
       disabled={isUnavailable}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all duration-200 min-h-[64px] text-right ${
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-200 min-h-[56px] text-right ${
         isUnavailable
-          ? "border-gray-100 bg-gray-50/50 opacity-50 cursor-not-allowed"
+          ? "border-[#E4E7EC] bg-gray-50/50 opacity-50 cursor-not-allowed"
           : isSelected
           ? "border-[#00B3B0] bg-[#00B3B0]/5 shadow-sm"
-          : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50/50 active:scale-[0.98]"
+          : "border-[#E4E7EC] bg-white hover:border-[#D0D5DD] hover:bg-gray-50/50 active:scale-[0.98]"
       }`}
     >
       {/* Emoji icon */}
@@ -62,13 +62,13 @@ const VehicleOptionCard: React.FC<VehicleOptionCardProps> = ({
             {name}
           </p>
           {driverCount > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-[#667085] bg-gray-100 px-1.5 py-0.5 rounded-full">
+            <span className="flex items-center gap-0.5 text-[10px] text-[#475467] bg-gray-100 px-1.5 py-0.5 rounded-full">
               <Users className="w-2.5 h-2.5" />
               {driverCount}
             </span>
           )}
         </div>
-        <p className="text-[11px] text-[#667085] mt-0.5 line-clamp-1">{description}</p>
+        <p className="text-[11px] text-[#475467] mt-0.5 line-clamp-1">{description}</p>
       </div>
 
       {/* Price + check */}
@@ -76,10 +76,10 @@ const VehicleOptionCard: React.FC<VehicleOptionCardProps> = ({
         {fare && !isUnavailable ? (
           <span className={`text-sm font-bold ${isSelected ? "text-[#00B3B0]" : "text-[#101828]"}`}>
             {roundFare(fare).toLocaleString()}
-            <span className="text-[10px] font-medium text-[#667085] mr-0.5">د.ع</span>
+            <span className="text-[10px] font-medium text-[#475467] mr-0.5">د.ع</span>
           </span>
         ) : isUnavailable ? (
-          <span className="text-[11px] text-[#667085]">غير متاح</span>
+          <span className="text-[11px] text-[#475467]">غير متاح</span>
         ) : null}
 
         {isSelected && (

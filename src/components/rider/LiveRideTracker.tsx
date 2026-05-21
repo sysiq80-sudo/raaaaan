@@ -947,7 +947,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col">
+    <div className="fixed inset-0 z-50 bg-background flex flex-col max-w-[480px] mx-auto">
       {/* Side Menu */}
       <RiderSideMenu 
         user={null} 
@@ -980,7 +980,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
       {/* Status Progress Column - Right Side */}
       <div className="absolute top-16 right-3 z-10" dir="rtl">
-        <div className="rounded-2xl px-2.5 py-3 flex flex-col items-center gap-0" style={{ background: 'rgba(11,19,38,0.92)', backdropFilter: 'blur(16px)', border: '1px solid rgba(91,221,166,0.12)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+        <div className="rounded-2xl px-2.5 py-3 flex flex-col items-center gap-0 bg-white/95 backdrop-blur-xl border border-[#E4E7EC] shadow-lg">
           {[
             { status: 'accepted', label: 'قَبِل', icon: UserCheck, num: 1 },
             { status: 'arrived', label: 'وصل', icon: MapPinned, num: 2 },
@@ -1000,21 +1000,21 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
                   <div
                     className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 ${
                       isPassed
-                        ? 'bg-[#5bdda6]'
+                        ? 'bg-[#00B3B0]'
                         : isActive
-                        ? 'border-2 border-[#5bdda6]'
-                        : 'border border-white/10'
+                        ? 'border-2 border-[#00B3B0] bg-[#00B3B0]/10'
+                        : 'border border-[#E4E7EC] bg-[#F9FAFB]'
                     }`}
-                    style={isActive ? { background: 'rgba(91,221,166,0.15)', boxShadow: '0 0 12px rgba(91,221,166,0.3)' } : isPassed ? { boxShadow: '0 0 8px rgba(91,221,166,0.25)' } : { background: '#151f30' }}
+                    style={isPassed ? { boxShadow: '0 0 8px rgba(0,179,176,0.25)' } : isActive ? { boxShadow: '0 0 12px rgba(0,179,176,0.2)' } : {}}
                   >
                     {isPassed ? (
-                      <Check className="w-3.5 h-3.5 text-[#0b1326]" />
+                      <Check className="w-3.5 h-3.5 text-white" />
                     ) : (
-                      <StepIcon className={`w-3 h-3 ${isActive ? 'text-[#5bdda6]' : 'text-white/25'}`} />
+                      <StepIcon className={`w-3 h-3 ${isActive ? 'text-[#00B3B0]' : 'text-[#98A2B3]'}`} />
                     )}
                   </div>
                   <span className={`text-[10px] font-bold whitespace-nowrap transition-all ${
-                    isActive ? 'text-[#5bdda6]' : isPassed ? 'text-[#5bdda6]/50' : 'text-white/20'
+                    isActive ? 'text-[#00B3B0]' : isPassed ? 'text-[#00B3B0]/60' : 'text-[#98A2B3]'
                   }`}>
                     {step.label}
                   </span>
@@ -1023,7 +1023,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
                 {idx < arr.length - 1 && (
                   <div className="flex justify-start w-full pr-[13px]">
                     <div className={`w-px h-3 transition-colors duration-500 ${
-                      isPassed ? 'bg-[#5bdda6]/40' : 'bg-white/6'
+                      isPassed ? 'bg-[#00B3B0]/40' : 'bg-[#E4E7EC]'
                     }`} />
                   </div>
                 )}
@@ -1075,10 +1075,9 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
       {/* Bottom Sheet */}
       <motion.div
-        animate={{ height: lrtExpanded ? '85dvh' : '50dvh' }}
+        animate={{ height: lrtExpanded ? '85dvh' : '40dvh' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="rounded-t-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col"
-        style={{ background: '#0b1326', borderTop: '1px solid rgba(91,221,166,0.15)' }}
+        className="rounded-t-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.08)] overflow-hidden flex flex-col bg-white border-t border-[#E4E7EC]"
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={0.2}
@@ -1098,33 +1097,33 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
             className="rounded-full"
             animate={{
               width: lrtExpanded ? 32 : 48,
-              backgroundColor: lrtExpanded ? 'rgb(52,211,153)' : 'rgb(100,116,139)',
+              backgroundColor: lrtExpanded ? 'rgb(0,179,176)' : 'rgb(209,213,219)',
             }}
             style={{ height: 5 }}
             transition={{ duration: 0.25 }}
           />
         </button>
 
-        <div className="flex-1 overflow-y-auto px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" dir="rtl" style={{ background: '#0b1326' }}>
+        <div className="flex-1 overflow-y-auto px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" dir="rtl">
 
         {/* ── بطاقة حالة الرحلة (In Progress) ── */}
         {ride.status === "in_progress" && (
-          <div className="rounded-xl p-3 mb-2" style={{ background: 'rgba(91,221,166,0.08)', border: '1px solid rgba(91,221,166,0.15)' }}>
-            <p className="font-bold text-[12px] text-center mb-2" style={{ color: '#5bdda6' }}>
+          <div className="rounded-xl p-3 mb-2 bg-[#00B3B0]/5 border border-[#00B3B0]/15">
+            <p className="font-bold text-[12px] text-center mb-2 text-[#00B3B0]">
               🚗 بالطريق لوجهتك • استمتع برحلتك
             </p>
             <div className="flex items-center justify-center gap-3">
-              <div className="flex items-center gap-1.5 rounded-full px-3 py-1" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                <Timer className="w-3.5 h-3.5" style={{ color: '#5bdda6' }} />
-                <span className="font-bold text-[12px] text-white">
+              <div className="flex items-center gap-1.5 rounded-full px-3 py-1 bg-[#F2F4F7]">
+                <Timer className="w-3.5 h-3.5 text-[#00B3B0]" />
+                <span className="font-bold text-[12px] text-[#101828]">
                   {countdownSeconds !== null && countdownSeconds > 0
                     ? `${Math.floor(countdownSeconds / 60)} دقيقة`
                     : "0 دقيقة"}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 rounded-full px-3 py-1" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                <Navigation className="w-3.5 h-3.5" style={{ color: '#5bdda6' }} />
-                <span className="font-bold text-[12px] text-white">
+              <div className="flex items-center gap-1.5 rounded-full px-3 py-1 bg-[#F2F4F7]">
+                <Navigation className="w-3.5 h-3.5 text-[#00B3B0]" />
+                <span className="font-bold text-[12px] text-[#101828]">
                   {remainingDistance
                     ? remainingDistance < 1
                       ? `${Math.round(remainingDistance * 1000)} م`
@@ -1142,12 +1141,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         {/* ══  بطاقة السائق الموحّدة (Premium Unified Card) ══ */}
         {/* ══════════════════════════════════════════════════ */}
         <div
-          className="rounded-2xl overflow-hidden mb-2"
-          style={{
-            background: 'linear-gradient(180deg, #111b2e 0%, #0d1525 100%)',
-            border: '1px solid rgba(91,221,166,0.12)',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
-          }}
+          className="rounded-2xl overflow-hidden mb-2 bg-white border border-[#E4E7EC] shadow-sm"
         >
           {/* ─── 1. بيانات السائق (الأهمية القصوى) ─── */}
           <DriverInfoCard
@@ -1159,8 +1153,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           >
             {/* ─── 2. شريط الإجراءات السريعة ─── */}
             <div
-              className="flex items-center gap-1.5 overflow-x-auto px-3 py-2"
-              style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
+              className="flex items-center gap-1.5 overflow-x-auto px-3 py-2 border-t border-[#E4E7EC]"
             >
               <RideChat
                 rideId={ride.id}
@@ -1172,15 +1165,14 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
               {driver?.phone && (
                 <a
                   href={`tel:${driver.phone}`}
-                  className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95"
-                  style={{ background: 'rgba(34,197,94,0.08)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.15)' }}
+                  className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 bg-green-50 text-green-600 border border-green-200"
                 >
                   📞 اتصال
                 </a>
               )}
 
               {/* فاصل */}
-              <div className="w-px h-5 shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }} />
+              <div className="w-px h-5 shrink-0 bg-[#E4E7EC]" />
 
               {/* رسائل سريعة سياقية */}
               {(ride.status === "accepted" || ride.status === "arrived") && (
@@ -1189,15 +1181,13 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
                     <>
                       <button
                         onClick={() => sendQuickMessage("rider_waiting", "✅ تم إبلاغ السائق", "السائق يعلم أنك بالانتظار")}
-                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95"
-                        style={{ background: 'rgba(59,130,246,0.08)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.15)' }}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 bg-blue-50 text-blue-600 border border-blue-200"
                       >
                         👋 بالانتظار
                       </button>
                       <button
                         onClick={() => sendQuickMessage("rider_where_are_you", "✅ تم إرسال السؤال", "السائق سيوضح موقعه")}
-                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95"
-                        style={{ background: 'rgba(245,158,11,0.08)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.15)' }}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 bg-amber-50 text-amber-600 border border-amber-200"
                       >
                         📍 أين وصلت؟
                       </button>
@@ -1207,15 +1197,13 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
                     <>
                       <button
                         onClick={() => sendQuickMessage("rider_where_are_you", "✅ تم إرسال السؤال", "السائق سيوضح موقعه")}
-                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95"
-                        style={{ background: 'rgba(168,85,247,0.08)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.15)' }}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 bg-purple-50 text-purple-600 border border-purple-200"
                       >
                         📍 أين موقعك؟
                       </button>
                       <button
                         onClick={() => sendQuickMessage("rider_wait_moment", "✅ تم إبلاغ السائق", "السائق سينتظرك قليلاً")}
-                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95"
-                        style={{ background: 'rgba(249,115,22,0.08)', color: '#fb923c', border: '1px solid rgba(249,115,22,0.15)' }}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 bg-orange-50 text-orange-600 border border-orange-200"
                       >
                         ⏱️ انتظرني
                       </button>
@@ -1227,18 +1215,17 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           </DriverInfoCard>
 
           {/* ─── 3. خط سير الرحلة (الانطلاق → الوجهة) ─── */}
-          <div style={{ borderTop: '1px solid rgba(91,221,166,0.06)' }}>
+          <div className="border-t border-[#E4E7EC]">
             {/* الانطلاق */}
             <div className="flex items-center gap-2.5 px-3 py-2">
               <div
-                className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: 'rgba(91,221,166,0.1)', border: '1px solid rgba(91,221,166,0.18)' }}
+                className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-[#12B76A]/10 border border-[#12B76A]/20"
               >
-                <MapPin className="w-3 h-3" style={{ color: '#5bdda6' }} />
+                <MapPin className="w-3 h-3 text-[#12B76A]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[8px] font-bold tracking-[0.15em] uppercase" style={{ color: 'rgba(91,221,166,0.7)' }}>الانطلاق</p>
-                <p className="text-[11px] font-semibold text-white/90 truncate">{ride.pickup_address || "موقع الانطلاق"}</p>
+                <p className="text-[8px] font-bold tracking-[0.15em] uppercase text-[#12B76A]">الانطلاق</p>
+                <p className="text-[11px] font-semibold text-[#101828] truncate">{ride.pickup_address || "موقع الانطلاق"}</p>
               </div>
             </div>
 
@@ -1246,9 +1233,9 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
             <div className="flex items-center px-3">
               <div className="w-7 flex justify-center">
                 <div className="flex flex-col items-center gap-px">
-                  <div className="w-px h-1" style={{ background: 'rgba(91,221,166,0.15)' }} />
-                  <div className="w-1 h-1 rounded-full" style={{ background: 'rgba(91,221,166,0.2)' }} />
-                  <div className="w-px h-1" style={{ background: 'rgba(91,221,166,0.15)' }} />
+                  <div className="w-px h-1 bg-[#D0D5DD]" />
+                  <div className="w-1 h-1 rounded-full bg-[#98A2B3]" />
+                  <div className="w-px h-1 bg-[#D0D5DD]" />
                 </div>
               </div>
             </div>
@@ -1256,20 +1243,18 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
             {/* الوجهة */}
             <div className="flex items-center gap-2.5 px-3 py-2">
               <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                style={{ background: 'rgba(91,221,166,0.1)', border: '1px solid rgba(91,221,166,0.18)' }}
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-orange-50 border border-orange-200"
               >
-                <Navigation className="w-3 h-3 text-emerald-400" />
+                <Navigation className="w-3 h-3 text-orange-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[8px] font-bold tracking-[0.15em] uppercase text-emerald-400/70">الوجهة</p>
-                <p className="text-[11px] font-semibold text-white/90 truncate">{ride.dropoff_address || "الوجهة"}</p>
+                <p className="text-[8px] font-bold tracking-[0.15em] uppercase text-orange-500">الوجهة</p>
+                <p className="text-[11px] font-semibold text-[#101828] truncate">{ride.dropoff_address || "الوجهة"}</p>
               </div>
               {(ride.status === "in_progress" || ride.status === "accepted") && (
                 <button
                   onClick={() => setShowDestinationChange(true)}
-                  className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95"
-                  style={{ background: 'rgba(91,221,166,0.08)', color: '#5bdda6', border: '1px solid rgba(91,221,166,0.15)' }}
+                  className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95 bg-[#00B3B0]/10 text-[#00B3B0] border border-[#00B3B0]/20"
                 >
                   <Edit2 className="w-2.5 h-2.5" />
                   تغيير
@@ -1280,7 +1265,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
           {/* ─── 4. تفاصيل الأجرة (للرحلات المكتملة فقط) ─── */}
           {ride.status === "completed" && ride.final_fare ? (
-            <div style={{ borderTop: '1px solid rgba(91,221,166,0.06)' }}>
+            <div className="border-t border-[#E4E7EC]">
               <FareBreakdownCard
                 baseFare={2000}
                 distanceKm={ride.distance_km || 0}
