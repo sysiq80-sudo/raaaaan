@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import SplashScreen from "@/components/common/SplashScreen";
-import { Navigation, Loader2, MapPin, AlertTriangle, AlertCircle, Menu, Rocket, Bookmark, ArrowRight } from "lucide-react";
+import { Navigation, Loader2, MapPin, AlertTriangle, AlertCircle, Search, Bookmark, Home, Briefcase, Star, Clock } from "lucide-react";
 import logo from "@/assets/logo.png";
+import RiderMapHeader from "@/components/rider/RiderMapHeader";
+import RiderBottomSheet from "@/components/rider/RiderBottomSheet";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -1774,10 +1776,10 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
   // Location picker screen
   return (
-    <div className="relative h-full w-full z-10 flex flex-col">
-      {/* Map Container - لا نضع touchAction هنا حتى لا يتعارض مع Google Maps */}
+    <div className="relative h-full w-full z-10 flex flex-col bg-[#F7F8FA]" dir="rtl">
+      {/* Full-screen Map */}
       <div 
-        className="flex-1 relative w-full h-full overflow-hidden"
+        className="absolute inset-0 overflow-hidden"
       >
         {/* Enhanced map loading placeholder - pointer-events-none when map is ready */}
         {(!mapToken || isLoading) && !mapError && (
@@ -1851,153 +1853,82 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           />
         )}
 
-        {/* Header — نفس أسلوب السائق مع خلفية شفافة */}
-        <header
-          className="absolute top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top)] transition-colors duration-300"
-          style={{
-            background: 'rgba(11, 19, 38, 0.4)',
-            borderBottom: '1px solid rgba(91, 221, 166, 0.2)',
-            backdropFilter: 'blur(20px) saturate(150%)',
-            WebkitBackdropFilter: 'blur(20px) saturate(150%)',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
-          }}
-          dir="rtl"
-        >
-          <div className="flex items-center justify-between h-14 px-4">
-            {/* يسار: مساحة موازنة مثل هيدر الصفحات الجانبية */}
-            <div className="flex items-center gap-2.5">
-              <div className="w-8" aria-hidden="true" />
-            </div>
+        {/* Header — Premium floating glassmorphism */}
+        <RiderMapHeader onMenuOpen={() => setMenuOpen(true)} />
 
-            {/* وسط: الشعار (نفس نمط RiderPageHeader) */}
-            <div className="flex items-center gap-2">
 
-            {/* الشعار في الوسط */}
-            <div className="pointer-events-none">
-              <img
-                src={logo}
-                alt="RAAN"
-                className="w-9 h-9 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]"
-              />
-            </div>
-            </div>
 
-            {/* يمين: زر القائمة (نفس نمط RiderPageHeader) */}
-            <button
-              onClick={() => setMenuOpen(true)}
-              className="bg-[#5bdda6]/10 border border-[#5bdda6]/30 hover:bg-[#5bdda6]/20 p-2.5 rounded-xl active:scale-95 transition-all shadow-[0_0_15px_rgba(91,221,166,0.15)] group backdrop-blur-md"
-              aria-label="القائمة الرئيسية"
-              title="القائمة الرئيسية"
-            >
-              <Menu className="w-5 h-5 text-[#5bdda6] group-hover:drop-shadow-[0_0_8px_rgba(91,221,166,0.5)] transition-all" />
-            </button>
-          </div>
-        </header>
-
-        {/* زر تحديد موقعي (ملتصق تحت الهيدر مباشرة) */}
-        <div 
-          className="absolute right-6 z-40 pointer-events-auto flex flex-col items-center"
-          style={{ top: 'calc(3.5rem + env(safe-area-inset-top))' }}
-        >
-          <button
-            onClick={() => {
-              manualGeolocateMain();
-            }}
-            className="w-12 h-12 flex items-center justify-center rounded-b-xl bg-[rgba(11,19,38,0.7)] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.15)] border-b border-x border-[#5bdda6]/30 hover:bg-[rgba(11,19,38,0.9)] transition-colors duration-200 group"
-            title="تحديد موقعي"
-            aria-label="تحديد موقعي"
-          >
-            <Navigation className="w-5 h-5 text-[#5bdda6] group-active:scale-90 transition-transform" />
-          </button>
-        </div>
-
-        {/* Drag instruction — أسفل الهيدر على اليمين (left في CSS = يمين في RTL) */}
+        {/* Drag instruction tooltip */}
         <AnimatePresence>
           {!isDragging && centerAddress && !hasStartedDragging && <motion.div 
             initial={{ y: -8, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -8, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="absolute left-4 top-20 z-30 pointer-events-none"
+            className="absolute left-4 z-30 pointer-events-none"
+            style={{ top: 'calc(4rem + env(safe-area-inset-top))' }}
           >
-            <div className="bg-card/95 backdrop-blur-lg px-3 py-2 rounded-full shadow-lg border border-border/50 whitespace-nowrap">
-              <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2">
-                <span className="text-base">👉</span>
+            <div className="bg-white/95 backdrop-blur-lg px-3 py-2 rounded-full shadow-md border border-gray-100">
+              <p className="text-xs text-[#667085] flex items-center gap-1.5">
+                <span>👉</span>
                 <span>اسحب الخريطة لتغيير الموقع</span>
               </p>
             </div>
           </motion.div>}
         </AnimatePresence>
 
-        {/* Location pin - دبوس CSS بدون صور خارجية - pointer-events-none للسماح بتحريك الخريطة */}
-        <div 
-          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full z-[15]"
-        >
+        {/* Simplified map pin — clean and minimal */}
+        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full z-[15]">
           <motion.div 
             initial={{ scale: 0.8, opacity: 0 }} 
             animate={{ scale: 1, opacity: 1 }}
             className="flex flex-col items-center gap-1"
           >
-            {/* Location Name Label - يظهر أعلى الدبوس */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-card/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-lg border border-border/50 whitespace-nowrap max-w-xs"
-            >
-              <div className="flex items-center gap-2">
-                {/* نوع الموقع */}
-                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0 ${
-                  isPickup ? 'bg-green-500' : 'bg-sky-500'
-                }`}>
-                  {isPickup ? '🚀 انطلاق' : isStopMode ? '🟡 محطة' : '📍 وصول'}
-                </span>
-                {/* العنوان الديناميكي */}
-                {centerAddress && (
-                  <p className="text-xs sm:text-sm font-semibold text-foreground truncate">
-                    {buildDescriptiveAddress(centerAddress)}
-                  </p>
-                )}
-              </div>
-            </motion.div>
+            {/* Address label above pin */}
+            {centerAddress && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white px-3 py-1.5 rounded-xl shadow-md border border-gray-100 max-w-[220px]"
+              >
+                <p className="text-xs font-semibold text-[#101828] truncate text-center">
+                  {buildDescriptiveAddress(centerAddress)}
+                </p>
+              </motion.div>
+            )}
             
             <motion.div 
-              animate={{ y: isDragging ? -12 : 0 }} 
+              animate={{ y: isDragging ? -8 : 0 }} 
               transition={{ type: "spring", stiffness: 300 }}
               className="relative"
             >
-              {/* Pin Head */}
+              {/* Pin */}
               <div 
-                className={`w-14 h-14 rounded-full flex items-center justify-center border-4 border-white ${
-                  isPickup ? 'bg-green-500' : 'bg-sky-500'
+                className={`w-11 h-11 rounded-full flex items-center justify-center border-[3px] border-white shadow-lg ${
+                  isPickup ? 'bg-[#12B76A]' : 'bg-[#0A2F6E]'
                 }`}
-                style={{
-                  boxShadow: isPickup 
-                    ? '0 0 20px rgba(34, 197, 94, 0.6), 0 4px 20px rgba(0,0,0,0.3)' 
-                    : '0 0 20px rgba(14, 165, 233, 0.6), 0 4px 20px rgba(0,0,0,0.3)',
-                }}
               >
                 {isPickup ? (
-                  <Navigation className="w-6 h-6 text-white" />
+                  <Navigation className="w-5 h-5 text-white" />
                 ) : (
-                  <MapPin className="w-6 h-6 text-white" />
+                  <MapPin className="w-5 h-5 text-white" />
                 )}
               </div>
               
-              {/* Pin Needle - النقطة السفلية من الدبوس */}
+              {/* Pin needle */}
               <div 
-                className={`w-0 h-0 mx-auto -mt-1`}
+                className="w-0 h-0 mx-auto -mt-0.5"
                 style={{
-                  borderLeft: '10px solid transparent',
-                  borderRight: '10px solid transparent',
-                  borderTop: isPickup ? '16px solid #22c55e' : '16px solid #0ea5e9',
-                  filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))',
+                  borderLeft: '7px solid transparent',
+                  borderRight: '7px solid transparent',
+                  borderTop: `12px solid ${isPickup ? '#12B76A' : '#0A2F6E'}`,
+                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
                 }}
               />
               
-              {/* Shadow dot - للتأثير البصري */}
+              {/* Shadow */}
               <motion.div 
-                animate={{ scale: isDragging ? 0.5 : 1, opacity: isDragging ? 0.2 : 0.4 }} 
-                className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-2 bg-black/50 rounded-full blur-sm" 
+                animate={{ scale: isDragging ? 0.5 : 1, opacity: isDragging ? 0.15 : 0.3 }} 
+                className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-1.5 bg-black/40 rounded-full blur-sm" 
               />
             </motion.div>
           </motion.div>
@@ -2010,179 +1941,35 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
       </div>
 
-      {/* 🟢 Bottom panel - Premium Dark Glassmorphism — drag="y" like ActiveRideCard */}
-      <motion.div 
-        ref={bottomPanelRef}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={0.2}
-        initial={{ y: 100 }}
-        animate={{ y: 0, height: panelExpanded ? 'auto' : 'auto' }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        onDragEnd={(_, info) => {
-          if (info.offset.y > 50) {
-            // سحب للأسفل: تصغير بالكامل للحالتين
-            setPanelExpanded(false);
-            setShowSavedPlacesDropdown(false);
-          } else if (info.offset.y < -50) {
-            // سحب للأعلى
-            if (!panelExpanded) {
-              // إذا كانت اللوحة مصغرة، افتح شريط البحث فقط
-              setPanelExpanded(true);
-              setShowSavedPlacesDropdown(false);
-            } else if (panelExpanded && !showSavedPlacesDropdown) {
-              // إذا كان شريط البحث معروضاً، ابدأ بعرض الأماكن المحفوظة
-              setShowSavedPlacesDropdown(true);
-              fetchSavedPlaces();
-            }
-          }
-        }}
-        className={`bg-[#07111f]/95 backdrop-blur-2xl border-t border-white/10 shadow-[0_-24px_60px_rgba(1,8,18,0.7)] z-[60] rounded-t-[32px] pointer-events-auto absolute left-0 right-0 ${(panelExpanded || isLocationFocused) ? 'overflow-visible' : 'overflow-hidden'} flex flex-col before:absolute before:inset-x-0 before:top-0 before:h-24 before:bg-[radial-gradient(circle_at_top,rgba(91,221,166,0.14),transparent_65%)] before:pointer-events-none`}
-        style={{
-          bottom: 0,
-          top: isLocationFocused ? 0 : 'auto',
-          WebkitBackdropFilter: 'blur(20px)',
-          maxHeight: isLocationFocused ? '100dvh' : panelExpanded ? '72vh' : 'auto',
-          transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1), top 0.35s cubic-bezier(0.4,0,0.2,1)',
-        }}
+      {/* Floating geolocate button — above bottom sheet */}
+      <button
+        onClick={() => manualGeolocateMain()}
+        className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-white shadow-md hover:shadow-lg active:scale-95 transition-all border border-gray-100"
+        style={{ bottom: 'calc(35% + 16px)' }}
+        aria-label="تحديد موقعي"
       >
-        {/* خط توهج أعلى البانل */}
-        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#5bdda6]/35 to-transparent blur-sm" />
+        <Navigation className="w-4.5 h-4.5 text-[#0A2F6E]" />
+      </button>
 
-        {/* Drag Handle — قابل للسحب */}
-        <div
-          className="flex flex-col items-center justify-center pt-3 pb-3 px-4 cursor-grab active:cursor-grabbing touch-none select-none relative z-10"
-          onClick={() => setPanelExpanded(prev => !prev)}
-        >
-          <motion.div
-            className="rounded-full"
-            animate={{
-              width: 48,
-              height: 4,
-              backgroundColor: panelExpanded ? '#5bdda6' : '#475569',
-            }}
-            transition={{ duration: 0.3 }}
-          />
+      {/* ═══ Bottom Sheet — Clean white design ═══ */}
+      <RiderBottomSheet
+        isFullScreen={isLocationFocused}
+        className={isLocationFocused ? '' : '!max-h-[40dvh]'}
+      >
+        {/* ═══ Content ═══ */}
+        <div className="flex flex-col flex-1 min-h-0">
 
+          {/* Headline + Search */}
+          <div className="px-4 pb-3">
+            {/* Headline — only when not searching */}
+            {!isLocationFocused && (
+              <h2 className="text-lg font-bold text-[#101828] mb-3">
+                {isPickup ? 'من وين تنطلق؟' : isStopMode ? 'وين المحطة؟' : 'وين رايح اليوم؟'}
+              </h2>
+            )}
 
-        </div>
-
-        {/* ═══ الحالة المصغّرة — ملخص العنوان + زر التأكيد ═══ */}
-        {!panelExpanded && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="px-4 flex flex-col gap-3"
-            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)' }}
-          >
-            <div
-              className="rounded-[24px] border border-white/10 bg-white/[0.04] p-3 shadow-[0_12px_28px_rgba(0,0,0,0.22)] cursor-pointer active:scale-[0.99] transition-transform"
-              onClick={() => setPanelExpanded(true)}
-            >
-              <div className="flex items-center gap-2 mb-2.5">
-                {flowSteps.map((step, index) => (
-                  <React.Fragment key={step.key}>
-                    <div className={`flex-1 rounded-2xl border px-3 py-2 ${step.active ? step.tone === 'emerald' ? 'border-emerald-400/35 bg-emerald-500/8' : 'border-sky-400/35 bg-sky-500/8' : 'border-white/8 bg-transparent'}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0 text-right">
-                          <p className="text-[10px] text-slate-500 font-bold tracking-[0.16em] uppercase mb-1">{step.title}</p>
-                          <p className="text-[12px] font-semibold text-slate-200 truncate">{step.caption}</p>
-                        </div>
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${step.tone === 'emerald' ? 'bg-emerald-500/18 text-emerald-300' : 'bg-sky-500/18 text-sky-300'}`}>
-                          {step.tone === 'emerald' ? <Rocket className="w-4 h-4" /> : <MapPin className="w-4 h-4" />}
-                        </div>
-                      </div>
-                    </div>
-                    {index === 0 && <ArrowRight className="w-4 h-4 text-slate-600 shrink-0 mt-3" />}
-                  </React.Fragment>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-black/10 px-3 py-2">
-                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${isPickup ? 'bg-emerald-500/16 text-emerald-300' : 'bg-sky-500/16 text-sky-300'}`}>
-                  {isPickup ? <Navigation className="w-4 h-4" /> : <MapPin className="w-4 h-4" />}
-                </div>
-                <div className="flex-1 min-w-0 text-right">
-                  <p className="text-[10px] font-bold tracking-[0.18em] text-slate-500 uppercase mb-1">
-                    {currentSelectionLabel}
-                  </p>
-                  <p className="text-sm font-semibold text-slate-100 truncate leading-snug">
-                    {currentSelectionAddress}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* زر التأكيد المصغّر */}
-            <motion.button
-              onClick={() => {
-                if (navigator.vibrate) navigator.vibrate(50);
-                handleConfirm();
-              }}
-              disabled={!centerAddress || isCheckingService || isConfirming}
-              whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.95 }}
-              className={`w-full py-4 rounded-[22px] font-bold text-[15px] flex items-center justify-center gap-2 transition-all duration-300 shadow-[0_14px_30px_rgba(0,0,0,0.22)] ${
-                selectionReady
-                  ? isPickup
-                    ? 'bg-gradient-to-r from-[#7cf0bd] via-[#5bdda6] to-[#27b481] text-[#003825]'
-                    : 'bg-gradient-to-r from-[#5fd0ff] via-[#38bdf8] to-[#0ea5e9] text-white'
-                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-              }`}
-            >
-              {isCheckingService || isConfirming ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
-                </>
-              ) : !centerAddress ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
-                  <span>جاري تحديد العنوان...</span>
-                </>
-              ) : (
-                <>
-                  <span>{confirmButtonLabel}</span>
-                  <Navigation className="w-4 h-4 -rotate-90" />
-                </>
-              )}
-            </motion.button>
-          </motion.div>
-        )}
-
-        {/* المحتوى القابل للتمرير — يظهر/يختفي حسب حالة التوسيع */}
-        <AnimatePresence>
-          {panelExpanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{ overflow: 'visible' }}
-            >
-              <div className="px-4 pb-[132px] flex flex-col gap-3 overflow-visible" style={{ maxHeight: 'calc(72vh - 80px)' }}>
-
-
-          {/* Service area warning */}
-          {localServiceAreaStatus && !localServiceAreaStatus.in_service && <div className="flex items-center gap-3 p-3 mb-1 rounded-2xl bg-red-500/10 border border-red-500/20">
-              <div className="w-8 h-8 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-4 h-4 text-red-400" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-red-400 text-sm mb-1">
-                  ⚠️ خارج منطقة الخدمة
-                </p>
-                {localServiceAreaStatus.nearest_region && <p className="text-slate-400 text-xs">
-                    أقرب منطقة: {localServiceAreaStatus.nearest_region.name_ar}{" "}
-                    ({localServiceAreaStatus.nearest_region.distance_km} كم)
-                  </p>}
-              </div>
-            </div>}
-
-          {/* حقل البحث — ضمن بطاقة رحلة أوضح */}
-          <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-3 shadow-[0_12px_30px_rgba(0,0,0,0.2)]">
-
-
-            <div className="relative pointer-events-auto overflow-visible z-50">
+            {/* Search input */}
+            <div className="relative">
               <DynamicSearchHeader
                 query={locationSearchQuery}
                 onQueryChange={(v) => {
@@ -2201,7 +1988,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 }}
                 isSearching={isSearching}
                 isOffline={searchOffline}
-                placeholder={isPickup ? 'اختر موقع الانطلاق ....' : isStopMode ? 'اختر موقع المحطة ....' : 'اختر جهة الوصول ....'}
+                placeholder={isPickup ? 'ابحث عن موقع الانطلاق...' : isStopMode ? 'ابحث عن المحطة...' : 'ابحث عن الوجهة...'}
                 onFocus={() => {
                   setIsLocationFocused(true);
                   setPanelExpanded(true);
@@ -2232,6 +2019,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 voiceTranscript={voiceTranscript}
               />
 
+              {/* Search results */}
               <DynamicSearchResults
                 query={locationSearchQuery}
                 results={predictions}
@@ -2367,130 +2155,95 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             </div>
           </div>
 
-
-
-          {/* ═══ الأماكن المحفوظة — سلايدر أفقي ═══ */}
-          <AnimatePresence>
-            {showSavedPlacesDropdown && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="rounded-[20px] border border-white/10 bg-white/[0.025] overflow-hidden"
-              >
-                {loadingSavedPlaces ? (
-                  <div className="flex items-center justify-center py-4 gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-[#5bdda6]" />
-                    <span className="text-xs text-slate-400">جاري التحميل...</span>
-                  </div>
-                ) : supabaseSavedPlaces.length === 0 ? (
-                  <div className="flex items-center justify-center py-4 gap-2">
-                    <Bookmark className="w-4 h-4 text-[#5bdda6]/30" />
-                    <span className="text-xs text-slate-500">لا توجد أماكن محفوظة</span>
-                  </div>
-                ) : (
-                  <div
-                    className="flex gap-2.5 overflow-x-auto px-4 py-3 scrollbar-none"
-                    style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}
+          {/* Saved places quick strip — when not searching */}
+          {!isLocationFocused && (
+            <div className="px-4 pb-3">
+              <div className="flex gap-2 overflow-x-auto scrollbar-none" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+                {/* Quick saved place buttons */}
+                <button
+                  onClick={() => {
+                    fetchSavedPlaces();
+                    setShowSavedPlacesDropdown(!showSavedPlacesDropdown);
+                  }}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors text-xs font-semibold text-[#667085]"
+                >
+                  <Bookmark className="w-3.5 h-3.5" />
+                  <span>المحفوظة</span>
+                </button>
+                {supabaseSavedPlaces.slice(0, 3).map((place) => (
+                  <button
+                    key={place.id}
+                    onClick={() => {
+                      const location = { lat: place.lat, lng: place.lng, address: place.address || place.name };
+                      applySelectedLocation(location);
+                    }}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors text-xs font-semibold text-[#101828]"
                   >
-                    {supabaseSavedPlaces.map((place) => {
-                      const iconMap: Record<string, string> = {
-                        '🏠': '🏠', '💼': '💼', '⭐': '⭐', '❤️': '❤️',
-                        '🎓': '🎓', '💪': '💪', '🍽️': '🍽️', '🏥': '🏥',
-                        '🛍️': '🛍️', '🏢': '🏢', '📍': '📍',
-                        home: '🏠', work: '💼', cafe: '☕', gym: '🏋️',
-                        diwaniya: '🏛️', carwash: '🚗', other: '📍',
-                        favorite: '⭐', loved: '❤️', school: '🎓',
-                        restaurant: '🍽️', hospital: '🏥', shopping: '🛍️', office: '🏢',
-                      };
-                      const displayIcon = iconMap[place.icon] || iconMap[place.label] || '📍';
-                      return (
-                        <motion.button
-                          key={place.id}
-                          whileTap={{ scale: 0.93 }}
-                          onClick={() => {
-                            const location = { lat: place.lat, lng: place.lng, address: place.address || place.name };
-                            if (applySelectedLocation(location)) {
-                              setShowSavedPlacesDropdown(false);
-                            }
-                          }}
-                          className="shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-[#151f30] border border-slate-700/50 hover:border-[#5bdda6]/30 hover:bg-[#5bdda6]/5 active:bg-[#5bdda6]/15 transition-all"
-                        >
-                          <span className="text-lg leading-none">{displayIcon}</span>
-                          <div className="text-right min-w-0 max-w-[120px]">
-                            <p className="text-[13px] font-bold text-slate-200 truncate leading-tight">{place.name}</p>
-                          </div>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* زر التأكيد + زر الأماكن المحفوظة */}
-          {/* زر التأكيد + زر الأماكن المحفوظة */}
-          <div className="absolute bottom-0 left-0 right-0 flex z-[100] gap-2 p-3 bg-[linear-gradient(180deg,rgba(7,17,31,0),rgba(7,17,31,0.94)_36%,rgba(7,17,31,0.99)_100%)]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 24px), 24px)' }}>
-            {/* زر الأماكن المحفوظة */}
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                const willOpen = !showSavedPlacesDropdown;
-                setShowSavedPlacesDropdown(willOpen);
-                setIsLocationFocused(false);
-                if (willOpen) fetchSavedPlaces();
-              }}
-              className="w-[72px] shrink-0 flex flex-col items-center justify-center gap-1 bg-[#0f2922] border border-[#34d399]/20 transition-all hover:bg-[#5bdda6]/10 h-[72px] rounded-[18px]"
-              title="الأماكن المحفوظة"
-              aria-label="عرض الأماكن المحفوظة"
-            >
-              <Bookmark className={`w-6 h-6 transition-colors ${showSavedPlacesDropdown ? 'text-[#5bdda6] fill-[#5bdda6]/30' : 'text-[#5bdda6]/70'}`} />
-              <span className="text-[10px] font-bold text-[#5bdda6]/75">المحفوظة</span>
-            </motion.button>
-
-            {/* زر التأكيد */}
-            <motion.button
-              onClick={() => {
-                if (navigator.vibrate) navigator.vibrate(50);
-                handleConfirm();
-              }}
-              disabled={!centerAddress || isCheckingService || isConfirming}
-              whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.98 }}
-              style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-              className={`flex-auto h-[72px] rounded-[18px] border flex items-center justify-center gap-2 text-lg font-black transition-all duration-300 touch-manipulation shadow-[0_12px_28px_rgba(0,0,0,0.22)] ${
-                selectionReady
-                  ? isPickup
-                    ? 'bg-gradient-to-r from-[#7cf0bd] via-[#5bdda6] to-[#27b481] text-[#064e3b] border-emerald-400/30 hover:brightness-105 active:brightness-95'
-                    : 'bg-gradient-to-r from-[#5fd0ff] via-[#38bdf8] to-[#0ea5e9] text-white border-sky-400/30 hover:brightness-105 active:brightness-95'
-                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-              }`}
-            >
-              {isCheckingService || isConfirming ? (
-                <>
-                  <Loader2 className="w-6 h-6 animate-spin ml-1" />
-                  <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
-                </>
-              ) : !centerAddress ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin ml-1 text-slate-500" />
-                  <span>جاري تحديد العنوان...</span>
-                </>
-              ) : (
-                <>
-                  <Navigation className="w-6 h-6 ml-1" />
-                  <span className="tracking-tight">{confirmButtonLabel}</span>
-                </>
-              )}
-            </motion.button>
-          </div>
-
-        </div>
-            </motion.div>
+                    <span>{place.icon === 'home' ? '🏠' : place.icon === 'work' ? '💼' : '📍'}</span>
+                    <span className="max-w-[80px] truncate">{place.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
-        </AnimatePresence>
-      </motion.div>
+
+          {/* Service area warning */}
+          {localServiceAreaStatus && !localServiceAreaStatus.in_service && (
+            <div className="mx-4 mb-3 flex items-center gap-3 p-3 rounded-2xl bg-[#F04438]/5 border border-[#F04438]/15">
+              <div className="w-8 h-8 rounded-xl bg-[#F04438]/10 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4 text-[#F04438]" />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-[#F04438] text-sm">خارج منطقة الخدمة</p>
+                {localServiceAreaStatus.nearest_region && (
+                  <p className="text-[#667085] text-xs mt-0.5">
+                    أقرب منطقة: {localServiceAreaStatus.nearest_region.name_ar} ({localServiceAreaStatus.nearest_region.distance_km} كم)
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* CTA Button — always at bottom */}
+        <div
+          className="shrink-0 px-4 pt-2 bg-white border-t border-gray-100"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)' }}
+        >
+          <motion.button
+            onClick={() => {
+              if (navigator.vibrate) navigator.vibrate(50);
+              handleConfirm();
+            }}
+            disabled={!centerAddress || isCheckingService || isConfirming}
+            whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.97 }}
+            className={`w-full h-[52px] rounded-2xl font-bold text-[15px] flex items-center justify-center gap-2 transition-all duration-200 shadow-lg ${
+              selectionReady
+                ? isPickup
+                  ? 'bg-[#12B76A] hover:bg-[#0E9F5C] text-white shadow-[0_8px_20px_rgba(18,183,106,0.25)]'
+                  : 'bg-[#0A2F6E] hover:bg-[#083059] text-white shadow-[0_8px_20px_rgba(10,47,110,0.25)]'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+            }`}
+          >
+            {isCheckingService || isConfirming ? (
+              <>
+                <Loader2 className="w-4.5 h-4.5 animate-spin" />
+                <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
+              </>
+            ) : !centerAddress ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>جاري تحديد العنوان...</span>
+              </>
+            ) : (
+              <>
+                <Navigation className="w-4.5 h-4.5" />
+                <span>{confirmButtonLabel}</span>
+              </>
+            )}
+          </motion.button>
+        </div>
+      </RiderBottomSheet>
 
       {/* نافذة حفظ الموقع */}
       <SaveLocationModal
@@ -2504,7 +2257,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             if (!authUser) return;
             const addr = buildDescriptiveAddress(centerAddress);
             if (isFav) {
-              // حذف من المفضلة
               const { favorites } = useFavoritesStore.getState();
               const fav = favorites.find(f => Math.abs(f.lat - centerLat) < 0.001 && Math.abs(f.lng - centerLng) < 0.001);
                 if (fav) { removeFavorite(fav.id); await (supabase.from('saved_places' as any).delete().eq('id', fav.id as any)); }

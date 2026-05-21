@@ -204,6 +204,7 @@ const AdminLayout = ({
         { icon: Zap, label: "تسعير الذروة", href: "/admin/surge-pricing" },
         { icon: Layers, label: "شرائح العمولة", href: "/admin/commission-tiers" },
         { icon: CreditCard, label: "خطط الاشتراك", href: "/admin/subscription-plans" },
+        { icon: Route, label: "مقارنة محركات التوجيه", href: "/admin/routing-comparison" },
       ],
     },
     {

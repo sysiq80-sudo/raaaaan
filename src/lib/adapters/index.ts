@@ -57,6 +57,7 @@ export { HaversineRoutingAdapter } from './HaversineRoutingAdapter';
 // Export geocoding adapters
 export { NominatimGeocodingAdapter } from './NominatimGeocodingAdapter';
 export { PhotonGeocodingAdapter } from './PhotonGeocodingAdapter';
+export { GooglePlacesGeocodingAdapter } from './GooglePlacesGeocodingAdapter';
 
 // Export factories
 export {

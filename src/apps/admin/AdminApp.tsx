@@ -64,6 +64,7 @@ const AdminDevInspector = lazy(() => import("@/pages/admin/AdminDevInspector"));
 const AdminNotifications = lazy(() => import("@/pages/admin/AdminNotifications"));
 const AdminNotificationGroups = lazy(() => import("@/pages/admin/AdminNotificationGroups"));
 const AdminControllerUsers = lazy(() => import("@/pages/admin/AdminControllerUsers"));
+const AdminRoutingComparison = lazy(() => import("@/pages/admin/AdminRoutingComparison"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -195,6 +196,7 @@ const AdminRoutes = () => {
       <Route path="/admin/notifications" element={<AR><AdminNotifications /></AR>} />
       <Route path="/admin/notification-groups" element={<AR><AdminNotificationGroups /></AR>} />
       <Route path="/admin/controller-users" element={<AR><AdminControllerUsers /></AR>} />
+      <Route path="/admin/routing-comparison" element={<AR><AdminRoutingComparison /></AR>} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
   );

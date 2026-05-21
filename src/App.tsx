@@ -113,6 +113,7 @@ const AdminNotifications = lazy(() => import("./pages/admin/AdminNotifications")
 const AdminNotificationGroups = lazy(() => import("./pages/admin/AdminNotificationGroups"));
 const AdminDevInspector = lazy(() => import("./pages/admin/AdminDevInspector"));
 const AdminReferralCodes = lazy(() => import("./pages/admin/AdminReferralCodes"));
+const AdminRoutingComparison = lazy(() => import("./pages/admin/AdminRoutingComparison"));
 const AdminFraudAlerts = lazy(() => import("./pages/admin/AdminFraudAlerts"));
 const AdminCostControls = lazy(() => import("./pages/admin/AdminCostControls"));
 const AdminDevelopmentTasks = lazy(() => import("./pages/admin/AdminDevelopmentTasks"));
@@ -1173,6 +1174,16 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminWithdrawals />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/routing-comparison"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminRoutingComparison />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }

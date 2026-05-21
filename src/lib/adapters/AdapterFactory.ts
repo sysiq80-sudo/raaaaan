@@ -21,6 +21,7 @@ import { OSRMRoutingAdapter } from './OSRMRoutingAdapter';
 import { HaversineRoutingAdapter } from './HaversineRoutingAdapter';
 import { NominatimGeocodingAdapter } from './NominatimGeocodingAdapter';
 import { PhotonGeocodingAdapter } from './PhotonGeocodingAdapter';
+import { GooglePlacesGeocodingAdapter } from './GooglePlacesGeocodingAdapter';
 
 // ============================================================
 // ADAPTER FACTORY — MAP
@@ -157,8 +158,8 @@ export class GeocodingAdapterFactory {
         adapter = new PhotonGeocodingAdapter();
         break;
       case 'google':
-        // TODO: Implement GoogleGeocodingAdapter
-        throw new Error('Google Geocoding adapter not yet implemented');
+        adapter = new GooglePlacesGeocodingAdapter();
+        break;
       default:
         throw new Error(`Unknown geocoding provider: ${provider}`);
     }

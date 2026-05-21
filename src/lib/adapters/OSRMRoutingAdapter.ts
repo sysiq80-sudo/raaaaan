@@ -50,7 +50,7 @@ export class OSRMRoutingAdapter implements IRoutingAdapter {
       url.searchParams.append('steps', 'true');
       url.searchParams.append('geometries', 'geojson');
       url.searchParams.append('annotations', 'distance,duration');
-      url.searchParams.append('language', 'ar');
+      // ملاحظة: OSRM العام لا يدعم language — لا نضيفها
 
       if (FEATURE_FLAGS.DEBUG_ADAPTERS) {
         console.log('📍 OSRM Request:', url.toString());
