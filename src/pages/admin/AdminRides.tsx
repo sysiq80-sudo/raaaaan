@@ -40,6 +40,33 @@ import type { Database } from "@/integrations/supabase/types";
 
 type Ride = Database["public"]["Tables"]["rides"]["Row"];
 
+type QueryResult<T> = {
+  data: T[] | null;
+  error: { message?: string } | null;
+  count?: number | null;
+};
+
+type QueryBuilder<T> = PromiseLike<QueryResult<T>> & {
+  in: (column: string, values: string[]) => Promise<QueryResult<T>>;
+  eq: (column: string, value: string | number | boolean | null) => QueryBuilder<T>;
+  not: (column: string, operator: string, value: unknown) => Promise<QueryResult<T>>;
+  order: (column: string, options?: { ascending?: boolean }) => {
+    range: (from: number, to: number) => Promise<QueryResult<T>>;
+  };
+};
+
+type RideRating = { rating: number; comment: string | null };
+
+const getRidesTable = () => supabase.from("rides") as unknown as {
+  select: (columns: string, options?: { count?: "exact"; head?: boolean }) => QueryBuilder<Ride>;
+};
+
+const getRideRatingsTable = () => supabase.from("ride_ratings") as unknown as {
+  select: (columns: string) => {
+    eq: (column: string, value: string) => Promise<QueryResult<RideRating>>;
+  };
+};
+
 const AdminRides = () => {
   const { toast } = useToast();
   const { loading: authLoading, isAdmin } = useAdminAuth();
@@ -75,11 +102,11 @@ const AdminRides = () => {
 
     // جلب العدد الكلي والإحصائيات بالتوازي
     const [countResult, activeCountResult, completedCountResult, earningsResult, ridesResult] = await Promise.all([
-      supabase.from("rides").select("*", { count: "exact", head: true }),
-      supabase.from("rides").select("*", { count: "exact", head: true }).in("status", ["pending", "accepted", "arrived", "in_progress"]),
-      supabase.from("rides").select("*", { count: "exact", head: true }).eq("status", "completed"),
-      supabase.from("rides").select("final_fare").eq("status", "completed").not("final_fare", "is", null),
-      supabase.from("rides").select("*").order("created_at", { ascending: false }).range(from, to),
+      getRidesTable().select("*", { count: "exact", head: true }),
+      getRidesTable().select("*", { count: "exact", head: true }).in("status", ["pending", "accepted", "arrived", "in_progress"]),
+      getRidesTable().select("*", { count: "exact", head: true }).eq("status", "completed"),
+      getRidesTable().select("final_fare").eq("status", "completed").not("final_fare", "is", null),
+      getRidesTable().select("*").order("created_at", { ascending: false }).range(from, to),
     ]);
 
     if (countResult.count !== null) setTotalCount(countResult.count);
@@ -140,11 +167,10 @@ const AdminRides = () => {
     setRideRatings([]);
     setRatingsLoading(true);
     try {
-      const { data } = await supabase
-        .from("ride_ratings")
+      const { data } = await getRideRatingsTable()
         .select("rating, comment")
-        .eq("ride_id" as any, ride.id);
-      setRideRatings((data as any) || []);
+        .eq("ride_id", ride.id);
+      setRideRatings(data || []);
     } catch { /* ignore */ }
     setRatingsLoading(false);
   };

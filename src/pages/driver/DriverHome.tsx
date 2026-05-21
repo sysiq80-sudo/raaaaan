@@ -28,7 +28,6 @@ import { RecentRides } from "@/components/driver/RecentRides";
 import { NotificationSetup } from "@/components/driver/NotificationSetup";
 import { NotificationsBell } from "@/components/driver/NotificationsBell";
 import DutyToggle from "@/components/driver/DutyToggle";
-import { NewRideAlert } from "@/components/driver/NewRideAlert";
 import { FloatingTripBubble } from "@/components/driver/FloatingTripBubble";
 import { RewardsSidePanel } from "@/components/driver/RewardsSidePanel";
 import { ExternalNavigationModal } from "@/components/driver/ExternalNavigationModal";
@@ -106,7 +105,6 @@ const DriverHome = () => {
   const [showNavigationModal, setShowNavigationModal] = useState(false);
   const [navigationDestination, setNavigationDestination] = useState<{ lat: number; lng: number } | null>(null);
   const [notificationCount, setNotificationCount] = useState(0);
-  const [activeRideData, setActiveRideData] = useState<any>(null);
   const [riderName, setRiderName] = useState<string>("الراكب");
   const [riderRating, setRiderRating] = useState<number | undefined>(undefined);
   const [riderPhone, setRiderPhone] = useState<string | null>(null);
@@ -118,8 +116,6 @@ const DriverHome = () => {
   // Phase 7: تتبع معرّف الرحلة النشطة لـ useRealtimeRideEvents
   const [activeRideId, setActiveRideId] = useState<string | null>(null);
   const [hasRideRequest, setHasRideRequest] = useState(false);
-  const [showNewRideAlert, setShowNewRideAlert] = useState(false);
-  const [newRideData, setNewRideData] = useState<any>(null);
   const [rideAcceptedTrigger, setRideAcceptedTrigger] = useState(0);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancellingRide, setIsCancellingRide] = useState(false);
@@ -788,20 +784,6 @@ const DriverHome = () => {
     }
 
     if (data) {
-      // Debug: Log all driver data
-      console.log("📋 Driver Data Debug:", {
-        id: data.id,
-        full_name: data.full_name,
-        phone: data.phone,
-        status: data.status,
-        rating: data.rating,
-        vehicle_type: data.vehicle_type,
-        profile_image_url: data.profile_image_url,
-        is_online: data.is_online,
-        max_pickup_radius: data.max_pickup_radius,
-        admin_activated: data.admin_activated,
-      });
-
       setIsDriverRegistered(true);
       setDriverId(data.id);
       setVehicleType(data.vehicle_type);
@@ -812,8 +794,6 @@ const DriverHome = () => {
       setDriverProfileImage(data.profile_image_url ?? null);
       setAdminActivated(data.admin_activated !== false);
       setMaxPickupRadius(data.max_pickup_radius || 10);
-
-      console.log("🎯 Max Pickup Radius set to:", data.max_pickup_radius || 10);
 
       // Check if profile is complete
       const profileComplete = !!(
@@ -1330,16 +1310,6 @@ const DriverHome = () => {
             />
           </>
         )}
-
-        {/* New Ride Alert Modal */}
-        <NewRideAlert
-          isVisible={showNewRideAlert}
-          onClose={() => setShowNewRideAlert(false)}
-          onAccept={() => {
-            // Logic for accepting ride will be handled by RideRequestCard
-          }}
-          rideData={newRideData}
-        />
 
         {/* تأكيد إلغاء الرحلة */}
         <AlertDialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>

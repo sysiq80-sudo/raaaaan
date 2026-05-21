@@ -13,6 +13,7 @@ import { saveLastKnownLocation, getLastKnownLocation } from "@/services/lastKnow
 import { useMapContext } from "@/contexts/MapContext";
 import type { IGeocodingAdapter } from "@/lib/adapters";
 import { NominatimGeocodingAdapter } from "@/lib/adapters/NominatimGeocodingAdapter";
+import { logger } from "@/lib/logger";
 
 interface LocationType {
   lat: number;
@@ -20,7 +21,7 @@ interface LocationType {
   address: string;
 }
 
-interface ServiceAreaCheck {
+export interface ServiceAreaCheck {
   in_service: boolean;
   region: {
     id: string;
@@ -32,6 +33,7 @@ interface ServiceAreaCheck {
     name_ar: string;
     distance_km: number;
   } | null;
+  nearest_city?: string;
 }
 
 type ActiveMapProvider = "google" | "osm" | "none";
@@ -83,9 +85,11 @@ export const useLocationPicker = (
         if (!mounted) return;
 
         geocodingAdaptersRef.current = [nominatim];
-        console.log("✅ Geocoding adapter ready: nominatim");
+        logger.debug("useLocationPicker", "Geocoding adapter ready", {
+          provider: "nominatim",
+        });
       } catch (error) {
-        console.warn("⚠️ Adaptive geocoding adapter unavailable:", error);
+        logger.warn("useLocationPicker", "Adaptive geocoding adapter unavailable", error);
       }
     })();
 
@@ -110,7 +114,7 @@ export const useLocationPicker = (
     lastHandledReloadKeyRef.current = reloadKey;
 
     if (map.current) {
-      console.warn("🔄 Forcing map reinitialization");
+      logger.warn("useLocationPicker", "Forcing map reinitialization");
       map.current = null;
     }
 
@@ -155,7 +159,7 @@ export const useLocationPicker = (
       setServiceAreaStatus(data);
       return data;
     } catch (error) {
-      console.error("Service area check error:", error);
+      logger.error("useLocationPicker", "Service area check error", error);
       return null;
     } finally {
       setIsCheckingService(false);
@@ -188,7 +192,7 @@ export const useLocationPicker = (
       // ✨ تخطي إذا الإحداثيات لم تتغير (أقل من 5 متر)
       const last = lastGeocodedLatLngRef.current;
       if (last && haversineDistance(lat, lng, last.lat, last.lng) < 5) {
-        console.log("⏭️ Skipping reverseGeocode - same location (<5m)");
+        logger.debug("useLocationPicker", "Skipping reverseGeocode for same location");
         return;
       }
 
@@ -217,25 +221,33 @@ export const useLocationPicker = (
             // إذا Google متوفر نتابع لتحسين عنوان POI، لكن نحتفظ بالعنوان الحالي كـ fallback
             break;
           } catch (adapterError) {
-            console.warn("Adaptive reverse geocode failed, trying next provider:", adapterError);
+            logger.warn("useLocationPicker", "Adaptive reverse geocode failed, trying next provider", adapterError);
           }
         }
 
         // 2) Google-based enrichment (POI first) إذا متوفر
         if (!window.google?.maps) {
-          const fallbackAddr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-          centerAddressRef.current = fallbackAddr;
-          setCenterAddress(fallbackAddr);
-          setCenterLat(lat);
-          setCenterLng(lng);
-          lastGeocodedLatLngRef.current = { lat, lng };
-          checkServiceArea(lat, lng);
+          // إذا لم يكن هناك عنوان من الـ adapter، نستخدم الإحداثيات
+          if (!centerAddressRef.current || centerAddressRef.current === "جاري تحديد العنوان...") {
+            const fallbackAddr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            centerAddressRef.current = fallbackAddr;
+            setCenterAddress(fallbackAddr);
+            setCenterLat(lat);
+            setCenterLng(lng);
+            lastGeocodedLatLngRef.current = { lat, lng };
+            checkServiceArea(lat, lng);
+          }
           return;
         }
 
+        // ═══════════════════ Google Enrichment (optional) ═══════════════════
+        // إذا نجح Nominatim، نحاول تحسين العنوان بـ Google POI
+        // لكن إذا فشل Google (بسبب عدم تفعيل الفوترة)، نحتفظ بعنوان Nominatim
+        try {
+
         const geocoder = await getGeocoder();
         if (!geocoder) {
-          console.warn("Google geocoder not available, keeping adapter/fallback result");
+          logger.warn("useLocationPicker", "Google geocoder unavailable; keeping adapter/fallback result");
           return;
         }
 
@@ -340,7 +352,7 @@ export const useLocationPicker = (
           }
         }
 
-        console.log("📍 All results scanned:", {
+        logger.debug("useLocationPicker", "Geocoding results scanned", {
           bestStreet,
           bestNeighborhood,
           bestCity,
@@ -357,10 +369,12 @@ export const useLocationPicker = (
         // POI من نتائج Geocoding
         if (!poiName && geoPOIName) {
           poiName = geoPOIName;
-          console.log("🔍 POI from geocoding:", poiName);
+          logger.debug("useLocationPicker", "POI from geocoding", { poiName });
         }
 
-        console.log("🏛️ Best POI:", poiName || "(none)");
+        logger.debug("useLocationPicker", "Best POI selected", {
+          poiName: poiName || null,
+        });
 
         // ═══════════════════ Step 4: بناء العنوان ═══════════════════
         let finalAddress = "";
@@ -373,14 +387,14 @@ export const useLocationPicker = (
           } else {
             finalAddress = poiName;
           }
-          console.log("✅ POI address:", finalAddress);
+          logger.debug("useLocationPicker", "POI address selected", { finalAddress });
 
         } else if (bestStreet) {
           // ✅ الأولوية 2: شارع + حي/مدينة
           const parts = [bestStreet, bestNeighborhood, bestCity].filter(Boolean);
           const unique = parts.filter((p, i) => parts.indexOf(p) === i);
           finalAddress = unique.slice(0, 3).join("، ");
-          console.log("✅ Street address:", finalAddress);
+          logger.debug("useLocationPicker", "Street address selected", { finalAddress });
 
         } else if (bestNeighborhood) {
           // ✅ الأولوية 3: حي + مدينة
@@ -388,7 +402,7 @@ export const useLocationPicker = (
             bestCity && bestCity !== bestNeighborhood
               ? `${bestNeighborhood}، ${bestCity}`
               : bestNeighborhood;
-          console.log("✅ Neighborhood address:", finalAddress);
+          logger.debug("useLocationPicker", "Neighborhood address selected", { finalAddress });
 
         } else if (geoResults[0]?.formatted_address) {
           // ✅ الأولوية 4: formatted_address — تنظيف خفيف فقط (Plus Code + "العراق")
@@ -408,11 +422,11 @@ export const useLocationPicker = (
             faParts.slice(0, 3).join("، ") ||
             bestCity ||
             `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-          console.log("✅ Formatted address:", finalAddress);
+          logger.debug("useLocationPicker", "Formatted address selected", { finalAddress });
 
         } else {
           finalAddress = bestCity || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-          console.log("✅ Fallback:", finalAddress);
+          logger.debug("useLocationPicker", "Fallback address selected", { finalAddress });
         }
 
         centerAddressRef.current = finalAddress;
@@ -421,19 +435,27 @@ export const useLocationPicker = (
         setCenterLng(lng);
         lastGeocodedLatLngRef.current = { lat, lng }; // ✨ تحديث آخر إحداثيات تم geocode لها
         checkServiceArea(lat, lng);
-      } catch (error: any) {
-        console.error("Reverse geocode error:", error);
 
-        if (error.message?.includes("REQUEST_DENIED")) {
-          console.error(
-            "⚠️ Geocoding API: REQUEST_DENIED - Check API Restrictions",
-          );
-          toast({
-            title: "تنبيه: Geocoding API",
-            description: "API Key غير مصرح له باستخدام Geocoding API",
-            variant: "destructive",
-          });
+        } catch (googleError: any) {
+          // Google enrichment failed — keep the adapter (Nominatim) result if we have one
+          if (googleError.message?.includes("REQUEST_DENIED")) {
+            logger.warn("useLocationPicker", "Google Geocoding request denied (billing?). Using Nominatim result.");
+          } else {
+            logger.warn("useLocationPicker", "Google enrichment failed, keeping adapter result", googleError);
+          }
+          // إذا Nominatim نجح سابقاً، العنوان محفوظ بالفعل — لا نحتاج تعديل
+          // إذا لم ينجح، نضع إحداثيات كـ fallback
+          if (!centerAddressRef.current || centerAddressRef.current === "جاري تحديد العنوان..." || centerAddressRef.current.length < 3) {
+            const fallbackAddr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            centerAddressRef.current = fallbackAddr;
+            setCenterAddress(fallbackAddr);
+            setCenterLat(lat);
+            setCenterLng(lng);
+          }
         }
+
+      } catch (error: any) {
+        logger.error("useLocationPicker", "Reverse geocode error", error);
 
         const fallbackAddr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
         centerAddressRef.current = fallbackAddr;
@@ -442,7 +464,7 @@ export const useLocationPicker = (
         setCenterLng(lng);
       }
     },
-    [checkServiceArea, toast],
+    [checkServiceArea],
   );
 
   const initOsmFallbackMap = useCallback(
@@ -506,10 +528,10 @@ export const useLocationPicker = (
         setMapError(null);
         setIsLoading(false);
 
-        console.log(`🗺️ OSM fallback initialized (${reason})`);
+        logger.debug("useLocationPicker", "OSM fallback initialized", { reason });
         reverseGeocode(initialCenter.lat, initialCenter.lng);
       } catch (error) {
-        console.error("❌ OSM fallback init failed:", error);
+        logger.error("useLocationPicker", "OSM fallback init failed", error);
         setMapError("تعذر تحميل Google Maps وOpenStreetMap. حاول مرة أخرى.");
         setIsLoading(false);
       }
@@ -527,21 +549,21 @@ export const useLocationPicker = (
     }
 
     if (!googleMapsApiKey) {
-      console.warn("No Google Maps API key available");
+      logger.warn("useLocationPicker", "No Google Maps API key available");
       initOsmFallbackMap("missing_google_api_key");
       return;
     }
 
     loadGoogleMaps(googleMapsApiKey).then(() => {
-      console.log("✅ Google Maps API loaded via centralized loader");
+      logger.debug("useLocationPicker", "Google Maps API loaded via centralized loader");
     }).catch((err) => {
-      console.error("❌ Failed to load Google Maps API:", err);
+      logger.error("useLocationPicker", "Failed to load Google Maps API", err);
       initOsmFallbackMap("google_script_load_failed");
     });
 
     // معالجة أخطاء المصادقة مثل RefererNotAllowedMapError
     window.gm_authFailure = () => {
-      console.error("❌ Google Maps authentication failure (RefererNotAllowed)");
+      logger.error("useLocationPicker", "Google Maps authentication failure");
       initOsmFallbackMap("google_auth_failure");
     };
 
@@ -554,7 +576,7 @@ export const useLocationPicker = (
   // ⚡ Instant load: always starts with ramadiCenter, then panTo userLocation when available
   useEffect(() => {
     if (!mapContainer.current) {
-      console.log("Map initialization waiting:", {
+      logger.debug("useLocationPicker", "Map initialization waiting", {
         hasContainer: !!mapContainer.current,
         hasApiKey: !!googleMapsApiKey,
       });
@@ -567,13 +589,13 @@ export const useLocationPicker = (
 
     // ✅ عند تغيير reloadKey: دمّر الخريطة القديمة دائماً لإجبار إعادة التهيئة
     if (map.current) {
-      console.log("🔄 reloadKey changed - destroying old map instance");
+      logger.debug("useLocationPicker", "reloadKey changed; destroying old map instance");
       map.current = null;
     }
 
     // Prevent duplicate initialization
     if (map.current) {
-      console.log("Map already initialized");
+      logger.debug("useLocationPicker", "Map already initialized");
       return;
     }
 
@@ -587,7 +609,7 @@ export const useLocationPicker = (
       // ⚡ Timeout بعد 5 ثوانٍ
       if (checkAttempts > maxAttempts) {
         clearInterval(checkGoogleMaps);
-        console.error("❌ Google Maps API failed to load after 5 seconds");
+        logger.error("useLocationPicker", "Google Maps API failed to load after timeout");
         initOsmFallbackMap("google_init_timeout");
         return;
       }
@@ -604,7 +626,7 @@ export const useLocationPicker = (
         if (map.current) return; // Already initialized
         if (!mapContainer.current) return;
 
-        console.log("Initializing Google Maps");
+        logger.debug("useLocationPicker", "Initializing Google Maps");
 
         // ✅ استخدام آخر موقع مخزن بدل الرمادي الافتراضي — يعرض الخريطة فوراً عند ضعف النت
         const cachedLocation = getLastKnownLocation();
@@ -613,7 +635,7 @@ export const useLocationPicker = (
           : ramadiCenter;
 
         try {
-          console.log("🗺️ Creating Google Maps instance...");
+          logger.debug("useLocationPicker", "Creating Google Maps instance");
 
           // 🌙 استخدام أنماط الخريطة الذكية (تتكيف مع Dark/Light تلقائياً)
           const mapStyle = getMapStyle();
@@ -635,20 +657,22 @@ export const useLocationPicker = (
             draggable: true, // ✨ تفعيل السحب
           });
 
-          console.log("✅ Map loaded successfully with adaptive theme styles");
+          logger.debug("useLocationPicker", "Map loaded with adaptive theme styles");
           setMapProvider("google");
           setIsLoading(false);
 
           // 🎨 مراقبة تغيير الثيم لتحديث نمط الخريطة تلقائياً
           if (map.current) {
             watchThemeChanges(map.current, (isDark) => {
-              console.log(`🎨 Map theme updated: ${isDark ? "dark" : "light"}`);
+              logger.debug("useLocationPicker", "Map theme updated", {
+                theme: isDark ? "dark" : "light",
+              });
             });
           }
 
           const center = map.current.getCenter();
           if (center) {
-            console.log("⚡ Initial reverseGeocode (one-time)");
+            logger.debug("useLocationPicker", "Initial reverseGeocode");
             reverseGeocode(center.lat(), center.lng());
           }
 
@@ -665,15 +689,13 @@ export const useLocationPicker = (
             isDraggingRef.current = false; // ✨ Ref sync
             // ✨ تخطي reverseGeocode إذا كان العنوان تم تعيينه يدوياً من البحث
             if (skipNextReverseGeocodeRef.current) {
-              console.log(
-                "⏭️ Skipping reverseGeocode after manual address set",
-              );
+              logger.debug("useLocationPicker", "Skipping reverseGeocode after manual address set");
               skipNextReverseGeocodeRef.current = false;
               return;
             }
             const center = map.current?.getCenter();
             if (center) {
-              console.log("🔄 Drag ended, reverse geocoding...");
+              logger.debug("useLocationPicker", "Drag ended; reverse geocoding");
               reverseGeocode(center.lat(), center.lng());
             }
           });
@@ -707,9 +729,7 @@ export const useLocationPicker = (
           map.current.addListener("idle", () => {
             // تخطي إذا كان العنوان تم تعيينه يدوياً
             if (skipNextReverseGeocodeRef.current) {
-              console.log(
-                "⏭️ Skipping reverseGeocode after manual address set",
-              );
+              logger.debug("useLocationPicker", "Skipping reverseGeocode after manual address set");
               skipNextReverseGeocodeRef.current = false;
               return;
             }
@@ -723,7 +743,7 @@ export const useLocationPicker = (
             ) {
               const center = map.current?.getCenter();
               if (center) {
-                console.log("🔄 Idle - getting missing address...");
+                logger.debug("useLocationPicker", "Idle; getting missing address");
                 reverseGeocode(center.lat(), center.lng());
               }
             }
@@ -745,7 +765,9 @@ export const useLocationPicker = (
                     });
 
                     if (place.displayName) {
-                      console.log("\u2705 Clicked POI:", place.displayName);
+                      logger.debug("useLocationPicker", "Clicked POI", {
+                        displayName: place.displayName,
+                      });
                       centerAddressRef.current = place.displayName;
                       setCenterAddress(place.displayName);
 
@@ -758,14 +780,14 @@ export const useLocationPicker = (
                       }
                     }
                   } catch (err) {
-                    console.warn("POI details error:", err);
+                    logger.warn("useLocationPicker", "POI details error", err);
                   }
                 }
               },
             );
           }
         } catch (error) {
-          console.error("❌ Map initialization error:", error);
+          logger.error("useLocationPicker", "Map initialization error", error);
           initOsmFallbackMap("google_map_init_exception");
           return;
         }
@@ -785,7 +807,7 @@ export const useLocationPicker = (
         window.google.maps.event.trigger(map.current, "resize");
         const center = map.current.getCenter();
         if (center) map.current.setCenter(center);
-        console.log("🔄 Map resize triggered after reloadKey change");
+        logger.debug("useLocationPicker", "Map resize triggered after reloadKey change");
       }
 
       if (mapProvider === "osm" && osmMapRef.current) {
@@ -837,7 +859,7 @@ export const useLocationPicker = (
       };
 
       updateOsmUserMarker().catch((e) => {
-        console.warn("OSM user marker update failed:", e);
+        logger.warn("useLocationPicker", "OSM user marker update failed", e);
       });
       return;
     }
@@ -852,7 +874,7 @@ export const useLocationPicker = (
       map.current.setZoom(16);
       // ✅ حفظ موقع المستخدم للاستخدام عند فقدان النت
       saveLastKnownLocation(userLocation.lat, userLocation.lng);
-      console.log("🎯 Map panned to user location:", userLocation.lat, userLocation.lng);
+      logger.debug("useLocationPicker", "Map panned to user location", userLocation);
     }
 
     // 🟢 النقطة الخضراء — google.maps.Marker مع SVG
@@ -910,7 +932,7 @@ export const useLocationPicker = (
 
   // ✨ دالة لتعيين العنوان يدوياً (من البحث) مع منع reverseGeocode التلقائي
   const setManualAddress = useCallback((address: string) => {
-    console.log("✅ Setting manual address:", address);
+    logger.debug("useLocationPicker", "Setting manual address", { address });
     centerAddressRef.current = address;
     setCenterAddress(address);
     skipNextReverseGeocodeRef.current = true;
@@ -918,7 +940,7 @@ export const useLocationPicker = (
     // إعادة الـ flag بعد 2 ثانية لتجنب منع reverseGeocode المستقبلي
     setTimeout(() => {
       skipNextReverseGeocodeRef.current = false;
-      console.log("🔄 Skip flag reset - reverseGeocode re-enabled");
+      logger.debug("useLocationPicker", "Skip flag reset; reverseGeocode re-enabled");
     }, 2000);
   }, []);
 

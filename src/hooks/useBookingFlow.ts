@@ -48,9 +48,16 @@ export const useBookingFlow = () => {
   // Helper function to fetch and draw route
   const fetchRouteAndDraw = useCallback(
     async (pickupLocation: LocationType, dropoffLocation: LocationType) => {
-      if (!bookingMap.current) {
-        logger.warn(LOG_CONTEXT, "Cannot fetch route - missing map");
-        return;
+      const hasMap = !!bookingMap.current;
+      console.error('🔴 [useBookingFlow] fetchRouteAndDraw CALLED', {
+        hasMap,
+        hasRoutingAdapter: !!routingAdapter,
+        hasGoogleApiKey: !!googleApiKey,
+        pickup: `${pickupLocation.lat.toFixed(4)},${pickupLocation.lng.toFixed(4)}`,
+        dropoff: `${dropoffLocation.lat.toFixed(4)},${dropoffLocation.lng.toFixed(4)}`,
+      });
+      if (!hasMap) {
+        logger.debug(LOG_CONTEXT, "No map instance — will compute distance without drawing");
       }
 
       const origin = { lat: pickupLocation.lat, lng: pickupLocation.lng };
@@ -66,6 +73,7 @@ export const useBookingFlow = () => {
           const durationMin = Math.ceil(routeResult.duration / 60);
           setRouteDistance(Math.round(distanceKm * 10) / 10);
           setRouteDuration(durationMin);
+          console.error('🔴 [useBookingFlow] ADAPTIVE ROUTE SUCCESS → routeDistance =', Math.round(distanceKm * 10) / 10);
           logger.debug(LOG_CONTEXT, "Adaptive route received", { distanceKm, durationMin });
 
           if (routeResult.path.length > 0 && bookingMap.current) {
@@ -84,7 +92,19 @@ export const useBookingFlow = () => {
 
         // ─── Fallback: Google Directions API ─────────────────────────────────
         if (!googleApiKey) {
-          logger.warn(LOG_CONTEXT, "Cannot fetch route - missing API key and no routing adapter");
+          logger.warn(LOG_CONTEXT, "No routing adapter and no Google API key — using Haversine fallback");
+          // Haversine distance calculation
+          const R = 6371;
+          const dLat = (destination.lat - origin.lat) * Math.PI / 180;
+          const dLng = (destination.lng - origin.lng) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(origin.lat * Math.PI / 180) * Math.cos(destination.lat * Math.PI / 180) *
+                    Math.sin(dLng/2) * Math.sin(dLng/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          const distanceKm = R * c * 1.35; // 1.35x factor for road vs straight-line
+          setRouteDistance(Math.round(distanceKm * 10) / 10);
+          setRouteDuration(Math.ceil(distanceKm * 2.5));
+          logger.debug(LOG_CONTEXT, "Haversine fallback route", { distanceKm: distanceKm.toFixed(1) });
           return;
         }
 
@@ -98,15 +118,15 @@ export const useBookingFlow = () => {
           setRouteDistance(Math.round(distanceKm * 10) / 10);
           setRouteDuration(durationMin);
 
-          drawPolyline(bookingMap.current, result.route, ROUTE_STYLES.main);
+          if (hasMap && bookingMap.current) {
+            drawPolyline(bookingMap.current, result.route, ROUTE_STYLES.main);
 
-          const bounds = new google.maps.LatLngBounds();
-          result.route.forEach((point) => {
-            bounds.extend(new google.maps.LatLng(point.lat, point.lng));
-          });
-          bounds.extend(new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng));
-          bounds.extend(new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng));
-          if (bookingMap.current) {
+            const bounds = new google.maps.LatLngBounds();
+            result.route.forEach((point) => {
+              bounds.extend(new google.maps.LatLng(point.lat, point.lng));
+            });
+            bounds.extend(new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng));
+            bounds.extend(new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng));
             bookingMap.current.fitBounds(bounds, 100);
           }
         } else {
@@ -128,6 +148,7 @@ export const useBookingFlow = () => {
           });
         }
       } catch (error) {
+        console.error('🔴 [useBookingFlow] fetchRouteAndDraw CATCH ERROR:', error);
         logger.error(LOG_CONTEXT, "Error fetching route", error);
         showErrorToast(toast, "خطأ في الاتجاهات", "فشل في جلب المسار - تحقق من الإنترنت");
       }
@@ -138,7 +159,17 @@ export const useBookingFlow = () => {
   // Initialize booking map
   const initializeBookingMap = useCallback(
     (pickupLocation: LocationType, dropoffLocation: LocationType) => {
-      if (!bookingMapContainer.current || !googleApiKey) return;
+      // Always compute route distance (even if map container isn't mounted yet)
+      // This ensures fareBreakdown gets populated and the booking button works
+      if (!bookingMapContainer.current || !googleApiKey) {
+        console.error('🔴 [useBookingFlow] initializeBookingMap: container or apiKey missing, computing distance only', {
+          hasContainer: !!bookingMapContainer.current,
+          hasApiKey: !!googleApiKey,
+        });
+        logger.warn(LOG_CONTEXT, "Map container or API key not ready — computing distance only");
+        fetchRouteAndDraw(pickupLocation, dropoffLocation);
+        return;
+      }
 
       // Prevent duplicate initialization
       if (bookingMap.current) {

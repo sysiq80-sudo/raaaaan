@@ -37,6 +37,30 @@ import {
 // Local storage keys for notification preferences
 const NOTIFICATION_PREFS_KEY = 'driver_notification_prefs';
 
+type DriverSettingsRecord = {
+  email?: string | null;
+  max_pickup_radius?: number | null;
+  full_name?: string | null;
+  phone?: string | null;
+  vehicle_model?: string | null;
+  vehicle_color?: string | null;
+  vehicle_plate?: string | null;
+  auto_accept?: boolean | null;
+};
+
+type DriversTable = {
+  select: (columns: string) => {
+    eq: (column: string, value: string) => {
+      maybeSingle: () => Promise<{ data: DriverSettingsRecord | null; error: unknown }>;
+    };
+  };
+  update: (values: Record<string, unknown>) => {
+    eq: (column: string, value: string) => Promise<{ error: unknown }>;
+  };
+};
+
+const getDriversTable = () => supabase.from("drivers") as unknown as DriversTable;
+
 interface NotificationPreferences {
   pushEnabled: boolean;
   soundEnabled: boolean;
@@ -231,22 +255,25 @@ const DriverSettings = () => {
   useEffect(() => {
     if (!sessionDriver) return;
     const load = async () => {
-      const { data: dr } = await supabase
-        .from("drivers")
+      const { data: dr, error } = await getDriversTable()
         .select("email, max_pickup_radius, full_name, phone, vehicle_model, vehicle_color, vehicle_plate, auto_accept")
-        .eq("user_id" as any, sessionDriver.userId)
+        .eq("user_id", sessionDriver.userId)
         .maybeSingle();
+      if (error) {
+        console.error("Error loading driver settings:", error);
+        return;
+      }
       if (dr) {
         setDriverProfile({
-          full_name:        (dr as any).full_name  || "",
-          phone:            (dr as any).phone       || "",
-          email:            (dr as any).email       || "",
-          vehicle_model:    (dr as any).vehicle_model || "",
-          vehicle_color:    (dr as any).vehicle_color || "",
-          vehicle_plate:    (dr as any).vehicle_plate || "",
-          max_pickup_radius:(dr as any).max_pickup_radius ?? 10,
+          full_name: dr.full_name || "",
+          phone: dr.phone || "",
+          email: dr.email || "",
+          vehicle_model: dr.vehicle_model || "",
+          vehicle_color: dr.vehicle_color || "",
+          vehicle_plate: dr.vehicle_plate || "",
+          max_pickup_radius: dr.max_pickup_radius ?? 10,
         });
-        setAutoAccept((dr as any).auto_accept ?? false);
+        setAutoAccept(dr.auto_accept ?? false);
       }
     };
     load();
@@ -256,14 +283,13 @@ const DriverSettings = () => {
     if (!sessionDriver) return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("drivers")
+      const { error } = await getDriversTable()
         .update({
           email: driverProfile.email,
           max_pickup_radius: driverProfile.max_pickup_radius,
           auto_accept: autoAccept,
-        } as any)
-        .eq("user_id" as any, sessionDriver.userId);
+        })
+        .eq("user_id", sessionDriver.userId);
 
       if (error) throw error;
       
@@ -279,7 +305,7 @@ const DriverSettings = () => {
 
   const handleLogout = async () => {
     if (sessionDriver?.driverId) {
-      await supabase.from("drivers").update({ is_online: false, is_available: false } as any).eq("id" as any, sessionDriver.driverId);
+      await getDriversTable().update({ is_online: false, is_available: false }).eq("id", sessionDriver.driverId);
     }
     await supabase.auth.signOut();
     navigate("/driver/auth", { replace: true });

@@ -107,7 +107,20 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
   const [bookingMode, setBookingMode] = useState<"now" | "schedule">("now");
   const { toast } = useToast();
 
+  // 🔴 DEBUG: حالة زر الحجز
+  console.error('🔴 [BookingConfirmationView] RENDER STATE:', {
+    fareBreakdown: fareBreakdown ? { total_fare: fareBreakdown.total_fare, distance_km: fareBreakdown.distance_km } : null,
+    fareLoading,
+    isBooking,
+    routeDistance,
+    routeDuration,
+    buttonDisabled: !fareBreakdown || isBooking,
+    pickupLat: pickupLocation?.lat,
+    dropoffLat: dropoffLocation?.lat,
+  });
+
   const handlePrimaryBookAction = () => {
+    console.error('🔴 [BookingConfirmationView] BOOK BUTTON CLICKED!', { isBooking, fareLoading, fareBreakdown: !!fareBreakdown });
     if (isBooking) return;
 
     if (bookingMode === "schedule") {

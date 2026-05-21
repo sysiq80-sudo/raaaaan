@@ -58,20 +58,22 @@ export function useRealtimeRideEvents(
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const dedupRef = useRef<EventDeduplicator>(new EventDeduplicator());
+  const callbacksRef = useRef<Record<string, (data: any) => void>>({});
+  const onErrorRef = useRef<((error: Error) => void) | undefined>(onError);
   const [isConnected, setIsConnected] = useState(false);
   const [stats, setStats] = useState(dedupRef.current.getStats());
 
-  /**
-   * Map event callbacks
-   */
-  const eventCallbacks: Record<string, (data: any) => void> = {
-    'ride-accepted': onRideAccepted || (() => {}),
-    'location-update': onLocationUpdate || (() => {}),
-    'ride-completed': onRideCompleted || (() => {}),
-    'ride-cancelled': onRideCancelled || (() => {}),
-    'eta-updated': onETAUpdated || (() => {}),
-    'driver-arrived': onDriverArrived || (() => {}),
-  };
+  useEffect(() => {
+    callbacksRef.current = {
+      'ride-accepted': onRideAccepted || (() => {}),
+      'location-update': onLocationUpdate || (() => {}),
+      'ride-completed': onRideCompleted || (() => {}),
+      'ride-cancelled': onRideCancelled || (() => {}),
+      'eta-updated': onETAUpdated || (() => {}),
+      'driver-arrived': onDriverArrived || (() => {}),
+    };
+    onErrorRef.current = onError;
+  }, [onRideAccepted, onLocationUpdate, onRideCompleted, onRideCancelled, onETAUpdated, onDriverArrived, onError]);
 
   /**
    * Process incoming event
@@ -93,7 +95,7 @@ export function useRealtimeRideEvents(
         setStats(dedupRef.current.getStats());
 
         // Step 3: Call appropriate callback
-        const callback = eventCallbacks[incomingEvent.eventType];
+        const callback = callbacksRef.current[incomingEvent.eventType];
         if (callback) {
           callback(incomingEvent.payload);
           console.debug(
@@ -102,13 +104,13 @@ export function useRealtimeRideEvents(
         }
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
-        if (onError) {
-          onError(err);
+        if (onErrorRef.current) {
+          onErrorRef.current(err);
         }
         console.error('[useRealtimeRideEvents] Error processing event:', err);
       }
     },
-    [nodeId, eventCallbacks, onError]
+    [nodeId]
   );
 
   /**
@@ -148,13 +150,13 @@ export function useRealtimeRideEvents(
         );
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
-        if (onError) {
-          onError(err);
+        if (onErrorRef.current) {
+          onErrorRef.current(err);
         }
         console.error('[useRealtimeRideEvents] Error emitting local event:', err);
       }
     },
-    [rideId, nodeId, handleIncomingEvent, onError]
+    [rideId, nodeId, handleIncomingEvent]
   );
 
   /**
@@ -198,24 +200,23 @@ export function useRealtimeRideEvents(
     });
 
     // Subscribe
-    channel
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          setIsConnected(true);
-          console.debug(
-            `[useRealtimeRideEvents] Connected to ride channel - RideID: ${rideId}, Node: ${nodeId}`
-          );
-        } else if (status === 'CLOSED') {
-          setIsConnected(false);
-          console.debug(`[useRealtimeRideEvents] Disconnected from ride channel`);
-        }
-      })
-      .catch((error) => {
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        setIsConnected(true);
+        console.debug(
+          `[useRealtimeRideEvents] Connected to ride channel - RideID: ${rideId}, Node: ${nodeId}`
+        );
+      } else if (status === 'CLOSED') {
+        setIsConnected(false);
+        console.debug(`[useRealtimeRideEvents] Disconnected from ride channel`);
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        const error = new Error(`Realtime channel ${status}`);
         console.error('[useRealtimeRideEvents] Channel error:', error);
-        if (onError) {
-          onError(error);
+        if (onErrorRef.current) {
+          onErrorRef.current(error);
         }
-      });
+      }
+    });
 
     channelRef.current = channel;
 
@@ -223,7 +224,7 @@ export function useRealtimeRideEvents(
       supabase.removeChannel(channel);
       setIsConnected(false);
     };
-  }, [rideId, nodeId, handleIncomingEvent, onError]);
+  }, [rideId, nodeId, handleIncomingEvent]);
 
   /**
    * Update stats periodically

@@ -18,6 +18,19 @@ interface IncentiveProgress {
   period_end: string;
 }
 
+type DriverIncentiveClaim = {
+  bonus_earned?: number | null;
+};
+
+type DriverIncentiveClaimsTable = {
+  select: (columns: string) => {
+    eq: (column: string, value: string) => Promise<{ data: DriverIncentiveClaim[] | null; error: unknown }>;
+  };
+};
+
+const getDriverIncentiveClaimsTable = () =>
+  supabase.from("driver_incentive_claims") as unknown as DriverIncentiveClaimsTable;
+
 const DriverIncentives = () => {
   const { driver, loading: authLoading } = useDriverSession();
   const [loading, setLoading] = useState(true);
@@ -45,10 +58,10 @@ const DriverIncentives = () => {
     try {
       const [progressRes, claimsRes] = await Promise.all([
         supabase.rpc("get_driver_incentive_progress", { p_driver_id: driver.driverId }),
-        supabase.from("driver_incentive_claims").select("bonus_earned").eq("driver_id" as any, driver.driverId),
+        getDriverIncentiveClaimsTable().select("bonus_earned").eq("driver_id", driver.driverId),
       ]);
       if (progressRes.data) setIncentives(progressRes.data as any);
-      const total = ((claimsRes.data ?? []) as any[]).reduce((s: number, c: any) => s + (c.bonus_earned ?? 0), 0);
+      const total = (claimsRes.data ?? []).reduce((sum, claim) => sum + (claim.bonus_earned ?? 0), 0);
       setTotalEarned(total);
     } catch (err) {
       console.error("[DriverIncentives]", err);
@@ -69,9 +82,9 @@ const DriverIncentives = () => {
   };
 
   const periodBar: Record<string, string> = {
-    daily:   "bg-blue-500",
-    weekly:  "bg-purple-500",
-    monthly: "bg-amber-500",
+    daily:   "[&::-webkit-progress-value]:bg-blue-500 [&::-moz-progress-bar]:bg-blue-500",
+    weekly:  "[&::-webkit-progress-value]:bg-purple-500 [&::-moz-progress-bar]:bg-purple-500",
+    monthly: "[&::-webkit-progress-value]:bg-amber-500 [&::-moz-progress-bar]:bg-amber-500",
   };
 
   if (authLoading || loading) {
@@ -145,7 +158,7 @@ const DriverIncentives = () => {
                 const progress = Math.min((incentive.rides_completed / incentive.rides_required) * 100, 100);
                 const remaining = Math.max(incentive.rides_required - incentive.rides_completed, 0);
                 const cfg = periodConfig[incentive.period] || periodConfig.daily;
-                const bar = periodBar[incentive.period] || "bg-[#5bdda6]";
+                const bar = periodBar[incentive.period] || "[&::-webkit-progress-value]:bg-[#5bdda6] [&::-moz-progress-bar]:bg-[#5bdda6]";
 
                 return (
                   <div
@@ -187,9 +200,11 @@ const DriverIncentives = () => {
                     {!incentive.is_claimed && (
                       <>
                         <div className="h-2 bg-[#0b1326] rounded-full overflow-hidden border border-slate-800/50 mb-2">
-                          <div
-                            className={`h-full rounded-full transition-all duration-700 ${bar}`}
-                            style={{ width: `${progress}%` }}
+                          <progress
+                            aria-label="نسبة إنجاز الحافز"
+                            value={progress}
+                            max={100}
+                            className={`block w-full h-full appearance-none bg-[#0b1326] [&::-webkit-progress-bar]:bg-[#0b1326] [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-value]:rounded-full [&::-moz-progress-bar]:rounded-full ${bar}`}
                           />
                         </div>
                         <div className="flex items-center justify-between text-xs">
