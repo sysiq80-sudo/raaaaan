@@ -36,6 +36,7 @@ export function getCorsHeaders(request?: Request): Record<string, string> {
   const origin = request?.headers?.get("origin") ?? null;
   return {
     "Access-Control-Allow-Origin": getAllowedOrigin(origin),
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
     "Access-Control-Allow-Headers":
       "authorization, x-client-info, apikey, content-type",
   };
@@ -44,6 +45,7 @@ export function getCorsHeaders(request?: Request): Record<string, string> {
 // الحفاظ على التوافق مع الكود الحالي (fallback لـ *)
 export const corsHeaders = {
   "Access-Control-Allow-Origin": getAllowedOrigin(),
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
