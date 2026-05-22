@@ -1392,7 +1392,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           if (walletBalance < totalFare) {
             toast({
               title: "رصيد غير كافٍ",
-              description: `رصيد المحفظة: ${walletBalance.toLocaleString()} د.ع - الأجرة المتوقعة: ${totalFare.toLocaleString()} د.ع`,
+              description: `رصيد المحفظة: ${walletBalance.toLocaleString()} د.ع - الأجرة المتوقعة: ${totalFare.toLocaleString()} د.ع\nاشحن رصيدك أو اختر الدفع نقداً`,
               variant: "destructive"
             });
             setPaymentSheetOpen(true);
@@ -1400,7 +1400,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             return;
           }
         } catch (error) {
-          console.error("Wallet balance check error:", error);
+          console.error("Wallet balance check error — blocking booking:", error);
+          toast({
+            title: "تعذر التحقق من الرصيد",
+            description: "حدث خطأ أثناء التحقق من رصيد المحفظة، حاول مرة أخرى أو اختر الدفع نقداً",
+            variant: "destructive",
+          });
+          setIsBooking(false);
+          return;
         }
       }
 
@@ -1965,12 +1972,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
           {/* Headline + Search */}
           <div className="px-4 pb-3">
-            {/* Flow Stepper — شريط الخطوات (فقط في وضع غير البحث) */}
-            {!isLocationFocused && (
-              <div className="mb-1">
-                <FlowStepper currentStep={isPickup ? "pickup" : isDropoff || isStopMode ? "dropoff" : "booking"} />
-              </div>
-            )}
+
 
             {/* Pickup summary — ملخص الانطلاق في شاشة الوجهة (مضغوط) */}
             {!isLocationFocused && !isPickup && pickupLocation && (

@@ -97,9 +97,14 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   return (
     <>
       <div className={`space-y-2 ${className}`}>
-        {paymentOptions.map((option) => {
+        {paymentOptions
+          .filter((option) => {
+            // فقط نقدي + محفظة — الباقي معطّل مؤقتاً
+            if (option.type === "cash" || option.type === "wallet") return true;
+            return false;
+          })
+          .map((option) => {
           const isSelected = selectedMethod === option.type;
-          const isCardWithout = option.type === "card" && !hasCard;
 
           return (
             <button
@@ -115,7 +120,7 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
               <div
                 className={`w-12 h-12 rounded-md flex items-center justify-center ${option.color}`}
               >
-                {isCardWithout ? <Plus className="w-5 h-5" /> : option.icon}
+                {option.icon}
               </div>
 
               {/* معلومات الدفع */}
@@ -130,7 +135,7 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                     ({option.nameEn})
                   </span>
                 </div>
-                <p className={`text-sm ${isCardWithout ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                <p className="text-sm text-muted-foreground">
                   {getDescription(option)}
                 </p>
               </div>

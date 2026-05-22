@@ -207,8 +207,8 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
       />
 
       {/* Bottom Sheet */}
-      <RiderBottomSheet className="!max-h-[50dvh]">
-        <div className="flex-1 flex flex-col px-4 gap-3 overflow-y-auto min-h-0 pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
+      <RiderBottomSheet className="!max-h-[55dvh]">
+        <div className="flex-1 flex flex-col px-4 gap-3 overflow-y-auto min-h-0 pb-2 overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }}>
           {/* Route summary */}
           <RideRouteSummaryCard
             pickupAddress={buildDescriptiveAddress(pickupLocation.address || "")}

@@ -296,7 +296,7 @@ export const useRideBookingSubmission = ({
           if (walletBalance < totalFare) {
             toast({
               title: "رصيد غير كافٍ",
-              description: `رصيد المحفظة: ${walletBalance.toLocaleString()} د.ع - الأجرة المتوقعة: ${totalFare.toLocaleString()} د.ع`,
+              description: `رصيد المحفظة: ${walletBalance.toLocaleString()} د.ع - الأجرة المتوقعة: ${totalFare.toLocaleString()} د.ع\nاشحن رصيدك أو اختر الدفع نقداً`,
               variant: "destructive",
             });
             setPaymentSheetOpen(true);
@@ -304,7 +304,14 @@ export const useRideBookingSubmission = ({
             return;
           }
         } catch (error) {
-          logger.error("useRideBookingSubmission", "Wallet balance check error", error);
+          logger.error("useRideBookingSubmission", "Wallet balance check error — blocking booking", error);
+          toast({
+            title: "تعذر التحقق من الرصيد",
+            description: "حدث خطأ أثناء التحقق من رصيد المحفظة، حاول مرة أخرى أو اختر الدفع نقداً",
+            variant: "destructive",
+          });
+          setIsBooking(false);
+          return;
         }
       }
 
