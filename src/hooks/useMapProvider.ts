@@ -24,7 +24,7 @@ export const useMapProvider = () => {
           .from('app_settings')
           .select('value')
           .eq('key', 'maps')
-          .single();
+          .maybeSingle();
 
         if (error) {
           // Setting doesn't exist yet, use defaults

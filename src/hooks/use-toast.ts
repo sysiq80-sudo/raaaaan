@@ -73,9 +73,37 @@ const addToRemoveQueue = (toastId: string) => {
   toastTimeouts.set(toastId, timeout);
 };
 
+const isConnectionToastText = (node: React.ReactNode): boolean => {
+  if (!node) return false;
+  if (typeof node === "string") {
+    return (
+      node.includes("تم استعادة حالة الاتصال") ||
+      node.includes("أنت متصل ويمكنك استقبال") ||
+      node.includes("أنت متصل الآن") ||
+      node.includes("تم قطع الاتصال") ||
+      node.includes("تم استعادة الاتصال") ||
+      node.includes("لا يوجد اتصال بالإنترنت")
+    );
+  }
+  if (Array.isArray(node)) {
+    return node.some(isConnectionToastText);
+  }
+  if (typeof node === "object" && node !== null && "props" in node) {
+    const props = (node as any).props;
+    return props && props.children ? isConnectionToastText(props.children) : false;
+  }
+  return false;
+};
+
 export const reducer = (state: State, action: Action): State => {
   switch (action.type) {
     case "ADD_TOAST":
+      if (
+        isConnectionToastText(action.toast.title) ||
+        isConnectionToastText(action.toast.description)
+      ) {
+        return state;
+      }
       return {
         ...state,
         toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),

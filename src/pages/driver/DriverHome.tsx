@@ -834,13 +834,7 @@ const DriverHome = () => {
         }
       }
 
-      // If driver was online, auto-start location tracking
-      if (wasOnline) {
-        toast({
-          title: "تم استعادة حالة الاتصال",
-          description: "أنت متصل ويمكنك استقبال الطلبات",
-        });
-      }
+      // If driver was online, auto-start location tracking (dot indicator handles status display)
     } else {
       // User exists but not registered as driver
       setIsDriverRegistered(false);
