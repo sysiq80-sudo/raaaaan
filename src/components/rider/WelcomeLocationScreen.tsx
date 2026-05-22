@@ -551,8 +551,8 @@ const WelcomeLocationScreen = ({
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 80, opacity: 0 }}
           transition={{ type: "spring", stiffness: 350, damping: 30 }}
-          className="fixed bottom-0 inset-x-0 z-[60] bg-slate-900/98 backdrop-blur-lg border-t border-slate-700/50"
-          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}
+          className="fixed bottom-0 inset-x-0 z-[60] bg-card border-t border-border/30 w-full pointer-events-auto flex"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0px)' }}
         >
           <motion.button
             onClick={() => {
@@ -565,19 +565,12 @@ const WelcomeLocationScreen = ({
                 onPlaceSelect(selectedDestination);
               }
             }}
-            animate={{
-              boxShadow: [
-                "0 0 0 0 rgba(34,197,94,0)",
-                "0 0 0 12px rgba(34,197,94,0.2)",
-                "0 0 0 0 rgba(34,197,94,0)"
-              ]
-            }}
-            transition={{ duration: 2, repeat: Infinity }}
             whileTap={{ scale: 0.98 }}
-            className="w-full h-16 flex items-center justify-center gap-3 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white text-lg font-black rounded-none touch-manipulation transition-all duration-200"
+            style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+            className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors border-t border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]"
           >
-            <MapPinned className="w-6 h-6" />
-            تأكيد موقع الانطلاق
+            <MapPinned className="w-5 h-5" />
+            <span>تأكيد موقع الانطلاق</span>
           </motion.button>
         </motion.div>
       )}

@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Navigation, Loader2, Clock, AlertTriangle, Menu, ChevronDown } from "lucide-react";
+import { Navigation, Loader2, Clock, AlertTriangle, Menu, ChevronDown, Search } from "lucide-react";
 import RiderMapHeader from "@/components/rider/RiderMapHeader";
 import RiderBottomSheet from "@/components/rider/RiderBottomSheet";
 import RideRouteSummaryCard from "@/components/rider/RideRouteSummaryCard";
@@ -72,6 +72,8 @@ export interface BookingConfirmationViewProps {
   menuOpen: boolean;
   onMenuToggle: (open: boolean) => void;
   onLogout: () => Promise<void>;
+  /** رجوع من شاشة تأكيد الحجز */
+  onGoBack?: () => void;
 }
 
 const VEHICLES: {
@@ -116,11 +118,19 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
   menuOpen,
   onMenuToggle,
   onLogout,
+  onGoBack,
 }) => {
   const [vehicleSheetOpen, setVehicleSheetOpen] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
   const [bookingMode, setBookingMode] = useState<"now" | "schedule">("now");
   const { toast } = useToast();
+
+  // Force selected vehicle to 'economy' temporarily as per user request (one type for all)
+  useEffect(() => {
+    if (selectedVehicle !== "economy" && onVehicleChange) {
+      onVehicleChange("economy");
+    }
+  }, [selectedVehicle, onVehicleChange]);
 
   const handlePrimaryBookAction = () => {
     if (isBooking) return;
@@ -175,22 +185,26 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
       </AnimatePresence>
 
       {/* Full-screen map */}
-      <div className="absolute inset-0 bg-[#F7F8FA]">
+      <div className="absolute inset-0 bg-background">
         <div ref={bookingMapContainerRef} className="absolute inset-0" />
 
         {/* Geolocate button — above bottom sheet */}
         <button
           onClick={onGeolocate}
-          className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-white shadow-md hover:shadow-lg active:scale-95 transition-all border border-gray-100"
+          className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-card text-foreground border border-border/30 shadow-md hover:bg-secondary active:scale-95 transition-all"
           style={{ bottom: "calc(55% + 16px)" }}
           aria-label="تحديد موقعي"
         >
-          <Navigation className="w-4.5 h-4.5 text-[#0A2F6E]" />
+          <Navigation className="w-4.5 h-4.5 text-foreground" />
         </button>
       </div>
 
       {/* Header */}
-      <RiderMapHeader onMenuOpen={() => onMenuToggle(true)} />
+      <RiderMapHeader
+        onMenuOpen={() => onMenuToggle(true)}
+        onGoBack={onGoBack}
+        stepLabel="تأكيد الحجز"
+      />
 
       {/* Bottom Sheet */}
       <RiderBottomSheet className="!max-h-[50dvh]">
@@ -222,9 +236,10 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
             disabled={isBooking}
           />
 
-          {/* Vehicle selection — inline cards */}
+          {/* Vehicle selection — inline cards (Temporarily disabled and hidden) */}
+          {/*
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-[#475467] uppercase tracking-wider px-1">اختر نوع السيارة</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">اختر نوع السيارة</p>
             {VEHICLES.map((v) => {
               const driverCount = availableDriversByType?.[v.type] ?? 0;
               const fare = fareBreakdown?.total_fare ? Math.round(fareBreakdown.total_fare * v.multiplier) : null;
@@ -242,6 +257,26 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
               );
             })}
           </div>
+          */}
+
+          {/* Driver availability — contextual message */}
+          {(() => {
+            const totalDrivers = Object.values(availableDriversByType || {}).reduce((a, b) => a + b, 0);
+            if (totalDrivers === 0) {
+              return (
+                <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-primary/5 border border-primary/15">
+                  <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <Search className="w-4 h-4 text-primary animate-pulse" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-primary text-sm">جار البحث عن أقرب السائقين</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">سنبحث لك تلقائياً عند الطلب</p>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           {/* Payment + Schedule row */}
           <div className="flex gap-2">
@@ -251,13 +286,13 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
                 onPress={() => setPaymentSheetOpen(true)}
               />
             </div>
-            <div className="shrink-0 flex rounded-2xl bg-gray-50 p-1 gap-0.5">
+            <div className="shrink-0 flex rounded-2xl bg-secondary border border-border/30 p-1 gap-0.5">
               <button
                 onClick={() => setBookingMode("now")}
                 className={`px-3 py-2 rounded-xl text-[11px] font-bold transition-all ${
                   bookingMode === "now"
-                    ? "bg-[#0A2F6E] text-white shadow-sm"
-                    : "text-[#475467] hover:text-[#101828]"
+                    ? "bg-ring text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 الآن
@@ -266,8 +301,8 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
                 onClick={() => setBookingMode("schedule")}
                 className={`px-3 py-2 rounded-xl text-[11px] font-bold transition-all ${
                   bookingMode === "schedule"
-                    ? "bg-[#0A2F6E] text-white shadow-sm"
-                    : "text-[#475467] hover:text-[#101828]"
+                    ? "bg-ring text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 جدولة
@@ -278,30 +313,31 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
 
         {/* CTA Button — always visible at bottom */}
         <div
-          className="shrink-0 px-4 pt-2 bg-white border-t border-gray-100 pointer-events-auto relative z-[10]"
-          style={{ paddingBottom: "max(env(safe-area-inset-bottom, 16px), 16px)" }}
+          className="shrink-0 w-full pointer-events-auto flex bg-card border-t border-border/30 relative z-[10]"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0px)' }}
         >
           <motion.button
             type="button"
             onClick={handlePrimaryBookAction}
             disabled={isBooking}
-            whileTap={isBooking ? {} : { scale: 0.97 }}
-            className={`w-full min-h-[48px] rounded-2xl flex items-center justify-center gap-2.5 text-base font-bold transition-all duration-200 shadow-lg ${
+            whileTap={isBooking ? {} : { scale: 0.98 }}
+            style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+            className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
               isBooking
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
+                ? "border-border/30 text-muted-foreground bg-muted cursor-not-allowed"
                 : fareLoading
-                ? "bg-[#00B3B0]/70 text-white shadow-[0_8px_24px_rgba(0,179,176,0.2)]"
-                : "bg-[#00B3B0] hover:bg-[#009E9B] active:bg-[#008B88] text-white shadow-[0_8px_24px_rgba(0,179,176,0.3)]"
+                ? "border-ring/30 text-primary-foreground bg-ring/70 cursor-wait"
+                : "border-ring/30 text-primary-foreground bg-ring hover:bg-ring/90"
             }`}
           >
             {isBooking ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-6 h-6 animate-spin" />
                 <span>جاري إنشاء الحجز...</span>
               </>
             ) : fareLoading ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-6 h-6 animate-spin" />
                 <span>جاري حساب المسار...</span>
               </>
             ) : (
@@ -313,7 +349,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
                 )}
                 <span>{bookingMode === "schedule" ? "جدولة الرحلة" : "اطلب الآن"}</span>
                 {totalFare && (
-                  <span className="bg-white/20 px-3 py-1 rounded-xl text-sm font-bold">
+                  <span className="bg-primary-foreground/20 px-3 py-1 rounded-xl text-sm font-bold">
                     {totalFare.toLocaleString()} د.ع
                   </span>
                 )}

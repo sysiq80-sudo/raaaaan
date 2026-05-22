@@ -42,15 +42,15 @@ const VehicleOptionCard: React.FC<VehicleOptionCardProps> = ({
       disabled={isUnavailable}
       className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-200 min-h-[56px] text-right ${
         isUnavailable
-          ? "border-[#E4E7EC] bg-gray-50/50 opacity-50 cursor-not-allowed"
+          ? "border-border/30 bg-muted/20 opacity-50 cursor-not-allowed"
           : isSelected
-          ? "border-[#00B3B0] bg-[#00B3B0]/5 shadow-sm"
-          : "border-[#E4E7EC] bg-white hover:border-[#D0D5DD] hover:bg-gray-50/50 active:scale-[0.98]"
+          ? "border-ring bg-ring/5 shadow-glow-sm"
+          : "border-border/40 bg-card hover:border-ring/30 hover:bg-secondary/40 active:scale-[0.98]"
       }`}
     >
       {/* Emoji icon */}
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${
-        isSelected ? "bg-[#00B3B0]/10" : "bg-gray-50"
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 transition-colors ${
+        isSelected ? "bg-ring/10" : "bg-secondary"
       }`}>
         {VEHICLE_EMOJI[type]}
       </div>
@@ -58,33 +58,33 @@ const VehicleOptionCard: React.FC<VehicleOptionCardProps> = ({
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <p className={`text-sm font-bold ${isSelected ? "text-[#0A2F6E]" : "text-[#101828]"}`}>
+          <p className={`text-sm font-bold ${isSelected ? "text-ring" : "text-foreground"}`}>
             {name}
           </p>
           {driverCount > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-[#475467] bg-gray-100 px-1.5 py-0.5 rounded-full">
+            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
               <Users className="w-2.5 h-2.5" />
               {driverCount}
             </span>
           )}
         </div>
-        <p className="text-[11px] text-[#475467] mt-0.5 line-clamp-1">{description}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{description}</p>
       </div>
 
       {/* Price + check */}
       <div className="flex items-center gap-2 shrink-0">
         {fare && !isUnavailable ? (
-          <span className={`text-sm font-bold ${isSelected ? "text-[#00B3B0]" : "text-[#101828]"}`}>
+          <span className={`text-sm font-bold ${isSelected ? "text-ring" : "text-foreground"}`}>
             {roundFare(fare).toLocaleString()}
-            <span className="text-[10px] font-medium text-[#475467] mr-0.5">د.ع</span>
+            <span className="text-[10px] font-medium text-muted-foreground mr-0.5">د.ع</span>
           </span>
         ) : isUnavailable ? (
-          <span className="text-[11px] text-[#475467]">غير متاح</span>
+          <span className="text-[11px] text-muted-foreground">غير متاح</span>
         ) : null}
 
         {isSelected && (
-          <div className="w-5 h-5 rounded-full bg-[#00B3B0] flex items-center justify-center">
-            <Check className="w-3 h-3 text-white" />
+          <div className="w-5 h-5 rounded-full bg-ring flex items-center justify-center">
+            <Check className="w-3 h-3 text-primary-foreground" />
           </div>
         )}
       </div>

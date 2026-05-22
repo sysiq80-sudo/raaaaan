@@ -23,7 +23,7 @@ const RiderBottomSheet: React.FC<RiderBottomSheetProps> = ({
       initial={{ y: 80, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: "spring", damping: 28, stiffness: 300 }}
-      className={`absolute left-0 right-0 bottom-0 z-[60] flex flex-col rounded-t-3xl bg-white shadow-[0_-8px_40px_rgba(0,0,0,0.12)] pointer-events-auto ${
+      className={`absolute left-0 right-0 bottom-0 z-[60] flex flex-col rounded-t-[2rem] bg-card/95 backdrop-blur-xl border-t border-border/30 shadow-xl text-foreground pointer-events-auto ${
         isFullScreen ? "top-0 rounded-t-none" : ""
       } ${className}`}
       style={{
@@ -33,7 +33,7 @@ const RiderBottomSheet: React.FC<RiderBottomSheetProps> = ({
     >
       {/* Drag handle */}
       <div className="flex justify-center pt-3 pb-1 shrink-0">
-        <div className="w-10 h-1 rounded-full bg-gray-300" />
+        <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
       </div>
 
       {/* Content — NO overflow-hidden so CTA button stays clickable */}

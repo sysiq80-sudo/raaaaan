@@ -318,7 +318,7 @@ serve(async (req) => {
     let walletDeducted = false;
     let effectivePaymentMethod = ride.payment_method;
 
-    if (ride.payment_method === "wallet") {
+    if (ride.payment_method === "wallet" || ride.payment_method === "nas_wallet") {
       try {
         const { data: deductResult, error: deductError } = await supabase.rpc(
           'deduct_wallet_safely',

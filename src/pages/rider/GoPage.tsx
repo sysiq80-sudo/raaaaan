@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import SplashScreen from "@/components/common/SplashScreen";
-import { Navigation, Loader2, MapPin, AlertTriangle, AlertCircle, Search, Bookmark, Home, Briefcase, Star, Clock } from "lucide-react";
+import { Navigation, Loader2, MapPin, AlertTriangle, AlertCircle, Search, Bookmark, Home, Briefcase, Star, Clock, ArrowRight, Edit2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import RiderMapHeader from "@/components/rider/RiderMapHeader";
 import RiderBottomSheet from "@/components/rider/RiderBottomSheet";
@@ -49,6 +49,7 @@ import FavoriteMarkersLayer from "@/components/rider/FavoriteMarkersLayer";
 import { useFavoritesStore } from "@/stores/useFavoritesStore";
 import SaveLocationModal from "@/components/rider/SaveLocationModal";
 import BookingConfirmationView from "@/components/rider/BookingConfirmationView";
+import FlowStepper from "@/components/rider/FlowStepper";
 
 // Performance & Enhancement hooks
 import { usePerformanceMonitoring, useOperationTiming } from "@/hooks/usePerformanceMonitoring";
@@ -1157,6 +1158,19 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     setCenterAddress("");
   }, [cleanupBooking, setIsLoading, setMapReloadKey, setSearchQuery, setCenterAddress]);
 
+  // ═══ رجوع بين المراحل ═══
+  const handleGoBack = useCallback(() => {
+    if (currentMode === "dropoff" || currentMode === "stop") {
+      setCurrentMode("pickup");
+      setIsLocationFocused(false);
+      setLocationSearchQuery('');
+      clearSearch();
+    } else if (currentMode === "booking") {
+      setCurrentMode("dropoff");
+      setIsLocationFocused(false);
+    }
+  }, [currentMode, clearSearch]);
+
   // Handle booking submission
   const handleBookRide = async () => {
     if (isBooking) {
@@ -1770,13 +1784,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           await supabase.auth.signOut();
           if (navigate) navigate("/auth");
         }}
+        onGoBack={handleGoBack}
       />
     );
   }
 
   // Location picker screen
   return (
-    <div className="relative h-full w-full z-10 flex flex-col bg-[#F7F8FA] max-w-[480px] mx-auto" dir="rtl">
+    <div className="relative h-full w-full z-10 flex flex-col bg-background max-w-[480px] mx-auto" dir="rtl">
       {/* Full-screen Map */}
       <div 
         className="absolute inset-0 overflow-hidden"
@@ -1854,7 +1869,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         )}
 
         {/* Header — Premium floating glassmorphism */}
-        <RiderMapHeader onMenuOpen={() => setMenuOpen(true)} />
+        <RiderMapHeader
+          onMenuOpen={() => setMenuOpen(true)}
+          onGoBack={!isPickup ? handleGoBack : undefined}
+          stepLabel={isPickup ? undefined : isDropoff ? "الوجهة" : isStopMode ? "المحطة" : undefined}
+        />
 
 
 
@@ -1867,8 +1886,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             className="absolute left-4 z-30 pointer-events-none"
             style={{ top: 'calc(4rem + env(safe-area-inset-top))' }}
           >
-            <div className="bg-white/95 backdrop-blur-lg px-3 py-2 rounded-full shadow-md border border-gray-100">
-              <p className="text-xs text-[#667085] flex items-center gap-1.5">
+            <div className="bg-card/95 backdrop-blur-lg px-3 py-2 rounded-full shadow-md border border-border/30 text-foreground">
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <span>👉</span>
                 <span>اسحب الخريطة لتغيير الموقع</span>
               </p>
@@ -1888,9 +1907,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white px-3 py-1.5 rounded-xl shadow-md border border-gray-100 max-w-[220px]"
+                className="bg-card px-3 py-1.5 rounded-xl shadow-md border border-border/30 text-foreground max-w-[220px]"
               >
-                <p className="text-xs font-semibold text-[#101828] truncate text-center">
+                <p className="text-xs font-semibold text-foreground truncate text-center">
                   {buildDescriptiveAddress(centerAddress)}
                 </p>
               </motion.div>
@@ -1903,8 +1922,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             >
               {/* Pin */}
               <div 
-                className={`w-11 h-11 rounded-full flex items-center justify-center border-[3px] border-white shadow-lg ${
-                  isPickup ? 'bg-[#12B76A]' : 'bg-[#0A2F6E]'
+                className={`w-11 h-11 rounded-full flex items-center justify-center border-[3px] border-card shadow-lg ${
+                  isPickup ? 'bg-emerald-500' : 'bg-cyan-500'
                 }`}
               >
                 {isPickup ? (
@@ -1920,7 +1939,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 style={{
                   borderLeft: '7px solid transparent',
                   borderRight: '7px solid transparent',
-                  borderTop: `12px solid ${isPickup ? '#12B76A' : '#0A2F6E'}`,
+                  borderTop: `12px solid ${isPickup ? '#10b981' : '#06b6d4'}`,
                   filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
                 }}
               />
@@ -1944,11 +1963,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       {/* Floating geolocate button — above bottom sheet */}
       <button
         onClick={() => manualGeolocateMain()}
-        className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-white shadow-md hover:shadow-lg active:scale-95 transition-all border border-gray-100"
+        className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-card text-foreground border border-border/30 shadow-md hover:bg-secondary active:scale-95 transition-all"
         style={{ bottom: 'calc(35% + 16px)' }}
         aria-label="تحديد موقعي"
       >
-        <Navigation className="w-4.5 h-4.5 text-[#0A2F6E]" />
+        <Navigation className="w-4.5 h-4.5 text-foreground" />
       </button>
 
       {/* ═══ Bottom Sheet — Clean white design ═══ */}
@@ -1961,10 +1980,40 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
           {/* Headline + Search */}
           <div className="px-4 pb-3">
+            {/* Flow Stepper — شريط الخطوات */}
+            {!isLocationFocused && (
+              <FlowStepper currentStep={isPickup ? "pickup" : isDropoff || isStopMode ? "dropoff" : "booking"} />
+            )}
+
+            {/* Pickup summary — ملخص الانطلاق في شاشة الوجهة */}
+            {!isLocationFocused && !isPickup && pickupLocation && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/40 dark:border-emerald-800/30 mb-1">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
+                  <Navigation className="w-3.5 h-3.5 text-emerald-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">الانطلاق</p>
+                  <p className="text-xs font-semibold text-foreground truncate">
+                    {buildDescriptiveAddress(pickupLocation.address)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setCurrentMode('pickup');
+                    setIsLocationFocused(false);
+                  }}
+                  className="shrink-0 flex items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-300/30 hover:bg-emerald-500/20 active:scale-95 transition-all"
+                >
+                  <Edit2 className="w-2.5 h-2.5" />
+                  تعديل
+                </button>
+              </div>
+            )}
+
             {/* Headline — only when not searching */}
             {!isLocationFocused && (
-              <h2 className="text-lg font-bold text-[#101828] mb-3">
-                {isPickup ? 'من وين تنطلق؟' : isStopMode ? 'وين المحطة؟' : 'وين رايح اليوم؟'}
+              <h2 className="text-lg font-bold text-foreground mb-3">
+                {isPickup ? 'من وين تنطلق?' : isStopMode ? 'وين المحطة؟' : 'وين رايح اليوم؟'}
               </h2>
             )}
 
@@ -2165,7 +2214,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                     fetchSavedPlaces();
                     setShowSavedPlacesDropdown(!showSavedPlacesDropdown);
                   }}
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors text-xs font-semibold text-[#475467]"
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary hover:bg-secondary/80 border border-border/10 transition-colors text-xs font-semibold text-muted-foreground"
                 >
                   <Bookmark className="w-3.5 h-3.5" />
                   <span>المحفوظة</span>
@@ -2177,7 +2226,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                       const location = { lat: place.lat, lng: place.lng, address: place.address || place.name };
                       applySelectedLocation(location);
                     }}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors text-xs font-semibold text-[#101828]"
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary hover:bg-secondary/80 border border-border/10 transition-colors text-xs font-semibold text-foreground"
                   >
                     <span>{place.icon === 'home' ? '🏠' : place.icon === 'work' ? '💼' : '📍'}</span>
                     <span className="max-w-[80px] truncate">{place.name}</span>
@@ -2189,14 +2238,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
           {/* Service area warning */}
           {localServiceAreaStatus && !localServiceAreaStatus.in_service && (
-            <div className="mx-4 mb-3 flex items-center gap-3 p-3 rounded-2xl bg-[#F04438]/5 border border-[#F04438]/15">
-              <div className="w-8 h-8 rounded-xl bg-[#F04438]/10 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-4 h-4 text-[#F04438]" />
+            <div className="mx-4 mb-3 flex items-center gap-3 p-3 rounded-2xl bg-destructive/5 border border-destructive/15">
+              <div className="w-8 h-8 rounded-xl bg-destructive/10 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4 text-destructive" />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-[#F04438] text-sm">خارج منطقة الخدمة</p>
+                <p className="font-semibold text-destructive text-sm">خارج منطقة الخدمة</p>
                 {localServiceAreaStatus.nearest_region && (
-                  <p className="text-[#667085] text-xs mt-0.5">
+                  <p className="text-muted-foreground text-xs mt-0.5">
                     أقرب منطقة: {localServiceAreaStatus.nearest_region.name_ar} ({localServiceAreaStatus.nearest_region.distance_km} كم)
                   </p>
                 )}
@@ -2207,8 +2256,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
         {/* CTA Button — always at bottom */}
         <div
-          className="shrink-0 px-4 pt-2 bg-white border-t border-gray-100"
-          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)' }}
+          className="shrink-0 w-full pointer-events-auto flex bg-card border-t border-border/30"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0px)' }}
         >
           <motion.button
             onClick={() => {
@@ -2216,28 +2265,29 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               handleConfirm();
             }}
             disabled={!centerAddress || isCheckingService || isConfirming}
-            whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.97 }}
-            className={`w-full min-h-[48px] rounded-2xl font-bold text-[15px] flex items-center justify-center gap-2 transition-all duration-200 shadow-lg ${
+            whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.98 }}
+            style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+            className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
               selectionReady
                 ? isPickup
-                  ? 'bg-[#12B76A] hover:bg-[#0E9F5C] text-white shadow-[0_8px_20px_rgba(18,183,106,0.25)]'
-                  : 'bg-[#0A2F6E] hover:bg-[#083059] text-white shadow-[0_8px_20px_rgba(10,47,110,0.25)]'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                  ? 'border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]'
+                  : 'border-cyan-400/30 text-[#083344] bg-cyan-400 hover:bg-cyan-500 active:bg-cyan-600'
+                : 'border-border/30 text-muted-foreground bg-muted cursor-not-allowed shadow-none'
             }`}
           >
             {isCheckingService || isConfirming ? (
               <>
-                <Loader2 className="w-4.5 h-4.5 animate-spin" />
+                <Loader2 className="w-6 h-6 animate-spin" />
                 <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
               </>
             ) : !centerAddress ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-6 h-6 animate-spin" />
                 <span>جاري تحديد العنوان...</span>
               </>
             ) : (
               <>
-                <Navigation className="w-4.5 h-4.5" />
+                <Navigation className="w-5 h-5" />
                 <span>{confirmButtonLabel}</span>
               </>
             )}

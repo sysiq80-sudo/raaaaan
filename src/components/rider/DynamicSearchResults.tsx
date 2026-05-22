@@ -88,7 +88,7 @@ const getCategoryColor = (iconType?: string): string => {
     case 'heart': return 'text-pink-500 bg-pink-500/10';
     case 'star': return 'text-yellow-500 bg-yellow-500/10';
     case 'clock': return 'text-muted-foreground bg-muted';
-    default: return 'text-primary bg-primary/10';
+    default: return 'text-ring bg-ring/10';
   }
 };
 
@@ -204,7 +204,7 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
         transition={{ duration: 0.2 }}
         className={cn(
           "relative left-0 right-0 mt-2 z-[100]",
-          "bg-[#0f1a2e] border border-white/[0.08] rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.6)]",
+          "bg-card border border-border/30 rounded-2xl shadow-xl",
           "max-h-[60vh] overflow-y-auto scrollbar-thin",
           className
         )}
@@ -212,15 +212,15 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
       >
         {/* ─── مؤشر أوفلاين ─── */}
         {isOffline && (
-          <div className="px-3 py-2 flex items-center gap-2 border-b border-white/[0.06] bg-amber-500/5">
-            <WifiOff className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-xs text-amber-400/80">بحث محلي فقط — لا يوجد اتصال</span>
+          <div className="px-3 py-2 flex items-center gap-2 border-b border-border/30 bg-amber-500/10">
+            <WifiOff className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            <span className="text-xs text-amber-600/80 dark:text-amber-400/80">بحث محلي فقط — لا يوجد اتصال</span>
           </div>
         )}
 
         {/* ─── فلاتر التصنيفات ─── */}
         {onCategorySelect && (
-          <div className="px-3 py-2 border-b border-white/[0.06]">
+          <div className="px-3 py-2 border-b border-border/30">
             <div className="flex flex-row-reverse gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
               {SEARCH_CATEGORIES.map((cat) => (
                 <button
@@ -229,8 +229,8 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                   className={cn(
                     "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0",
                     activeCategory === cat.id
-                      ? "bg-[#5bdda6]/20 text-[#5bdda6] border border-[#5bdda6]/30"
-                      : "bg-white/[0.04] text-white/50 hover:bg-white/[0.08] hover:text-white/70 border border-transparent"
+                      ? "bg-ring/20 text-ring border border-ring/30"
+                      : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground border border-transparent"
                   )}
                 >
                   {cat.icon}
@@ -246,10 +246,10 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
           <div>
             {/* اقتراحات ذكية */}
             {smartSuggestions.length > 0 && (
-              <div className="border-b border-white/[0.06]">
+              <div className="border-b border-border/20">
                 <div className="px-3 py-2 flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5 text-[#5bdda6]/60" />
-                  <span className="text-[10px] font-bold text-[#5bdda6]/50 uppercase tracking-wider">اقتراحات لك</span>
+                  <Sparkles className="w-3.5 h-3.5 text-ring/70" />
+                  <span className="text-[10px] font-bold text-ring/60 uppercase tracking-wider">اقتراحات لك</span>
                 </div>
                 {smartSuggestions.slice(0, 2).map((suggestion, index) => (
                   <motion.button
@@ -258,7 +258,7 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
                     onClick={() => onSelectSmart?.(suggestion)}
-                    className="w-full px-3 py-2.5 hover:bg-white/[0.04] transition-colors flex items-center gap-3"
+                    className="w-full px-3 py-2.5 hover:bg-secondary/50 transition-colors flex items-center gap-3"
                   >
                     <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
                       suggestion.type === 'home' ? 'bg-sky-500/10 text-sky-400' :
@@ -269,10 +269,10 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                       {getSmartSuggestionIcon(suggestion.type)}
                     </div>
                     <div className="flex-1 min-w-0 text-right">
-                      <p className="text-sm font-bold text-white/90 truncate">{suggestion.title}</p>
-                      <p className="text-[11px] text-white/40 truncate">{suggestion.subtitle || suggestion.reason}</p>
+                      <p className="text-sm font-bold text-foreground truncate">{suggestion.title}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{suggestion.subtitle || suggestion.reason}</p>
                     </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 shrink-0" />
                   </motion.button>
                 ))}
               </div>
@@ -280,10 +280,10 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
 
             {/* الأماكن المحفوظة */}
             {savedPlaces.length > 0 && (
-              <div className="border-b border-white/[0.06]">
+              <div className="border-b border-border/20">
                 <div className="px-3 py-2 flex items-center gap-2">
-                  <Heart className="w-3.5 h-3.5 text-pink-400/60" />
-                  <span className="text-[10px] font-bold text-white/30 uppercase tracking-wider">الأماكن المحفوظة</span>
+                  <Heart className="w-3.5 h-3.5 text-pink-500/70" />
+                  <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider">الأماكن المحفوظة</span>
                 </div>
                 <div className="flex gap-2 px-3 pb-2.5 overflow-x-auto scrollbar-none">
                   {savedPlaces.slice(0, 4).map((place) => (
@@ -291,14 +291,14 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                       key={place.id}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => onSelectSavedPlace?.(place)}
-                      className="flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] transition-colors min-w-[72px] shrink-0"
+                      className="flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors min-w-[72px] shrink-0"
                     >
                       <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center",
                         getCategoryColor(place.icon || 'heart')
                       )}>
                         {getCategoryIcon(place.icon || 'heart')}
                       </div>
-                      <span className="text-[10px] font-semibold text-white/60 truncate max-w-[64px]">
+                      <span className="text-[10px] font-semibold text-foreground truncate max-w-[64px]">
                         {place.name}
                       </span>
                     </motion.button>
@@ -309,19 +309,19 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
 
             {/* البحوثات السابقة */}
             {showRecent && (
-              <div className="border-b border-white/[0.06]">
+              <div className="border-b border-border/20">
                 <div className="px-3 py-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-3.5 h-3.5 text-white/30" />
-                    <span className="text-[10px] font-bold text-white/30 uppercase tracking-wider">بحث سابق</span>
+                    <Clock className="w-3.5 h-3.5 text-muted-foreground/50" />
+                    <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider">بحث سابق</span>
                   </div>
                   {onClose && (
                     <button
                       onClick={onClose}
-                      className="p-1 rounded-md hover:bg-white/[0.08] transition-colors"
+                      className="p-1 rounded-md hover:bg-secondary transition-colors"
                       aria-label="إغلاق"
                     >
-                      <X className="w-3.5 h-3.5 text-white/30 hover:text-white/60" />
+                      <X className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-foreground" />
                     </button>
                   )}
                 </div>
@@ -332,15 +332,15 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.04 }}
                       onClick={() => onSelectRecent?.(search)}
-                      className="w-full px-3 py-2.5 hover:bg-white/[0.04] transition-colors flex items-center gap-3"
+                      className="w-full px-3 py-2.5 hover:bg-secondary/50 transition-colors flex items-center gap-3"
                     >
-                      <div className="w-8 h-8 rounded-xl bg-white/[0.04] flex items-center justify-center shrink-0">
-                        <Clock className="w-4 h-4 text-white/30" />
+                      <div className="w-8 h-8 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                        <Clock className="w-4 h-4 text-muted-foreground/60" />
                       </div>
                       <div className="flex-1 min-w-0 text-right">
-                        <p className="text-sm font-medium text-white/80 truncate">{search.mainText}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{search.mainText}</p>
                         {search.secondaryText && (
-                          <p className="text-[11px] text-white/35 truncate">{search.secondaryText}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">{search.secondaryText}</p>
                         )}
                       </div>
                       <div className="w-7 shrink-0" />
@@ -350,10 +350,10 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                       tabIndex={0}
                       onClick={(e) => { e.stopPropagation(); onRemoveRecent?.(search.id); }}
                       onKeyDown={(e) => { if (e.key === 'Enter') onRemoveRecent?.(search.id); }}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer z-10"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 hover:bg-destructive/10 rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer z-10"
                       aria-label="حذف"
                     >
-                      <X className="w-3 h-3 text-red-400/60" />
+                      <X className="w-3 h-3 text-destructive/80" />
                     </div>
                   </div>
                 ))}
@@ -364,8 +364,8 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
             {nearbyLandmarks.length > 0 && (
               <div>
                 <div className="px-3 py-2 flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5 text-white/30" />
-                  <span className="text-[10px] font-bold text-white/30 uppercase tracking-wider">أماكن قريبة</span>
+                  <MapPin className="w-3.5 h-3.5 text-muted-foreground/50" />
+                  <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider">أماكن قريبة</span>
                 </div>
                 {nearbyLandmarks.slice(0, 3).map((lm, index) => (
                   <motion.button
@@ -374,7 +374,7 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.04 }}
                     onClick={() => onSelectUnified?.(lm)}
-                    className="w-full px-3 py-2.5 hover:bg-white/[0.04] transition-colors flex items-center gap-3"
+                    className="w-full px-3 py-2.5 hover:bg-secondary/50 transition-colors flex items-center gap-3"
                   >
                     <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
                       getCategoryColor(lm.icon_type)
@@ -382,13 +382,13 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                       {getCategoryIcon(lm.icon_type)}
                     </div>
                     <div className="flex-1 min-w-0 text-right">
-                      <p className="text-sm font-medium text-white/80 truncate">{lm.main_text}</p>
+                      <p className="text-sm font-medium text-foreground truncate">{lm.main_text}</p>
                       {lm.secondary_text && (
-                        <p className="text-[11px] text-white/35 truncate">{lm.secondary_text}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">{lm.secondary_text}</p>
                       )}
                     </div>
                     {getPlaceSideLabel(lm.secondary_text || lm.description) && (
-                      <span className="text-[10px] text-[#5bdda6]/55 whitespace-nowrap shrink-0 max-w-[96px] truncate">
+                      <span className="text-[10px] text-ring/80 whitespace-nowrap shrink-0 max-w-[96px] truncate">
                         {getPlaceSideLabel(lm.secondary_text || lm.description)}
                       </span>
                     )}
@@ -411,12 +411,12 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
             ) : displayResults.length === 0 && !isSearching ? (
               // لا توجد نتائج
               <div className="p-4 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-white/[0.04] flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-4 h-4 text-white/30" />
+                <div className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-4 h-4 text-muted-foreground/50" />
                 </div>
                 <div className="flex-1 min-w-0 text-right">
-                  <p className="text-sm font-bold text-white/70">لا توجد نتائج</p>
-                  <p className="text-xs text-white/35">جرّب البحث بكلمات مختلفة</p>
+                  <p className="text-sm font-bold text-foreground">لا توجد نتائج</p>
+                  <p className="text-xs text-muted-foreground">جرّب البحث بكلمات مختلفة</p>
                 </div>
               </div>
             ) : (
@@ -424,9 +424,9 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
               <div>
                 {/* مؤشر البحث الجاري (أعلى النتائج المخزنة) */}
                 {isSearching && displayResults.length > 0 && (
-                  <div className="px-3 py-1.5 flex items-center gap-2 border-b border-white/[0.06]">
-                    <Loader2 className="w-3 h-3 animate-spin text-[#5bdda6]/50" />
-                    <span className="text-[10px] text-[#5bdda6]/40">جاري التحديث...</span>
+                  <div className="px-3 py-1.5 flex items-center gap-2 border-b border-border/20">
+                    <Loader2 className="w-3 h-3 animate-spin text-ring/70" />
+                    <span className="text-[10px] text-ring/50">جاري التحديث...</span>
                   </div>
                 )}
 
@@ -459,7 +459,7 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                         }
                       }}
                       disabled={isLoadingDetails}
-                      className="w-full px-3 py-2.5 hover:bg-white/[0.04] transition-colors disabled:opacity-50 flex items-center gap-3 group relative"
+                      className="w-full px-3 py-2.5 hover:bg-secondary/50 transition-colors disabled:opacity-50 flex items-center gap-3 group relative"
                     >
                       {/* أيقونة حسب التصنيف */}
                       <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
@@ -470,40 +470,40 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
 
                       {/* النص */}
                       <div className="flex-1 min-w-0 text-right">
-                        <p className="font-bold text-sm text-white/90 truncate">{placeName}</p>
+                        <p className="font-bold text-sm text-foreground truncate">{placeName}</p>
 
                         {(badge === 'saved' || badge === 'recent' || source === 'landmark') && (
                           <div className="mt-1 flex items-center gap-1.5 justify-end">
                             {/* شارات */}
                             {badge === 'saved' && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-pink-500/10 text-[9px] font-bold text-pink-400">محفوظ</span>
+                              <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-pink-500/10 text-[9px] font-bold text-pink-500">محفوظ</span>
                             )}
                             {badge === 'recent' && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-white/[0.06] text-[9px] font-bold text-white/40">سابق</span>
+                              <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-secondary text-[9px] font-bold text-muted-foreground">سابق</span>
                             )}
                             {source === 'landmark' && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-[#5bdda6]/10 text-[9px] font-bold text-[#5bdda6]/60">محلي</span>
+                              <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-ring/10 text-[9px] font-bold text-ring">محلي</span>
                             )}
                           </div>
                         )}
 
                         {placeSubtitle && (
-                          <p className="text-[11px] text-white/35 truncate">{placeSubtitle}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">{placeSubtitle}</p>
                         )}
                       </div>
 
                       {/* اسم المكان المختصر (بدل المسافة) */}
                       {placeSideLabel && (
-                        <span className="text-[10px] text-[#5bdda6]/55 whitespace-nowrap shrink-0 max-w-[110px] truncate">
+                        <span className="text-[10px] text-ring/80 whitespace-nowrap shrink-0 max-w-[110px] truncate">
                           {placeSideLabel}
                         </span>
                       )}
 
-                      <ChevronRight className="w-3.5 h-3.5 text-white/15 group-hover:text-[#5bdda6]/40 transition-colors shrink-0" />
+                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 group-hover:text-ring/60 transition-colors shrink-0" />
 
                       {isLoadingDetails && (
-                        <div className="absolute inset-0 bg-[#0f1a2e]/60 rounded-lg flex items-center justify-center">
-                          <Loader2 className="w-4 h-4 animate-spin text-[#5bdda6]" />
+                        <div className="absolute inset-0 bg-card/75 rounded-lg flex items-center justify-center">
+                          <Loader2 className="w-4 h-4 animate-spin text-ring" />
                         </div>
                       )}
                     </motion.button>
@@ -511,8 +511,8 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                 })}
 
                 {hasMore && (
-                  <div className="p-2.5 text-center border-t border-white/[0.06]">
-                    <p className="text-[10px] text-white/25">
+                  <div className="p-2.5 text-center border-t border-border/20">
+                    <p className="text-[10px] text-muted-foreground/40">
                       و {totalResults - maxResults} نتائج أخرى
                     </p>
                   </div>
@@ -580,12 +580,12 @@ export const DynamicSearchHeader: React.FC<{
       <div
         className={cn(
           "relative flex flex-col gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300",
-          "bg-gradient-to-l from-[#0b1326] to-[#121e36]",
+          "bg-gradient-to-l from-card to-card/85",
           isListening
-            ? "shadow-[0_0_20px_rgba(239,68,68,0.2),0_8px_32px_rgba(0,0,0,0.6)] border border-red-500/40"
+            ? "shadow-[0_0_20px_rgba(239,68,68,0.2),0_8px_32px_rgba(0,0,0,0.6)] border border-destructive/40"
             : isFocused || isSearching
-              ? "shadow-[0_0_20px_rgba(91,221,166,0.15),0_8px_32px_rgba(0,0,0,0.6)] border border-[#5bdda6]/30"
-              : "shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/[0.08] hover:border-white/[0.12]"
+              ? "shadow-[0_0_20px_hsl(var(--ring)/0.15),0_8px_32px_rgba(0,0,0,0.6)] border border-ring/30"
+              : "shadow-[0_8px_32px_rgba(0,0,0,0.3)] border border-border/30 hover:border-border/50"
         )}
       >
         {/* السطر صفر: علامة الانطلاق/الوجهة منفصلة فوق الجميع */}
@@ -608,10 +608,10 @@ export const DynamicSearchHeader: React.FC<{
                   exit={{ opacity: 0, scale: 0.7 }}
                   whileTap={{ scale: 0.85 }}
                   onClick={onClear}
-                  className="w-12 h-12 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 flex items-center justify-center transition-all group"
+                  className="w-12 h-12 rounded-xl bg-secondary/80 border border-border/30 hover:bg-secondary flex items-center justify-center transition-all group"
                   aria-label="مسح البحث"
                 >
-                  <X className="w-5.5 h-5.5 text-slate-400 group-hover:text-white transition-colors" />
+                  <X className="w-5.5 h-5.5 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </motion.button>
               )}
             </AnimatePresence>
@@ -622,20 +622,20 @@ export const DynamicSearchHeader: React.FC<{
                 whileTap={{ scale: 0.85 }}
                 onClick={onSaveLocation}
                 className={cn(
-                  "w-12 h-12 rounded-xl flex items-center justify-center transition-all border shadow-[0_0_15px_rgba(91,221,166,0.15)]",
+                  "w-12 h-12 rounded-xl flex items-center justify-center transition-all border shadow-[0_0_15px_rgba(244,63,94,0.15)]",
                   isFavorite
-                    ? "bg-[#5bdda6]/30 hover:bg-[#5bdda6]/40 border-[#5bdda6]/50 shadow-[0_0_20px_rgba(91,221,166,0.4)]"
-                    : "bg-[#5bdda6]/20 hover:bg-[#5bdda6]/30 border-[#5bdda6]/40"
+                    ? "bg-pink-500/20 hover:bg-pink-500/30 border-pink-500/50 shadow-[0_0_20px_rgba(244,63,94,0.4)]"
+                    : "bg-secondary hover:bg-secondary/80 border-border/30"
                 )}
                 title={isFavorite ? 'إزالة من المفضلة' : 'حفظ الموقع'}
                 aria-label={isFavorite ? 'إزالة من المفضلة' : 'حفظ الموقع'}
               >
                 <Heart
                   className={cn(
-                    'w-5.5 h-5.5 transition-all drop-shadow-[0_0_8px_rgba(91,221,166,0.5)]',
+                    'w-5.5 h-5.5 transition-all drop-shadow-[0_0_8px_rgba(244,63,94,0.5)]',
                     isFavorite
-                      ? 'text-[#5bdda6] fill-[#5bdda6]'
-                      : 'text-[#5bdda6]'
+                      ? 'text-pink-500 fill-pink-500'
+                      : 'text-muted-foreground'
                   )}
                 />
               </motion.button>
@@ -646,11 +646,11 @@ export const DynamicSearchHeader: React.FC<{
               <motion.button
                 whileTap={{ scale: 0.85 }}
                 onClick={onCurrentLocation}
-                className="w-12 h-12 rounded-xl bg-[#5bdda6]/20 border border-[#5bdda6]/40 hover:bg-[#5bdda6]/30 flex items-center justify-center transition-all group shadow-[0_0_15px_rgba(91,221,166,0.15)]"
+                className="w-12 h-12 rounded-xl bg-ring/10 border border-ring/30 hover:bg-ring/25 flex items-center justify-center transition-all group shadow-[0_0_15px_hsl(var(--ring)/0.15)]"
                 title="موقعي الحالي"
                 aria-label="تحديد موقعي الحالي"
               >
-                <Navigation className="w-5.5 h-5.5 text-[#5bdda6] drop-shadow-[0_0_8px_rgba(91,221,166,0.5)] group-hover:scale-110 transition-transform" />
+                <Navigation className="w-5.5 h-5.5 text-ring drop-shadow-[0_0_8px_hsl(var(--ring)/0.5)] group-hover:scale-110 transition-transform" />
               </motion.button>
             )}
           </div>
@@ -661,7 +661,7 @@ export const DynamicSearchHeader: React.FC<{
           {/* ── أيقونة البحث / حذف العنوان / أوفلاين ── */}
           {isOffline ? (
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 shadow-inner">
-              <WifiOff className="w-4.5 h-4.5 text-amber-400 drop-shadow-sm" />
+              <WifiOff className="w-4.5 h-4.5 text-amber-500 drop-shadow-sm" />
             </div>
           ) : !query && showAddress && onClearAddress ? (
             <motion.button
@@ -670,32 +670,32 @@ export const DynamicSearchHeader: React.FC<{
               exit={{ opacity: 0, scale: 0.7 }}
               whileTap={{ scale: 0.85 }}
               onClick={onClearAddress}
-              className="w-10 h-10 rounded-xl bg-red-600/90 border border-red-700 hover:bg-red-700 flex items-center justify-center transition-all shrink-0 shadow-[0_0_15px_rgba(220,38,38,0.5)] group"
+              className="w-10 h-10 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground border border-destructive/20 flex items-center justify-center transition-all shrink-0 shadow-md group"
               aria-label="حذف الموقع"
               title="حذف الموقع المحدد"
             >
-              <X className="w-4.5 h-4.5 text-white drop-shadow-md group-hover:scale-110 transition-transform" />
+              <X className="w-4.5 h-4.5 drop-shadow-md group-hover:scale-110 transition-transform" />
             </motion.button>
           ) : (
             <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-inner transition-colors",
-              isListening ? "bg-red-500/10 border-red-500/20" : "bg-[#5bdda6]/5 border-[#5bdda6]/10"
+              isListening ? "bg-destructive/10 border-destructive/20" : "bg-ring/5 border-ring/15"
             )}>
               {isSearching ? (
                 <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
                 >
-                  <Loader2 className="w-5 h-5 text-[#5bdda6]" />
+                  <Loader2 className="w-5 h-5 text-ring" />
                 </motion.div>
               ) : isListening ? (
                 <motion.div
                   animate={{ scale: [1, 1.2, 1] }}
                   transition={{ duration: 1, repeat: Infinity }}
                 >
-                  <Mic className="w-5 h-5 text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                  <Mic className="w-5 h-5 text-destructive drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
                 </motion.div>
               ) : (
-                <Search className="w-5 h-5 text-[#5bdda6]/70 drop-shadow-[0_0_8px_rgba(91,221,166,0.2)]" />
+                <Search className="w-5 h-5 text-ring/70 drop-shadow-[0_0_8px_hsl(var(--ring)/0.2)]" />
               )}
             </div>
           )}
@@ -705,8 +705,8 @@ export const DynamicSearchHeader: React.FC<{
             {/* عرض النص الصوتي الحي */}
             {isListening && voiceTranscript && (
               <div className="pointer-events-none">
-                <p className="text-[10px] text-red-400/60 font-semibold tracking-wide leading-tight mb-0.5">جاري الاستماع...</p>
-                <p className="text-[14px] text-white/90 font-bold truncate leading-tight">{voiceTranscript}</p>
+                <p className="text-[10px] text-destructive/70 font-semibold tracking-wide leading-tight mb-0.5">جاري الاستماع...</p>
+                <p className="text-[14px] text-foreground font-bold truncate leading-tight">{voiceTranscript}</p>
               </div>
             )}
 
@@ -718,14 +718,14 @@ export const DynamicSearchHeader: React.FC<{
                 onClick={onAddressClick}
                 className={`flex flex-col justify-center h-full ${onAddressClick ? 'pointer-events-auto cursor-pointer active:scale-95 transition-transform' : 'pointer-events-none'}`}
               >
-                <p className="text-[15px] text-white/95 font-bold truncate leading-tight pr-1 drop-shadow-sm">{showAddress}</p>
+                <p className="text-[15px] text-foreground font-bold truncate leading-tight pr-1 drop-shadow-sm">{showAddress}</p>
               </motion.div>
             )}
 
             {/* Placeholder الافتراضي — يختفي عند التركيز */}
             {!isListening && !query && !showAddress && !isFocused && (
               <div className="pointer-events-none">
-                <p className="text-[15px] text-white/40 font-bold leading-tight py-1.5">
+                <p className="text-[15px] text-muted-foreground/60 font-bold leading-tight py-1.5">
                   {placeholder || "إلى أين؟"}
                 </p>
               </div>
@@ -743,8 +743,8 @@ export const DynamicSearchHeader: React.FC<{
               placeholder={isFocused ? placeholder : ''}
               className={cn(
                 "w-full bg-transparent text-[15px] font-bold text-right",
-                "text-white placeholder:text-slate-500",
-                "focus:outline-none caret-[#5bdda6]",
+                "text-foreground placeholder:text-muted-foreground",
+                "focus:outline-none caret-ring",
                 (query || isFocused) && !isListening ? "relative opacity-100 py-2.5" : "absolute inset-0 opacity-0 py-2.5 z-10 cursor-text"
               )}
               dir="rtl"
@@ -760,8 +760,8 @@ export const DynamicSearchHeader: React.FC<{
             className={cn(
               "absolute -bottom-px left-6 right-6 h-[2px] rounded-full",
               isListening
-                ? "bg-gradient-to-r from-transparent via-red-500/50 to-transparent"
-                : "bg-gradient-to-r from-transparent via-[#5bdda6]/50 to-transparent"
+                ? "bg-gradient-to-r from-transparent via-destructive/50 to-transparent"
+                : "bg-gradient-to-r from-transparent via-ring/50 to-transparent"
             )}
             initial={{ scaleX: 0, opacity: 0 }}
             animate={{ scaleX: 1, opacity: 1 }}

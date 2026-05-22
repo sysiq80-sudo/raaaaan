@@ -26,14 +26,14 @@ const MenuListItem = ({
     to={href}
     onClick={onClick}
     dir="rtl"
-    className="group flex flex-col items-center gap-2.5 rounded-2xl border border-[#2e3a55] bg-[#151f33]/80 p-4 transition-all duration-200 hover:border-[#5bdda6]/30 hover:bg-[#1a253a]/90"
+    className="group flex flex-col items-center gap-2.5 rounded-2xl border border-border/30 bg-card/60 p-4 transition-all duration-200 hover:border-ring/30 hover:bg-secondary/80 active:scale-[0.98] shadow-sm"
   >
-    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/10 ${iconBg} text-[#5bdda6] transition-transform duration-200 group-hover:scale-105`}>
+    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border/10 ${iconBg} transition-transform duration-200 group-hover:scale-105`}>
       {icon}
     </span>
     <div className="text-center min-w-0 w-full">
-      <p className="text-[14px] font-bold text-[#e6edff] truncate">{label}</p>
-      <p className="mt-0.5 text-[11px] text-[#a8b4d3] truncate">{description}</p>
+      <p className="text-[14px] font-bold text-foreground truncate">{label}</p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground truncate">{description}</p>
     </div>
   </Link>
 );
@@ -66,13 +66,13 @@ const RiderSideMenu = ({
   };
 
   const menuItems = [
-    { icon: <History className="h-5 w-5" />, label: "سجل الرحلات", description: "عرض جميع رحلاتك السابقة", href: "/rider/rides", iconBg: "bg-[#23314c]" },
-    { icon: <CreditCard className="h-5 w-5" />, label: "طرق الدفع", description: "إدارة البطاقات والمحفظة", href: "/rider/payments", iconBg: "bg-[#22394a]" },
-    { icon: <MapPin className="h-5 w-5" />, label: "الأماكن المحفوظة", description: "المنزل، العمل، والمواقع المفضلة", href: "/rider/saved-places", iconBg: "bg-[#3a2a45]" },
-    { icon: <HelpCircle className="h-5 w-5" />, label: "مركز المساعدة", description: "الدعم الفني والأسئلة الشائعة", href: "/help", iconBg: "bg-[#3b3423]" },
-    { icon: <Settings className="h-5 w-5" />, label: "الإعدادات", description: "الخصوصية والتنبيهات واللغة", href: "/rider/settings", iconBg: "bg-[#2a3442]" },
-    { icon: <Gift className="h-5 w-5" />, label: "ادعُ واربح", description: "شارك التطبيق واحصل على مكافآت", href: "/rider/settings", iconBg: "bg-[#3a2742]" },
-    { icon: <Info className="h-5 w-5" />, label: "عن التطبيق", description: "تعرف أكثر على منصة ران", href: "/about", iconBg: "bg-[#2d3046]" },
+    { icon: <History className="h-5 w-5" />, label: "سجل الرحلات", description: "عرض جميع رحلاتك السابقة", href: "/rider/rides", iconBg: "bg-indigo-500/10 text-indigo-500 dark:bg-indigo-500/20" },
+    { icon: <CreditCard className="h-5 w-5" />, label: "طرق الدفع", description: "إدارة البطاقات والمحفظة", href: "/rider/payments", iconBg: "bg-cyan-500/10 text-cyan-500 dark:bg-cyan-500/20" },
+    { icon: <MapPin className="h-5 w-5" />, label: "الأماكن المحفوظة", description: "المنزل، العمل، والمواقع المفضلة", href: "/rider/saved-places", iconBg: "bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/20" },
+    { icon: <HelpCircle className="h-5 w-5" />, label: "مركز المساعدة", description: "الدعم الفني والأسئلة الشائعة", href: "/help", iconBg: "bg-amber-500/10 text-amber-500 dark:bg-amber-500/20" },
+    { icon: <Settings className="h-5 w-5" />, label: "الإعدادات", description: "الخصوصية والتنبيهات واللغة", href: "/rider/settings", iconBg: "bg-slate-500/10 text-slate-500 dark:bg-slate-500/20" },
+    { icon: <Gift className="h-5 w-5" />, label: "ادعُ واربح", description: "شارك التطبيق واحصل على مكافآت", href: "/rider/settings", iconBg: "bg-rose-500/10 text-rose-500 dark:bg-rose-500/20" },
+    { icon: <Info className="h-5 w-5" />, label: "عن التطبيق", description: "تعرف أكثر على منصة ران", href: "/about", iconBg: "bg-blue-500/10 text-blue-500 dark:bg-blue-500/20" },
   ];
 
   const displayName =
@@ -97,11 +97,11 @@ const RiderSideMenu = ({
             initial="hidden" animate="visible" exit="exit"
             transition={OPEN_TRANSITION}
             style={{ willChange: "transform" }}
-            className="fixed inset-0 z-[60] overflow-hidden bg-[#0b1326]"
+            className="fixed inset-0 z-[60] overflow-hidden bg-background"
             dir="rtl"
           >
-            <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-[#5bdda6]/15 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-[#27b481]/10 blur-3xl" />
+            <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-ring/10 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-emerald-500/5 blur-3xl" />
             <div 
               className="absolute top-0 left-0 z-30 pb-4 px-4"
               style={{ paddingTop: "max(16px, calc(env(safe-area-inset-top, 0px) + 16px))" }}
@@ -109,7 +109,7 @@ const RiderSideMenu = ({
               <button
                 onClick={handleClose}
                 aria-label="إغلاق القائمة"
-                className="w-11 h-11 rounded-2xl bg-[#5bdda6] flex items-center justify-center shadow-[0_0_20px_rgba(91,221,166,0.45)] hover:bg-[#4ecf99] active:bg-[#3dbe88] transition-all duration-200 text-[#0b1326]"
+                className="w-11 h-11 rounded-2xl bg-secondary flex items-center justify-center border border-border/30 shadow-sm hover:bg-secondary/80 active:scale-95 transition-all duration-200 text-foreground"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -119,26 +119,26 @@ const RiderSideMenu = ({
                 {user ? (
                   <>
                     <section className="mb-7 text-center">
-                      <div className="relative mx-auto mb-4 h-24 w-24 rounded-full bg-gradient-to-br from-[#5bdda6] to-[#27b481] p-[3px] shadow-[0_10px_40px_rgba(91,221,166,0.25)]">
-                        <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0f192b]">
+                      <div className="relative mx-auto mb-4 h-24 w-24 rounded-full bg-gradient-to-br from-ring to-emerald-500 p-[3px] shadow-lg shadow-ring/25">
+                        <div className="flex h-full w-full items-center justify-center rounded-full bg-card">
                           <img src={logo} alt="RAAN" className="h-11 w-11 opacity-90" />
                         </div>
-                        <span className="absolute bottom-0 left-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0b1326] bg-[#5bdda6] text-[#083d2b]">
+                        <span className="absolute bottom-0 left-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-ring text-primary-foreground shadow-sm">
                           <BadgeCheck className="h-4 w-4" />
                         </span>
                       </div>
-                      <h2 className="text-2xl font-extrabold text-[#e6edff]">{displayName}</h2>
-                      <div className="mx-auto mt-3 inline-flex items-center gap-2 rounded-full border border-[#5bdda6]/30 bg-[#1a2a3e] px-3 py-1">
-                        <span className="text-xs font-bold uppercase tracking-widest text-[#7ef8c3]">عضوية النخبة</span>
+                      <h2 className="text-2xl font-extrabold text-foreground">{displayName}</h2>
+                      <div className="mx-auto mt-3 inline-flex items-center gap-2 rounded-full border border-ring/30 bg-ring/5 px-3 py-1">
+                        <span className="text-xs font-bold uppercase tracking-widest text-ring">عضوية النخبة</span>
                       </div>
                     </section>
-                    <section className="mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-[#5bdda6] to-[#27b481] p-5 text-[#083d2b] shadow-[0_22px_45px_-18px_rgba(91,221,166,0.45)]">
+                    <section className="mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-ring to-emerald-600 p-5 text-primary-foreground shadow-md shadow-ring/15">
                       <div className="flex items-center justify-between gap-4">
                         <div>
-                          <p className="text-xs font-semibold text-[#0b5037]/80">الرصيد الحالي</p>
+                          <p className="text-xs font-semibold text-primary-foreground/80">الرصيد الحالي</p>
                           <p className="mt-1 text-2xl font-extrabold">0.00 د.ع</p>
                         </div>
-                        <Link to="/rider/wallet-topup" onClick={handleClose} className="flex items-center gap-1.5 rounded-xl bg-[#0f3f2d]/85 px-4 py-2 text-sm font-bold text-[#d9ffe8] transition-transform active:scale-95">
+                        <Link to="/rider/wallet-topup" onClick={handleClose} className="flex items-center gap-1.5 rounded-xl bg-primary-foreground/10 hover:bg-primary-foreground/20 px-4 py-2 text-sm font-bold text-primary-foreground transition-all duration-200 active:scale-95">
                           <PlusCircle className="h-4 w-4" />
                           <span>شحن الرصيد</span>
                         </Link>
@@ -151,20 +151,20 @@ const RiderSideMenu = ({
                     </section>
                     <button
                       onClick={async () => { handleClose(); if (onLogout) { onLogout(); } else { await logout(); navigate("/auth"); } }}
-                      className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-400/20 bg-red-500/10 py-4 text-base font-bold text-red-300 transition-colors hover:bg-red-500/15"
+                      className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/10 py-4 text-base font-bold text-destructive hover:bg-destructive/15 transition-colors duration-200"
                     >
                       <LogOut className="h-5 w-5" />
                       <span>تسجيل الخروج</span>
                     </button>
                   </>
                 ) : (
-                  <section className="mx-auto mt-12 max-w-sm rounded-3xl border border-[#2e3a55] bg-[#141e32]/90 p-6 text-center shadow-lg">
-                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1f2e48] text-[#5bdda6]">
+                  <section className="mx-auto mt-12 max-w-sm rounded-3xl border border-border/30 bg-card/90 p-6 text-center shadow-lg">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary text-ring">
                       <Wallet className="h-8 w-8" />
                     </div>
-                    <h2 className="text-xl font-bold text-[#e6edff]">أهلاً بك في ران</h2>
-                    <p className="mt-2 text-sm text-[#a8b4d3]">سجّل الدخول للوصول إلى المحفظة، سجل الرحلات، والإعدادات.</p>
-                    <Link to="/auth" onClick={handleClose} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#5bdda6]/15 px-5 py-2.5 text-sm font-bold text-[#7ef8c3]">
+                    <h2 className="text-xl font-bold text-foreground">أهلاً بك في ران</h2>
+                    <p className="mt-2 text-sm text-muted-foreground">سجّل الدخول للوصول إلى المحفظة، سجل الرحلات، والإعدادات.</p>
+                    <Link to="/auth" onClick={handleClose} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-ring/10 hover:bg-ring/15 px-5 py-2.5 text-sm font-bold text-ring">
                       <LogIn className="h-4 w-4" />
                       <span>تسجيل الدخول</span>
                     </Link>

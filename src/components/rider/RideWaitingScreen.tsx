@@ -556,7 +556,7 @@ export const RideWaitingScreen = ({
     setShowCancelDialog(true);
   };
 
-  // Handle actual cancellation with reason
+  // Handle actual cancellation with reason — via atomic RPC
   const handleConfirmCancel = async (reason: string, category: string) => {
     console.log("[RideWaiting] 🗑️ Confirming cancellation:", {
       reason,
@@ -564,39 +564,76 @@ export const RideWaitingScreen = ({
     });
     setCancelling(true);
 
-    // فلترة بالحالات التي يُسمح للراكب بإلغائها فقط
-    const cancellableStatuses = ["pending", "accepted", "arrived"];
-    const { data: updatedRides, error } = await supabase
-      .from("rides")
-      .update({
-        status: "cancelled",
-        cancelled_by: "rider",
-        cancellation_reason: reason,
-      })
-      .eq("id", rideId)
-      .in("status", cancellableStatuses)
-      .select("cancellation_fee");
-
-    if (!error && updatedRides && updatedRides.length > 0) {
-      const appliedFee = updatedRides[0].cancellation_fee || 0;
-      setShowCancelDialog(false);
-      if (appliedFee > 0) {
+    try {
+      // جلب user_id الحالي
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
         toast({
-          title: "تم إلغاء الرحلة",
-          description: `تم خصم غرامة إلغاء: ${appliedFee.toLocaleString()} د.ع من محفظتك`,
+          title: "خطأ",
+          description: "يرجى تسجيل الدخول مرة أخرى",
           variant: "destructive",
         });
+        setCancelling(false);
+        return;
+      }
+
+      // ═══ استدعاء RPC الذري — يتولى التحقق + الغرامة + الخصم + التحديث ═══
+      const { data: cancelResult, error } = await supabase.rpc(
+        'cancel_ride_by_rider' as any,
+        {
+          p_ride_id: rideId,
+          p_rider_user_id: currentUser.id,
+          p_reason: reason,
+        }
+      );
+
+      if (error) {
+        console.error("[RideWaiting] ❌ Cancel RPC error:", error.message);
+        toast({
+          title: "خطأ",
+          description: "حدث خطأ أثناء إلغاء الرحلة",
+          variant: "destructive",
+        });
+        setCancelling(false);
+        return;
+      }
+
+      const result = cancelResult as { success: boolean; penalty_amount?: number; penalty_paid?: boolean; error?: string; code?: string } | null;
+
+      if (result?.success) {
+        setShowCancelDialog(false);
+        const penaltyAmount = result.penalty_amount || 0;
+        if (penaltyAmount > 0 && result.penalty_paid) {
+          toast({
+            title: "تم إلغاء الرحلة",
+            description: `تم خصم غرامة إلغاء: ${penaltyAmount.toLocaleString()} د.ع من محفظتك`,
+            variant: "destructive",
+          });
+        } else if (penaltyAmount > 0 && !result.penalty_paid) {
+          toast({
+            title: "تم إلغاء الرحلة",
+            description: `غرامة إلغاء: ${penaltyAmount.toLocaleString()} د.ع (لم يتم الخصم من المحفظة)`,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "تم إلغاء الرحلة",
+            description: "نأمل أن نراك مرة أخرى قريباً",
+          });
+        }
+        onCancel();
       } else {
         toast({
-          title: "تم إلغاء الرحلة",
-          description: "نأمل أن نراك مرة أخرى قريباً",
+          title: "خطأ",
+          description: result?.error || "لا يمكن إلغاء الرحلة في هذه المرحلة",
+          variant: "destructive",
         });
       }
-      onCancel();
-    } else {
+    } catch (err) {
+      console.error("[RideWaiting] ❌ Cancel exception:", err);
       toast({
         title: "خطأ",
-        description: error ? "حدث خطأ أثناء إلغاء الرحلة" : "لا يمكن إلغاء الرحلة في هذه المرحلة",
+        description: "حدث خطأ غير متوقع أثناء الإلغاء",
         variant: "destructive",
       });
     }

@@ -905,7 +905,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     setApproachingNotified(false);
   }, [ride.id]);
 
-  // Cancel ride handler
+  // Cancel ride handler — via atomic RPC
   const handleCancelRide = async () => {
     if (!["pending", "accepted"].includes(ride.status)) {
       toast({
@@ -918,39 +918,56 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
     setIsCancelling(true);
 
-    const { data: updatedRides, error } = await supabase
-      .from("rides")
-      .update({
-        status: "cancelled",
-        cancelled_by: "rider",
-        cancellation_reason: "إلغاء من قبل الراكب",
-      })
-      .eq("id", ride.id)
-      .in("status", ["pending", "accepted"])
-      .select("cancellation_fee");
-
-    if (!error && updatedRides && updatedRides.length > 0) {
-      const appliedFee = updatedRides[0].cancellation_fee || 0;
-      playSound("cancelled");
-      if (appliedFee > 0) {
-        toast({
-          title: "تم إلغاء الرحلة ❌",
-          description: `تم إلغاء الرحلة وخصم غرامة إلغاء: ${appliedFee.toLocaleString()} د.ع من محفظتك`,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "تم إلغاء الرحلة ❌",
-          description: "يمكنك طلب رحلة جديدة في أي وقت",
-        });
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        toast({ title: "خطأ", description: "يرجى تسجيل الدخول مرة أخرى", variant: "destructive" });
+        setIsCancelling(false);
+        return;
       }
-      onClose();
-    } else {
-      toast({
-        title: "حدث خطأ",
-        description: error ? "لم نتمكن من إلغاء الرحلة، حاول مرة أخرى" : "لا يمكن إلغاء الرحلة في هذه المرحلة",
-        variant: "destructive",
-      });
+
+      // ═══ استدعاء RPC الذري ═══
+      const { data: cancelResult, error } = await supabase.rpc(
+        'cancel_ride_by_rider' as any,
+        {
+          p_ride_id: ride.id,
+          p_rider_user_id: currentUser.id,
+          p_reason: "إلغاء من قبل الراكب",
+        }
+      );
+
+      if (error) {
+        console.error("[LiveTracker] ❌ Cancel RPC error:", error.message);
+        toast({ title: "حدث خطأ", description: "لم نتمكن من إلغاء الرحلة، حاول مرة أخرى", variant: "destructive" });
+      } else {
+        const result = cancelResult as { success: boolean; penalty_amount?: number; penalty_paid?: boolean; error?: string } | null;
+        if (result?.success) {
+          playSound("cancelled");
+          const penaltyAmount = result.penalty_amount || 0;
+          if (penaltyAmount > 0 && result.penalty_paid) {
+            toast({
+              title: "تم إلغاء الرحلة ❌",
+              description: `تم إلغاء الرحلة وخصم غرامة إلغاء: ${penaltyAmount.toLocaleString()} د.ع من محفظتك`,
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "تم إلغاء الرحلة ❌",
+              description: "يمكنك طلب رحلة جديدة في أي وقت",
+            });
+          }
+          onClose();
+        } else {
+          toast({
+            title: "حدث خطأ",
+            description: result?.error || "لا يمكن إلغاء الرحلة في هذه المرحلة",
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (err) {
+      console.error("[LiveTracker] ❌ Cancel exception:", err);
+      toast({ title: "حدث خطأ", description: "حدث خطأ غير متوقع أثناء الإلغاء", variant: "destructive" });
     }
 
     setIsCancelling(false);
