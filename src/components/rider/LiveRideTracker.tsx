@@ -918,26 +918,37 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
     setIsCancelling(true);
 
-    const { error } = await supabase
+    const { data: updatedRides, error } = await supabase
       .from("rides")
       .update({
         status: "cancelled",
         cancelled_by: "rider",
         cancellation_reason: "إلغاء من قبل الراكب",
       })
-      .eq("id", ride.id);
+      .eq("id", ride.id)
+      .in("status", ["pending", "accepted"])
+      .select("cancellation_fee");
 
-    if (!error) {
+    if (!error && updatedRides && updatedRides.length > 0) {
+      const appliedFee = updatedRides[0].cancellation_fee || 0;
       playSound("cancelled");
-      toast({
-        title: "تم إلغاء الرحلة ❌",
-        description: "يمكنك طلب رحلة جديدة في أي وقت",
-      });
+      if (appliedFee > 0) {
+        toast({
+          title: "تم إلغاء الرحلة ❌",
+          description: `تم إلغاء الرحلة وخصم غرامة إلغاء: ${appliedFee.toLocaleString()} د.ع من محفظتك`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "تم إلغاء الرحلة ❌",
+          description: "يمكنك طلب رحلة جديدة في أي وقت",
+        });
+      }
       onClose();
     } else {
       toast({
         title: "حدث خطأ",
-        description: "لم نتمكن من إلغاء الرحلة، حاول مرة أخرى",
+        description: error ? "لم نتمكن من إلغاء الرحلة، حاول مرة أخرى" : "لا يمكن إلغاء الرحلة في هذه المرحلة",
         variant: "destructive",
       });
     }

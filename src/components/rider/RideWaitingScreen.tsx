@@ -564,83 +564,26 @@ export const RideWaitingScreen = ({
     });
     setCancelling(true);
 
-    // Check if driver already accepted - apply cancellation fee
-    let cancellationFee = 0;
-    if (rideStatus === "accepted" || rideStatus === "arrived") {
-      const { data: settings } = await supabase
-        .from("app_settings")
-        .select("value")
-        .eq("key", "cancellation_fee")
-        .single();
-      if (settings?.value) {
-        const feeSettings = settings.value as {
-          amount: number;
-          enabled: boolean;
-          applies_after_acceptance: boolean;
-        };
-        if (feeSettings.enabled && feeSettings.applies_after_acceptance) {
-          cancellationFee = feeSettings.amount;
-        }
-      }
-    }
     // فلترة بالحالات التي يُسمح للراكب بإلغائها فقط
     const cancellableStatuses = ["pending", "accepted", "arrived"];
-    const { error, count } = await supabase
+    const { data: updatedRides, error } = await supabase
       .from("rides")
       .update({
         status: "cancelled",
         cancelled_by: "rider",
         cancellation_reason: reason,
-        cancellation_fee: cancellationFee,
-        cancellation_fee_paid: cancellationFee > 0,
       })
       .eq("id", rideId)
-      .in("status", cancellableStatuses);
-    if (!error) {
-      // خصم غرامة الإلغاء من محفظة الراكب إن وُجدت
-      if (cancellationFee > 0) {
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("id, wallet_balance")
-              .eq("user_id", user.id)
-              .single();
+      .in("status", cancellableStatuses)
+      .select("cancellation_fee");
 
-            if (profile && (profile.wallet_balance || 0) >= cancellationFee) {
-              const newBalance = (profile.wallet_balance || 0) - cancellationFee;
-              // تحديث المحفظة بشرط أن الرصيد لم يتغير (حماية من race condition)
-              const { error: walletErr } = await supabase
-                .from("profiles")
-                .update({ wallet_balance: newBalance })
-                .eq("id", profile.id)
-                .gte("wallet_balance", cancellationFee);
-
-              if (!walletErr) {
-                await (supabase as any).from("wallet_transactions").insert({
-                  user_id: user.id,
-                  amount: -cancellationFee,
-                  type: "cancellation_fee",
-                  description: `غرامة إلغاء رحلة #${rideId.substring(0, 8)}`,
-                  reference_id: rideId,
-                  balance_after: newBalance,
-                });
-              } else {
-                console.warn("[RideWaiting] Wallet deduction skipped — balance changed:", walletErr);
-              }
-            }
-          }
-        } catch (feeError) {
-          console.error("[RideWaiting] Failed to deduct cancellation fee:", feeError);
-        }
-      }
-
+    if (!error && updatedRides && updatedRides.length > 0) {
+      const appliedFee = updatedRides[0].cancellation_fee || 0;
       setShowCancelDialog(false);
-      if (cancellationFee > 0) {
+      if (appliedFee > 0) {
         toast({
           title: "تم إلغاء الرحلة",
-          description: `تم خصم غرامة إلغاء: ${cancellationFee.toLocaleString()} د.ع من محفظتك`,
+          description: `تم خصم غرامة إلغاء: ${appliedFee.toLocaleString()} د.ع من محفظتك`,
           variant: "destructive",
         });
       } else {
@@ -653,7 +596,7 @@ export const RideWaitingScreen = ({
     } else {
       toast({
         title: "خطأ",
-        description: "حدث خطأ أثناء إلغاء الرحلة",
+        description: error ? "حدث خطأ أثناء إلغاء الرحلة" : "لا يمكن إلغاء الرحلة في هذه المرحلة",
         variant: "destructive",
       });
     }
