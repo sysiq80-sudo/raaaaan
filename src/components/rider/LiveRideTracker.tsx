@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
+import RiderMapHeader from "@/components/rider/RiderMapHeader";
 import logo from "@/assets/logo.png";
 
 interface Ride {
@@ -984,30 +985,14 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         onLogout={() => {}} 
       />
 
-      {/* Header - Menu Left, Logo Center, Status Icons Right */}
-      <header className="absolute top-3 left-0 right-0 z-10 px-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 bg-card/90 backdrop-blur-xl px-3 py-2 rounded-xl shadow-lg border border-border/20">
-          <span className="font-bold text-base bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            ران
-          </span>
-          <img src={logo} alt="RAAN" className="w-8 h-8 rounded-lg shadow-sm" />
-        </div>
-
-
-
-
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setMenuOpen(true)}
-          className="bg-card/90 backdrop-blur-xl hover:bg-card shadow-lg rounded-xl w-10 h-10 border border-border/20 hover:scale-105 transition-all"
-        >
-          <Menu className="w-5 h-5" />
-        </Button>
-      </header>
+      {/* Header — Premium glassmorphism header */}
+      <RiderMapHeader
+        onMenuOpen={() => setMenuOpen(true)}
+        stepLabel={ride.status === 'accepted' ? 'السائق في الطريق' : ride.status === 'arrived' ? 'السائق وصل' : ride.status === 'in_progress' ? 'في الرحلة' : 'تتبع الرحلة'}
+      />
 
       {/* Status Progress Column - Right Side */}
-      <div className="absolute top-16 right-3 z-10" dir="rtl">
+      <div className="absolute z-10" dir="rtl" style={{ top: 'calc(3.5rem + env(safe-area-inset-top) + 8px)', right: '12px' }}>
         <div className="rounded-2xl px-2.5 py-3 flex flex-col items-center gap-0 bg-white/95 backdrop-blur-xl border border-[#E4E7EC] shadow-lg">
           {[
             { status: 'accepted', label: 'قَبِل', icon: UserCheck, num: 1 },

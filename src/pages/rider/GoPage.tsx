@@ -1877,23 +1877,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
 
 
-        {/* Drag instruction tooltip */}
-        <AnimatePresence>
-          {!isDragging && centerAddress && !hasStartedDragging && <motion.div 
-            initial={{ y: -8, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -8, opacity: 0 }}
-            className="absolute left-4 z-30 pointer-events-none"
-            style={{ top: 'calc(4rem + env(safe-area-inset-top))' }}
-          >
-            <div className="bg-card/95 backdrop-blur-lg px-3 py-2 rounded-full shadow-md border border-border/30 text-foreground">
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <span>👉</span>
-                <span>اسحب الخريطة لتغيير الموقع</span>
-              </p>
-            </div>
-          </motion.div>}
-        </AnimatePresence>
+
+
 
         {/* Simplified map pin — clean and minimal */}
         <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full z-[15]">
@@ -1964,7 +1949,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       <button
         onClick={() => manualGeolocateMain()}
         className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-card text-foreground border border-border/30 shadow-md hover:bg-secondary active:scale-95 transition-all"
-        style={{ bottom: 'calc(35% + 16px)' }}
+        style={{ bottom: 'calc(42% + 16px)' }}
         aria-label="تحديد موقعي"
       >
         <Navigation className="w-4.5 h-4.5 text-foreground" />

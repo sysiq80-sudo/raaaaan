@@ -659,21 +659,21 @@ export const RideWaitingScreen = ({
   // ═══ شاشة السائق المقبول — Dark Luxury ═══
   if (showDriverCard && acceptedDriver) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[#F7F8FA] max-w-[480px] mx-auto" dir="rtl">
+      <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background max-w-[480px] mx-auto" dir="rtl">
 
         {/* هيدر النجاح */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="shrink-0 px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-4 bg-white border-b border-[#E4E7EC]"
+          className="shrink-0 px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-4 bg-card/85 backdrop-blur-xl border-b border-border/30"
         >
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-[#00B3B0]/10 border border-[#00B3B0]/20">
-              <Sparkles className="w-5 h-5 text-[#00B3B0]" />
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-ring/10 border border-ring/20">
+              <Sparkles className="w-5 h-5 text-ring" />
             </div>
             <div>
-              <h1 className="text-[18px] font-black text-[#101828] leading-tight">تم قبول طلبك! 🎉</h1>
-              <p className="text-[12px] mt-0.5 text-[#00B3B0]">السائق في الطريق إليك الآن</p>
+              <h1 className="text-[18px] font-black text-foreground leading-tight">تم قبول طلبك! 🎉</h1>
+              <p className="text-[12px] mt-0.5 text-ring">السائق في الطريق إليك الآن</p>
             </div>
           </div>
         </motion.div>
@@ -793,14 +793,14 @@ export const RideWaitingScreen = ({
         </div>
 
         {/* زر تتبع الرحلة */}
-        <div className="shrink-0 px-4 pb-4 bg-white border-t border-[#E4E7EC]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)', zIndex: 10 }}>
+        <div className="shrink-0 px-4 pb-4 bg-card border-t border-border/30" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)', zIndex: 10 }}>
           <motion.button
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             onClick={handleContinueToTracking}
             whileTap={{ scale: 0.97 }}
-            className="w-full min-h-[48px] rounded-2xl flex items-center justify-center gap-2 text-base font-bold transition-all shadow-lg touch-manipulation bg-[#00B3B0] text-white hover:bg-[#009E9B]"
+            className="w-full min-h-[48px] rounded-2xl flex items-center justify-center gap-2 text-base font-bold transition-all shadow-lg touch-manipulation bg-ring text-primary-foreground hover:bg-ring/90"
           >
             <Navigation className="w-5 h-5 ml-1" />
             تتبع الرحلة على الخريطة
@@ -812,7 +812,7 @@ export const RideWaitingScreen = ({
 
   // Waiting State — Dark Luxury
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#F7F8FA] max-w-[480px] mx-auto" dir="rtl">
+    <div className="fixed inset-0 z-50 flex flex-col bg-background max-w-[480px] mx-auto" dir="rtl">
 
       {/* طبقة انتقال السائق */}
       <AnimatePresence>
@@ -843,28 +843,28 @@ export const RideWaitingScreen = ({
 
       {/* هيدر البحث */}
       <div
-        className="shrink-0 px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-white border-b border-[#E4E7EC]"
+        className="shrink-0 px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-card/85 backdrop-blur-xl border-b border-border/30"
       >
         <div className="flex flex-col items-center gap-2 text-center">
           {/* أيقونة البحث */}
           <div className="relative w-11 h-11 shrink-0">
             <div className="absolute inset-0 rounded-full animate-ping" style={{ border: "2px solid rgba(0,179,176,0.3)" }} />
-            <div className="relative w-full h-full rounded-xl flex items-center justify-center bg-[#00B3B0]/10 border border-[#00B3B0]/20">
-              <Search className="w-5 h-5 text-[#00B3B0]" />
+            <div className="relative w-full h-full rounded-xl flex items-center justify-center bg-ring/10 border border-ring/20">
+              <Search className="w-5 h-5 text-ring" />
             </div>
           </div>
           {/* النصوص */}
           <div>
-            <h1 className="text-[16px] font-black text-[#101828] leading-tight">بانتظار سائق 🔍</h1>
-            <p className="text-[12px] mt-1 text-[#475467]">
+            <h1 className="text-[16px] font-black text-foreground leading-tight">بانتظار سائق 🔍</h1>
+            <p className="text-[12px] mt-1 text-muted-foreground">
               {encouragingMessages[encouragingMessageIndex]?.icon}{" "}
               {encouragingMessages[encouragingMessageIndex]?.text || "جاري البحث عن أفضل سائق لك..."}
             </p>
           </div>
           {/* عداد السائقين */}
           {nearbyDrivers > 0 && (
-            <div className="text-center px-4 py-1.5 rounded-xl bg-[#00B3B0]/10 border border-[#00B3B0]/20">
-              <span className="text-[13px] font-bold text-[#00B3B0]">{nearbyDrivers} سائق متاح قريب منك</span>
+            <div className="text-center px-4 py-1.5 rounded-xl bg-ring/10 border border-ring/20">
+              <span className="text-[13px] font-bold text-ring">{nearbyDrivers} سائق متاح قريب منك</span>
             </div>
           )}
         </div>
@@ -1054,7 +1054,7 @@ export const RideWaitingScreen = ({
       </div>
 
       {/* زر الإلغاء */}
-      <div className="shrink-0 px-4 pb-4 bg-white border-t border-[#E4E7EC]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)', zIndex: 10 }}>
+      <div className="shrink-0 px-4 pb-4 bg-card border-t border-border/30" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)', zIndex: 10 }}>
         <button
           onClick={handleCancelClick}
           disabled={cancelling}
