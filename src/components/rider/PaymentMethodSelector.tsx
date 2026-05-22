@@ -4,11 +4,9 @@
  * مع دعم البطاقات المحفوظة ونافذة إضافة بطاقة جديدة
  */
 
-import React, { useState, useMemo } from "react";
-import { Banknote, Wallet, CreditCard, Check, Plus } from "lucide-react";
-import { useSavedCards } from "@/hooks/useSavedCards";
+import React, { useMemo } from "react";
+import { Banknote, Wallet, CreditCard, Check } from "lucide-react";
 import { usePaymentMethods } from "@/hooks/usePaymentMethods";
-import AddCardModal from "./AddCardModal";
 import type { PaymentMethod } from "@/types/savedCards";
 
 interface PaymentOption {
@@ -49,8 +47,6 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   className = "",
   walletBalance,
 }) => {
-  const [addCardOpen, setAddCardOpen] = useState(false);
-  const { data: savedCards } = useSavedCards();
   const { paymentMethods } = usePaymentMethods();
 
   // تحويل بيانات الDB إلى PaymentOption[]
@@ -68,16 +64,8 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
     });
   }, [paymentMethods]);
 
-  // البطاقة الافتراضية (أو أول بطاقة)
-  const defaultCard = savedCards?.find((c) => c.is_default) || savedCards?.[0];
-  const hasCard = !!defaultCard;
-
   const handleSelect = (type: PaymentMethod) => {
-    // إذا اختار البطاقة ولا يوجد بطاقة محفوظة → فتح نافذة الإضافة
-    if (type === "card" && !hasCard) {
-      setAddCardOpen(true);
-      return;
-    }
+    if (type !== "cash" && type !== "wallet") return;
     onSelect(type);
   };
 
@@ -85,18 +73,11 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
     if (option.type === "wallet" && walletBalance !== undefined) {
       return `رصيدك: ${walletBalance.toLocaleString()} د.ع`;
     }
-    if (option.type === "card" && hasCard) {
-      return `${defaultCard.brand} •••• ${defaultCard.last4}`;
-    }
-    if (option.type === "card" && !hasCard) {
-      return "أضف بطاقة جديدة";
-    }
     return option.description;
   };
 
   return (
-    <>
-      <div className={`space-y-2 ${className}`}>
+    <div className={`space-y-2 ${className}`}>
         {paymentOptions
           .filter((option) => {
             // فقط نقدي + محفظة — الباقي معطّل مؤقتاً
@@ -153,18 +134,7 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
             </button>
           );
         })}
-      </div>
-
-      {/* نافذة إضافة بطاقة */}
-      <AddCardModal
-        open={addCardOpen}
-        onOpenChange={setAddCardOpen}
-        onCardAdded={() => {
-          // بعد إضافة البطاقة بنجاح → اختيار البطاقة تلقائياً
-          onSelect("card");
-        }}
-      />
-    </>
+    </div>
   );
 };
 

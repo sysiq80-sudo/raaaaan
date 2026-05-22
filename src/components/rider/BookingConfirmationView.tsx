@@ -132,6 +132,12 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
     }
   }, [selectedVehicle, onVehicleChange]);
 
+  useEffect(() => {
+    if (paymentMethod !== "cash" && paymentMethod !== "wallet") {
+      onPaymentChange("cash");
+    }
+  }, [paymentMethod, onPaymentChange]);
+
   const handlePrimaryBookAction = () => {
     if (isBooking) return;
 

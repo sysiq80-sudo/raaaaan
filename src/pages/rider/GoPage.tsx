@@ -49,7 +49,6 @@ import FavoriteMarkersLayer from "@/components/rider/FavoriteMarkersLayer";
 import { useFavoritesStore } from "@/stores/useFavoritesStore";
 import SaveLocationModal from "@/components/rider/SaveLocationModal";
 import BookingConfirmationView from "@/components/rider/BookingConfirmationView";
-import FlowStepper from "@/components/rider/FlowStepper";
 
 // Performance & Enhancement hooks
 import { usePerformanceMonitoring, useOperationTiming } from "@/hooks/usePerformanceMonitoring";
