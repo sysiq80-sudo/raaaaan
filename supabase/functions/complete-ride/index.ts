@@ -98,10 +98,15 @@ serve(async (req) => {
     if (ride.status === "completed") {
       return new Response(
         JSON.stringify({
-          error: "Ride already completed",
+          success: true,
+          already_completed: true,
+          ride_id,
           final_fare: ride.final_fare,
+          completed_at: ride.completed_at,
+          actual_distance_km: ride.actual_distance_km || null,
+          payment_method: ride.payment_method,
         }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -307,7 +312,56 @@ serve(async (req) => {
       }
     }
 
-    // ═══ 7. Financial Settlement — حسب النموذج المالي ═══
+    // ═══ 7. Rider wallet deduction — يجب أن يسبق تسوية السائق لتحديد مسار الدفع الصحيح ═══
+    let walletDeducted = false;
+    let effectivePaymentMethod = ride.payment_method;
+
+    if (ride.payment_method === "wallet") {
+      try {
+        const { data: deductResult, error: deductError } = await supabase.rpc(
+          'deduct_wallet_safely',
+          {
+            p_user_id: ride.rider_id,
+            p_amount: finalFare,
+            p_ride_id: ride_id,
+          }
+        );
+
+        if (deductError) {
+          console.error("[complete-ride] Wallet deduction RPC error:", deductError.message);
+          effectivePaymentMethod = "cash";
+        } else if (deductResult?.success) {
+          walletDeducted = true;
+          console.log(`[complete-ride] ✅ Wallet deducted: ${finalFare} IQD from rider ${ride.rider_id}. New balance: ${deductResult.new_balance}`);
+        } else {
+          console.warn(`[complete-ride] Wallet deduction failed: ${deductResult?.error}. Switching to cash.`);
+          effectivePaymentMethod = "cash";
+        }
+
+        if (effectivePaymentMethod === "cash") {
+          const { error: cashUpdateError } = await supabase
+            .from("rides")
+            .update({ payment_method: "cash" })
+            .eq("id", ride_id);
+
+          if (cashUpdateError) {
+            console.error("[complete-ride] Failed to switch wallet payment to cash:", cashUpdateError.message);
+          }
+        }
+      } catch (e) {
+        console.error("[complete-ride] Wallet deduction failed:", e);
+        effectivePaymentMethod = "cash";
+        const { error: cashUpdateError } = await supabase
+          .from("rides")
+          .update({ payment_method: "cash" })
+          .eq("id", ride_id);
+        if (cashUpdateError) {
+          console.error("[complete-ride] Failed to switch wallet payment to cash after exception:", cashUpdateError.message);
+        }
+      }
+    }
+
+    // ═══ 8. Financial Settlement — حسب النموذج المالي ═══
     let commissionResult: any = null;
     let dailySubResult: any = null;
     try {
@@ -371,7 +425,7 @@ serve(async (req) => {
           daily_fee_charged: dailySubResult?.charged || false,
           daily_fee_amount: dailySubResult?.daily_fee || 0,
           daily_fee_reason: dailySubResult?.reason || null,
-          payment_method: ride.payment_method,
+          payment_method: effectivePaymentMethod,
           completed_at: new Date().toISOString(),
         };
 
@@ -496,7 +550,7 @@ serve(async (req) => {
         tier_name: tierName,
         subscription_discount: subscriptionDiscount,
         subscription_name: subscriptionName,
-        payment_method: ride.payment_method,
+        payment_method: effectivePaymentMethod,
         completed_at: new Date().toISOString(),
       };
 
@@ -514,41 +568,7 @@ serve(async (req) => {
       // Ride is already completed — can be reconciled later
     }
 
-    // ═══ 7.5. Wallet deduction for rider — خصم المبلغ من محفظة الراكب إذا كان الدفع عبر المحفظة ═══
-    let walletDeducted = false;
-    if (ride.payment_method === "wallet") {
-      try {
-        // خصم المبلغ بشكل آمن عبر الدالة الذرية (تمنع race condition)
-        const { data: deductResult, error: deductError } = await supabase.rpc(
-          'deduct_wallet_safely',
-          {
-            p_user_id: ride.rider_id,
-            p_amount: finalFare,
-            p_ride_id: ride_id,
-          }
-        );
-
-        if (deductError) {
-          console.error("[complete-ride] Wallet deduction RPC error:", deductError.message);
-        } else if (deductResult?.success) {
-          walletDeducted = true;
-          console.log(`[complete-ride] ✅ Wallet deducted: ${finalFare} IQD from rider ${ride.rider_id}. New balance: ${deductResult.new_balance}`);
-        } else {
-          // رصيد غير كافٍ أو خطأ آخر — تحويل لنقدي
-          console.warn(`[complete-ride] Wallet deduction failed: ${deductResult?.error}. Switching to cash.`);
-
-          await supabase
-            .from("rides")
-            .update({ payment_method: "cash" })
-            .eq("id", ride_id);
-        }
-      } catch (e) {
-        console.error("[complete-ride] Wallet deduction failed (non-critical):", e);
-        // الرحلة مكتملة — يمكن تسوية المحفظة لاحقاً
-      }
-    }
-
-    // ═══ 8. Build response ═══
+    // ═══ 9. Build response ═══
     const response = {
       success: true,
       ride_id,
@@ -574,7 +594,7 @@ serve(async (req) => {
         driver_earning: finalFare, // السائق يأخذ كامل الأجرة
       } : null,
       wallet_deducted: walletDeducted,
-      payment_method: ride.payment_method,
+      payment_method: effectivePaymentMethod,
     };
 
     console.log("[complete-ride] Complete:", response);

@@ -868,16 +868,16 @@ const DriverHome = () => {
 
     if (online) {
       // التحقق من الرصيد والحد الأدنى المسموح للعمل (سقف الديون)
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const [settingsRes, profileRes] = await Promise.all([
+      // ✅ المصدر الصحيح: driver_wallets.balance (وليس profiles أو drivers اللذان لا يُحدَّثان)
+      if (driverIdRef.current) {
+        const [settingsRes, walletRes] = await Promise.all([
           supabase.from("app_settings").select("value").eq("key", "commission").maybeSingle(),
-          supabase.from("profiles").select("wallet_balance").eq("user_id", user.id).maybeSingle()
+          supabase.from("driver_wallets").select("balance").eq("driver_id", driverIdRef.current).maybeSingle()
         ]);
         
         // @ts-ignore (تجنب أخطاء JSON parsing)
         const minBalance = settingsRes.data?.value?.min_driver_balance ?? -10000;
-        const currentBalance = profileRes.data?.wallet_balance ?? 0;
+        const currentBalance = Number(walletRes.data?.balance ?? 0);
         
         if (currentBalance < minBalance) {
           toast({
@@ -1149,43 +1149,35 @@ const DriverHome = () => {
 
   return (
     <div 
-      className="h-full bg-[#0b1326] flex flex-col overflow-hidden font-sans" 
+      className="h-[100dvh] w-screen bg-[#0a0f1c] flex flex-col overflow-hidden font-sans relative" 
       dir="rtl"
     >
-      {/* ═══ Header — Dark Luxury with emerald glow ═══ */}
-      <header className="relative shrink-0 z-50 bg-[#0b1326] border-b border-[#5bdda6]/10 shadow-[0_4px_30px_rgba(91,221,166,0.05)] w-full">
-        <div className="container relative flex items-center justify-between h-16 w-full">
+      {/* ═══ Header — Futuristic Glassmorphism ═══ */}
+      <header className="absolute top-0 left-0 right-0 z-50 bg-[#0a0f1c]/40 backdrop-blur-2xl border-b border-transparent shadow-[0_10px_40px_rgba(0,0,0,0.5)] w-full transition-all">
+        {/* Thin cyan separator line */}
+        <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
+        
+        <div className="container relative flex items-center justify-between h-[max(env(safe-area-inset-top,64px),64px)] w-full pt-[env(safe-area-inset-top,0px)] px-4">
           {/* ═══ Left: Notification Icons ═══ */}
           <div className="flex items-center gap-3 z-10">
             <NotificationsBell driverId={driverId} isOpen={notificationsOpen} onToggle={() => { setNotificationsOpen(!notificationsOpen); setRewardsOpen(false); setMenuOpen(false); }} />
           </div>
 
-          {/* ═══ Center: Logo + Status ═══ */}
-          <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
-            <img src={logo} alt="RAAN" className="w-10 h-10 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]" />
-            {driverId && (
-              <span className={`text-[9px] font-bold tracking-wide leading-none ${
-                isOnline
-                  ? isPaused
-                    ? "text-amber-400"
-                    : "text-[#5bdda6]"
-                  : "text-slate-500"
-              }`}>
-                {isOnline ? (isPaused ? "⏸ مشغول" : "● متصل") : "○ غير متصل"}
-              </span>
-            )}
+          {/* ═══ Center: Logo ═══ */}
+          <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center mt-1">
+            <img src={logo} alt="RAAN" className="w-9 h-9 rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.4)]" />
           </div>
 
-          {/* Menu Button — Right side */}
+          {/* ═══ Menu Button — Right side ═══ */}
           <button
             onClick={() => { setMenuOpen(!menuOpen); setNotificationsOpen(false); setRewardsOpen(false); }}
-            className="relative bg-slate-800/40 border border-slate-700/50 hover:bg-slate-700/50 p-3 rounded-xl active:scale-90 transition-all z-10 outline-none focus:outline-none select-none tap-highlight-transparent"
+            className="relative bg-white/5 border border-white/10 hover:bg-white/10 p-2.5 rounded-xl active:scale-95 transition-all z-10 outline-none focus:outline-none select-none tap-highlight-transparent shadow-lg backdrop-blur-md"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             {menuOpen ? (
-              <X className="w-6 h-6 text-slate-300" />
+              <X className="w-5 h-5 text-cyan-50" />
             ) : (
-              <Menu className="w-6 h-6 text-slate-300" />
+              <Menu className="w-5 h-5 text-cyan-50" />
             )}
           </button>
         </div>
@@ -1219,7 +1211,7 @@ const DriverHome = () => {
         {driverId && adminActivated && driverStatus === "approved" && (
           <>
             {/* Dashboard — الخريطة تظهر دائماً مع تأثيرات مختلفة حسب الحالة */}
-            <div className="flex-1 relative min-h-0 z-0">
+            <div className="absolute inset-0 z-0">
               {/* الخريطة دائماً مُهيَّأة لتجنب التأخير عند بدء الرحلة */}
               <DriverMap
                 driverLocation={currentLocation}
@@ -1229,12 +1221,15 @@ const DriverHome = () => {
               {/* ✅ مؤشر حالة الشبكة فوق الخريطة */}
               <MapNetworkOverlay />
 
+              {/* Cinematic Vignette Overlay */}
+              <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_150px_rgba(10,15,28,0.9)] z-10" />
+
               {hasActiveRide ? (
-                /* تأثير التدرج فوق الخريطة أثناء الرحلة */
-                <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at center, transparent 0%, rgba(11,19,38,0.7) 85%)' }} />
+                /* تأثير التدرج فوق الخريطة أثناء الرحلة (Deep Navy Tone) */
+                <div className="absolute inset-0 pointer-events-none z-10" style={{ background: 'radial-gradient(circle at center, transparent 10%, rgba(10,15,28,0.85) 90%)' }} />
               ) : (
                 /* تأثيرات محيطية فوق الخريطة عند الانتظار */
-                <div className="absolute inset-0 pointer-events-none" />
+                <div className="absolute inset-0 pointer-events-none bg-black/10 z-10" />
               )}
               {/* خريطة مناطق الطلب الحرارية */}
               <DemandHeatMap isOnline={isOnline} />

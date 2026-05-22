@@ -82,6 +82,8 @@ const getTransactionIcon = (type: string) => {
     case 'bonus': return <Gift className="w-5 h-5 text-[#5bdda6]" />;
     case 'withdrawal': return <ArrowUpRight className="w-5 h-5 text-red-400" />;
     case 'topup': return <Plus className="w-5 h-5 text-[#5bdda6]" />;
+    case 'daily_fee': return <Clock className="w-5 h-5 text-orange-400" />;
+    case 'commission': return <Percent className="w-5 h-5 text-orange-400" />;
     case 'commission_deduction': return <Percent className="w-5 h-5 text-orange-400" />;
     default: return <Wallet className="w-5 h-5 text-slate-400" />;
   }
@@ -94,12 +96,14 @@ const getTransactionLabel = (type: string) => {
     case 'bonus': return 'مكافأة';
     case 'withdrawal': return 'سحب';
     case 'topup': return 'إضافة رصيد';
+    case 'daily_fee': return 'اشتراك يومي';
+    case 'commission': return 'عمولة رحلة';
     case 'commission_deduction': return 'خصم عمولة';
     default: return type;
   }
 };
 
-const isIncome = (type: string) => ['ride_earning', 'cancellation_compensation', 'bonus', 'topup'].includes(type);
+const isIncome = (type: string) => ['ride_earning', 'cancellation_compensation', 'bonus', 'topup', 'tip', 'refund'].includes(type);
 
 export default function DriverFinance() {
   const [driverId, setDriverId] = useState<string | null>(null);
@@ -164,7 +168,7 @@ export default function DriverFinance() {
       setUserId(user.id);
       const { data: driver } = await supabase
         .from('drivers')
-        .select('id, wallet_balance, commission_balance, total_earnings, total_rides, rating')
+        .select('id, total_earnings, total_rides, rating')
         .eq('user_id', user.id)
         .maybeSingle();
       if (driver) {
@@ -218,18 +222,30 @@ export default function DriverFinance() {
     if (!driverId) return;
     try {
       const { data: txns } = await supabase
-        .from('driver_wallet_transactions')
-        .select('*')
+        .from('wallet_transactions')
+        .select('id, amount, transaction_type, description, created_at, ride_id')
         .eq('driver_id', driverId)
         .order('created_at', { ascending: false })
         .limit(50);
-      setTransactions(txns || []);
 
-      const { data: driver } = await supabase
-        .from('drivers')
-        .select('wallet_balance, commission_balance')
-        .eq('id', driverId)
+      const mappedTransactions = (txns || []).map((txn: any) => ({
+        id: txn.id,
+        amount: Number(txn.amount) || 0,
+        type: txn.transaction_type,
+        description: txn.description,
+        created_at: txn.created_at,
+        ride_id: txn.ride_id,
+      }));
+      setTransactions(mappedTransactions);
+
+      const { data: walletData } = await supabase
+        .from('driver_wallets')
+        .select('id, balance, commission_paid')
+        .eq('driver_id', driverId)
         .maybeSingle();
+      const currentWalletBalance = Number(walletData?.balance ?? 0);
+      setWalletId(walletData?.id ?? null);
+      setWalletBalance(currentWalletBalance);
 
       const { data: completedRides } = await supabase
         .from("rides")
@@ -254,7 +270,7 @@ export default function DriverFinance() {
       const weekStart = startOfWeek(now, { weekStartsOn: 6 });
       const monthStart = startOfMonth(now);
 
-      const allTxns = txns || [];
+      const allTxns = mappedTransactions;
       const totalEarnings = allTxns.filter(t => t.type === 'ride_earning').reduce((sum, t) => sum + Math.abs(t.amount), 0);
       const totalCompensations = allTxns.filter(t => t.type === 'cancellation_compensation').reduce((sum, t) => sum + t.amount, 0);
       const todayEarnings = allTxns.filter(t => isIncome(t.type) && new Date(t.created_at) >= todayStart).reduce((sum, t) => sum + Math.abs(t.amount), 0);
@@ -262,8 +278,8 @@ export default function DriverFinance() {
       const monthEarnings = allTxns.filter(t => isIncome(t.type) && new Date(t.created_at) >= monthStart).reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
       setStats({
-        balance: driver?.wallet_balance || 0,
-        commissionBalance: driver?.commission_balance || 0,
+        balance: currentWalletBalance,
+        commissionBalance: Number(walletData?.commission_paid ?? 0),
         totalEarnings,
         totalCompensations,
         todayEarnings,
@@ -290,16 +306,6 @@ export default function DriverFinance() {
           .order('created_at', { ascending: false })
           .limit(10);
         if (requests) setTopupRequests(requests);
-      }
-
-      const { data: walletData } = await supabase
-        .from('driver_wallets')
-        .select('id, balance')
-        .eq('driver_id', driverId)
-        .maybeSingle();
-      if (walletData) {
-        setWalletId(walletData.id);
-        setWalletBalance(Number(walletData.balance) || 0);
       }
 
       const { data: wSettings } = await supabase
@@ -517,7 +523,7 @@ export default function DriverFinance() {
               </div>
             </div>
 
-            {/* ═══ رصيد العمولة ═══ */}
+            {/* ═══ رصيد المحفظة ═══ */}
             <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-baseline gap-1.5 justify-end">
@@ -527,7 +533,7 @@ export default function DriverFinance() {
                   <span className="text-slate-500 text-xs font-medium">د.ع</span>
                 </div>
                 <div className="flex items-center gap-2.5 text-slate-400">
-                  <span className="text-sm font-medium">رصيد العمولة</span>
+                  <span className="text-sm font-medium">رصيد المحفظة</span>
                   <div className="w-8 h-8 rounded-xl bg-[#0b1326] border border-slate-700/50 flex items-center justify-center">
                     <Wallet className="w-4 h-4" />
                   </div>
@@ -899,8 +905,8 @@ export default function DriverFinance() {
               <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 overflow-hidden">
                 {/* العنوان */}
                 <div className="p-5 border-b border-slate-700/20">
-                  <h3 className="text-base font-bold text-white" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>إضافة رصيد للعمولة</h3>
-                  <p className="text-[11px] text-slate-500 mt-1">يتم خصم العمولة من هذا الرصيد مع كل رحلة مكتملة</p>
+                  <h3 className="text-base font-bold text-white" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>إضافة رصيد للمحفظة</h3>
+                  <p className="text-[11px] text-slate-500 mt-1">يتم خصم الاشتراك اليومي أو العمولة من هذا الرصيد</p>
                 </div>
 
                 <div className="p-5 space-y-5">

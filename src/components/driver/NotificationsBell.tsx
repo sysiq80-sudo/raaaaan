@@ -271,17 +271,54 @@ export function NotificationsBell({ driverId, isOpen: externalOpen, onToggle }: 
 
   return (
     <>
-      {/* Trigger Button */}
+      {/* Trigger Button — World-Class Glassmorphism Bell */}
       <button
         onClick={handleToggle}
-        className="relative bg-slate-800/40 border border-slate-700/50 hover:bg-slate-700/50 p-3 rounded-xl active:scale-90 transition-all outline-none focus:outline-none select-none tap-highlight-transparent"
-        style={{ WebkitTapHighlightColor: 'transparent' }}
+        className="relative flex items-center justify-center w-11 h-11 rounded-2xl outline-none focus:outline-none select-none active:scale-90 transition-all duration-200"
+        style={{
+          WebkitTapHighlightColor: 'transparent',
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          boxShadow: isOpen
+            ? '0 0 0 2px rgba(91,221,166,0.4), 0 8px 32px rgba(0,0,0,0.3)'
+            : '0 4px 24px rgba(0,0,0,0.2)',
+        }}
       >
-        <Bell className="w-6 h-6 text-slate-300" />
+        <Bell className={`w-5 h-5 transition-colors duration-200 ${isOpen ? 'text-[#5bdda6]' : 'text-slate-300'}`} />
+
+        {/* Badge */}
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[20px] h-[20px] bg-red-500 text-white font-bold rounded-full text-[11px] flex items-center justify-center border-2 border-[#0b1326] px-0.5">
+          <span
+            className="absolute flex items-center justify-center font-black text-white"
+            style={{
+              top: '-5px',
+              right: '-5px',
+              minWidth: unreadCount > 9 ? '22px' : '18px',
+              height: '18px',
+              fontSize: '10px',
+              lineHeight: 1,
+              borderRadius: '999px',
+              padding: '0 4px',
+              background: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)',
+              border: '2px solid #0a0f1c',
+              boxShadow: '0 0 8px rgba(244,63,94,0.6)',
+              letterSpacing: '-0.02em',
+            }}
+          >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
+        )}
+
+        {/* Pulse ring when unread */}
+        {unreadCount > 0 && (
+          <span
+            className="absolute inset-0 rounded-2xl animate-ping"
+            style={{
+              background: 'rgba(244,63,94,0.15)',
+              animationDuration: '2s',
+            }}
+          />
         )}
       </button>
 

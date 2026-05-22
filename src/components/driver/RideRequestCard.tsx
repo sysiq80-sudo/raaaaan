@@ -996,7 +996,6 @@ export const RideRequestCard = ({
         {/* ═══ Bottom Sheet — Dark Luxury ═══ */}
         <div
           className="bg-[#0b1326] rounded-t-3xl shadow-[0_-20px_50px_rgba(0,0,0,0.4)] border-t border-slate-700/30 relative flex flex-col w-full h-full"
-          style={{ paddingBottom: '0.5rem' }}
         >
           {/* Subtle Glow at top */}
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#5bdda6]/30 to-transparent blur-sm pointer-events-none" />
@@ -1101,7 +1100,7 @@ export const RideRequestCard = ({
           </div>
 
           {/* ═══ أزرار الإجراءات ═══ */}
-          <div className="flex w-full mt-auto shrink-0 bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
+          <div className="flex w-full mt-auto shrink-0 bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)', zIndex: 10 }}>
             {/* تخطي — Style Dark Luxury Secondary */}
             <Button
               variant="outline"

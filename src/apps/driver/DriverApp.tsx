@@ -3,6 +3,7 @@
  * يحتوي فقط على صفحات ومسارات السائق
  */
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
 import { lazy, Suspense, useState, useEffect } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
@@ -68,6 +69,7 @@ const DriverApp = () => {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <Sonner />
+            <Toaster />
             <ConnectionStatus />
             {isNativePlatform ? (
               <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
