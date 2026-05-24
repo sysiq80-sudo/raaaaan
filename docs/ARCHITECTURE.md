@@ -1,6 +1,6 @@
 # RAAN — دليل المعمارية التقنية
 
-> مبني على فحص مباشر للكود المصدري | مايو 2026 | آخر فحص شامل: 21 مايو 2026
+> مبني على فحص مباشر للكود المصدري | آخر تحديث: 24 مايو 2026
 
 ---
 
@@ -80,7 +80,74 @@ GoPage (1,789 سطر — UI orchestration)
 
 ---
 
-## Stores (Zustand)
+## نظام CSS والثيم (24 مايو 2026)
+
+### البنية
+- **ملف واحد مركزي:** `src/index.css` — يحتوي على كل Tailwind layers + CSS custom properties + overrides
+- **الثيم العالمي:** `:root` + `.dark` + media queries
+- **ثيم السائق المنفصل:** `.driver-luxury` CSS class يلف كل صفحات السائق
+
+### `.driver-luxury` — ثيم السائق
+CSS class يُضاف على root element صفحات السائق. يُعيد تعريف CSS custom properties لـ shadcn/ui:
+
+```css
+.driver-luxury {
+  --background: 220 22% 5%;
+  --card: 220 20% 10%;
+  --border: 215 12% 20%;
+  --input: 215 10% 13%;
+  --ring: 156 96% 45%;   /* أخضر — اللون الرئيسي للسائق */
+  /* ... */
+}
+```
+
+**قواعد مهمة:**
+- كل المتغيرات بصيغة HSL بدون `hsl()` (تعمل مع Tailwind `hsl(var(--color))`)
+- `--ring` يتحكم في لون focus ring لكل عناصر shadcn — لذا تغييره كافٍ لتوحيد اللون
+
+### توحيد التصميم — `.driver-page-shell`
+CSS class يلف صفحات السائق التفصيلية (غير الخريطة). يفرض هرمية خطوط:
+- `h1` → 20px / 900 weight
+- `h2, h3` → 16px / 700 weight
+- `.text-lg` → 16px (override)
+- `.text-base` → 14px (override)
+
+### إزالة Focus Rings
+`.driver-luxury` تلغي `outline` و `box-shadow` على جميع العناصر التفاعلية بـ `!important`.  
+**السبب:** shadcn/ui يستخدم `focus-visible:ring-2 ring-offset-2` حيث `ring-offset` يملأ الفجوة بلون الخلفية — في الثيم الداكن يظهر هذا كحلقة ملونة.
+
+---
+
+## نظام توسيع نطاق البحث التدريجي
+
+### الملف: `src/components/rider/RideWaitingScreen.tsx`
+
+عند البحث عن سائق، يُشغَّل timer يعيد المطابقة كل 60 ثانية مع توسيع تدريجي للنطاق:
+
+```
+دورة 1 (t=45s):  writes ride.metadata.radius_bonus_km = 3  → invoke match-ride
+دورة 2 (t=105s): writes ride.metadata.radius_bonus_km = 6  → invoke match-ride
+دورة 3 (t=165s): writes ride.metadata.radius_bonus_km = 9  → invoke match-ride
+دورة 4 (t=225s): writes ride.metadata.radius_bonus_km = 12 → invoke match-ride (حد أقصى)
+```
+
+### دالة `triggerReMatch()` — التسلسل الكامل:
+1. `supabase.from("rides").select("status, metadata")` ← يجلب الـ metadata الحالية
+2. يحسب `newBonus = Math.min(prevBonus + 3, 12)` 
+3. `supabase.from("rides").update({ metadata: { ...currentRide.metadata, radius_bonus_km: newBonus } })`
+4. يستدعي Edge Function `match-ride` بـ `{ re_match: true }`
+
+### Edge Function `match-ride/index.ts` — قراءة النطاق:
+```typescript
+const radiusBonus = (ride.metadata as any)?.radius_bonus_km || 0;
+// لكل سائق:
+maxRadius = (driver.max_pickup_radius || admin_default_radius) + radiusBonus;
+```
+`re_match: true` يُنظّف قائمة `notified_drivers` للسماح بإعادة إشعار السائقين الذين انتهت مهلتهم.
+
+---
+
+
 
 | Store | الملف | الوظيفة |
 |-------|-------|---------| 

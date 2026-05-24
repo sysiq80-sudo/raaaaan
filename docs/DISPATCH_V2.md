@@ -128,4 +128,44 @@ WHERE key = 'matching_settings';
 
 ---
 
+## آلية توسيع نطاق البحث التدريجي (مُنجز — 24 مايو 2026)
+
+> تحديث: commit `2a51b6d` — الآلية مكتملة ومنشورة
+
+### المشكلة التي كانت موجودة
+- الـ UI يعرض "توسيع نطاق البحث..." أثناء `isReMatching`
+- لكن `match-ride` تقرأ `ride.metadata.radius_bonus_km` من قاعدة البيانات مباشرة
+- لم يكن الكود يُحدّث هذه القيمة قبل استدعاء `match-ride` — النطاق يبقى 0 دائماً
+
+### الحل المُنفَّذ
+**الملف:** `src/components/rider/RideWaitingScreen.tsx`
+
+قبل كل استدعاء لـ `match-ride` (دالة `triggerReMatch`):
+1. يجلب `ride.metadata` الحالية من قاعدة البيانات
+2. يحسب `newBonus = Math.min(prevBonus + 3, 12)` (خطوة 3 كم، حد أقصى 12 كم)
+3. يكتب `ride.metadata.radius_bonus_km = newBonus` في Supabase
+4. ثم يستدعي `match-ride` بـ `re_match: true`
+
+### كيف تستخدمه `match-ride`
+```typescript
+// supabase/functions/match-ride/index.ts — بدون تعديل عليه
+const radiusBonus = (ride.metadata as any)?.radius_bonus_km || 0;
+// لكل سائق مرشح:
+maxRadius = (driver.max_pickup_radius || admin_default_radius) 
+           + (high_priority ? 5 : 0) 
+           + radiusBonus;
+```
+
+### جدول التوسيع
+| الجولة | الوقت من بداية الانتظار | radius_bonus_km الجديد | النطاق الفعلي |
+|--------|------------------------|----------------------|--------------|
+| 1 | ~45 ثانية | 3 كم | base + 3 |
+| 2 | ~105 ثانية | 6 كم | base + 6 |
+| 3 | ~165 ثانية | 9 كم | base + 9 |
+| 4 | ~225 ثانية | 12 كم | base + 12 |
+
+`re_match: true` يُنظّف `notified_drivers` فيسمح بإعادة إشعار السائقين الذين انتهت مهلتهم سابقاً.
+
+---
+
 > **حالة المهمة**: الكود مكتمل 100% ومُختبر TypeScript. التطبيق على القاعدة الحية = خطوة لصق واحدة.

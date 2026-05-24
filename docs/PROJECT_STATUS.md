@@ -1,6 +1,6 @@
 # RAAN — حالة المشروع وتقرير فحص الكود
 
-> آخر فحص شامل: 21 مايو 2026 | مبني حصرياً على فحص الكود المصدري
+> آخر تحديث: 24 مايو 2026 | مبني حصرياً على فحص الكود المصدري والـ git log الفعلي
 
 ---
 
@@ -121,3 +121,87 @@
 1. تقسيم App.tsx إلى route files منفصلة
 2. حذف `sanitizeForDatabase` من sanitization.ts
 3. إزالة مكتبات الخرائط غير المستخدمة (leaflet, mapbox-gl) من package.json
+
+---
+
+## 📋 سجل التغييرات — 24 مايو 2026
+
+### `2a51b6d` feat(rider): توسيع نطاق البحث تدريجياً عند إعادة المطابقة
+**الملف:** `src/components/rider/RideWaitingScreen.tsx`
+
+**المشكلة التي كانت موجودة:**
+- دالة `triggerReMatch()` كانت تستدعي Edge Function `match-ride` بـ `re_match: true` فقط
+- لم يكن يتم تحديث `ride.metadata.radius_bonus_km` قبل الاستدعاء
+- الـ Edge Function تقرأ `radiusBonus = (ride.metadata as any)?.radius_bonus_km || 0` مباشرة — لذا كان النطاق يبقى صفراً
+- النص في الواجهة كان "توسيع نطاق البحث..." لكن لا توسيع فعلي يحدث
+
+**ما تم تنفيذه:**
+- في `triggerReMatch()`: جلب `status, metadata` معاً بدلاً من `status` فقط
+- حساب `newBonus = Math.min(prevBonus + 3, 12)` وكتابته في `ride.metadata.radius_bonus_km` عبر Supabase قبل استدعاء `match-ride`
+- إضافة state جديد `currentRadiusBonus` لعرض القيمة الفعلية في الواجهة
+- تحديث نص الواجهة: `توسيع نطاق البحث +${currentRadiusBonus}كم...`
+
+**جدول التوسيع الفعلي:**
+| الجولة | التوقيت من بدء الانتظار | radius_bonus_km |
+|--------|------------------------|-----------------|
+| 1 | بعد 45 ثانية | +3 كم |
+| 2 | بعد 105 ثانية | +6 كم |
+| 3 | بعد 165 ثانية | +9 كم |
+| 4 | بعد 225 ثانية | +12 كم (حد أقصى) |
+
+الـ Edge Function `match-ride` بدون أي تعديل عليها — كانت تدعم `radius_bonus_km` من قبل.
+
+---
+
+### `4969f37` style(driver): إزالة الحدود الزرقاء وتوحيد تصميم واجهة السائق
+**الملف:** `src/index.css` (+90 سطر، -10 أسطر)
+
+**المشكلة التي كانت موجودة:**
+- متغيرات CSS داخل `.driver-luxury` كانت تستخدم هيو 228°–230° (النطاق الأزرق)
+- `--background: 228 32% 6%` → `--ring-offset` في shadcn يملأ الفجوة بلون الخلفية الأزرق الداكن فيبدو كحلقة زرقاء على الـ input/select
+- `--border: 230 24% 24%` → حدود زرقاء على Card و Select و Input
+- `--input: 230 23% 14%` → حدود زرقاء على حقول الإدخال
+- `--driver-geo-line: 230 34% 30%` → حدود زرقاء على `.driver-geometric-card`
+- shadcn components تستخدم `focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2` → حلقات مرئية عند focus
+
+**ما تم تغييره بالضبط (من الكود):**
+
+| المتغير | القيمة القديمة | القيمة الجديدة | السبب |
+|---------|--------------|--------------|-------|
+| `--background` | `228 32% 6%` | `220 22% 5%` | تحييد الهيو |
+| `--card` | `228 26% 10%` | `220 20% 10%` | تحييد الهيو |
+| `--popover` | `228 26% 10%` | `220 20% 10%` | تحييد الهيو |
+| `--secondary` | `228 20% 14%` | `218 16% 14%` | تحييد الهيو |
+| `--muted` | `228 16% 18%` | `218 14% 18%` | تحييد الهيو |
+| `--border` | `230 24% 24%` | `215 12% 20%` | إزالة الأزرق، تشبع أقل |
+| `--input` | `230 23% 14%` | `215 10% 13%` | إزالة الأزرق |
+| `--ring` | `41 92% 56%` (عنبري) | `156 96% 45%` (أخضر) | توحيد مع اللون الرئيسي |
+| `--driver-geo-line` | `230 34% 30%` | `215 10% 20%` | إزالة الأزرق |
+| `--driver-geo-surface` | `229 22% 12%` | `218 14% 11%` | تحييد الهيو |
+
+**ما تمت إضافته (CSS جديد في نهاية الملف):**
+
+1. **إزالة focus rings كاملة** للعناصر التفاعلية داخل `.driver-luxury`:
+   - `input`, `textarea`, `button`, `[role="combobox"]`, `[role="switch"]`, `[role="slider"]`, `[tabindex]`
+   - يُلغي `outline` و `box-shadow` بـ `!important`
+
+2. **توحيد أحجام الخطوط** داخل `.driver-page-shell`:
+   - `h1` → `font-size: 20px; font-weight: 900`
+   - `h2, h3` → `font-size: 16px; font-weight: 700`
+   - `.text-lg` → `16px !important`
+   - `.text-base` → `14px !important`
+   - `text-xs` لم يتغير (يبقى 12px)
+
+3. **توحيد مظهر الكاردات:**
+   - `.driver-luxury .driver-geometric-card` → خلفية محايدة + حدود `rgba(255,255,255,0.06)` بدلاً من الأزرق
+   - `.driver-luxury input, textarea, [role="combobox"]` → حدود بيضاء 10% + أخضر عند focus
+
+**استثناء DriverHome:** شاشة الخريطة (`.driver-map-screen`) مستثناة من التوحيد لأنها تصميم خاص.
+
+---
+
+### `e34d009` chore: إزالة محرك المحاكاة
+**الملف:** `src/components/rider/AIVoiceHome.tsx` (+4 أسطر، -3 أسطر)  
+إزالة كود المحاكاة غير المستخدم (simulation engine) من المكون.
+
+---
