@@ -1,0 +1,162 @@
+{
+  "nav": {
+    "home": "سەرەتا",
+    "rides": "گەشتەکان",
+    "profile": "پڕۆفایل",
+    "settings": "ڕێکخستنەکان",
+    "logout": "دەرچوون"
+  },
+  "ride": {
+    "pickup": "شوێنی سوارکردن",
+    "dropoff": "شوێنی دابەزین",
+    "addStop": "زیادکردنی وێستگە",
+    "removeStop": "لابردنی وێستگە",
+    "vehicleType": "جۆری ئۆتۆمبێل",
+    "economy": "ئابووری",
+    "comfort": "ئاسایش",
+    "premium": "تایبەتمەند",
+    "womenOnly": "تایبەت بە ژنان",
+    "bookRide": "داواکردنی گەشت",
+    "searchingDrivers": "گەڕان بۆ شۆفێر...",
+    "waitingForDriver": "چاوەڕوانی شۆفێر",
+    "driverFound": "شۆفێر دۆزرایەوە",
+    "driverArrived": "شۆفێر گەیشت",
+    "rideStarted": "گەشت دەستیپێکرد",
+    "rideCompleted": "گەشت تەواوبوو",
+    "cancelRide": "هەڵوەشاندنەوەی گەشت",
+    "fare": "کرێ",
+    "distance": "مەودا",
+    "duration": "ماوە",
+    "surgeMultiplier": "ئیزافە",
+    "total": "کۆی گشتی",
+    "eta": "کاتی گەیشتن",
+    "estimatedFare": "کرێی خەمڵێنراو",
+    "mostPopular": "باوترین"
+  },
+  "driver": {
+    "online": "سەرهێڵ",
+    "offline": "دەرهێڵ",
+    "available": "بەردەست",
+    "busy": "خەریک",
+    "rating": "هەڵسەنگاندن",
+    "trips": "گەشتەکان",
+    "earnings": "داهات",
+    "acceptRide": "قبوڵکردنی گەشت",
+    "declineRide": "ڕەتکردنەوەی گەشت",
+    "arrived": "گەیشتن",
+    "startRide": "دەستپێکردنی گەشت",
+    "completeRide": "تەواوکردنی گەشت"
+  },
+  "common": {
+    "yes": "بەڵێ",
+    "no": "نەخێر",
+    "ok": "باشە",
+    "cancel": "هەڵوەشاندنەوە",
+    "save": "پاشەکەوتکردن",
+    "delete": "سڕینەوە",
+    "edit": "دەستکاریکردن",
+    "loading": "چاوەڕوان بە...",
+    "error": "هەڵە",
+    "success": "سەرکەوتوو",
+    "warning": "ئاگاداری",
+    "info": "زانیاری",
+    "retry": "دووبارە هەوڵدان",
+    "close": "داخستن",
+    "back": "گەڕانەوە",
+    "next": "دواتر",
+    "previous": "پێشتر",
+    "search": "گەڕان",
+    "filter": "فلتەر",
+    "sort": "ڕێکخستن",
+    "apply": "جێبەجێکردن",
+    "reset": "ڕیسێت",
+    "confirm": "دڵنیاکردنەوە",
+    "noResults": "هیچ ئەنجامێک نەدۆزرایەوە",
+    "seeAll": "بینینی هەموو"
+  },
+  "auth": {
+    "login": "چوونەژوورەوە",
+    "register": "تۆمارکردن",
+    "email": "ئیمەیل",
+    "password": "وشەی نهێنی",
+    "confirmPassword": "دووبارەکردنەوەی وشەی نهێنی",
+    "phone": "ژمارەی مۆبایل",
+    "name": "ناو",
+    "forgotPassword": "وشەی نهێنیت لەبیرچووە؟",
+    "resetPassword": "نوێکردنەوەی وشەی نهێنی",
+    "verifyCode": "کۆدی پشتڕاستکردنەوە",
+    "resendCode": "دووبارە ناردنی کۆد",
+    "loginWithPhone": "چوونەژوورەوە بە مۆبایل",
+    "loginWithEmail": "چوونەژوورەوە بە ئیمەیل"
+  },
+  "errors": {
+    "networkError": "هەڵەی تۆڕ",
+    "serverError": "هەڵەی سێرڤەر",
+    "validationError": "هەڵەی پشتڕاستکردنەوە",
+    "locationError": "هەڵەی شوێن",
+    "paymentError": "هەڵەی پارەدان",
+    "rideNotFound": "گەشت نەدۆزرایەوە",
+    "driverNotFound": "شۆفێر نەدۆزرایەوە",
+    "invalidCredentials": "زانیارییەکانی چوونەژوورەوە هەڵەن",
+    "accountSuspended": "هەژمارەکەت ڕاگیراوە",
+    "tooManyRequests": "داواکارییەکان زۆرن"
+  },
+  "admin": {
+    "dashboard": "داشبۆرد",
+    "users": "بەکارهێنەران",
+    "drivers": "شۆفێرەکان",
+    "rides": "گەشتەکان",
+    "reports": "ڕاپۆرتەکان",
+    "settings": "ڕێکخستنەکان",
+    "support": "پشتگیری",
+    "notifications": "ئاگادارکردنەوەکان",
+    "analytics": "شیکاری",
+    "totalUsers": "کۆی بەکارهێنەران",
+    "totalDrivers": "کۆی شۆفێرەکان",
+    "totalRides": "کۆی گەشتەکان",
+    "revenue": "داهات",
+    "activeRides": "گەشتە چالاکەکان",
+    "pendingApprovals": "پەسەندکردنە چاوەڕوانەکان"
+  },
+  "messages": {
+    "errors": {
+      "network": "ناتوانرێت پەیوەندی بە سێرڤەرەوە بکرێت. پەیوەندی ئینتەرنێت بپشکنە.",
+      "location": "ناتوانرێت شوێنەکەت دیاری بکرێت. دڵنیابە لە کارکردنی خزمەتگوزاری شوێن.",
+      "login": "چوونەژوورەوە سەرکەوتوو نەبوو. زانیارییەکانت بپشکنە.",
+      "generic": "هەڵەیەکی چاوەڕواننەکراو ڕوویدا. تکایە دووبارە هەوڵبدەرەوە."
+    },
+    "success": {
+      "rideBooked": "گەشتەکەت بە سەرکەوتوویی تۆمارکرا!",
+      "rideCompleted": "گەشت بە سەرکەوتوویی تەواوبوو!",
+      "profileUpdated": "پڕۆفایلەکەت نوێکرایەوە."
+    },
+    "notifications": {
+      "driverAccepted": "🎉 داواکارییەکەت قبوڵکرا! شۆفێر لە ڕێگایە.",
+      "driverArrived": "🔔 شۆفێر گەیشت! ئێستا وەرە دەرەوە.",
+      "rideStarted": "🛣️ گەشت دەستیپێکرد!",
+      "rideCancelled": "❌ گەشت هەڵوەشێنرایەوە."
+    }
+  },
+  "payment": {
+    "cash": "کاش",
+    "cashDesc": "پارەدان بە شۆفێر ڕاستەوخۆ",
+    "wallet": "جزدان",
+    "walletDesc": "لەبڕکردن لە باڵانسەکەت",
+    "card": "کارت",
+    "cardDesc": "پارەدان بە کارت"
+  },
+  "status": {
+    "pending": "چاوەڕوان",
+    "accepted": "قبوڵکراو",
+    "arrived": "شۆفێر گەیشت",
+    "in_progress": "لە ڕێگایە",
+    "completed": "تەواوبوو",
+    "cancelled": "هەڵوەشێنراوە"
+  },
+  "time": {
+    "minutes": "خولەک",
+    "hours": "کاتژمێر",
+    "ago": "پێش",
+    "just_now": "ئێستا"
+  }
+}

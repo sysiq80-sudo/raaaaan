@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "806820711180",
+    "project_id": "raan-47989-c193c-68934",
+    "storage_bucket": "raan-47989-c193c-68934.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:806820711180:android:ee0394e76282a5333a5729",
+        "android_client_info": {
+          "package_name": "com.raan.captain"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEbPJQjoFznCpTGd2W8BY31pfBlDidzOk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:806820711180:android:7b9138181c23e4f63a5729",
+        "android_client_info": {
+          "package_name": "com.raan.rider"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEbPJQjoFznCpTGd2W8BY31pfBlDidzOk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:806820711180:android:6ca278c84f05cabf3a5729",
+        "android_client_info": {
+          "package_name": "com.raan.car"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEbPJQjoFznCpTGd2W8BY31pfBlDidzOk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

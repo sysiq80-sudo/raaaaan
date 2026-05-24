@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Car: Amber/Orange theme -->
+    <color name="colorPrimary">#FF8C00</color>
+    <color name="colorPrimaryDark">#CC7000</color>
+    <color name="colorAccent">#FF8C00</color>
+    <color name="notification_icon_color">#FF8C00</color>
+</resources>

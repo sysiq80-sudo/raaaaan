@@ -1,0 +1,126 @@
+project_id = "wgolkcztdrwdphwjvqxt"
+
+# ════════════════════════════════════════════════════════════
+# PUBLIC — لا تحتاج مصادقة (Webhooks / Proxies / Cron)
+# ════════════════════════════════════════════════════════════
+
+[functions.mapbox-proxy]
+verify_jwt = false
+
+[functions.google-maps-proxy]
+verify_jwt = false
+
+[functions.search-places]
+verify_jwt = false
+
+[functions.check-service-area]
+verify_jwt = false
+
+# Webhooks — تُستدعى من خدمات خارجية (Meta, NASS, Telegram)
+[functions.whatsapp-webhook]
+verify_jwt = false
+
+[functions.whatsapp-ride-updates]
+verify_jwt = false
+
+[functions.telegram-ai-booking]
+verify_jwt = false
+
+[functions.telegram-ride-updates]
+verify_jwt = false
+
+[functions.nass-payment-callback]
+verify_jwt = false
+
+# ZainCash callback — يستقبل redirect من ZainCash بدون مصادقة
+[functions.zaincash-callback]
+verify_jwt = false
+
+# Cron Jobs — تُستدعى من Supabase scheduler
+[functions.cleanup-stale-rides]
+verify_jwt = false
+
+[functions.process-scheduled-rides]
+verify_jwt = false
+
+[functions.cleanup-stale-subscriptions]
+verify_jwt = false
+
+[functions.cleanup-old-otps]
+verify_jwt = false
+
+[functions.cron-cancel-stale-rides]
+verify_jwt = false
+
+# OTP — لا يمكن أن تحتاج JWT لأن المستخدم لم يسجّل بعد
+# (محمية بـ Rate Limiting داخلي: IP + Phone)
+[functions.send-otp]
+verify_jwt = false
+
+# حساب الأجرة — عام لعرض الأسعار (محمي بتحقق إحداثيات داخلي)
+[functions.calculate-fare]
+verify_jwt = false
+
+# ════════════════════════════════════════════════════════════
+# PROTECTED — تحتاج مصادقة JWT (دوال حساسة)
+# ════════════════════════════════════════════════════════════
+
+[functions.send-push-notification]
+verify_jwt = false
+
+[functions.reset-password]
+verify_jwt = true
+
+[functions.match-ride]
+verify_jwt = true
+
+[functions.send-sms]
+verify_jwt = true
+
+[functions.nass-init-payment]
+verify_jwt = true
+
+[functions.nass-check-status]
+verify_jwt = true
+
+[functions.zaincash-init]
+verify_jwt = true
+
+[functions.process-wallet-topup]
+verify_jwt = true
+
+[functions.admin-update-user]
+verify_jwt = true
+
+[functions.ai-assistant]
+verify_jwt = true
+
+[functions.complete-ride]
+verify_jwt = true
+
+[functions.relay-chat-message]
+verify_jwt = true
+
+[functions.generate-tracking-link]
+verify_jwt = true
+
+[functions.voice-booking-ai]
+verify_jwt = true
+
+[functions.captain-guardian-alerts]
+verify_jwt = true
+
+[functions.delete-user-account]
+verify_jwt = true
+
+[functions.driver-signup]
+verify_jwt = false
+
+[functions.notification-analytics]
+verify_jwt = true
+
+[functions.detect-dual-stop]
+verify_jwt = true
+
+[functions.captain-support-bot]
+verify_jwt = true

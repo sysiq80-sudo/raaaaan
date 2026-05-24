@@ -1,0 +1,162 @@
+{
+  "nav": {
+    "home": "الرئيسية",
+    "rides": "الرحلات",
+    "profile": "الملف الشخصي",
+    "settings": "الإعدادات",
+    "logout": "تسجيل الخروج"
+  },
+  "ride": {
+    "pickup": "مكان الالتقاط",
+    "dropoff": "مكان الوصول",
+    "addStop": "إضافة محطة",
+    "removeStop": "إزالة المحطة",
+    "vehicleType": "نوع المركبة",
+    "economy": "اقتصادي",
+    "comfort": "مريح",
+    "premium": "فاخر",
+    "womenOnly": "نسائي",
+    "bookRide": "حجز رحلة",
+    "searchingDrivers": "البحث عن سائقين...",
+    "waitingForDriver": "انتظار السائق",
+    "driverFound": "تم العثور على سائق",
+    "driverArrived": "وصل السائق",
+    "rideStarted": "بدأت الرحلة",
+    "rideCompleted": "انتهت الرحلة",
+    "cancelRide": "إلغاء الرحلة",
+    "fare": "الأجرة",
+    "distance": "المسافة",
+    "duration": "المدة",
+    "surgeMultiplier": "معامل الذروة",
+    "total": "المجموع",
+    "eta": "الوقت المتوقع",
+    "estimatedFare": "الأجرة التقديرية",
+    "mostPopular": "الأكثر طلباً"
+  },
+  "driver": {
+    "online": "متصل",
+    "offline": "غير متصل",
+    "available": "متاح",
+    "busy": "مشغول",
+    "rating": "التقييم",
+    "trips": "الرحلات",
+    "earnings": "الأرباح",
+    "acceptRide": "قبول الرحلة",
+    "declineRide": "رفض الرحلة",
+    "arrived": "وصلت",
+    "startRide": "بدء الرحلة",
+    "completeRide": "إنهاء الرحلة"
+  },
+  "common": {
+    "yes": "نعم",
+    "no": "لا",
+    "ok": "موافق",
+    "cancel": "إلغاء",
+    "save": "حفظ",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "loading": "جارٍ التحميل...",
+    "error": "خطأ",
+    "success": "نجح",
+    "warning": "تحذير",
+    "info": "معلومات",
+    "retry": "إعادة المحاولة",
+    "close": "إغلاق",
+    "back": "رجوع",
+    "next": "التالي",
+    "previous": "السابق",
+    "search": "بحث",
+    "filter": "تصفية",
+    "sort": "ترتيب",
+    "apply": "تطبيق",
+    "reset": "إعادة تعيين",
+    "confirm": "تأكيد",
+    "noResults": "لا توجد نتائج",
+    "seeAll": "عرض الكل"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "register": "إنشاء حساب",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "phone": "رقم الهاتف",
+    "name": "الاسم",
+    "forgotPassword": "نسيت كلمة المرور؟",
+    "resetPassword": "إعادة تعيين كلمة المرور",
+    "verifyCode": "رمز التحقق",
+    "resendCode": "إعادة إرسال الرمز",
+    "loginWithPhone": "تسجيل الدخول برقم الهاتف",
+    "loginWithEmail": "تسجيل الدخول بالبريد الإلكتروني"
+  },
+  "errors": {
+    "networkError": "خطأ في الشبكة",
+    "serverError": "خطأ في الخادم",
+    "validationError": "خطأ في التحقق من البيانات",
+    "locationError": "خطأ في تحديد الموقع",
+    "paymentError": "خطأ في الدفع",
+    "rideNotFound": "الرحلة غير موجودة",
+    "driverNotFound": "السائق غير موجود",
+    "invalidCredentials": "بيانات الدخول غير صحيحة",
+    "accountSuspended": "الحساب موقوف",
+    "tooManyRequests": "طلبات كثيرة جداً"
+  },
+  "admin": {
+    "dashboard": "لوحة التحكم",
+    "users": "المستخدمون",
+    "drivers": "السائقون",
+    "rides": "الرحلات",
+    "reports": "التقارير",
+    "settings": "الإعدادات",
+    "support": "الدعم",
+    "notifications": "الإشعارات",
+    "analytics": "التحليلات",
+    "totalUsers": "إجمالي المستخدمين",
+    "totalDrivers": "إجمالي السائقين",
+    "totalRides": "إجمالي الرحلات",
+    "revenue": "الإيرادات",
+    "activeRides": "الرحلات النشطة",
+    "pendingApprovals": "طلبات الموافقة المعلقة"
+  },
+  "messages": {
+    "errors": {
+      "network": "تعذر الاتصال بالخادم. تحقق من اتصالك بالإنترنت.",
+      "location": "تعذر تحديد موقعك الحالي. تأكد من تفعيل خدمات الموقع.",
+      "login": "فشل تسجيل الدخول. تحقق من بياناتك.",
+      "generic": "حدث خطأ غير متوقع. حاول مرة أخرى."
+    },
+    "success": {
+      "rideBooked": "تم حجز رحلتك بنجاح!",
+      "rideCompleted": "تم إكمال الرحلة بنجاح!",
+      "profileUpdated": "تم تحديث بياناتك بنجاح."
+    },
+    "notifications": {
+      "driverAccepted": "🎉 تم قبول طلبك! السائق في الطريق.",
+      "driverArrived": "🔔 وصل السائق! اخرج الآن.",
+      "rideStarted": "🛣️ انطلقت الرحلة!",
+      "rideCancelled": "❌ تم إلغاء الرحلة."
+    }
+  },
+  "payment": {
+    "cash": "نقداً",
+    "cashDesc": "ادفع للسائق مباشرة",
+    "wallet": "المحفظة",
+    "walletDesc": "الاستقطاع من رصيدك",
+    "card": "البطاقة",
+    "cardDesc": "الدفع عبر البطاقة"
+  },
+  "status": {
+    "pending": "في الانتظار",
+    "accepted": "تم القبول",
+    "arrived": "وصل السائق",
+    "in_progress": "جاري التنفيذ",
+    "completed": "مكتملة",
+    "cancelled": "ملغاة"
+  },
+  "time": {
+    "minutes": "دقائق",
+    "hours": "ساعات",
+    "ago": "منذ",
+    "just_now": "الآن"
+  }
+}

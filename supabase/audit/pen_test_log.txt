@@ -1,0 +1,89 @@
+Sessions: {
+  anon: 'OK undefined',
+  rider: 'OK d09fa834',
+  driver: 'OK 3738c9fb',
+  admin: 'ERR {"code":400,"error_code":"invalid_credentials","msg":"Invalid login credentials"}'
+}
+
+=== FINDINGS ===
+Total probes: 61, Findings: 10
+[
+  {
+    "severity": "HIGH",
+    "role": "anon",
+    "label": "payment_methods_all",
+    "status": 200,
+    "rowCount": 5,
+    "note": "Sensitive read returned rows for non-admin role ΓÇö review RLS policy"
+  },
+  {
+    "severity": "HIGH",
+    "role": "anon",
+    "label": "app_settings_all",
+    "status": 200,
+    "rowCount": 5,
+    "note": "Sensitive read returned rows for non-admin role ΓÇö review RLS policy"
+  },
+  {
+    "severity": "HIGH",
+    "role": "rider",
+    "label": "driver_wallet_tx_all",
+    "status": 200,
+    "rowCount": 5,
+    "note": "Sensitive read returned rows for non-admin role ΓÇö review RLS policy"
+  },
+  {
+    "severity": "HIGH",
+    "role": "rider",
+    "label": "rider_wallet_tx_all",
+    "status": 200,
+    "rowCount": 1,
+    "note": "Sensitive read returned rows for non-admin role ΓÇö review RLS policy"
+  },
+  {
+    "severity": "HIGH",
+    "role": "rider",
+    "label": "app_settings_all",
+    "status": 200,
+    "rowCount": 5,
+    "note": "Sensitive read returned rows for non-admin role ΓÇö review RLS policy"
+  },
+  {
+    "severity": "CRITICAL",
+    "role": "rider",
+    "label": "inject_rider_credit",
+    "status": 201,
+    "note": "Privilege escalation / wallet injection succeeded ΓÇö IMMEDIATE FIX REQUIRED"
+  },
+  {
+    "severity": "HIGH",
+    "role": "driver",
+    "label": "driver_wallet_tx_all",
+    "status": 200,
+    "rowCount": 5,
+    "note": "Sensitive read returned rows for non-admin role ΓÇö review RLS policy"
+  },
+  {
+    "severity": "HIGH",
+    "role": "driver",
+    "label": "payment_methods_all",
+    "status": 200,
+    "rowCount": 5,
+    "note": "Sensitive read returned rows for non-admin role ΓÇö review RLS policy"
+  },
+  {
+    "severity": "HIGH",
+    "role": "driver",
+    "label": "app_settings_all",
+    "status": 200,
+    "rowCount": 5,
+    "note": "Sensitive read returned rows for non-admin role ΓÇö review RLS policy"
+  },
+  {
+    "severity": "CRITICAL",
+    "role": "driver",
+    "label": "inject_rider_credit",
+    "status": 201,
+    "note": "Privilege escalation / wallet injection succeeded ΓÇö IMMEDIATE FIX REQUIRED"
+  }
+]

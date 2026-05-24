@@ -1,0 +1,1653 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@100;200;300;400;500;600;700&display=swap");
+
+@import "./styles/rtl.css";
+@import "./styles/typography.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Graphik Arabic";
+  src:
+    local("Graphik Arabic"),
+    local("GraphikArabic"),
+    local("Graphik Arabic Regular");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* رايد - نظام التصميم الاحترافي الداكن
+  اللون الأخضر النيون مع خط Graphik Arabic
+   تصميم عالمي أنيق وعصري
+*/
+
+/* ═══════════════════════════════════════════════════════════
+   RAAN — متغيرات الثيم الليلي (افتراضي)
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --raan-bg:           #0b1326;
+  --raan-bg-elevated:  #0d1a2e;
+  --raan-surface:      #171f33;
+  --raan-surface-alt:  #1a2536;
+  --raan-border:       rgba(255,255,255,0.06);
+  --raan-border-soft:  rgba(255,255,255,0.04);
+  --raan-text:         #ffffff;
+  --raan-text-sub:     #94a3b8;
+  --raan-text-muted:   #475569;
+  --raan-accent:       #5bdda6;
+  --raan-accent-dim:   rgba(91,221,166,0.12);
+  --raan-accent-glow:  rgba(91,221,166,0.25);
+  --raan-divider:      rgba(255,255,255,0.05);
+  --raan-overlay:      rgba(11,19,38,0.92);
+  --raan-body-bg:      #0b1326;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RAAN — متغيرات الثيم النهاري
+   ═══════════════════════════════════════════════════════════ */
+html.light-rider {
+  --raan-bg:           #f0f4ff;
+  --raan-bg-elevated:  #e8eef8;
+  --raan-surface:      #ffffff;
+  --raan-surface-alt:  #f8fafc;
+  --raan-border:       rgba(0,0,0,0.07);
+  --raan-border-soft:  rgba(0,0,0,0.04);
+  --raan-text:         #0f172a;
+  --raan-text-sub:     #475569;
+  --raan-text-muted:   #94a3b8;
+  --raan-accent:       #059669;
+  --raan-accent-dim:   rgba(5,150,105,0.10);
+  --raan-accent-glow:  rgba(5,150,105,0.20);
+  --raan-divider:      rgba(0,0,0,0.05);
+  --raan-overlay:      rgba(240,244,255,0.92);
+  --raan-body-bg:      #f0f4ff;
+}
+
+html, body {
+  /* الخلفية والانتقال */
+  background-color: var(--raan-body-bg);
+  transition: background-color 0.3s ease;
+  /* الموقع التعريفي يحتاج تمريراً طبيعياً */
+  min-height: 100%;
+  width: 100%;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   قشرة تطبيق الجوال — يُطبَّق فقط داخل تطبيق جوال (PWA/Capacitor)
+   يمنع التمرير المزدوج في الراكب والسائق
+   ═══════════════════════════════════════════════════════════ */
+html.app-shell, html.app-shell body {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  overflow: hidden;
+  height: 100dvh;
+  width: 100vw;
+}
+
+/* الموقع التعريفي — تمرير طبيعي ناعم */
+html.marketing-site, html.marketing-site body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: none;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RAAN Light Mode — Overrides شاملة لألوان Tailwind الداكنة
+   تؤثر على كل الصفحات (الراكب + السائق) تلقائياً
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 1. خلفيات داكنة ثابتة → فاتحة ── */
+html.light-rider .bg-\[\#0b1326\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#0a0f1c\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#0a0e1a\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#0d1a2e\]  { background-color: #e8eef8 !important; }
+html.light-rider .bg-\[\#0f1726\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#0f1f14\]  { background-color: #f0fbf6 !important; }
+html.light-rider .bg-\[\#111d2c\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#111827\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#151f30\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#171f33\]  { background-color: #ffffff !important; }
+html.light-rider .bg-\[\#1a2333\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#1a2536\]  { background-color: #f8fafc !important; }
+/* دفعة 2: ألوان داكنة إضافية */
+html.light-rider .bg-\[\#0c1220\]  { background-color: #eef2ff !important; }
+html.light-rider .bg-\[\#0e1528\]  { background-color: #eef2ff !important; }
+html.light-rider .bg-\[\#0d1321\]  { background-color: #e8eef8 !important; }
+html.light-rider .bg-\[\#101421\]  { background-color: #eef2ff !important; }
+html.light-rider .bg-\[\#111b30\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#131b2c\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#131b2e\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#151c2b\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#1d2740\]  { background-color: #e2e8f0 !important; }
+html.light-rider .bg-\[\#1e293b\]  { background-color: #e2e8f0 !important; }
+html.light-rider .bg-\[\#1a243b\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#1a253c\]  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-\[\#1f2d44\]  { background-color: #e2e8f0 !important; }
+html.light-rider .bg-\[\#212d42\]  { background-color: #e2e8f0 !important; }
+html.light-rider .bg-\[\#222a3d\]  { background-color: #e2e8f0 !important; }
+html.light-rider .bg-\[\#283a52\]  { background-color: #cbd5e1 !important; }
+html.light-rider .bg-\[\#2d3449\]  { background-color: #cbd5e1 !important; }
+html.light-rider .bg-\[\#3d4a5d\]  { background-color: #94a3b8 !important; }
+html.light-rider .bg-\[\#3e495d\]  { background-color: #94a3b8 !important; }
+html.light-rider .bg-\[\#060e20\]  { background-color: rgba(0,0,0,0.5) !important; }
+/* ألوان داكنة خضراء / حمراء */
+html.light-rider .bg-\[\#0f2922\]  { background-color: #dcfce7 !important; }
+html.light-rider .bg-\[\#0c261e\]  { background-color: #dcfce7 !important; }
+html.light-rider .bg-\[\#163d30\]  { background-color: #bbf7d0 !important; }
+html.light-rider .bg-\[\#2a1e1d\]  { background-color: #fee2e2 !important; }
+
+/* Tailwind bg-slate / bg-gray utilities */
+html.light-rider .bg-slate-700  { background-color: #e2e8f0 !important; }
+html.light-rider .bg-slate-800  { background-color: #f1f5f9 !important; }
+html.light-rider .bg-slate-900  { background-color: #f0f4ff !important; }
+html.light-rider .bg-gray-800   { background-color: #f1f5f9 !important; }
+html.light-rider .bg-gray-900   { background-color: #f0f4ff !important; }
+
+/* خلفيات داكنة بشفافية */
+html.light-rider .bg-\[\#0a0f1c\]\/80  { background-color: rgba(240,244,255,0.85) !important; }
+html.light-rider .bg-\[\#0b1326\]\/80  { background-color: rgba(240,244,255,0.85) !important; }
+html.light-rider .bg-\[\#0b1326\]\/90  { background-color: rgba(240,244,255,0.92) !important; }
+html.light-rider .bg-black\/25         { background-color: rgba(255,255,255,0.20) !important; }
+html.light-rider .bg-black\/40         { background-color: rgba(255,255,255,0.30) !important; }
+html.light-rider .bg-black\/50         { background-color: rgba(0,0,0,0.04) !important; }
+html.light-rider .bg-white\/10         { background-color: rgba(0,0,0,0.05) !important; }
+html.light-rider .bg-white\/5          { background-color: rgba(0,0,0,0.03) !important; }
+
+/* ── 2. لون الأكسنت الأخضر — ساطع → ناضج ── */
+html.light-rider .bg-\[\#5bdda6\]     { background-color: #059669 !important; }
+html.light-rider .bg-\[\#5bdda6\]\/10 { background-color: rgba(5,150,105,0.10) !important; }
+html.light-rider .bg-\[\#5bdda6\]\/15 { background-color: rgba(5,150,105,0.12) !important; }
+html.light-rider .bg-\[\#5bdda6\]\/20 { background-color: rgba(5,150,105,0.15) !important; }
+html.light-rider .bg-\[\#34d399\]     { background-color: #059669 !important; }
+html.light-rider .text-\[\#5bdda6\]   { color: #059669 !important; }
+html.light-rider .text-\[\#34d399\]   { color: #059669 !important; }
+html.light-rider .border-\[\#5bdda6\]          { border-color: #059669 !important; }
+html.light-rider .border-\[\#5bdda6\]\/20      { border-color: rgba(5,150,105,0.20) !important; }
+html.light-rider .border-\[\#5bdda6\]\/30      { border-color: rgba(5,150,105,0.25) !important; }
+
+/* Tailwind emerald — تحسين تباين في النهاري */
+html.light-rider .bg-emerald-400     { background-color: #059669 !important; }
+html.light-rider .bg-emerald-500     { background-color: #047857 !important; }
+html.light-rider .text-emerald-400   { color: #059669 !important; }
+html.light-rider .text-emerald-300   { color: #047857 !important; }
+
+/* ── 3. نصوص — أبيض → داكن ── */
+html.light-rider .text-white         { color: #0f172a !important; }
+html.light-rider .text-white\/90     { color: rgba(15,23,42,0.88) !important; }
+html.light-rider .text-white\/85     { color: rgba(15,23,42,0.82) !important; }
+html.light-rider .text-white\/80     { color: rgba(15,23,42,0.75) !important; }
+html.light-rider .text-white\/70     { color: rgba(15,23,42,0.65) !important; }
+html.light-rider .text-white\/60     { color: rgba(15,23,42,0.55) !important; }
+html.light-rider .text-white\/50     { color: rgba(15,23,42,0.45) !important; }
+html.light-rider .text-white\/40     { color: rgba(15,23,42,0.35) !important; }
+
+html.light-rider .text-slate-300     { color: #334155 !important; }
+html.light-rider .text-slate-400     { color: #64748b !important; }
+html.light-rider .text-slate-500     { color: #94a3b8 !important; }
+html.light-rider .text-slate-200     { color: #1e293b !important; }
+html.light-rider .text-slate-100     { color: #0f172a !important; }
+html.light-rider .text-gray-300      { color: #374151 !important; }
+html.light-rider .text-gray-400      { color: #6b7280 !important; }
+/* نصوص hex ثابتة — تحسين تباين */
+html.light-rider .text-\[\#a4b1cd\]  { color: #64748b !important; }
+html.light-rider .text-\[\#ffdad6\]  { color: #fcdcdc !important; }
+html.light-rider .text-\[\#00E676\]  { color: #047857 !important; }
+html.light-rider .text-\[\#25D366\]  { color: #15803d !important; }
+
+/* placeholder في الحقول */
+html.light-rider .placeholder\:text-slate-400::placeholder { color: #94a3b8 !important; }
+html.light-rider .placeholder\:text-slate-500::placeholder { color: #94a3b8 !important; }
+
+/* ── 4. حدود — فاتحة ── */
+html.light-rider .border-slate-700\/30,
+html.light-rider .border-slate-700\/40,
+html.light-rider .border-slate-700\/50  { border-color: rgba(0,0,0,0.08) !important; }
+html.light-rider .border-slate-700\/60  { border-color: rgba(0,0,0,0.10) !important; }
+html.light-rider .border-slate-700      { border-color: rgba(0,0,0,0.10) !important; }
+html.light-rider .border-slate-800      { border-color: rgba(0,0,0,0.06) !important; }
+html.light-rider .border-slate-800\/60  { border-color: rgba(0,0,0,0.06) !important; }
+html.light-rider .border-slate-800\/80  { border-color: rgba(0,0,0,0.08) !important; }
+html.light-rider .border-white\/10      { border-color: rgba(0,0,0,0.06) !important; }
+html.light-rider .border-white\/5       { border-color: rgba(0,0,0,0.04) !important; }
+html.light-rider .border-white\/20      { border-color: rgba(0,0,0,0.08) !important; }
+html.light-rider .divide-slate-800 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(0,0,0,0.06) !important; }
+
+/* ── 5. تدرجات لونية (Gradients) → فاتحة ── */
+html.light-rider .from-slate-800  { --tw-gradient-from: #f1f5f9 !important; }
+html.light-rider .from-slate-900  { --tw-gradient-from: #f0f4ff !important; }
+html.light-rider .from-gray-900   { --tw-gradient-from: #f0f4ff !important; }
+html.light-rider .from-gray-800   { --tw-gradient-from: #f1f5f9 !important; }
+html.light-rider .to-slate-700    { --tw-gradient-to: #e2e8f0 !important; }
+html.light-rider .to-slate-800    { --tw-gradient-to: #f1f5f9 !important; }
+html.light-rider .to-slate-900    { --tw-gradient-to: #f0f4ff !important; }
+html.light-rider .to-gray-800     { --tw-gradient-to: #f1f5f9 !important; }
+html.light-rider .to-gray-900     { --tw-gradient-to: #f0f4ff !important; }
+html.light-rider .to-black        { --tw-gradient-to: #e2e8f0 !important; }
+html.light-rider .via-slate-800   { --tw-gradient-via: #f1f5f9 !important; }
+html.light-rider .via-\[\#0a1f1c\]  { --tw-gradient-via: #ecfdf5 !important; }
+html.light-rider .via-\[\#0a1f0d\]  { --tw-gradient-via: #ecfdf5 !important; }
+html.light-rider .to-\[\#0a1f0d\]   { --tw-gradient-to: #ecfdf5 !important; }
+
+/* تدرجات مع hex مباشر */
+html.light-rider .from-\[\#0b1326\]  { --tw-gradient-from: #f0f4ff !important; }
+html.light-rider .to-\[\#0b1326\]    { --tw-gradient-to: #f0f4ff !important; }
+html.light-rider .from-\[\#0d1321\]  { --tw-gradient-from: #eef2ff !important; }
+html.light-rider .to-\[\#0d1321\]    { --tw-gradient-to: #eef2ff !important; }
+html.light-rider .from-\[\#131b2c\]  { --tw-gradient-from: #f1f5f9 !important; }
+html.light-rider .to-\[\#131b2c\]    { --tw-gradient-to: #f1f5f9 !important; }
+html.light-rider .from-\[\#171f33\]  { --tw-gradient-from: #ffffff !important; }
+html.light-rider .to-\[\#171f33\]    { --tw-gradient-to: #ffffff !important; }
+/* تدرجات خضراء نيون → أخضر أعمق للتباين */
+html.light-rider .from-\[\#00E676\]  { --tw-gradient-from: #059669 !important; }
+html.light-rider .to-\[\#00C853\]    { --tw-gradient-to: #047857 !important; }
+html.light-rider .to-\[\#69F0AE\]    { --tw-gradient-to: #34d399 !important; }
+
+/* ── 6. ظلال وتوهج — أخف في النهاري ── */
+html.light-rider .shadow-glow {
+  box-shadow:
+    0 0 20px rgba(5,150,105,0.12),
+    0 0 40px rgba(5,150,105,0.06) !important;
+}
+html.light-rider .shadow-glow-lg {
+  box-shadow:
+    0 0 30px rgba(5,150,105,0.15),
+    0 0 60px rgba(5,150,105,0.08) !important;
+}
+html.light-rider .shadow-glow-sm {
+  box-shadow: 0 0 10px rgba(5,150,105,0.10) !important;
+}
+
+/* ظل الأكسنت على الأزرار الخضراء */
+html.light-rider .shadow-\[0_0_30px_rgba\(52\,211\,153\,0\.1\)\] {
+  box-shadow: 0 0 20px rgba(5,150,105,0.08) !important;
+}
+html.light-rider .shadow-\[0_0_20px_rgba\(91\,221\,166\,0\.15\)\] {
+  box-shadow: 0 0 15px rgba(5,150,105,0.10) !important;
+}
+
+/* ── 7. ring / outline → فاتح ── */
+html.light-rider .ring-emerald-500\/20  { --tw-ring-color: rgba(5,150,105,0.15) !important; }
+html.light-rider .ring-emerald-500\/50  { --tw-ring-color: rgba(5,150,105,0.30) !important; }
+html.light-rider .focus\:border-emerald-500\/50:focus { border-color: rgba(5,150,105,0.4) !important; }
+html.light-rider .focus\:ring-emerald-500\/20:focus   { --tw-ring-color: rgba(5,150,105,0.15) !important; }
+
+/* ── 8. عناصر خاصة ── */
+
+/* شريط التنقل السفلي */
+html.light-rider .bg-\[\#0b1326\]\/95  { background-color: rgba(240,244,255,0.95) !important; }
+
+/* مؤشر النشاط في التبويبات */
+html.light-rider .bg-emerald-500\/10   { background-color: rgba(5,150,105,0.08) !important; }
+html.light-rider .bg-emerald-500\/20   { background-color: rgba(5,150,105,0.12) !important; }
+html.light-rider .bg-emerald-400\/10   { background-color: rgba(5,150,105,0.08) !important; }
+html.light-rider .bg-emerald-400\/15   { background-color: rgba(5,150,105,0.10) !important; }
+html.light-rider .border-emerald-500\/20 { border-color: rgba(5,150,105,0.15) !important; }
+html.light-rider .border-emerald-500\/30 { border-color: rgba(5,150,105,0.20) !important; }
+html.light-rider .border-emerald-500\/50 { border-color: rgba(5,150,105,0.35) !important; }
+
+/* hover states */
+html.light-rider .hover\:bg-white\/20:hover { background-color: rgba(0,0,0,0.06) !important; }
+html.light-rider .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.04) !important; }
+html.light-rider .hover\:text-white:hover    { color: #0f172a !important; }
+/* hover states — ألوان داكنة إضافية */
+html.light-rider .hover\:bg-\[\#1d2740\]:hover  { background-color: #e2e8f0 !important; }
+html.light-rider .hover\:bg-\[\#1e293b\]:hover  { background-color: #e2e8f0 !important; }
+html.light-rider .hover\:bg-\[\#1f2d44\]:hover  { background-color: #e2e8f0 !important; }
+html.light-rider .hover\:bg-\[\#111b30\]:hover  { background-color: #f0f4ff !important; }
+html.light-rider .hover\:bg-\[\#1a253c\]:hover  { background-color: #f1f5f9 !important; }
+html.light-rider .hover\:bg-\[\#212d42\]:hover  { background-color: #e2e8f0 !important; }
+html.light-rider .hover\:bg-\[\#222a3d\]:hover  { background-color: #e2e8f0 !important; }
+html.light-rider .hover\:bg-\[\#283a52\]:hover  { background-color: #cbd5e1 !important; }
+html.light-rider .hover\:bg-\[\#3d4a5d\]:hover  { background-color: #94a3b8 !important; }
+html.light-rider .hover\:bg-\[\#163d30\]:hover  { background-color: #a7f3d0 !important; }
+html.light-rider .hover\:bg-\[\#131b2c\]:hover  { background-color: #e2e8f0 !important; }
+
+/* نص الأزرار الخضراء — يبقى فاتح على الأخضر الداكن */
+html.light-rider .bg-\[\#5bdda6\] .text-\[\#0b1326\],
+html.light-rider .text-\[\#0b1326\] { color: #ffffff !important; }
+html.light-rider .bg-\[\#5bdda6\] > .text-\[\#064e3b\] { color: #ffffff !important; }
+
+/* انتقال سلس عند التبديل */
+html.light-rider * {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 0.3s;
+  transition-timing-function: ease;
+}
+
+/* ── 9. مكونات السائق في الوضع النهاري ── */
+html.light-rider .driver-page-shell {
+  background-image:
+    radial-gradient(circle at 15% 10%, hsl(38 90% 50% / 0.06), transparent 28%),
+    radial-gradient(circle at 85% 0%, hsl(160 84% 36% / 0.05), transparent 26%),
+    linear-gradient(145deg, hsl(220 30% 97%), hsl(220 25% 94%));
+}
+
+html.light-rider .driver-geometric-card {
+  border-color: hsl(220 14% 86%);
+  background: linear-gradient(140deg, hsl(0 0% 100% / 0.95), hsl(220 18% 96% / 0.9));
+  box-shadow:
+    0 4px 20px rgba(0,0,0,0.06),
+    inset 0 0 0 1px hsl(38 90% 50% / 0.08);
+}
+
+html.light-rider .driver-geometric-outline {
+  border-color: hsl(38 90% 50% / 0.35);
+  background: hsl(220 18% 96% / 0.8);
+  box-shadow: inset 0 0 0 1px hsl(220 14% 86% / 0.5);
+}
+
+html.light-rider .driver-stepper {
+  border-color: hsl(220 14% 86%);
+  background: hsl(0 0% 100% / 0.88);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+}
+
+html.light-rider .driver-stepper-node {
+  border-color: hsl(220 14% 86%);
+  background: hsl(220 18% 96%);
+}
+
+/* ── 10. مكونات الراكب المميزة في النهاري ── */
+html.light-rider .hero-gradient {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, hsl(160 80% 40% / 0.06), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 50%, hsl(160 80% 40% / 0.04), transparent),
+    radial-gradient(ellipse 60% 40% at 20% 80%, hsl(160 80% 40% / 0.03), transparent);
+}
+
+html.light-rider .glass {
+  background: rgba(255,255,255,0.85);
+  border-color: rgba(0,0,0,0.06);
+}
+
+html.light-rider .glass-card {
+  background: rgba(255,255,255,0.7);
+  border-color: rgba(0,0,0,0.06);
+}
+
+html.light-rider .card-hover:hover {
+  border-color: hsl(160 84% 36% / 0.3);
+  box-shadow:
+    0 0 20px hsl(160 84% 36% / 0.08),
+    inset 0 0 15px hsl(160 84% 36% / 0.03);
+}
+
+html.light-rider .text-glow {
+  text-shadow:
+    0 0 20px hsl(160 84% 36% / 0.25),
+    0 0 40px hsl(160 84% 36% / 0.12);
+}
+
+html.light-rider .border-glow {
+  border-color: hsl(160 84% 36% / 0.2);
+  box-shadow: inset 0 0 15px hsl(160 84% 36% / 0.03);
+}
+
+html.light-rider .btn-glow:hover {
+  box-shadow:
+    0 0 25px hsl(160 84% 36% / 0.2),
+    0 0 50px hsl(160 84% 36% / 0.1);
+}
+
+html.light-rider .dots-pattern {
+  background-image: radial-gradient(hsl(160 84% 36% / 0.08) 1px, transparent 1px);
+}
+
+.animate-float-delay-1s {
+  animation-delay: 1s;
+}
+
+.animate-fade-up-delay-2s {
+  animation-delay: 2s;
+}
+
+.animate-fade-up-delay {
+  animation-delay: var(--animation-delay, 0ms);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Utilities للموقع التسويقي
+   ═══════════════════════════════════════════════════════════ */
+
+/* حشوة آمنة للأسفل (safe area) */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* حشوة إضافية للـ CTA العائم على الجوال */
+@media (max-width: 1023px) {
+  .marketing-pb-cta {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* تحسين عرض الحاوية على الجوال */
+.container {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+@media (min-width: 640px) {
+  .container {
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+}
+
+
+@layer base {
+  :root {
+    /* الألوان الأساسية - الأخضر النيون الساطع */
+    --primary: 160 100% 45%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 160 100% 55%;
+    --primary-dark: 160 100% 35%;
+    --primary-glow: 160 100% 50%;
+
+    /* الخلفيات - داكنة أنيقة */
+    --background: 160 20% 4%;
+    --foreground: 0 0% 98%;
+
+    --card: 160 15% 8%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 160 15% 8%;
+    --popover-foreground: 0 0% 98%;
+
+    /* الألوان الثانوية */
+    --secondary: 160 15% 12%;
+    --secondary-foreground: 0 0% 95%;
+
+    --muted: 160 10% 15%;
+    --muted-foreground: 160 10% 55%;
+
+    --accent: 160 40% 15%;
+    --accent-foreground: 160 100% 60%;
+
+    /* ألوان الحالة */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 160 100% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+
+    /* الحدود والمدخلات */
+    --border: 160 15% 15%;
+    --input: 160 15% 12%;
+    --ring: 160 100% 45%;
+
+    --radius: 1rem;
+
+    /* الشريط الجانبي */
+    --sidebar-background: 160 20% 3%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 160 100% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 160 20% 10%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 160 15% 12%;
+    --sidebar-ring: 160 100% 45%;
+  }
+
+  .driver-luxury {
+    /* Dark Luxury + Geometric (تكيف خفيف مع هوية ران) */
+    --primary: 156 96% 45%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 156 96% 55%;
+    --primary-dark: 156 96% 33%;
+    --primary-glow: 156 96% 50%;
+
+    --background: 228 32% 6%;
+    --foreground: 0 0% 98%;
+
+    --card: 228 26% 10%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 228 26% 10%;
+    --popover-foreground: 0 0% 98%;
+
+    --secondary: 228 20% 14%;
+    --secondary-foreground: 0 0% 96%;
+
+    --muted: 228 16% 18%;
+    --muted-foreground: 220 12% 70%;
+
+    --accent: 41 92% 56%;
+    --accent-foreground: 226 38% 11%;
+
+    --border: 230 24% 24%;
+    --input: 230 23% 14%;
+    --ring: 41 92% 56%;
+
+    --driver-geo-line: 230 34% 30%;
+    --driver-geo-surface: 229 22% 12%;
+    --driver-geo-emphasis: 41 92% 56%;
+    --driver-geo-emerald: 156 96% 45%;
+    --driver-radius: 1.15rem;
+  }
+
+  .rider-premium {
+    /* Dark Luxury for Rider — نمط فاخر داكن للراكب */
+    --background: 224 40% 5%;
+    --foreground: 0 0% 98%;
+
+    --card: 222 30% 10%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 222 30% 10%;
+    --popover-foreground: 0 0% 98%;
+
+    --secondary: 222 24% 14%;
+    --secondary-foreground: 0 0% 96%;
+
+    --muted: 222 18% 18%;
+    --muted-foreground: 218 14% 65%;
+
+    --accent: 160 60% 18%;
+    --accent-foreground: 160 100% 65%;
+
+    --border: 224 22% 18%;
+    --input: 224 24% 12%;
+    --ring: 160 100% 45%;
+
+    --rider-card-surface: 222 28% 11%;
+    --rider-card-border: 224 20% 22%;
+    --rider-glow: 160 100% 45%;
+    --rider-radius: 1rem;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Light Mode — متغيرات HSL للسائق والراكب
+     تتفعل عند إضافة class: light-rider على html
+     ═══════════════════════════════════════════════════════════ */
+
+  html.light-rider .driver-luxury {
+    --primary: 160 84% 36%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 160 78% 42%;
+    --primary-dark: 160 84% 28%;
+    --primary-glow: 160 84% 40%;
+
+    --background: 220 30% 97%;
+    --foreground: 224 40% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 40% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 40% 12%;
+
+    --secondary: 220 20% 94%;
+    --secondary-foreground: 224 30% 18%;
+
+    --muted: 220 16% 92%;
+    --muted-foreground: 220 10% 42%;
+
+    --accent: 38 90% 50%;
+    --accent-foreground: 226 38% 15%;
+
+    --border: 220 14% 86%;
+    --input: 220 16% 92%;
+    --ring: 38 90% 50%;
+
+    --driver-geo-line: 220 20% 82%;
+    --driver-geo-surface: 220 18% 96%;
+    --driver-geo-emphasis: 38 90% 50%;
+    --driver-geo-emerald: 160 84% 36%;
+  }
+
+  html.light-rider .rider-premium {
+    --background: 224 30% 97%;
+    --foreground: 224 40% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 40% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 40% 10%;
+
+    --secondary: 222 20% 94%;
+    --secondary-foreground: 224 28% 16%;
+
+    --muted: 222 16% 92%;
+    --muted-foreground: 218 12% 45%;
+
+    --accent: 160 60% 30%;
+    --accent-foreground: 160 80% 20%;
+
+    --border: 224 16% 86%;
+    --input: 224 18% 93%;
+    --ring: 160 84% 36%;
+
+    --rider-card-surface: 0 0% 100%;
+    --rider-card-border: 224 16% 86%;
+    --rider-glow: 160 84% 36%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    font-family: "Graphik Arabic", "IBM Plex Sans Arabic", sans-serif !important;
+  }
+
+  html {
+    font-family: "Graphik Arabic", "IBM Plex Sans Arabic", sans-serif !important;
+    direction: rtl;
+    font-size: 14px; /* Base font size for better mobile scaling */
+  }
+
+  @media (min-width: 640px) {
+    html {
+      font-size: 16px;
+    }
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+    line-height: 1.5; /* Better line height for readability */
+    touch-action: pan-y;
+    /* user-select: auto — السماح بالتحديد والنسخ بشكل طبيعي في الويب */
+    user-select: auto;
+  }
+
+  /* ── إزالة الخط الأزرق عند الضغط على الأزرار ── */
+  button, a, [role="button"], input, select, textarea,
+  [tabindex]:not([tabindex="-1"]) {
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* إبقاء outline فقط للتنقل بالكيبورد (accessibility) */
+  button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
+  input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid hsl(160 100% 45%);
+    outline-offset: 2px;
+  }
+
+  /* Responsive text scaling */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-bold tracking-tight;
+  }
+}
+
+@layer utilities {
+  /* تدرج النص الأخضر */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(
+      135deg,
+      hsl(160 100% 50%),
+      hsl(160 100% 70%)
+    );
+  }
+
+  /* تدرج الخلفية الأخضر */
+  .bg-gradient-primary {
+    background-image: linear-gradient(
+      135deg,
+      hsl(160 100% 40%),
+      hsl(160 100% 50%)
+    );
+  }
+
+  /* ظل أخضر متوهج */
+  .shadow-glow {
+    box-shadow:
+      0 0 30px hsl(160 100% 50% / 0.3),
+      0 0 60px hsl(160 100% 50% / 0.15);
+  }
+
+  .shadow-glow-lg {
+    box-shadow:
+      0 0 50px hsl(160 100% 50% / 0.4),
+      0 0 100px hsl(160 100% 50% / 0.2);
+  }
+
+  .shadow-glow-sm {
+    box-shadow: 0 0 15px hsl(160 100% 50% / 0.25);
+  }
+
+  /* تأثير الزجاج الداكن */
+  .glass {
+    @apply bg-background/80 backdrop-blur-xl border-b border-border/50;
+  }
+
+  .glass-card {
+    @apply bg-card/50 backdrop-blur-xl border border-border/30 rounded-2xl;
+  }
+
+  /* خلفية متدرجة للهيرو */
+  .hero-gradient {
+    background:
+      radial-gradient(
+        ellipse 80% 50% at 50% -20%,
+        hsl(160 100% 50% / 0.12),
+        transparent
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 80% 50%,
+        hsl(160 100% 45% / 0.08),
+        transparent
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 20% 80%,
+        hsl(160 100% 50% / 0.06),
+        transparent
+      );
+  }
+
+  /* بطاقة متوهجة عند الهوفر */
+  .card-hover {
+    @apply transition-all duration-500;
+  }
+
+  .card-hover:hover {
+    @apply border-primary/50;
+    box-shadow:
+      0 0 30px hsl(160 100% 50% / 0.15),
+      inset 0 0 20px hsl(160 100% 50% / 0.05);
+  }
+
+  /* زر متوهج */
+  .btn-glow {
+    @apply relative overflow-hidden;
+    transition: all 0.3s ease;
+  }
+
+  .btn-glow:hover {
+    box-shadow:
+      0 0 40px hsl(160 100% 50% / 0.5),
+      0 0 80px hsl(160 100% 50% / 0.3);
+    transform: translateY(-2px);
+  }
+
+  /* أيقونة متوهجة */
+  .icon-glow {
+    filter: drop-shadow(0 0 10px hsl(160 100% 50% / 0.6));
+  }
+
+  /* خلفية النقاط */
+  .dots-pattern {
+    background-image: radial-gradient(
+      hsl(160 100% 50% / 0.15) 1px,
+      transparent 1px
+    );
+    background-size: 30px 30px;
+  }
+
+  /* نص متوهج */
+  .text-glow {
+    text-shadow:
+      0 0 30px hsl(160 100% 50% / 0.5),
+      0 0 60px hsl(160 100% 50% / 0.3);
+  }
+
+  /* حد متوهج */
+  .border-glow {
+    border: 1px solid hsl(160 100% 50% / 0.3);
+    box-shadow: inset 0 0 20px hsl(160 100% 50% / 0.05);
+  }
+
+  .driver-page-shell {
+    @apply min-h-screen bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at 15% 10%, hsl(var(--driver-geo-emphasis) / 0.09), transparent 28%),
+      radial-gradient(circle at 85% 0%, hsl(var(--driver-geo-emerald) / 0.08), transparent 26%),
+      linear-gradient(145deg, hsl(var(--background)), hsl(228 34% 5%));
+  }
+
+  .driver-geometric-card {
+    border: 1px solid hsl(var(--driver-geo-line) / 0.7);
+    border-radius: var(--driver-radius);
+    background: linear-gradient(
+      140deg,
+      hsl(var(--driver-geo-surface) / 0.9),
+      hsl(var(--card) / 0.86)
+    );
+    box-shadow:
+      0 14px 40px hsl(230 80% 2% / 0.42),
+      inset 0 0 0 1px hsl(var(--driver-geo-emphasis) / 0.1);
+  }
+
+  .driver-geometric-outline {
+    border-radius: 999px;
+    border: 1px solid hsl(var(--driver-geo-emphasis) / 0.55);
+    background: hsl(var(--driver-geo-surface) / 0.72);
+    box-shadow: inset 0 0 0 1px hsl(var(--driver-geo-line) / 0.55);
+  }
+
+  .driver-stepper-shell {
+    @apply pointer-events-none absolute top-3 left-1/2 z-30 -translate-x-1/2;
+  }
+
+  .driver-stepper {
+    @apply flex items-center gap-2 rounded-full px-3 py-2;
+    direction: ltr;
+    border: 1px solid hsl(var(--driver-geo-line) / 0.7);
+    background: hsl(228 30% 9% / 0.84);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px hsl(228 70% 2% / 0.42);
+  }
+
+  .driver-stepper-node {
+    @apply flex h-7 w-7 items-center justify-center text-[11px] font-bold;
+    border: 1px solid hsl(var(--driver-geo-line) / 0.75);
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    background: hsl(var(--driver-geo-surface));
+    color: hsl(var(--muted-foreground));
+  }
+
+  .driver-stepper-node-active {
+    border-color: hsl(var(--driver-geo-emphasis) / 0.78);
+    background: linear-gradient(
+      140deg,
+      hsl(var(--driver-geo-emphasis) / 0.88),
+      hsl(var(--driver-geo-emerald) / 0.82)
+    );
+    color: hsl(var(--accent-foreground));
+    box-shadow: 0 0 22px hsl(var(--driver-geo-emphasis) / 0.42);
+  }
+
+  .driver-stepper-link {
+    width: 20px;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--driver-geo-line) / 0.4),
+      hsl(var(--driver-geo-emphasis) / 0.75),
+      hsl(var(--driver-geo-line) / 0.4)
+    );
+  }
+}
+
+/* تأثيرات الحركة المتقدمة */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-15px) rotate(1deg);
+  }
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px hsl(160 100% 50% / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 50px hsl(160 100% 50% / 0.5);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes gradient-x {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes ping-slow {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  75%,
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* User location pulse ring animation for map markers */
+@keyframes pulse-ring {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0;
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: float-slow 8s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+.animate-fade-up {
+  animation: fade-up 0.8s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.6s ease-out forwards;
+}
+
+.animate-slide-in {
+  animation: slide-in-right 0.6s ease-out forwards;
+}
+
+.animate-gradient-x {
+  background-size: 200% 200%;
+  animation: gradient-x 3s ease infinite;
+}
+
+.animate-ping-slow {
+  animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* تأخير الحركات */
+.delay-100 {
+  animation-delay: 100ms;
+}
+.delay-200 {
+  animation-delay: 200ms;
+}
+.delay-300 {
+  animation-delay: 300ms;
+}
+.delay-400 {
+  animation-delay: 400ms;
+}
+.delay-500 {
+  animation-delay: 500ms;
+}
+.delay-600 {
+  animation-delay: 600ms;
+}
+.delay-700 {
+  animation-delay: 700ms;
+}
+.delay-800 {
+  animation-delay: 800ms;
+}
+
+/* Fill mode for animations */
+.fill-forwards {
+  animation-fill-mode: forwards;
+}
+
+/* Scrollbar مخصص */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(160 15% 8%);
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(160 100% 45% / 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(160 100% 45% / 0.6);
+}
+
+/* ✅ Safe-area CSS helpers for notches, home indicators */
+.safe-area-top {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+.safe-area-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.safe-area-pb {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+.safe-area-inset {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Phone mockup shadows */
+.phone-shadow {
+  box-shadow:
+    0 50px 100px -20px hsl(0 0% 0% / 0.5),
+    0 30px 60px -30px hsl(0 0% 0% / 0.4),
+    0 0 60px hsl(160 100% 50% / 0.1);
+}
+
+/* Gradient border */
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    hsl(160 100% 50% / 0.5),
+    hsl(160 100% 50% / 0.1)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* Notification animations */
+@keyframes bounce-subtle {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 1s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+/* Swap button animations */
+@keyframes swap-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(180deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes swap-pulse {
+  0% {
+    box-shadow: 0 0 0 0 hsl(160 100% 50% / 0.6);
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 10px hsl(160 100% 50% / 0);
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(160 100% 50% / 0);
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.animate-swap-rotate {
+  animation: swap-rotate 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-swap-pulse {
+  animation: swap-pulse 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Search pulse animation for waiting screen */
+@keyframes search-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+.animate-search-pulse {
+  animation: search-pulse 2s ease-in-out infinite;
+}
+
+/* Encouraging message fade animation */
+@keyframes message-cycle {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  48% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  52% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  54% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mapbox cluster animations */
+@keyframes cluster-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.2;
+  }
+}
+
+.mapboxgl-marker-cluster {
+  animation: cluster-pulse 2s ease-in-out infinite;
+}
+
+/* Driver marker smooth transition */
+.driver-marker-animation {
+  transition: transform 0.3s ease-out;
+}
+
+/* Modern spin animation - slow and smooth */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+/* Cluster hover effect */
+.mapboxgl-canvas-container.mapboxgl-interactive .mapboxgl-marker:hover {
+  transform: scale(1.1);
+  transition: transform 0.2s ease-out;
+}
+
+/* Driver info popup styling */
+.driver-info-popup .mapboxgl-popup-content {
+  background: white;
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow:
+    0 10px 40px -10px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+  animation: popup-enter 0.25s ease-out;
+}
+
+.driver-info-popup .mapboxgl-popup-close-button {
+  font-size: 18px;
+  color: #9ca3af;
+  padding: 8px;
+  right: 4px;
+  top: 4px;
+  transition: color 0.2s;
+}
+
+.driver-info-popup .mapboxgl-popup-close-button:hover {
+  color: #1f2937;
+  background: transparent;
+}
+
+.driver-info-popup .mapboxgl-popup-tip {
+  border-top-color: white;
+}
+
+@keyframes popup-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Dark mode popup */
+.dark .driver-info-popup .mapboxgl-popup-content {
+  background: hsl(160 15% 12%);
+  box-shadow:
+    0 10px 40px -10px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.dark .driver-info-popup .mapboxgl-popup-tip {
+  border-top-color: hsl(160 15% 12%);
+}
+
+.dark .driver-info-popup .driver-popup p,
+.dark .driver-info-popup .driver-popup span {
+  color: #e5e7eb !important;
+}
+
+.dark .driver-info-popup .driver-popup div[style*="background: #f3f4f6"] {
+  background: hsl(160 15% 8%) !important;
+}
+
+/* إصلاح أزرار التحكم في الخريطة */
+.mapboxgl-ctrl-group {
+  background: hsl(var(--card)) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  border-radius: 8px !important;
+  border: 1px solid hsl(var(--border)) !important;
+  z-index: 100 !important;
+  position: relative !important;
+}
+
+.mapboxgl-ctrl-group button {
+  background: transparent !important;
+  color: hsl(var(--foreground)) !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  position: relative !important;
+  z-index: 101 !important;
+}
+
+.mapboxgl-ctrl-group button:hover {
+  background: hsl(var(--accent)) !important;
+}
+
+.mapboxgl-ctrl-group button:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
+
+/* أيقونات الأزرار */
+.mapboxgl-ctrl-icon {
+  filter: invert(0.9) !important;
+}
+
+.dark .mapboxgl-ctrl-icon {
+  filter: invert(0.9) !important;
+}
+
+/* زر تحديد الموقع */
+.mapboxgl-ctrl-geolocate {
+  z-index: 100 !important;
+  position: relative !important;
+}
+
+.mapboxgl-ctrl-geolocate-active,
+.mapboxgl-ctrl-geolocate-waiting {
+  background-color: hsl(var(--primary)) !important;
+}
+
+.mapboxgl-ctrl-geolocate-active .mapboxgl-ctrl-icon,
+.mapboxgl-ctrl-geolocate-waiting .mapboxgl-ctrl-icon {
+  filter: brightness(2) !important;
+}
+
+/* Debug & force show manual geolocate buttons */
+.manual-geolocate-button {
+  display: flex !important;
+  z-index: 99999 !important;
+  outline: 2px solid rgba(255, 165, 0, 0.9) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Hide Mapbox control logo (keeps UI clean for our custom top bar) */
+.mapboxgl-ctrl-logo {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+/* ══════════════════════════════════════════════════════════
+   تحسينات صفحة السائق للموبايل — Mobile Driver Optimizations
+   ══════════════════════════════════════════════════════════ */
+
+/* منع التحديد النصي غير المقصود أثناء اللمس (موبايل فقط) */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* السماح بالنسخ في لوحة الإدارة */
+body:not(.driver-mode):not(.car-mode) input,
+body:not(.driver-mode):not(.car-mode) textarea,
+body:not(.driver-mode):not(.car-mode) p,
+body:not(.driver-mode):not(.car-mode) span,
+body:not(.driver-mode):not(.car-mode) td,
+body:not(.driver-mode):not(.car-mode) th,
+body:not(.driver-mode):not(.car-mode) h1,
+body:not(.driver-mode):not(.car-mode) h2,
+body:not(.driver-mode):not(.car-mode) h3,
+body:not(.driver-mode):not(.car-mode) code,
+body:not(.driver-mode):not(.car-mode) pre {
+  user-select: text;
+}
+
+/* دعم المناطق الآمنة (الشقوق / الكاميرا المثقوبة) — Safe Area Insets */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .driver-safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .driver-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* أزرار كبيرة قابلة للمس على الشاشات الصغيرة */
+@media (max-width: 480px) {
+  /* تكبير أزرار التحكم بالرحلة */
+  .ride-action-btn {
+    min-height: 56px !important;
+    font-size: 1.1rem !important;
+    border-radius: 16px !important;
+  }
+}
+
+/* إخفاء أشرطة التمرير على الموبايل */
+@media (pointer: coarse) {
+  * {
+    scrollbar-width: thin;
+  }
+  *::-webkit-scrollbar {
+    width: 4px;
+  }
+}
+
+/* تحسين الأداء على الأجهزة البطيئة */
+@media (prefers-reduced-motion: reduce) {
+  .animate-ping,
+  .animate-pulse,
+  .animate-bounce {
+    animation: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   تحسينات شريط التنقل السفلي — Enhanced Bottom Navigation
+   تأثير زجاجي ضبابي جميل ومتقدم
+   ═══════════════════════════════════════════════════════════ */
+
+/* تأثير الوهج الزجاجي */
+.add-glow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(0, 0, 0, 0.05) 75%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* تحسين الزجاج الضبابي في الشريط السفلي */
+.bottom-nav-glass {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--card-rgb), 0.7) 0%,
+    rgba(var(--card-rgb), 0.8) 50%,
+    rgba(var(--card-rgb), 0.9) 100%
+  ) !important;
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+}
+
+/* تأثير الضوء على الأيقونات النشطة */
+@keyframes navActiveGlow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 20px rgba(var(--primary-rgb), 0.6),
+      0 0 40px rgba(var(--primary-rgb), 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 25px rgba(var(--primary-rgb), 0.7),
+      0 0 50px rgba(var(--primary-rgb), 0.4);
+  }
+}
+
+/* تأثير التوهج المتحرك */
+@keyframes glassShine {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+/* تأثير الظل الناعم */
+.bottom-nav-shadow {
+  box-shadow:
+    0 -2px 8px rgba(0, 0, 0, 0.15),
+    0 -4px 16px rgba(0, 0, 0, 0.1),
+    0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+/* تحسين الشريط على الشاشات الصغيرة */
+@media (max-height: 600px) {
+  .rider-bottom-nav {
+    height: 64px;
+  }
+
+  .nav-icon-large {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* تحسين الراحة اللمسية */
+@media (pointer: coarse) {
+  .nav-link-item {
+    min-height: 48px;
+    padding: 8px;
+  }
+}
+
+/* دعم المناطق الآمنة للأجهزة ذات الشقوق */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Driver Mode — Zero Scroll & Fixed Viewport
+   يُطبّق تلقائياً عند دخول صفحة السائق ويُزال عند المغادرة
+   ═══════════════════════════════════════════════════════════ */
+body.driver-mode {
+  overflow: hidden;
+  overscroll-behavior-y: none;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  user-select: none; /* منع التحديد في تطبيق السائق */
+  -webkit-user-select: none;
+  /* safe-area: منع تراكب المحتوى مع شريط التصفح السفلي */
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  padding-top: env(safe-area-inset-top, 0px) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Car Mode — Driver UI polish (car app only)
+   ═══════════════════════════════════════════════════════════ */
+body.car-mode .driver-page-shell {
+  padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.car-mode .car-quick-dock {
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.car-mode .car-quick-dock-panel {
+  box-shadow:
+    0 24px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(16, 185, 129, 0.12) inset;
+}
+
+body.car-mode .car-quick-btn {
+  min-height: 68px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.car-mode .car-quick-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 480px) {
+  body.car-mode .car-quick-btn {
+    min-height: 74px;
+  }
+
+  body.car-mode .car-quick-btn span {
+    font-size: 11px;
+  }
+}
+
+/* Utility: بادينج سفلي آمن لعناصر الـ bottom sheet */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+
+.pb-safe-4 {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.pb-safe-6 {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.pb-safe-8 {
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+}

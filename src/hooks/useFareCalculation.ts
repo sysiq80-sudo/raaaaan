@@ -1,0 +1,200 @@
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useVehicleTypes } from '@/hooks/useVehicleTypes';
+import { useRegionFares } from '@/hooks/useRegionFares';
+import { calculateFare, validateDistance } from '@/lib/fareCalculation';
+
+type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
+
+export interface FareBreakdown {
+  base_fare: number;
+  distance_km: number;
+  distance_fare: number;
+  per_km_rate: number;
+  waiting_minutes: number;
+  waiting_fare: number;
+  vehicle_type: string;
+  vehicle_multiplier: number;
+  subtotal: number;
+  vehicle_adjusted_fare: number;
+  service_fee: number;
+  total_fare: number;
+  region_name: string;
+  region_id?: string;
+  formatted_fare: string;
+}
+
+export const useFareCalculation = (
+  pickupCoords: { lat: number; lng: number } | null,
+  dropoffCoords: { lat: number; lng: number } | null,
+  selectedVehicle: VehicleType,
+  routeDistance: number | null
+) => {
+  const [fareBreakdown, setFareBreakdown] = useState<FareBreakdown | null>(null);
+  const [fareLoading, setFareLoading] = useState(false);
+  const [fareError, setFareError] = useState<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSuccessfulFareRef = useRef<FareBreakdown | null>(null);
+  // حفظ آخر معامل ذروة من السيرفر لاستخدامه في التقدير المحلي
+  const lastSurgeMultiplierRef = useRef<number>(1.0);
+
+  // جلب معاملات أنواع المركبات من DB بدل القيم الثابتة
+  const { getMultiplier } = useVehicleTypes();
+  // جلب أسعار الأساس من DB (base_fare, per_km_fare) بدل القيم الثابتة
+  const { defaultFare } = useRegionFares();
+
+  const estimateFareLocally = (
+    distanceKm: number,
+    vehicle: VehicleType,
+  ): FareBreakdown => {
+    const baseFare = defaultFare.base_fare;
+    const perKmRate = defaultFare.per_km_fare;
+    const perMinuteRate = defaultFare.per_minute_fare || 0;
+    const vehicleMultiplier = getMultiplier(vehicle);
+    const surgeMultiplier = lastSurgeMultiplierRef.current;
+
+    // استخدام الدالة المشتركة (نفس المنطق في السيرفر والعميل)
+    const result = calculateFare({
+      distanceKm,
+      baseFare,
+      perKmRate,
+      perMinuteRate,
+      vehicleMultiplier,
+      surgeMultiplier,
+    });
+
+    return {
+      base_fare: result.baseFare,
+      distance_km: distanceKm,
+      distance_fare: result.distanceFare,
+      per_km_rate: perKmRate,
+      waiting_minutes: 0,
+      waiting_fare: 0,
+      vehicle_type: vehicle,
+      vehicle_multiplier: result.vehicleMultiplier,
+      subtotal: result.subtotal,
+      vehicle_adjusted_fare: result.totalFare,
+      service_fee: 0,
+      total_fare: result.totalFare,
+      region_name: "تقدير تقريبي",
+      formatted_fare: `${result.totalFare.toLocaleString()} د.ع`,
+    };
+  };
+
+  useEffect(() => {
+    // Clear any previous timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    let isCancelled = false;
+
+    const calculateFare = async () => {
+      // ⚠️ Early return if missing coordinates
+      if (!pickupCoords || !dropoffCoords) {
+        setFareBreakdown(null);
+        setFareError(null);
+        return;
+      }
+
+      // ⚠️ If route distance is not available, wait a bit longer
+      // routeDistance can be 0, so check for null/undefined specifically, not falsy
+      if (routeDistance === null || routeDistance === undefined) {
+        setFareBreakdown(null);
+        return;
+      }
+
+      // ✅ التحقق من صحة المسافة (عبر الدالة المشتركة)
+      const distanceCheck = validateDistance(routeDistance);
+      if (!distanceCheck.valid) {
+        setFareError(distanceCheck.error || 'المسافة غير صحيحة');
+        setFareBreakdown(null);
+        return;
+      }
+
+      setFareError(null);
+
+      // ⚡ عرض تقدير محلي فوري حتى يأتي الرد من السيرفر
+      const localEstimate = estimateFareLocally(routeDistance, selectedVehicle);
+      setFareBreakdown(localEstimate);
+      lastSuccessfulFareRef.current = localEstimate;
+      setFareLoading(true);
+
+      try {
+        // Set a timeout to prevent infinite loading (10 seconds — allows cold-start of edge function)
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutRef.current = setTimeout(() => {
+            reject(new Error('Fare calculation timeout'));
+          }, 10000);
+        });
+
+        const invokePromise = (async () => {
+          const { data, error } = await supabase.functions.invoke('calculate-fare', {
+            body: {
+              pickup_lat: pickupCoords.lat,
+              pickup_lng: pickupCoords.lng,
+              dropoff_lat: dropoffCoords.lat,
+              dropoff_lng: dropoffCoords.lng,
+              distance_km: routeDistance,
+              vehicle_type: selectedVehicle,
+              waiting_minutes: 0
+            }
+          });
+
+          if (error) {
+            console.error('❌ Edge Function error:', error);
+            throw new Error(`API Error: ${error.message || 'Unknown error'}`);
+          }
+
+          if (data?.error) {
+            console.error('❌ Fare calculation error:', data.error);
+            throw new Error(data.error);
+          }
+
+          if (!data) {
+            throw new Error('No fare data received');
+          }
+
+          return data;
+        })();
+
+        const data = await Promise.race([invokePromise, timeoutPromise]);
+        
+        if (isCancelled) return;
+
+        if (data) {
+          setFareBreakdown(data);
+          lastSuccessfulFareRef.current = data as FareBreakdown;
+          // حفظ معامل الذروة من السيرفر لاستخدامه في التقديرات المحلية القادمة
+          if ((data as any).surge_multiplier && (data as any).surge_multiplier > 0) {
+            lastSurgeMultiplierRef.current = (data as any).surge_multiplier;
+          }
+          console.log('✅ Fare calculated successfully:', data.formatted_fare);
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.warn('⚠️ Fare from server failed, using local estimate:', errorMsg);
+        // التقدير المحلي مُعين مسبقاً — لا داعي لإعادة الحساب
+        setFareError(null); // لا تعرض خطأ للمستخدم، التقدير موجود
+      } finally {
+        setFareLoading(false);
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+      }
+    };
+
+    calculateFare();
+
+    // Cleanup on unmount
+    return () => {
+      isCancelled = true;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [pickupCoords, dropoffCoords, selectedVehicle, routeDistance]);
+
+  return { fareBreakdown, fareLoading, fareError, setFareBreakdown };
+};

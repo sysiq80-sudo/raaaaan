@@ -1,0 +1,243 @@
+.dev-inspector-copy-buffer {
+  position: fixed;
+  left: -99999px;
+}
+
+.dev-inspector-floating-button {
+  position: fixed;
+  top: var(--dev-inspector-btn-y, 16px);
+  left: var(--dev-inspector-btn-x, 16px);
+  z-index: 100000;
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  border: 2px solid #6b7280;
+  background: #374151;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+.dev-inspector-floating-button.is-enabled {
+  background: #3b82f6;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.dev-inspector-hover-overlay,
+.dev-inspector-selected-overlay {
+  position: fixed;
+  top: var(--dev-inspector-top, 0px);
+  left: var(--dev-inspector-left, 0px);
+  width: var(--dev-inspector-width, 0px);
+  height: var(--dev-inspector-height, 0px);
+  pointer-events: none;
+  z-index: 99990;
+}
+
+.dev-inspector-hover-overlay {
+  border: 2px solid #3b82f6;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.06);
+  transition: all 0.05s ease-out;
+}
+
+.dev-inspector-hover-label {
+  position: absolute;
+  top: -26px;
+  left: 0;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px 4px 0 0;
+  white-space: nowrap;
+  font-family: system-ui, sans-serif;
+  max-width: 350px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: ltr;
+}
+
+.dev-inspector-hover-size {
+  position: absolute;
+  bottom: -18px;
+  right: 0;
+  background: rgba(59, 130, 246, 0.85);
+  color: #fff;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 0 0 3px 3px;
+  font-family: monospace;
+  direction: ltr;
+}
+
+.dev-inspector-selected-overlay {
+  border: 3px solid #3b82f6;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.dev-inspector-selected-overlay.is-group {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.dev-inspector-panel {
+  position: fixed;
+  left: var(--dev-inspector-panel-x, 16px);
+  top: var(--dev-inspector-panel-y, 16px);
+  z-index: 99999;
+  width: 370px;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  font-family: system-ui, -apple-system, sans-serif;
+  direction: ltr;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.dev-inspector-panel.is-group {
+  border-color: #f59e0b;
+}
+
+.dev-inspector-panel-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid #374151;
+  background: #111827;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: grab;
+}
+
+.dev-inspector-panel-title {
+  color: #9ca3af;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.dev-inspector-panel-drag-hint {
+  color: #4b5563;
+  font-size: 10px;
+  margin-left: 6px;
+}
+
+.dev-inspector-close-button {
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.dev-inspector-panel-body {
+  padding: 10px 14px;
+}
+
+.dev-inspector-info-row {
+  display: flex;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid #1f2937;
+  align-items: flex-start;
+}
+
+.dev-inspector-info-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.dev-inspector-info-label {
+  color: #6b7280;
+  font-size: 11px;
+  min-width: 72px;
+  flex-shrink: 0;
+}
+
+.dev-inspector-info-value {
+  color: #e5e7eb;
+  font-size: 12px;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.dev-inspector-info-value.is-mono {
+  font-family: monospace;
+}
+
+.dev-inspector-panel-actions {
+  padding: 8px 14px;
+  border-top: 1px solid #374151;
+  background: #111827;
+}
+
+.dev-inspector-copy-button {
+  width: 100%;
+  padding: 8px 12px;
+  background: #3b82f6;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.dev-inspector-copy-button.is-copied {
+  background: #10b981;
+}
+
+.dev-inspector-copy-error {
+  margin-top: 8px;
+  color: #f87171;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.dev-inspector-sentry-button {
+  width: 100%;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: #dc2626;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.dev-inspector-sentry-button:hover {
+  background: #b91c1c;
+}
+
+.dev-inspector-panel-footer {
+  padding: 6px 14px;
+  border-top: 1px solid #374151;
+  background: #0d1117;
+}
+
+.dev-inspector-hint {
+  color: #4b5563;
+  font-size: 10px;
+  margin: 0;
+  line-height: 1.6;
+  direction: ltr;
+}

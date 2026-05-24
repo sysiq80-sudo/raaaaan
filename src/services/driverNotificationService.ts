@@ -1,0 +1,473 @@
+/**
+ * ران — خدمة إشعارات السائق المركزية (Driver Notification Service)
+ * 
+ * تدير جميع جوانب نظام الإشعارات:
+ * - التحقق من جدول الكتم قبل إرسال الإشعار
+ * - تأكيد التسليم ومحاولة إعادة الإرسال
+ * - مزامنة تفضيلات الإشعارات مع Supabase
+ * - تسجيل FCM للتطبيق الأصلي (APK)
+ */
+
+import { supabase } from "@/integrations/supabase/client";
+import { useDriverStore } from "@/stores/driverStore";
+import { isNativePlatform } from "@/lib/capacitorBridge";
+import { capacitorStorageSync } from "@/lib/capacitorStorage";
+
+// ═══ أنواع البيانات ═══
+
+export type MuteMode = 'off' | 'always' | 'scheduled';
+
+export interface NotificationPreferences {
+  mute_mode: MuteMode;
+  mute_schedule_start: string; // "HH:mm"
+  mute_schedule_end: string;   // "HH:mm"
+  mute_days: number[];         // 0=Sun..6=Sat
+  sounds_enabled: boolean;
+  vibration_enabled: boolean;
+  notification_volume: number; // 0-100
+}
+
+export interface DeliveryConfirmation {
+  notification_id: string;
+  delivered_at: string;
+  channel: 'realtime' | 'web_push' | 'fcm' | 'local';
+}
+
+// ═══ فحص الكتم ═══
+
+/**
+ * التحقق مما إذا كانت الإشعارات مكتومة الآن
+ * يستخدم حالة driverStore مباشرة
+ */
+export const isNotificationMutedNow = (): boolean => {
+  const state = useDriverStore.getState();
+  return state.isMutedNow();
+};
+
+/**
+ * التحقق من الكتم بناءً على تفضيلات محددة (للاستخدام في Edge Function)
+ */
+export const checkMuteSchedule = (prefs: NotificationPreferences): boolean => {
+  if (prefs.mute_mode === 'off') return false;
+  if (prefs.mute_mode === 'always') return true;
+
+  // scheduled mode
+  const now = new Date();
+  const currentDay = now.getDay();
+  if (!prefs.mute_days.includes(currentDay)) return false;
+
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const [startH, startM] = prefs.mute_schedule_start.split(':').map(Number);
+  const [endH, endM] = prefs.mute_schedule_end.split(':').map(Number);
+  const startMinutes = startH * 60 + startM;
+  const endMinutes = endH * 60 + endM;
+
+  if (startMinutes <= endMinutes) {
+    return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+  } else {
+    // عبر منتصف الليل
+    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+  }
+};
+
+// ═══ مزامنة التفضيلات مع قاعدة البيانات ═══
+
+/**
+ * حفظ تفضيلات الإشعارات في Supabase
+ */
+export const saveNotificationPreferences = async (
+  driverId: string,
+  prefs: NotificationPreferences
+): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('drivers')
+      .update({
+        notification_preferences: prefs as unknown as Record<string, any>,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', driverId);
+
+    if (error) {
+      console.error('خطأ في حفظ تفضيلات الإشعارات:', error);
+      return false;
+    }
+
+    console.log('✅ تم حفظ تفضيلات الإشعارات');
+    return true;
+  } catch (error) {
+    console.error('فشل حفظ التفضيلات:', error);
+    return false;
+  }
+};
+
+/**
+ * جلب تفضيلات الإشعارات من Supabase
+ */
+export const loadNotificationPreferences = async (
+  driverId: string
+): Promise<NotificationPreferences | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('drivers')
+      .select('notification_preferences')
+      .eq('id', driverId)
+      .single();
+
+    if (error || !data?.notification_preferences) {
+      return null;
+    }
+
+    return data.notification_preferences as unknown as NotificationPreferences;
+  } catch (error) {
+    console.error('فشل جلب التفضيلات:', error);
+    return null;
+  }
+};
+
+/**
+ * مزامنة التفضيلات المحلية مع قاعدة البيانات
+ * يُستدعى عند تسجيل الدخول أو تغيير الإعدادات
+ */
+export const syncNotificationPreferences = async (driverId: string): Promise<void> => {
+  const state = useDriverStore.getState();
+  
+  // محاولة جلب التفضيلات من السيرفر أولاً
+  const serverPrefs = await loadNotificationPreferences(driverId);
+  
+  if (serverPrefs) {
+    // تحديث المخزن المحلي بتفضيلات السيرفر
+    state.setNotificationMuteMode(serverPrefs.mute_mode);
+    state.setMuteSchedule(
+      serverPrefs.mute_schedule_start,
+      serverPrefs.mute_schedule_end,
+      serverPrefs.mute_days
+    );
+    state.setNotificationVolume(serverPrefs.notification_volume);
+    
+    if (serverPrefs.sounds_enabled !== state.soundsEnabled) {
+      state.toggleSounds();
+    }
+    if (serverPrefs.vibration_enabled !== state.vibrationEnabled) {
+      state.toggleVibration();
+    }
+    
+    console.log('📥 تم مزامنة التفضيلات من السيرفر');
+  } else {
+    // رفع التفضيلات المحلية للسيرفر
+    await saveNotificationPreferences(driverId, {
+      mute_mode: state.notificationMuteMode,
+      mute_schedule_start: state.muteScheduleStart,
+      mute_schedule_end: state.muteScheduleEnd,
+      mute_days: state.muteDays,
+      sounds_enabled: state.soundsEnabled,
+      vibration_enabled: state.vibrationEnabled,
+      notification_volume: state.notificationVolume,
+    });
+    console.log('📤 تم رفع التفضيلات المحلية للسيرفر');
+  }
+};
+
+// ═══ تسجيل FCM للتطبيق الأصلي ═══
+
+/**
+ * تسجيل رمز FCM في Supabase لاستقبال إشعارات الخلفية
+ * يستخدم فقط عندما يعمل التطبيق كـ APK أصلي
+ */
+export const registerFCMToken = async (driverId: string): Promise<boolean> => {
+  if (!isNativePlatform) {
+    console.log('🌐 ليس تطبيق أصلي — لا حاجة لـ FCM');
+    return false;
+  }
+
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+
+    const permResult = await PushNotifications.requestPermissions();
+    if (permResult.receive !== 'granted') {
+      console.warn('⚠️ إذن الإشعارات مرفوض — لن تصل إشعارات طلبات الرحلات في الخلفية');
+      return false;
+    }
+
+    /**
+     * نفس استراتيجية الراكب: الرمز غالباً موجود من initNativePushNotifications؛
+     * وإلا نضع مستمع registration ثم register() لتفادي فقدان الحدث.
+     */
+    const readStoredToken = (): string | null => {
+      try {
+        return (
+          capacitorStorageSync.getItem('raan_fcm_token') ||
+          (typeof localStorage !== 'undefined' ? localStorage.getItem('raan_fcm_token') : null)
+        );
+      } catch {
+        return null;
+      }
+    };
+
+    let token = readStoredToken();
+
+    if (!token) {
+      token = await new Promise<string | null>((resolve) => {
+        let isResolved = false;
+        let listenerHandle: { remove: () => void } | null = null;
+        
+        const cleanup = () => {
+          if (listenerHandle) {
+            listenerHandle.remove();
+          }
+        };
+
+        const timeout = setTimeout(() => {
+          if (!isResolved) {
+            isResolved = true;
+            cleanup();
+            resolve(readStoredToken());
+          }
+        }, 5000);
+
+        PushNotifications.addListener('registration', (t) => {
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeout);
+            cleanup();
+            try {
+              localStorage.setItem('raan_fcm_token', t.value);
+              capacitorStorageSync.setItem('raan_fcm_token', t.value);
+            } catch {
+              /* صامت */
+            }
+            resolve(t.value);
+          }
+        }).then(handle => {
+          listenerHandle = handle;
+          if (isResolved) cleanup(); // In case it resolved before then()
+        });
+
+        PushNotifications.register().catch((e: unknown) => {
+          console.warn('⚠️ PushNotifications.register() failed:', e);
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timeout);
+            cleanup();
+            resolve(readStoredToken());
+          }
+        });
+      });
+    } else {
+      PushNotifications.register().catch((e: unknown) => {
+        console.warn('⚠️ PushNotifications.register() failed:', e);
+      });
+    }
+
+    if (!token) {
+      console.warn('⚠️ لم يُستلم رمز FCM للسائق — تحقق من google-services.json وصلاحيات الإشعارات');
+      return false;
+    }
+
+    // حذف اشتراكات Web Push القديمة لمنع الإشعارات المكررة على Android
+    await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('driver_id', driverId)
+      .not('endpoint', 'like', 'fcm://%');
+
+    // حذف سجلات FCM القديمة برموز مختلفة عن الرمز الحالي
+    await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('driver_id', driverId)
+      .like('endpoint', 'fcm://%')
+      .neq('fcm_token', token);
+
+    // upsert الرمز الحالي: إذا موجود يحدّث فقط، إذا غير موجود يُدرج
+    // يعتمد على UNIQUE(driver_id, fcm_token) لمنع التكرار
+    const { error } = await supabase.from('push_subscriptions').upsert(
+      {
+        driver_id: driverId,
+        endpoint: `fcm://${token}`,
+        p256dh_key: '',
+        auth_key: '',
+        platform: 'android',
+        fcm_token: token,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'driver_id,fcm_token' }
+    );
+
+    if (error) {
+      console.error('فشل حفظ رمز FCM للسائق:', error);
+      return false;
+    }
+
+    console.log('✅ تم حفظ رمز FCM للسائق في push_subscriptions:', driverId);
+    return true;
+  } catch (error) {
+    console.error('فشل تسجيل FCM:', error);
+    return false;
+  }
+};
+
+/**
+ * إعداد مستمعات الإشعارات الأصلية (FCM)
+ * يعالج النقر على الإشعار والإشعارات في المقدمة
+ */
+export const setupNativePushListeners = async (
+  onRideNotification?: (rideId: string) => void
+): Promise<(() => void) | null> => {
+  if (!isNativePlatform) return null;
+
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    
+    // إشعار وصل والتطبيق في المقدمة
+    const receivedListener = await PushNotifications.addListener(
+      'pushNotificationReceived',
+      (notification) => {
+        console.log('📩 إشعار FCM في المقدمة:', notification);
+        
+        const rideId = notification.data?.ride_id || notification.data?.rideId;
+        if (rideId && onRideNotification) {
+          onRideNotification(rideId);
+        }
+      }
+    );
+
+    // النقر على إشعار
+    const actionListener = await PushNotifications.addListener(
+      'pushNotificationActionPerformed',
+      (action) => {
+        console.log('👆 نقر على إشعار FCM:', action);
+        
+        const rideId = action.notification.data?.ride_id || action.notification.data?.rideId;
+        if (rideId && onRideNotification) {
+          onRideNotification(rideId);
+        }
+      }
+    );
+
+    return () => {
+      receivedListener.remove();
+      actionListener.remove();
+    };
+  } catch (error) {
+    console.error('فشل إعداد مستمعات FCM:', error);
+    return null;
+  }
+};
+
+// ═══ تأكيد التسليم ═══
+
+/**
+ * تأكيد استلام الإشعار (يُستخدم لتتبع معدل التسليم)
+ */
+export const confirmNotificationDelivery = async (
+  notificationId: string,
+  channel: 'realtime' | 'web_push' | 'fcm' | 'local'
+): Promise<void> => {
+  try {
+    await supabase.functions.invoke('send-push-notification', {
+      body: {
+        action: 'notification_opened',
+        notification_id: notificationId,
+        opened_at: new Date().toISOString(),
+        channel
+      }
+    });
+  } catch (error) {
+    console.error('فشل تأكيد التسليم:', error);
+  }
+};
+
+// ═══ قبول الرحلة من الإشعار ═══
+
+/**
+ * قبول رحلة من إشعار SW أو FCM
+ * يُستدعى عند النقر على زر "قبول" في الإشعار
+ */
+export const acceptRideFromNotification = async (
+  rideId: string,
+  driverId: string
+): Promise<boolean> => {
+  try {
+    // ═══ إصلاح حرج: استخدام RPC الذري بدلاً من SELECT+UPDATE ═══
+    // الطريقة القديمة (SELECT ثم UPDATE) تترك نافذة سباق ~50ms
+    // تسمح لسائقَيْن بقبول نفس الرحلة.
+    // الـ RPC الذري يُنفذ UPDATE...WHERE status='pending' في عملية واحدة
+    // مما يضمن أن سائقاً واحداً فقط ينجح.
+    const { data, error } = await supabase.rpc('accept_ride_atomic', {
+      target_ride_id: rideId,
+      acc_driver_id: driverId,
+    });
+
+    if (error) {
+      console.error('فشل قبول الرحلة (RPC):', error);
+      return false;
+    }
+
+    const result = data as { success: boolean; message?: string } | null;
+
+    if (!result?.success) {
+      console.log('الرحلة لم تعد متاحة:', result?.message);
+      return false;
+    }
+
+    // تحديث حالة السائق (non-blocking)
+    supabase
+      .from('drivers')
+      .update({ is_available: false, updated_at: new Date().toISOString() })
+      .eq('id', driverId)
+      .then(({ error: driverErr }) => {
+        if (driverErr) console.warn('⚠️ فشل تحديث حالة السائق:', driverErr);
+      });
+
+    // ⚡ إرسال broadcast فوري للراكب — أسرع من postgres_changes (~100ms vs ~500ms)
+    supabase.channel(`ride-comm-${rideId}`)
+      .send({
+        type: 'broadcast',
+        event: 'ride_accepted',
+        payload: {
+          driverId,
+          message: 'تم قبول الرحلة',
+          timestamp: new Date().toISOString(),
+        },
+      })
+      .catch(() => { /* best-effort */ });
+
+    console.log('✅ تم قبول الرحلة ذرياً من الإشعار:', rideId);
+    return true;
+  } catch (error) {
+    console.error('خطأ في قبول الرحلة:', error);
+    return false;
+  }
+};
+
+// ═══ إدارة حالة الإشعارات عبر القنوات ═══
+
+/**
+ * مؤقت فحص جدول الكتم التلقائي
+ * يتحقق كل دقيقة ويُحدّث حالة الإشعارات حسب الجدول
+ */
+let muteCheckInterval: ReturnType<typeof setInterval> | null = null;
+
+export const startMuteScheduleChecker = (): void => {
+  if (muteCheckInterval) return;
+  
+  muteCheckInterval = setInterval(() => {
+    const isMuted = isNotificationMutedNow();
+    
+    // يمكن استخدام هذا لتحديث UI أو تعطيل قنوات معينة
+    if (isMuted) {
+      console.log('🔇 وضع الكتم نشط');
+    }
+  }, 60000); // كل دقيقة
+  
+  console.log('⏰ بدء مراقبة جدول الكتم');
+};
+
+export const stopMuteScheduleChecker = (): void => {
+  if (muteCheckInterval) {
+    clearInterval(muteCheckInterval);
+    muteCheckInterval = null;
+    console.log('⏰ إيقاف مراقبة جدول الكتم');
+  }
+};

@@ -1,0 +1,67 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+dist-rider
+dist-driver
+dist-car
+dist-admin
+local-builds
+builds
+*.local
+
+# Build artifacts
+bun.lockb
+bun.lock
+gradlew.bat
+.expo
+
+# Environment variables — NEVER commit secrets
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Supabase local temp
+supabase/.temp/
+
+# Android build outputs (Capacitor)
+android/app/build/
+android/.gradle/
+android/build/
+android/local.properties
+*.apk
+*.aab
+
+# Signing — NEVER commit
+*.keystore
+*.jks
+keystore.properties
+
+# Local Netlify folder
+.netlify
+
+# Temp scripts and results
+_replace_key.ps1
+_replace_results.txt
+run-*-mobile*.bat
+.codex-screenshots/
