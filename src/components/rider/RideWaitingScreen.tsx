@@ -101,6 +101,7 @@ export const RideWaitingScreen = ({
   const [lastTappedDhikr, setLastTappedDhikr] = useState<string | null>(null);
   const [reMatchCount, setReMatchCount] = useState(0); // عدد مرات إعادة المطابقة
   const [isReMatching, setIsReMatching] = useState(false); // حالة إعادة المطابقة
+  const [currentRadiusBonus, setCurrentRadiusBonus] = useState(0); // توسيع نطاق البحث الفعلي بالكم
   const { toast } = useToast();
   const driverFoundTimeoutRef = useRef<number | null>(null);
   const mountedRef = useRef(true); // ✅ FIX: تتبع حالة المكون
@@ -512,6 +513,8 @@ export const RideWaitingScreen = ({
 
     const RE_MATCH_INTERVAL_MS = 60_000; // 60 ثانية
     const INITIAL_DELAY_MS = 45_000; // تأخير أولي 45 ثانية لإعطاء الجولات الأولى فرصتها
+    const RADIUS_EXPANSION_STEP_KM = 3; // زيادة النطاق بـ 3 كم كل جولة
+    const MAX_RADIUS_BONUS_KM = 12;     // الحد الأقصى للتوسيع +12 كم (4 جولات)
 
     let timeoutId: ReturnType<typeof setTimeout>;
     let intervalId: ReturnType<typeof setInterval>;
@@ -522,7 +525,7 @@ export const RideWaitingScreen = ({
       try {
         const { data: currentRide } = await supabase
           .from("rides")
-          .select("status")
+          .select("status, metadata")
           .eq("id", rideId)
           .single();
 
@@ -531,7 +534,21 @@ export const RideWaitingScreen = ({
           return;
         }
 
-        console.log("[RideWaiting] 🔄 Triggering re-match for ride", rideId);
+        // ═══ توسيع نطاق البحث الفعلي قبل استدعاء match-ride ═══
+        const prevBonus = (currentRide.metadata as any)?.radius_bonus_km || 0;
+        const newBonus = Math.min(prevBonus + RADIUS_EXPANSION_STEP_KM, MAX_RADIUS_BONUS_KM);
+        await supabase
+          .from("rides")
+          .update({
+            metadata: {
+              ...((currentRide.metadata as object) || {}),
+              radius_bonus_km: newBonus,
+            },
+          })
+          .eq("id", rideId);
+        setCurrentRadiusBonus(newBonus);
+
+        console.log(`[RideWaiting] 🔄 Triggering re-match for ride ${rideId} — radius +${newBonus}km`);
         setIsReMatching(true);
         setReMatchCount(prev => prev + 1);
 
@@ -540,7 +557,7 @@ export const RideWaitingScreen = ({
           body: { rideId, re_match: true },
         });
 
-        console.log("[RideWaiting] ✅ Re-match invoked successfully");
+        console.log(`[RideWaiting] ✅ Re-match invoked (radius_bonus=${newBonus}km)`);
       } catch (err) {
         console.warn("[RideWaiting] ⚠️ Re-match error (non-blocking):", err);
       } finally {
@@ -1034,10 +1051,10 @@ export const RideWaitingScreen = ({
             }
             <p className="text-[12px] text-amber-300 font-medium">
               {isReMatching
-                ? "توسيع نطاق البحث..."
+                ? `توسيع نطاق البحث +${currentRadiusBonus}كم...`
                 : reassignmentCount === 1 ? "جاري البحث عن سائق بديل..."
                 : reassignmentCount >= 3 ? "آخر محاولة للعثور على سائق متاح..."
-                : "لا تزال البحث مستمراً..."}
+                : `البحث مستمر — نطاق +${currentRadiusBonus}كم`}
             </p>
           </motion.div>
         )}
