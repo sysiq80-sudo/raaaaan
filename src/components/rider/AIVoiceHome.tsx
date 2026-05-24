@@ -411,7 +411,7 @@ const AIVoiceHome: React.FC = () => {
   const [savedPlacesExpanded, setSavedPlacesExpanded] = useState(false);
   const [searchResults, setSearchResults] = useState<PlacePrediction[]>([]);
   
-  const googleMapsApiKey = useGoogleMapsApiKey();
+  const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
 
   const isMicAvailable =
     typeof navigator !== "undefined" &&
@@ -582,11 +582,12 @@ const AIVoiceHome: React.FC = () => {
       });
       setShowConfirmation(true);
       
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "حاول مرة أخرى";
       console.error("[AIVoiceHome] خطأ في البحث:", err);
       toast({ 
         title: "خطأ في البحث", 
-        description: err.message || "حاول مرة أخرى", 
+        description: message,
         variant: "destructive" 
       });
     } finally { 
