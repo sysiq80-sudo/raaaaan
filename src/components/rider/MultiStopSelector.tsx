@@ -3,6 +3,7 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { MapPin, Plus, X, GripVertical, Navigation, Clock, Route } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { cleanArabicAddress } from '@/utils/addressCleaner';
 
 interface Stop {
   id: string;
@@ -91,7 +92,7 @@ const MultiStopSelector: React.FC<MultiStopSelectorProps> = ({
           <div className="flex-1 min-w-0">
             <p className="text-xs text-muted-foreground">نقطة الانطلاق</p>
             <p className="text-sm font-medium truncate">
-              {pickup.address || 'موقعك الحالي'}
+              {pickup.address ? cleanArabicAddress(pickup.address) : 'موقعك الحالي'}
             </p>
           </div>
         </div>
@@ -138,7 +139,7 @@ const MultiStopSelector: React.FC<MultiStopSelectorProps> = ({
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-xs text-muted-foreground">محطة {index + 1}</p>
-                            <p className="text-sm truncate">{stop.address}</p>
+                            <p className="text-sm truncate">{cleanArabicAddress(stop.address)}</p>
                             {stop.estimatedTime && (
                               <p className="text-xs text-muted-foreground mt-0.5">
                                 +{stop.estimatedTime} دقيقة • {stop.distanceFromPrevious?.toFixed(1)} كم
@@ -209,7 +210,7 @@ const MultiStopSelector: React.FC<MultiStopSelectorProps> = ({
           <div className="flex-1 min-w-0">
             <p className="text-xs text-muted-foreground">الوجهة النهائية</p>
             <p className="text-sm font-medium truncate">
-              {dropoff.address || 'اختر الوجهة'}
+              {dropoff.address ? cleanArabicAddress(dropoff.address) : 'اختر الوجهة'}
             </p>
           </div>
         </div>

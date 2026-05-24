@@ -1,6 +1,15 @@
 /**
  * ران - الشاشة الرئيسية بالذكاء الاصطناعي الصوتي
  * Voice-First AI Home Screen — تصميم فاخر مطابق للصورة المرجعية
+ * 
+ * ═══════════════════════════════════════════════════════════════════
+ * 🚧 ملاحظة مهمة: ميزة الصوت (Voice AI) معطّلة حالياً
+ * ═══════════════════════════════════════════════════════════════════
+ * السبب: تتطلب API دائماً للذكاء الاصطناعي (تكلفة مستمرة)
+ * الخطة: إطلاق التطبيق بشكل مبدئي بوضع الكتابة فقط، ثم تفعيل
+ *        الصوت في المرحلة الثانية
+ * للتفعيل لاحقاً: غيّر ENABLE_VOICE_MODE = true (سطر 40)
+ * ═══════════════════════════════════════════════════════════════════
  */
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -21,10 +30,24 @@ import { useToast } from "@/hooks/use-toast";
 import { reverseGeocodeCoordinates } from "@/lib/googleMapService";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
+import { GooglePlacesGeocodingAdapter } from "@/lib/adapters/GooglePlacesGeocodingAdapter";
+import type { PlacePrediction } from "@/lib/adapters/types";
+import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 
 /* ──────────────────────────────────────────
    ثوابت
 ────────────────────────────────────────── */
+
+// ═══════════════════════════════════════════════════════════════════
+// 🚧 FEATURE FLAG: Voice Mode (وضع الصوت)
+// ═══════════════════════════════════════════════════════════════════
+// الحالة: معطّل مؤقتاً (DISABLED)
+// السبب: يتطلب API دائماً للذكاء الاصطناعي الصوتي (تكلفة مستمرة)
+// الخطة: تفعيله في المرحلة الثانية بعد إطلاق التطبيق بصورة مبدئية
+// للتفعيل: غيّر ENABLE_VOICE_MODE إلى true
+// ═══════════════════════════════════════════════════════════════════
+const ENABLE_VOICE_MODE = false;
+
 const VOICE_HINTS = [
   "لجامعة الأنبار",
   "لشارع المستودع",
@@ -236,8 +259,11 @@ interface ConfirmModalProps {
   onConfirm: () => void;
   onRetry: () => void;
   onCancel: () => void;
+  isTextMode?: boolean; // للتمييز بين الصوت والكتابة
+  multipleResults?: PlacePrediction[]; // نتائج بحث متعددة
+  onSelectPlace?: (place: PlacePrediction) => void; // اختيار مكان من النتائج
 }
-const ConfirmModal: React.FC<ConfirmModalProps> = ({ result, onConfirm, onRetry, onCancel }) => (
+const ConfirmModal: React.FC<ConfirmModalProps> = ({ result, onConfirm, onRetry, onCancel, isTextMode = false, multipleResults, onSelectPlace }) => (
   <motion.div
     className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md px-4"
     initial={{ opacity: 0 }}
@@ -264,64 +290,91 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({ result, onConfirm, onRetry,
         <h3 className="text-base font-bold text-white">هل تقصد هذا المسار؟</h3>
       </div>
 
-      {/* ما قاله المستخدم */}
+      {/* ما قاله/كتبه المستخدم */}
       {result.transcript && (
         <div className="mb-4 px-4 py-3 rounded-2xl bg-white/5 border border-white/8">
-          <p className="text-xs text-white/35 mb-1">ما قلته:</p>
+          <p className="text-xs text-white/35 mb-1">
+            {isTextMode ? "المكان المقصود:" : "ما قلته:"}
+          </p>
           <p className="text-sm text-white/80" dir="rtl">"{result.transcript}"</p>
         </div>
       )}
 
-      {/* المسار */}
-      <div className="space-y-2 mb-6 w-full">
-        {result.origin && (
-          <div className="flex items-center px-4 py-3 rounded-2xl bg-white/5 border border-white/8">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 ml-3">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-            </div>
-            <div className="flex-1 min-w-0 text-left flex flex-col justify-center">
-              <p className="text-[10px] text-white/40 mb-0.5 uppercase tracking-wider">من</p>
-              <p className="text-sm font-semibold text-white truncate">{result.origin.name}</p>
-            </div>
-          </div>
-        )}
-        <div className="flex justify-center">
-          <div className="w-px h-4 bg-white/10" />
+      {/* المسار أو قائمة النتائج */}
+      {multipleResults && multipleResults.length > 0 ? (
+        <div className="space-y-2 mb-6 w-full max-h-[400px] overflow-y-auto">
+          <p className="text-xs text-white/50 mb-3 text-center">اختر المكان المطلوب ({multipleResults.length} نتيجة):</p>
+          {multipleResults.map((place, idx) => (
+            <button
+              key={place.place_id || idx}
+              onClick={() => onSelectPlace?.(place)}
+              className="w-full flex items-center px-4 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all active:scale-[0.98]"
+            >
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 ml-3">
+                <MapPin className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0 text-right flex flex-col justify-center">
+                <p className="text-sm font-semibold text-white truncate">{place.main_text}</p>
+                <p className="text-xs text-white/40 truncate">{place.secondary_text || place.description}</p>
+              </div>
+            </button>
+          ))}
         </div>
-        {result.destination && (
-          <div className="flex items-center px-4 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 ml-3">
-              <MapPin className="w-4 h-4 text-emerald-400" />
+      ) : (
+        <div className="space-y-2 mb-6 w-full">
+          {result.origin && (
+            <div className="flex items-center px-4 py-3 rounded-2xl bg-white/5 border border-white/8">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 ml-3">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0 text-left flex flex-col justify-center">
+                <p className="text-[10px] text-white/40 mb-0.5 uppercase tracking-wider">من</p>
+                <p className="text-sm font-semibold text-white truncate">{result.origin.name}</p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0 text-left flex flex-col justify-center">
-              <p className="text-[10px] text-emerald-400/60 mb-0.5 uppercase tracking-wider">إلى</p>
-              <p className="text-sm font-semibold text-white truncate">{result.destination.name}</p>
-            </div>
+          )}
+          <div className="flex justify-center">
+            <div className="w-px h-4 bg-white/10" />
           </div>
-        )}
-      </div>
+          {result.destination && (
+            <div className="flex items-center px-4 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 ml-3">
+                <MapPin className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0 text-left flex flex-col justify-center">
+                <p className="text-[10px] text-emerald-400/60 mb-0.5 uppercase tracking-wider">إلى</p>
+                <p className="text-sm font-semibold text-white truncate">{result.destination.name}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* أزرار */}
       <div className="flex gap-3" dir="rtl">
-        <Button
-          onClick={onConfirm}
-          className="flex-1 h-13 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/25 text-base"
-        >
-          <Check className="w-5 h-5 ml-2" /> تأكيد
-        </Button>
-        <Button
-          onClick={onRetry}
-          variant="outline"
-          className="h-13 px-5 border-white/15 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 rounded-2xl"
-        >
-          <Mic className="w-4 h-4" />
-        </Button>
+        {!multipleResults && (
+          <Button
+            onClick={onConfirm}
+            className="flex-1 h-13 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/25 text-base"
+          >
+            <Check className="w-5 h-5 ml-2" /> تأكيد
+          </Button>
+        )}
+        {ENABLE_VOICE_MODE && (
+          <Button
+            onClick={onRetry}
+            variant="outline"
+            className="h-13 px-5 border-white/15 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 rounded-2xl"
+          >
+            <Mic className="w-4 h-4" />
+          </Button>
+        )}
         <Button
           onClick={onCancel}
           variant="ghost"
-          className="h-13 px-4 text-white/30 hover:text-white/60 hover:bg-white/5 rounded-2xl"
+          className={`h-13 px-4 text-white/30 hover:text-white/60 hover:bg-white/5 rounded-2xl ${multipleResults ? 'flex-1' : ''}`}
         >
-          <X className="w-4 h-4" />
+          <X className="w-4 h-4" /> {multipleResults ? 'إلغاء' : ''}
         </Button>
       </div>
     </motion.div>
@@ -356,6 +409,9 @@ const AIVoiceHome: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState("landmarks");
   const savedPlaceCardRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [savedPlacesExpanded, setSavedPlacesExpanded] = useState(false);
+  const [searchResults, setSearchResults] = useState<PlacePrediction[]>([]);
+  
+  const googleMapsApiKey = useGoogleMapsApiKey();
 
   const isMicAvailable =
     typeof navigator !== "undefined" &&
@@ -464,31 +520,131 @@ const AIVoiceHome: React.FC = () => {
   const handleTextSubmit = useCallback(async () => {
     const trimmed = textInput.trim();
     if (!trimmed || trimmed.length < 2 || isSubmittingText) return;
+    
     setIsSubmittingText(true);
     try {
-      const { data, error: fnError } = await supabase.functions.invoke("voice-booking-ai", {
-        body: JSON.stringify({ text: trimmed }),
-        headers: { "Content-Type": "application/json" },
+      // استخدام Google Places API للبحث
+      const adapter = new GooglePlacesGeocodingAdapter(googleMapsApiKey);
+      await adapter.load();
+      
+      // البحث في الرمادي
+      const centerRamadi = { lat: 33.4233, lng: 43.2974 };
+      const results = await adapter.searchPlaces(trimmed, centerRamadi);
+      
+      console.log(`[AIVoiceHome] البحث عن "${trimmed}" - النتائج: ${results.length}`);
+      
+      if (results.length === 0) {
+        toast({ 
+          title: "لا توجد نتائج", 
+          description: "لم يتم العثور على أماكن مطابقة. حاول البحث بكلمات مختلفة.", 
+          variant: "destructive" 
+        });
+        setIsSubmittingText(false);
+        return;
+      }
+      
+      if (results.length === 1) {
+        // نتيجة واحدة فقط → اختيارها مباشرة والذهاب لصفحة GoPage
+        console.log(`[AIVoiceHome] ✅ نتيجة واحدة - اختيار مباشر: ${results[0].main_text}`);
+        const place = results[0];
+        const savedDropoff = { 
+          lat: place.lat, 
+          lng: place.lng, 
+          address: place.description || place.main_text 
+        };
+        
+        setDropoffLocation(savedDropoff);
+        setPickupLocation(null); // يختار المستخدم موقع الانطلاق على الخريطة
+        setVehicle("economy");
+        
+        navigate("/rider/go", {
+          state: {
+            fromVoice: true,
+            fromSavedPlace: true,
+            preferredMode: "pickup", // يحدد موقع الانطلاق
+            savedDropoff,
+            savedPickup: null,
+          },
+        });
+        
+        setIsSubmittingText(false);
+        return;
+      }
+      
+      // نتائج متعددة → عرض قائمة للاختيار
+      console.log(`[AIVoiceHome] 📋 عدة نتائج (${results.length}) - عرض القائمة`);
+      setSearchResults(results);
+      setTextResult({
+        transcript: trimmed,
+        origin: null,
+        destination: null,
+        vehicleType: "economy"
       });
-      if (fnError) throw new Error(fnError.message);
-      if (data?.error) throw new Error(data.error);
-      setTextResult({ transcript: data.transcript || trimmed, origin: data.origin || null, destination: data.destination || null, vehicleType: data.vehicleType || "economy" });
       setShowConfirmation(true);
+      
     } catch (err: any) {
-      toast({ title: "خطأ في المعالجة", description: err.message || "حاول مرة أخرى", variant: "destructive" });
-    } finally { setIsSubmittingText(false); }
-  }, [textInput, isSubmittingText, toast]);
+      console.error("[AIVoiceHome] خطأ في البحث:", err);
+      toast({ 
+        title: "خطأ في البحث", 
+        description: err.message || "حاول مرة أخرى", 
+        variant: "destructive" 
+      });
+    } finally { 
+      setIsSubmittingText(false); 
+    }
+  }, [textInput, isSubmittingText, toast, googleMapsApiKey, navigate, setDropoffLocation, setPickupLocation, setVehicle]);
 
   const handleDirectPlaceSelect = useCallback((place: { name: string, lat: number, lng: number }) => {
-    setTextResult({
-      transcript: `إلى ${place.name}`,
-      origin: null,
-      // تمرير name لكي يظهر في ConfirmModal، و address لكي يظهر في GoPage
-      destination: { name: place.name, address: place.name, lat: place.lat, lng: place.lng } as any,
-      vehicleType: "economy"
+    // الاختيار المباشر من الأماكن السريعة (Quick Categories)
+    // ينتقل مباشرة لـ GoPage بدون عرض ConfirmModal
+    console.log(`[AIVoiceHome] ✅ اختيار مكان سريع: ${place.name}`);
+    
+    const savedDropoff = { 
+      lat: place.lat, 
+      lng: place.lng, 
+      address: place.name 
+    };
+    
+    setDropoffLocation(savedDropoff);
+    setPickupLocation(null);
+    setVehicle("economy");
+    
+    navigate("/rider/go", {
+      state: {
+        fromVoice: true,
+        fromSavedPlace: true,
+        preferredMode: "pickup",
+        savedDropoff,
+        savedPickup: null,
+      },
     });
-    setShowConfirmation(true);
-  }, []);
+  }, [navigate, setDropoffLocation, setPickupLocation, setVehicle]);
+  
+  const handleSelectFromSearchResults = useCallback((place: PlacePrediction) => {
+    console.log(`[AIVoiceHome] ✅ تم اختيار: ${place.main_text}`);
+    const savedDropoff = { 
+      lat: place.lat, 
+      lng: place.lng, 
+      address: place.description || place.main_text 
+    };
+    
+    setDropoffLocation(savedDropoff);
+    setPickupLocation(null);
+    setVehicle("economy");
+    setShowConfirmation(false);
+    setSearchResults([]);
+    setTextResult(null);
+    
+    navigate("/rider/go", {
+      state: {
+        fromVoice: true,
+        fromSavedPlace: true,
+        preferredMode: "pickup",
+        savedDropoff,
+        savedPickup: null,
+      },
+    });
+  }, [navigate, setDropoffLocation, setPickupLocation, setVehicle]);
 
   const handlePressStart = useCallback(() => { setIsPressing(true); startRecording(); }, [startRecording]);
   const handlePressEnd = useCallback(async () => {
@@ -530,8 +686,18 @@ const AIVoiceHome: React.FC = () => {
     });
   }, [activeResult, pickupCoords, pickupAddress, navigate, setPickupLocation, setDropoffLocation, setVehicle]);
 
-  const handleRetry = useCallback(() => { setShowConfirmation(false); setTextResult(null); resetVoice(); }, [resetVoice]);
-  const handleCancel = useCallback(() => { setShowConfirmation(false); setTextResult(null); resetVoice(); }, [resetVoice]);
+  const handleRetry = useCallback(() => { 
+    setShowConfirmation(false); 
+    setTextResult(null); 
+    setSearchResults([]);
+    resetVoice(); 
+  }, [resetVoice]);
+  const handleCancel = useCallback(() => { 
+    setShowConfirmation(false); 
+    setTextResult(null); 
+    setSearchResults([]);
+    resetVoice(); 
+  }, [resetVoice]);
 
   const buildCurrentLocationPickup = useCallback(async () => {
     if (!navigator.geolocation) return null;
@@ -652,7 +818,7 @@ const AIVoiceHome: React.FC = () => {
         <AnimatePresence mode="wait">
           {isProcessing ? (
             <AIProcessingView key="processing" />
-          ) : isTextMode || !isMicAvailable ? (
+          ) : !ENABLE_VOICE_MODE || isTextMode || !isMicAvailable ? (
             /* ── وضع الكتابة ── */
             <motion.div
               key="text-mode"
@@ -743,6 +909,14 @@ const AIVoiceHome: React.FC = () => {
 
             </motion.div>
           ) : (
+            /* ══════════════════════════════════════════════════════════════
+               🚧 وضع الصوت — معطّل مؤقتاً (Voice Mode - Temporarily Disabled)
+               ══════════════════════════════════════════════════════════════
+               هذا القسم يحتوي على ميزة الذكاء الاصطناعي الصوتي (AI Voice)
+               - يتطلب API دائماً (تكلفة مستمرة على السيرفر)
+               - سيتم تفعيله في المرحلة الثانية بعد الإطلاق المبدئي
+               - للتفعيل: غيّر ENABLE_VOICE_MODE = true في أعلى الملف
+               ══════════════════════════════════════════════════════════════ */
             /* ── وضع الصوت ── */
             <motion.div
               key="voice-mode"
@@ -998,6 +1172,9 @@ const AIVoiceHome: React.FC = () => {
             onConfirm={handleConfirm}
             onRetry={handleRetry}
             onCancel={handleCancel}
+            isTextMode={!ENABLE_VOICE_MODE || isTextMode || !!textResult}
+            multipleResults={searchResults.length > 0 ? searchResults : undefined}
+            onSelectPlace={handleSelectFromSearchResults}
           />
         )}
       </AnimatePresence>

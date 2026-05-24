@@ -49,6 +49,7 @@ import FavoriteMarkersLayer from "@/components/rider/FavoriteMarkersLayer";
 import { useFavoritesStore } from "@/stores/useFavoritesStore";
 import SaveLocationModal from "@/components/rider/SaveLocationModal";
 import BookingConfirmationView from "@/components/rider/BookingConfirmationView";
+import { cleanArabicAddress } from "@/utils/addressCleaner";
 
 // Performance & Enhancement hooks
 import { usePerformanceMonitoring, useOperationTiming } from "@/hooks/usePerformanceMonitoring";
@@ -108,7 +109,17 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     if (!address || !address.trim()) return "";
     if (address.includes("جاري تحديد العنوان")) return "";
     
-    const parts = address
+    // ✅ فحص الإحداثيات: إذا كان العنوان يحتوي على أرقام فقط + فاصلة (33.4186, 43.2691)
+    const coordinatePattern = /^[-+]?\d+\.?\d*\s*[،,]\s*[-+]?\d+\.?\d*$/;
+    if (coordinatePattern.test(address.trim())) {
+      return "موقعك الحالي"; // عرض نص وصفي بدلاً من الإحداثيات
+    }
+    
+    // ✅ أولاً: تنظيف العنوان من النص الإنجليزي
+    const arabicOnly = cleanArabicAddress(address);
+    if (!arabicOnly || !arabicOnly.trim()) return "";
+    
+    const parts = arabicOnly
       .split(/[،,]/)
       .map(p => p.trim())
       .filter(p => p.length > 0);
@@ -1714,10 +1725,17 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   // Show waiting screen if ride is pending or accepted
   if (showWaitingScreen && activeRide) {
     return <Suspense fallback={<ScreenSkeleton />}>
-        <RideWaitingScreen rideId={activeRide.id} pickupAddress={activeRide.pickup_address || pickupLocation?.address || "موقعي الحالي"} dropoffAddress={activeRide.dropoff_address || dropoffLocation?.address || ""} estimatedFare={activeRide.estimated_fare || fareBreakdown?.total_fare || 0} onCancel={resetBooking} onDriverFound={() => {
-        setShowWaitingScreen(false);
-        setShowLiveTracker(true);
-      }} />
+        <RideWaitingScreen 
+          rideId={activeRide.id} 
+          pickupAddress={buildDescriptiveAddress(activeRide.pickup_address || pickupLocation?.address || "موقعي الحالي")} 
+          dropoffAddress={buildDescriptiveAddress(activeRide.dropoff_address || dropoffLocation?.address || "")} 
+          estimatedFare={activeRide.estimated_fare || fareBreakdown?.total_fare || 0} 
+          onCancel={resetBooking} 
+          onDriverFound={() => {
+            setShowWaitingScreen(false);
+            setShowLiveTracker(true);
+          }} 
+        />
       </Suspense>;
   }
 

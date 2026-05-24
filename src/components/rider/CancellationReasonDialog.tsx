@@ -140,7 +140,7 @@ export const CancellationReasonDialog = ({
         onOpenChange(nextOpen);
       }}
     >
-      <AlertDialogContent className="max-w-md border border-[#E4E7EC] bg-white text-[#101828] rounded-3xl p-0 overflow-visible shadow-xl" dir="rtl">
+      <AlertDialogContent className="max-w-md border border-slate-800/40 bg-[#1a2333] text-white rounded-3xl p-0 overflow-visible shadow-xl" dir="rtl">
         <AlertDialogTitle className="sr-only">سبب الإلغاء</AlertDialogTitle>
         <AlertDialogDescription className="sr-only">مربع حوار لاختيار سبب إلغاء الرحلة الحالي.</AlertDialogDescription>
         <div className="p-5 sm:p-6 space-y-4">
@@ -149,8 +149,8 @@ export const CancellationReasonDialog = ({
             <div className="w-12 h-12 rounded-2xl bg-[#F04438]/10 border border-[#F04438]/20 flex items-center justify-center">
               <img src={logo} alt="RAAN" className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-black tracking-wide text-center text-[#101828]">سبب إلغاء الرحلة</h2>
-            <p className="text-xs text-[#475467] text-center">ساعدنا بفهم السبب لنحسن تجربتك القادمة</p>
+            <h2 className="text-xl font-black tracking-wide text-center text-white">سبب إلغاء الرحلة</h2>
+            <p className="text-xs text-slate-400 text-center">ساعدنا بفهم السبب لنحسن تجربتك القادمة</p>
           </div>
 
           {/* Cancellation Fee Warning */}
@@ -162,7 +162,7 @@ export const CancellationReasonDialog = ({
                 </div>
                 <div className="flex-1">
                   <h4 className="font-bold text-[#F04438] text-sm mb-1">تنبيه: غرامة إلغاء</h4>
-                  <p className="text-sm text-[#475467]">بعد قبول السائق سيتم خصم:</p>
+                  <p className="text-sm text-slate-400">بعد قبول السائق سيتم خصم:</p>
                   <div className="mt-1.5 flex items-center gap-1.5">
                     <DollarSign className="w-4 h-4 text-[#F04438]" />
                     <span className="text-base font-black text-[#F04438]">{cancellationFee.toLocaleString()} د.ع</span>
@@ -173,7 +173,7 @@ export const CancellationReasonDialog = ({
           )}
 
           {/* Form Card */}
-          <div className="rounded-2xl bg-[#F9FAFB] border border-[#E4E7EC] p-3 space-y-2.5">
+          <div className="rounded-2xl bg-[#0d1321] border border-slate-800/40 p-3 space-y-2.5">
             <div className="space-y-3">
               <RadioGroup value={selectedReason} onValueChange={setSelectedReason} className="grid grid-cols-2 gap-2">
                 {CANCELLATION_REASONS.map((reason) => {
@@ -185,44 +185,44 @@ export const CancellationReasonDialog = ({
                       className={cn(
                         "block cursor-pointer rounded-xl border p-2.5 transition-all min-h-[72px]",
                         selectedReason === reason.id
-                          ? "border-[#00B3B0] bg-[#00B3B0]/5 shadow-sm"
-                          : "border-[#E4E7EC] bg-white hover:border-[#D0D5DD]"
+                          ? "border-emerald-500/40 bg-emerald-500/10 shadow-sm"
+                          : "border-slate-700/50 bg-[#1a2333]/50 hover:border-slate-600"
                       )}
                     >
                       <div className="flex items-center gap-2.5 h-full">
-                        <RadioGroupItem value={reason.id} id={reason.id} className="border-[#D0D5DD]" />
+                        <RadioGroupItem value={reason.id} id={reason.id} className="border-slate-600" />
                         <div className={cn(
                           "w-8 h-8 rounded-lg border flex items-center justify-center shrink-0",
                           selectedReason === reason.id
-                            ? "bg-[#00B3B0]/10 border-[#00B3B0]/20"
-                            : "bg-[#F2F4F7] border-[#E4E7EC]"
+                            ? "bg-emerald-500/10 border-emerald-500/20"
+                            : "bg-slate-700/30 border-slate-700/50"
                         )}>
-                          <Icon className={cn("w-4 h-4", selectedReason === reason.id ? "text-[#00B3B0]" : "text-[#475467]")} />
+                          <Icon className={cn("w-4 h-4", selectedReason === reason.id ? "text-emerald-400" : "text-slate-400")} />
                         </div>
                         <div className="flex-1">
-                          <p className="text-[12px] font-semibold text-[#101828] leading-tight">{reason.label}</p>
+                          <p className="text-[12px] font-semibold text-white leading-tight">{reason.label}</p>
                         </div>
                       </div>
                     </label>
                   );
                 })}
               </RadioGroup>
-              <p className="text-[11px] text-[#475467]">اختر السبب الأقرب لحالتك الحالية.</p>
+              <p className="text-[11px] text-slate-400">اختر السبب الأقرب لحالتك الحالية.</p>
             </div>
 
             {selectedReason === "other" && (
               <div className="space-y-2.5 pt-1">
                 <div className="relative">
-                  <MessageSquare className="w-4 h-4 text-[#98A2B3] absolute right-3 top-3.5" />
+                  <MessageSquare className="w-4 h-4 text-slate-400 absolute right-3 top-3.5" />
                   <Textarea
                     placeholder="اكتب سبب الإلغاء بالتفصيل..."
                     value={otherReason}
                     onChange={(e) => setOtherReason(e.target.value)}
-                    className="min-h-[90px] resize-none pr-10 rounded-xl bg-white border-[#E4E7EC] text-[#101828] placeholder:text-[#98A2B3]"
+                    className="min-h-[90px] resize-none pr-10 rounded-xl bg-[#0d1321] border-slate-700/50 text-white placeholder:text-slate-500"
                     maxLength={200}
                   />
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-[#475467]">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
                   <span>الحد الأدنى 3 أحرف.</span>
                   <span>{otherReason.length}/200</span>
                 </div>
@@ -236,7 +236,7 @@ export const CancellationReasonDialog = ({
               type="button"
               onClick={handleConfirm}
               disabled={isLoading || !canSubmit}
-              className="flex-1 min-h-[48px] rounded-2xl bg-[#F04438] hover:bg-[#D92D20] text-white font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              className="flex-1 min-h-[48px] rounded-2xl bg-[#F04438] hover:bg-[#D92D20] text-white font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_24px_rgba(240,68,56,0.3)]"
             >
               <span className="inline-flex items-center gap-1.5">
                 {isLoading ? (
@@ -255,7 +255,7 @@ export const CancellationReasonDialog = ({
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 min-h-[48px] rounded-2xl bg-[#F2F4F7] hover:bg-[#E4E7EC] text-[#101828] font-bold transition-all border border-[#E4E7EC]"
+              className="flex-1 min-h-[48px] rounded-2xl bg-[#0d1321] hover:bg-slate-800/50 text-white font-bold transition-all border border-slate-700/50"
             >
               <span className="inline-flex items-center gap-1.5">
                 <>
