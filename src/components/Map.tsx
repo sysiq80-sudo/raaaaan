@@ -150,24 +150,40 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
   const drawCarIcon = (currentHeading: number): google.maps.Icon => {
     const carSvg = `
       <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+        <defs>
+          <linearGradient id="lightBeam" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="#fbbf24" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
         <g transform="rotate(${Math.round(currentHeading)} 24 24)">
           <!-- Soft shadow -->
-          <rect x="16" y="8" width="16" height="32" rx="6" fill="black" opacity="0.3"/>
+          <path d="M 19,8 L 29,8 C 31,8 32,12 32,20 L 31,36 C 31,39 29,40 24,40 C 19,40 17,39 17,36 L 16,20 C 16,12 17,8 19,8 Z" fill="black" opacity="0.25"/>
+          
+          <!-- Headlight beams (beams of light pointing forward) -->
+          <path d="M 19.5,8 L 10,-8 L 23,-8 Z" fill="url(#lightBeam)" />
+          <path d="M 28.5,8 L 25,-8 L 38,-8 Z" fill="url(#lightBeam)" />
+
           <!-- Car body (Premium sleek design, emerald tinted dark) -->
-          <rect x="16" y="6" width="16" height="32" rx="6" fill="#0f172a" stroke="#5bdda6" stroke-width="1.5"/>
-          <!-- Windshield -->
-          <path d="M18 16 Q24 14 30 16 L29 20 L19 20 Z" fill="#020617"/>
+          <path d="M 19,8 L 29,8 C 31,8 32,12 32,20 L 31,36 C 31,39 29,40 24,40 C 19,40 17,39 17,36 L 16,20 C 16,12 17,8 19,8 Z" fill="#0f172a" stroke="#5bdda6" stroke-width="1.5"/>
+          
+          <!-- Windshield (Facing forward, curved glass) -->
+          <path d="M 19,18 C 19,14 24,13 29,14 L 28.2,21 C 28.2,21 24,20 19.8,21 Z" fill="#1e293b" stroke="#334155" stroke-width="0.7"/>
+          
           <!-- Rear Window -->
-          <path d="M18 30 Q24 32 30 30 L29 26 L19 26 Z" fill="#020617"/>
-          <!-- Headlights -->
-          <rect x="17" y="6" width="3" height="2" fill="#fbbf24" rx="1"/>
-          <rect x="28" y="6" width="3" height="2" fill="#fbbf24" rx="1"/>
-          <!-- Tail lights -->
-          <rect x="17" y="36" width="4" height="2" fill="#ef4444" rx="1"/>
-          <rect x="27" y="36" width="4" height="2" fill="#ef4444" rx="1"/>
-          <!-- Mirrors -->
-          <rect x="14" y="18" width="2" height="3" fill="#1e293b" rx="1"/>
-          <rect x="32" y="18" width="2" height="3" fill="#1e293b" rx="1"/>
+          <path d="M 18,32 C 18,33 24,34 30,33 L 29.2,29 C 29.2,29 24,28 18.8,29 Z" fill="#1e293b" stroke="#334155" stroke-width="0.7"/>
+          
+          <!-- Headlights (Yellow LEDs) -->
+          <rect x="19" y="8" width="2" height="1.5" rx="0.5" fill="#fbbf24"/>
+          <rect x="27" y="8" width="2" height="1.5" rx="0.5" fill="#fbbf24"/>
+          
+          <!-- Tail lights (Red LEDs) -->
+          <rect x="17.5" y="38" width="2.5" height="1.2" rx="0.5" fill="#ef4444"/>
+          <rect x="28" y="38" width="2.5" height="1.2" rx="0.5" fill="#ef4444"/>
+          
+          <!-- Side Mirrors -->
+          <rect x="14" y="19" width="2.2" height="3" fill="#1e293b" rx="1"/>
+          <rect x="31.8" y="19" width="2.2" height="3" fill="#1e293b" rx="1"/>
         </g>
       </svg>
     `;

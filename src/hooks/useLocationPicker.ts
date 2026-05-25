@@ -14,7 +14,6 @@ import { useMapContext } from "@/contexts/MapContext";
 import type { IGeocodingAdapter } from "@/lib/adapters";
 import { NominatimGeocodingAdapter } from "@/lib/adapters/NominatimGeocodingAdapter";
 import { logger } from "@/lib/logger";
-import userPinIcon from "@/assets/user-pin.png";
 
 interface LocationType {
   lat: number;
@@ -878,11 +877,27 @@ export const useLocationPicker = (
       logger.debug("useLocationPicker", "Map panned to user location", userLocation);
     }
 
-    // 🟢 صورة الدبوس المخصصة للموقع الفعلي
+    // 🟢 نقطة خضراء مشعة للموقع الفعلي بدلاً من الصورة
+    const glowingGreenDotSvg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+        <defs>
+          <radialGradient id="userGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#10b981" stop-opacity="1" />
+            <stop offset="35%" stop-color="#10b981" stop-opacity="0.6" />
+            <stop offset="100%" stop-color="#10b981" stop-opacity="0" />
+          </radialGradient>
+        </defs>
+        <!-- Glowing outer aura -->
+        <circle cx="16" cy="16" r="14" fill="url(#userGlow)" />
+        <!-- Small green core with sharp white border -->
+        <circle cx="16" cy="16" r="6.5" fill="#10b981" stroke="#ffffff" stroke-width="2.5" />
+      </svg>
+    `;
+
     const userPinMarkerIcon = {
-      url: userPinIcon,
-      scaledSize: new google.maps.Size(36, 36),
-      anchor: new google.maps.Point(18, 18),
+      url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(glowingGreenDotSvg),
+      scaledSize: new google.maps.Size(32, 32),
+      anchor: new google.maps.Point(16, 16),
     };
 
     if (userMarkerRef.current) {
