@@ -429,12 +429,34 @@ export const useLocationPicker = (
           logger.debug("useLocationPicker", "Fallback address selected", { finalAddress });
         }
 
+        let finalLat = lat;
+        let finalLng = lng;
+
+        if (geoResults[0]?.geometry?.location) {
+          const snappedLoc = geoResults[0].geometry.location;
+          const sLat = snappedLoc.lat();
+          const sLng = snappedLoc.lng();
+          const dist = haversineDistance(lat, lng, sLat, sLng);
+          
+          // Snap only if distance is between 2m and 120m
+          if (dist > 2 && dist < 120) {
+            logger.debug("useLocationPicker", `Snapping pin to nearest geocoded address. Distance: ${dist.toFixed(1)}m`);
+            finalLat = sLat;
+            finalLng = sLng;
+            
+            if (map.current) {
+              skipNextReverseGeocodeRef.current = true;
+              map.current.panTo(snappedLoc);
+            }
+          }
+        }
+
         centerAddressRef.current = finalAddress;
         setCenterAddress(finalAddress);
-        setCenterLat(lat);
-        setCenterLng(lng);
-        lastGeocodedLatLngRef.current = { lat, lng }; // ✨ تحديث آخر إحداثيات تم geocode لها
-        checkServiceArea(lat, lng);
+        setCenterLat(finalLat);
+        setCenterLng(finalLng);
+        lastGeocodedLatLngRef.current = { lat: finalLat, lng: finalLng }; // ✨ تحديث آخر إحداثيات تم geocode لها
+        checkServiceArea(finalLat, finalLng);
 
         } catch (googleError: any) {
           // Google enrichment failed — keep the adapter (Nominatim) result if we have one
@@ -772,11 +794,16 @@ export const useLocationPicker = (
                       setCenterAddress(place.displayName);
 
                       if (place.location) {
+                        skipNextReverseGeocodeRef.current = true; // ✨ لمنع الـ idle من إعادة الاستعلام بـ reverseGeocode وتخريب الاسم
                         map.current?.panTo(place.location);
-                        checkServiceArea(
-                          place.location.lat(),
-                          place.location.lng(),
-                        );
+                        
+                        const pLat = place.location.lat();
+                        const pLng = place.location.lng();
+                        
+                        setCenterLat(pLat);
+                        setCenterLng(pLng);
+                        lastGeocodedLatLngRef.current = { lat: pLat, lng: pLng };
+                        checkServiceArea(pLat, pLng);
                       }
                     }
                   } catch (err) {
