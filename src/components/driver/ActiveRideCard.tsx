@@ -71,7 +71,7 @@ interface RiderInfo {
 
 interface ActiveRideCardProps {
   driverId: string;
-  driverLocation?: { lat: number; lng: number } | null;
+  driverLocation?: { lat: number; lng: number; heading?: number | null; speed?: number | null } | null;
   onMinimize?: () => void;
   onNavigationClick?: (lat: number, lng: number, label: string) => void;
   refreshTrigger?: number;
@@ -604,7 +604,7 @@ export const ActiveRideCard = ({
       .catch((err) =>
         logger.error("ActiveRideCard", "Location broadcast error", err),
       );
-  }, [driverLocation?.lat, driverLocation?.lng, activeRide?.id]);
+  }, [driverLocation?.lat, driverLocation?.lng, driverLocation?.heading, activeRide?.id]);
 
   // 📍 Accumulate GPS tracking points every 30 seconds during in_progress
   useEffect(() => {

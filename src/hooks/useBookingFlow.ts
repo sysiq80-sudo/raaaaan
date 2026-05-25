@@ -47,7 +47,11 @@ export const useBookingFlow = () => {
 
   // Helper function to fetch and draw route
   const fetchRouteAndDraw = useCallback(
-    async (pickupLocation: LocationType, dropoffLocation: LocationType) => {
+    async (
+      pickupLocation: LocationType,
+      dropoffLocation: LocationType,
+      intermediateStops?: IntermediateStop[]
+    ) => {
       const hasMap = !!bookingMap.current;
       console.error('🔴 [useBookingFlow] fetchRouteAndDraw CALLED', {
         hasMap,
@@ -55,6 +59,7 @@ export const useBookingFlow = () => {
         hasGoogleApiKey: !!googleApiKey,
         pickup: `${pickupLocation.lat.toFixed(4)},${pickupLocation.lng.toFixed(4)}`,
         dropoff: `${dropoffLocation.lat.toFixed(4)},${dropoffLocation.lng.toFixed(4)}`,
+        stopsCount: intermediateStops?.length || 0,
       });
       if (!hasMap) {
         logger.debug(LOG_CONTEXT, "No map instance — will compute distance without drawing");
@@ -62,12 +67,15 @@ export const useBookingFlow = () => {
 
       const origin = { lat: pickupLocation.lat, lng: pickupLocation.lng };
       const destination = { lat: dropoffLocation.lat, lng: dropoffLocation.lng };
+      const waypoints = intermediateStops
+        ?.filter((s) => s.location && s.location.lat && s.location.lng)
+        .map((s) => ({ lat: s.location!.lat, lng: s.location!.lng })) || [];
 
       try {
         // ─── Phase 7: Adaptive Routing (OSRM → Haversine fallback) ───────────
         if (routingAdapter) {
           logger.debug(LOG_CONTEXT, "Using adaptive routing...");
-          const routeResult = await getAdaptiveRoute(origin, destination);
+          const routeResult = await getAdaptiveRoute(origin, destination, waypoints);
 
           const distanceKm = routeResult.distance / 1000;
           const durationMin = Math.ceil(routeResult.duration / 60);
@@ -77,7 +85,8 @@ export const useBookingFlow = () => {
           logger.debug(LOG_CONTEXT, "Adaptive route received", { distanceKm, durationMin });
 
           if (routeResult.path.length > 0 && bookingMap.current) {
-            drawPolyline(bookingMap.current, routeResult.path, ROUTE_STYLES.main);
+            const polyline = drawPolyline(bookingMap.current, routeResult.path, ROUTE_STYLES.main);
+            if (polyline) polylinesRef.current.push(polyline);
 
             const bounds = new google.maps.LatLngBounds();
             routeResult.path.forEach((point) => {
@@ -85,7 +94,21 @@ export const useBookingFlow = () => {
             });
             bounds.extend(new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng));
             bounds.extend(new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng));
-            bookingMap.current.fitBounds(bounds, 100);
+            
+            if (intermediateStops) {
+              intermediateStops.forEach((stop) => {
+                if (stop.location) {
+                  bounds.extend(new google.maps.LatLng(stop.location.lat, stop.location.lng));
+                }
+              });
+            }
+
+            bookingMap.current.fitBounds(bounds, {
+              top: 80,
+              bottom: window.innerHeight * 0.55 + 20,
+              left: 50,
+              right: 50,
+            });
           }
           return; // ✅ تم — لا حاجة لـ Google Directions
         }
@@ -109,7 +132,7 @@ export const useBookingFlow = () => {
         }
 
         logger.debug(LOG_CONTEXT, "Fetching route via Google Directions...");
-        const result = await getDirections(origin, destination);
+        const result = await getDirections(origin, destination, waypoints);
 
         if (result && result.route && result.distanceMeters > 0) {
           logger.debug(LOG_CONTEXT, "Route received", { distance: result.distance, duration: result.duration });
@@ -119,7 +142,8 @@ export const useBookingFlow = () => {
           setRouteDuration(durationMin);
 
           if (hasMap && bookingMap.current) {
-            drawPolyline(bookingMap.current, result.route, ROUTE_STYLES.main);
+            const polyline = drawPolyline(bookingMap.current, result.route, ROUTE_STYLES.main);
+            if (polyline) polylinesRef.current.push(polyline);
 
             const bounds = new google.maps.LatLngBounds();
             result.route.forEach((point) => {
@@ -127,7 +151,21 @@ export const useBookingFlow = () => {
             });
             bounds.extend(new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng));
             bounds.extend(new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng));
-            bookingMap.current.fitBounds(bounds, 100);
+            
+            if (intermediateStops) {
+              intermediateStops.forEach((stop) => {
+                if (stop.location) {
+                  bounds.extend(new google.maps.LatLng(stop.location.lat, stop.location.lng));
+                }
+              });
+            }
+
+            bookingMap.current.fitBounds(bounds, {
+              top: 80,
+              bottom: window.innerHeight * 0.55 + 20,
+              left: 50,
+              right: 50,
+            });
           }
         } else {
           logger.warn(LOG_CONTEXT, "No route data received from Google, using Haversine fallback");
@@ -156,9 +194,20 @@ export const useBookingFlow = () => {
     [routingAdapter, getAdaptiveRoute, googleApiKey, toast]
   );
 
+  const clearDrawing = useCallback(() => {
+    markersRef.current.forEach((marker) => marker.setMap(null));
+    markersRef.current = [];
+    polylinesRef.current.forEach((polyline) => polyline.setMap(null));
+    polylinesRef.current = [];
+  }, []);
+
   // Initialize booking map
   const initializeBookingMap = useCallback(
-    (pickupLocation: LocationType, dropoffLocation: LocationType) => {
+    (
+      pickupLocation: LocationType,
+      dropoffLocation: LocationType,
+      intermediateStops?: IntermediateStop[]
+    ) => {
       // Always compute route distance (even if map container isn't mounted yet)
       // This ensures fareBreakdown gets populated and the booking button works
       if (!bookingMapContainer.current || !googleApiKey) {
@@ -167,20 +216,14 @@ export const useBookingFlow = () => {
           hasApiKey: !!googleApiKey,
         });
         logger.warn(LOG_CONTEXT, "Map container or API key not ready — computing distance only");
-        fetchRouteAndDraw(pickupLocation, dropoffLocation);
-        return;
-      }
-
-      // Prevent duplicate initialization
-      if (bookingMap.current) {
-        logger.debug(LOG_CONTEXT, "Booking map already initialized");
+        fetchRouteAndDraw(pickupLocation, dropoffLocation, intermediateStops);
         return;
       }
 
       // Load Google Maps if not already loaded
       if (!window.google) {
         loadGoogleMaps(googleApiKey).then(() => {
-          initializeBookingMap(pickupLocation, dropoffLocation);
+          initializeBookingMap(pickupLocation, dropoffLocation, intermediateStops);
         }).catch((err) => {
           logger.error(LOG_CONTEXT, "Booking map load error", err);
           showErrorToast(toast, "خطأ في تحميل الخريطة", "تحقق من الاتصال أو حدّث الصفحة");
@@ -188,55 +231,60 @@ export const useBookingFlow = () => {
         return;
       }
 
-      // Ensure container has proper background
-      if (bookingMapContainer.current) {
-        bookingMapContainer.current.style.backgroundColor = "#1a1a1a"; // 🌙 Dark background
+      // If map is not initialized yet, initialize it
+      if (!bookingMap.current) {
+        if (bookingMapContainer.current) {
+          bookingMapContainer.current.style.backgroundColor = "#1a1a1a"; // 🌙 Dark background
+        }
+
+        logger.debug(LOG_CONTEXT, "Initializing booking map");
+        
+        // 🌙 Dark Mode Styling (same as location picker)
+        const darkModeStyles = [
+          { elementType: "geometry", stylers: [{ color: "#212121" }] },
+          { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
+          { elementType: "labels.text.fill", stylers: [{ color: "#10b981" }] },
+          {
+            featureType: "road",
+            elementType: "geometry",
+            stylers: [{ color: "#2c2c2c" }]
+          },
+          {
+            featureType: "road",
+            elementType: "labels.text.fill",
+            stylers: [{ color: "#10b981" }]
+          },
+          {
+            featureType: "poi",
+            elementType: "labels.text.fill",
+            stylers: [{ color: "#10b981" }]
+          },
+          {
+            featureType: "water",
+            elementType: "geometry",
+            stylers: [{ color: "#1a1a2e" }]
+          }
+        ];
+        
+        bookingMap.current = new google.maps.Map(bookingMapContainer.current, {
+          center: new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng),
+          zoom: 13,
+          mapTypeId: 'roadmap',
+          styles: darkModeStyles, // 🌙 تطبيق النمط الداكن
+          mapTypeControl: false,
+          fullscreenControl: false,
+          streetViewControl: false,
+          gestureHandling: "cooperative",
+          draggable: true, // ✨ تفعيل السحب
+          disableDefaultUI: false,
+          zoomControl: true,
+        });
+
+        logger.debug(LOG_CONTEXT, "Booking map initialized with dark mode");
       }
 
-      logger.debug(LOG_CONTEXT, "Initializing booking map");
-      
-      // 🌙 Dark Mode Styling (same as location picker)
-      const darkModeStyles = [
-        { elementType: "geometry", stylers: [{ color: "#212121" }] },
-        { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
-        { elementType: "labels.text.fill", stylers: [{ color: "#10b981" }] },
-        {
-          featureType: "road",
-          elementType: "geometry",
-          stylers: [{ color: "#2c2c2c" }]
-        },
-        {
-          featureType: "road",
-          elementType: "labels.text.fill",
-          stylers: [{ color: "#10b981" }]
-        },
-        {
-          featureType: "poi",
-          elementType: "labels.text.fill",
-          stylers: [{ color: "#10b981" }]
-        },
-        {
-          featureType: "water",
-          elementType: "geometry",
-          stylers: [{ color: "#1a1a2e" }]
-        }
-      ];
-      
-      bookingMap.current = new google.maps.Map(bookingMapContainer.current, {
-        center: new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng),
-        zoom: 13,
-        mapTypeId: 'roadmap',
-        styles: darkModeStyles, // 🌙 تطبيق النمط الداكن
-        mapTypeControl: false,
-        fullscreenControl: false,
-        streetViewControl: false,
-        gestureHandling: "cooperative",
-        draggable: true, // ✨ تفعيل السحب
-        disableDefaultUI: false,
-        zoomControl: true,
-      });
-
-      logger.debug(LOG_CONTEXT, "Booking map initialized with dark mode");
+      // Clear previous markers & polylines
+      clearDrawing();
 
       // Add pickup marker
       const pickupMarker = new google.maps.Marker({
@@ -253,7 +301,7 @@ export const useBookingFlow = () => {
         },
         zIndex: 100,
       });
-      markersRef.current.push(pickupMarker); // ✅ FIX: تتبع العلامة للتنظيف
+      markersRef.current.push(pickupMarker);
       logger.debug(LOG_CONTEXT, "Pickup marker added");
 
       // Add dropoff marker
@@ -271,32 +319,52 @@ export const useBookingFlow = () => {
         },
         zIndex: 101,
       });
-      markersRef.current.push(dropoffMarker); // ✅ FIX: تتبع العلامة للتنظيف
+      markersRef.current.push(dropoffMarker);
       logger.debug(LOG_CONTEXT, "Dropoff marker added");
+
+      // Add intermediate stops markers
+      if (intermediateStops) {
+        intermediateStops.forEach((stop, index) => {
+          if (stop.location) {
+            const stopMarker = new google.maps.Marker({
+              map: bookingMap.current,
+              position: new google.maps.LatLng(stop.location.lat, stop.location.lng),
+              title: `محطة ${index + 1}: ${stop.address}`,
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                fillColor: "#f59e0b", // Yellow/Orange
+                fillOpacity: 1,
+                strokeColor: "#fff",
+                strokeWeight: 2,
+                scale: 8,
+              },
+              zIndex: 102 + index,
+            });
+            markersRef.current.push(stopMarker);
+            logger.debug(LOG_CONTEXT, `Intermediate stop ${index + 1} marker added`);
+          }
+        });
+      }
 
       // Fetch and draw the route after map is fully loaded
       if (bookingMap.current) {
         google.maps.event.addListenerOnce(bookingMap.current, 'idle', () => {
-          fetchRouteAndDraw(pickupLocation, dropoffLocation);
+          fetchRouteAndDraw(pickupLocation, dropoffLocation, intermediateStops);
         });
       } else {
-        fetchRouteAndDraw(pickupLocation, dropoffLocation);
+        fetchRouteAndDraw(pickupLocation, dropoffLocation, intermediateStops);
       }
     },
-    [googleApiKey, fetchRouteAndDraw]
+    [googleApiKey, fetchRouteAndDraw, clearDrawing]
   );
 
   /** @deprecated Use initializeBookingMap which calls fetchRouteAndDraw internally */
   const fetchRoute = fetchRouteAndDraw;
 
   const cleanup = useCallback(() => {
-    // تنظيف العلامات والمسارات لمنع تسرب الذاكرة
-    markersRef.current.forEach(marker => marker.setMap(null));
-    markersRef.current = [];
-    polylinesRef.current.forEach(polyline => polyline.setMap(null));
-    polylinesRef.current = [];
+    clearDrawing();
     bookingMap.current = null;
-  }, []);
+  }, [clearDrawing]);
 
   return {
     bookingMapContainer,

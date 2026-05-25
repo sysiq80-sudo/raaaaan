@@ -657,7 +657,12 @@ export const DynamicSearchHeader: React.FC<{
         </div>
 
         {/* السطر السفلي: أيقونة البحث / أوفلاين + حقل النص */}
-        <div className="flex items-center gap-2">
+        <div className={cn(
+          "flex items-center gap-2 transition-all duration-300 w-full",
+          showAddress && !query && !isFocused
+            ? "bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 dark:border-emerald-500/30 rounded-xl px-3 py-2 shadow-[0_2px_10px_rgba(16,185,129,0.08)]"
+            : ""
+        )}>
           {/* ── أيقونة البحث / حذف العنوان / أوفلاين ── */}
           {isOffline ? (
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 shadow-inner">

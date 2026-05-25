@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface UseDriverLocationSyncProps {
   rideId: string | null;
   driverId: string;
-  driverLocation: { lat: number; lng: number } | null | undefined;
+  driverLocation: { lat: number; lng: number; heading?: number | null } | null | undefined;
   isActive: boolean; // true عندما حالة الرحلة accepted/arrived/in_progress
 }
 
@@ -80,7 +80,12 @@ export function useDriverLocationSync({
           {
             ride_id: rideId,
             driver_id: driverId,
-            location: { lat: location.lat, lng: location.lng },
+            location: { 
+              lat: location.lat, 
+              lng: location.lng, 
+              heading: (location as any).heading !== undefined ? (location as any).heading : null 
+            },
+            heading: (location as any).heading !== undefined && (location as any).heading !== null ? Math.round((location as any).heading) : null,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "ride_id" }
@@ -102,7 +107,7 @@ export function useDriverLocationSync({
   useEffect(() => {
     if (!isActive || !driverLocation || !rideId) return;
     syncLocation(driverLocation);
-  }, [driverLocation?.lat, driverLocation?.lng, isActive, rideId, syncLocation]);
+  }, [driverLocation?.lat, driverLocation?.lng, (driverLocation as any)?.heading, isActive, rideId, syncLocation]);
 
   // مؤقت دوري لإرسال المواقع المعلقة
   useEffect(() => {

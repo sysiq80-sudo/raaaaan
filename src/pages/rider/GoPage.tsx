@@ -626,6 +626,13 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     }
   }, [pickupLocation, dropoffLocation, routeDistance, selectedVehicle, fareLoading, fareError, fareBreakdown]);
 
+  // Fetch saved places on mount
+  useEffect(() => {
+    if (userId) {
+      fetchSavedPlaces();
+    }
+  }, [userId, fetchSavedPlaces]);
+
   // Nearby drivers
   const {
     availableDriversByType
@@ -716,7 +723,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     }
 
     return () => observer.disconnect();
-  }, []);
+  }, [panelExpanded, isLocationFocused]);
 
   // Trigger map resize when bottom panel height changes
   useEffect(() => {
@@ -826,8 +833,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   // Initialize booking mode map
   useEffect(() => {
     if (currentMode !== "booking" || !pickupLocation || !dropoffLocation) return;
-    initializeBookingMap(pickupLocation, dropoffLocation);
-  }, [currentMode, pickupLocation, dropoffLocation, initializeBookingMap]);
+    initializeBookingMap(pickupLocation, dropoffLocation, intermediateStops);
+  }, [currentMode, pickupLocation, dropoffLocation, intermediateStops, initializeBookingMap]);
 
   // تحذير المستخدم قبل مغادرة الصفحة أثناء الحجز
   useEffect(() => {
@@ -1816,9 +1823,10 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   // Location picker screen
   return (
     <div className="relative h-full w-full z-10 flex flex-col bg-background max-w-[480px] mx-auto" dir="rtl">
-      {/* Full-screen Map */}
+      {/* Map visible wrapper */}
       <div 
-        className="absolute inset-0 overflow-hidden"
+        className="absolute inset-x-0 top-0 overflow-hidden z-0 transition-[bottom] duration-300 ease-out"
+        style={{ bottom: `${bottomPanelHeight}px` }}
       >
         {/* Enhanced map loading placeholder - pointer-events-none when map is ready */}
         {(!mapToken || isLoading) && !mapError && (
@@ -1905,61 +1913,57 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
 
         {/* Simplified map pin — clean and minimal */}
-        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full z-[15]">
-          <motion.div 
-            initial={{ scale: 0.8, opacity: 0 }} 
-            animate={{ scale: 1, opacity: 1 }}
-            className="flex flex-col items-center gap-1"
-          >
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[15]">
+          <div className="relative w-0 h-0 flex flex-col items-center">
             {/* Address label above pin */}
             {centerAddress && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-card px-3 py-1.5 rounded-xl shadow-md border border-border/30 text-foreground max-w-[220px]"
-              >
-                <p className="text-xs font-semibold text-foreground truncate text-center">
-                  {buildDescriptiveAddress(centerAddress)}
-                </p>
-              </motion.div>
+              <div className="absolute bottom-[84px] left-1/2 -translate-x-1/2 z-20 w-max">
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-card px-3.5 py-2 rounded-xl shadow-md border border-border/30 text-foreground max-w-[260px] text-center"
+                >
+                  <p className="text-sm font-bold text-foreground truncate">
+                    {buildDescriptiveAddress(centerAddress)}
+                  </p>
+                </motion.div>
+              </div>
             )}
             
-            <motion.div 
-              animate={{ y: isDragging ? -8 : 0 }} 
-              transition={{ type: "spring", stiffness: 300 }}
-              className="relative"
-            >
-              {/* Pin */}
-              <div 
-                className={`w-11 h-11 rounded-full flex items-center justify-center border-[3px] border-card shadow-lg ${
-                  isPickup ? 'bg-emerald-500' : 'bg-cyan-500'
-                }`}
-              >
-                {isPickup ? (
-                  <Navigation className="w-5 h-5 text-white" />
-                ) : (
-                  <MapPin className="w-5 h-5 text-white" />
-                )}
-              </div>
-              
-              {/* Pin needle */}
-              <div 
-                className="w-0 h-0 mx-auto -mt-0.5"
-                style={{
-                  borderLeft: '7px solid transparent',
-                  borderRight: '7px solid transparent',
-                  borderTop: `12px solid ${isPickup ? '#10b981' : '#06b6d4'}`,
-                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
-                }}
-              />
-              
-              {/* Shadow */}
+            {/* Floating Pin */}
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10 w-20 h-20">
               <motion.div 
-                animate={{ scale: isDragging ? 0.5 : 1, opacity: isDragging ? 0.15 : 0.3 }} 
-                className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-1.5 bg-black/40 rounded-full blur-sm" 
+                animate={{ y: isDragging ? -20 : 0 }} 
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                className="w-full h-full"
+              >
+                <svg 
+                  viewBox="0 0 24 24" 
+                  className={`w-full h-full drop-shadow-[0_2px_4px_rgba(0,0,0,0.12)] translate-y-[6.87px] ${
+                    isPickup ? 'text-emerald-500' : 'text-cyan-500'
+                  }`}
+                  fill="currentColor"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <g id="Map_Pin" data-name="Map Pin">
+                    <path d="M12,2.06a5.5,5.5,0,0,0-.5,10.97v8.41a.5.5,0,0,0,.5.5.5.5,0,0,0,.5-.5V13.03A5.5,5.5,0,0,0,12,2.06Zm0,10a4.5,4.5,0,1,1,4.5-4.5A4.5,4.5,0,0,1,12,12.06Z"/>
+                  </g>
+                </svg>
+              </motion.div>
+            </div>
+            
+            {/* Static Shadow on the ground — shrinks when pin lifts */}
+            <div className="absolute top-[-2px] left-1/2 -translate-x-1/2 w-6 h-1.5">
+              <motion.div 
+                animate={{ 
+                  scale: isDragging ? 0.4 : 1,
+                  opacity: isDragging ? 0.1 : 0.25
+                }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                className="w-full h-full bg-black/20 rounded-full blur-[2px] mix-blend-multiply"
               />
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         </div>
 
         {/* Loading overlay with static map placeholder */}
@@ -1969,11 +1973,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
       </div>
 
-      {/* Floating geolocate button — above bottom sheet */}
+      {/* Floating geolocate button — dynamically positioned above bottom sheet */}
       <button
         onClick={() => manualGeolocateMain()}
         className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-card text-foreground border border-border/30 shadow-md hover:bg-secondary active:scale-95 transition-all"
-        style={{ bottom: 'calc(42% + 16px)' }}
+        style={{ bottom: `${bottomPanelHeight + 16}px` }}
         aria-label="تحديد موقعي"
       >
         <Navigation className="w-4.5 h-4.5 text-foreground" />
@@ -1981,11 +1985,33 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
       {/* ═══ Bottom Sheet — Clean white design ═══ */}
       <RiderBottomSheet
+        ref={bottomPanelRef}
         isFullScreen={isLocationFocused}
-        className={isLocationFocused ? '' : '!max-h-[40dvh]'}
+        className={
+          isLocationFocused
+            ? ""
+            : panelExpanded
+            ? "!max-h-[40dvh]"
+            : "!max-h-[13dvh] overflow-hidden"
+        }
+        onClose={() => {
+          if (isLocationFocused) {
+            setIsLocationFocused(false);
+            setPanelExpanded(true);
+          } else if (panelExpanded) {
+            setPanelExpanded(false);
+          }
+        }}
+        onExpand={() => {
+          if (!isLocationFocused && !panelExpanded) {
+            setPanelExpanded(true);
+          } else if (!isLocationFocused && panelExpanded) {
+            setIsLocationFocused(true);
+          }
+        }}
       >
         {/* ═══ Content ═══ */}
-        <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex flex-col flex-1 min-h-0 overflow-y-auto pb-2 overscroll-contain">
 
           {/* Headline + Search */}
           <div className="px-4 pb-3">
@@ -2200,8 +2226,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             </div>
           </div>
 
-          {/* Saved places quick strip — when not searching */}
-          {!isLocationFocused && (
+          {/* Saved places quick strip — when not searching, panel is expanded, and user has saved places */}
+          {!isLocationFocused && panelExpanded && supabaseSavedPlaces.length > 0 && (
             <div className="px-4 pb-3">
               <div className="flex gap-2 overflow-x-auto scrollbar-none" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
                 {/* Quick saved place buttons */}
@@ -2252,7 +2278,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
         {/* CTA Button — always at bottom */}
         <div
-          className="shrink-0 w-full pointer-events-auto flex bg-card border-t border-border/30"
+          className="shrink-0 w-full pointer-events-auto flex bg-card border-t border-border/30 relative z-[10]"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0px)' }}
         >
           <motion.button
@@ -2266,7 +2292,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
               selectionReady
                 ? isPickup
-                  ? 'border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]'
+                  ? 'border-emerald-700/30 text-white bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900'
                   : 'border-cyan-400/30 text-[#083344] bg-cyan-400 hover:bg-cyan-500 active:bg-cyan-600'
                 : 'border-border/30 text-muted-foreground bg-muted cursor-not-allowed shadow-none'
             }`}
@@ -2277,10 +2303,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
               </>
             ) : !centerAddress ? (
-              <>
-                <Loader2 className="w-6 h-6 animate-spin" />
-                <span>جاري تحديد العنوان...</span>
-              </>
+              <span>{isPickup ? 'حدد مكان الانطلاق' : 'حدد مكان الوصول'}</span>
             ) : (
               <>
                 <Navigation className="w-5 h-5" />

@@ -70,7 +70,7 @@ export interface MapProps {
   ) => void;
   pickupLocation?: { lat: number; lng: number } | null;
   dropoffLocation?: { lat: number; lng: number } | null;
-  driverLocation?: { lat: number; lng: number } | null;
+  driverLocation?: { lat: number; lng: number; heading?: number | null } | null;
   userLocation?: { lat: number; lng: number } | null;
   nearbyDrivers?: NearbyDriver[];
   selectingLocation?: "pickup" | "dropoff" | null;
@@ -138,6 +138,45 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
   const { apiKey, isLoading: isApiKeyLoading } = useGoogleMapsApiKey();
 
   // Helper Functions
+  const calculateHeading = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const l1 = lat1 * Math.PI / 180;
+    const l2 = lat2 * Math.PI / 180;
+    const y = Math.sin(dLng) * Math.cos(l2);
+    const x = Math.cos(l1) * Math.sin(l2) - Math.sin(l1) * Math.cos(l2) * Math.cos(dLng);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  };
+
+  const drawCarIcon = (currentHeading: number): google.maps.Icon => {
+    const carSvg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+        <g transform="rotate(${Math.round(currentHeading)} 24 24)">
+          <!-- Soft shadow -->
+          <rect x="16" y="8" width="16" height="32" rx="6" fill="black" opacity="0.3"/>
+          <!-- Car body (Premium sleek design, emerald tinted dark) -->
+          <rect x="16" y="6" width="16" height="32" rx="6" fill="#0f172a" stroke="#5bdda6" stroke-width="1.5"/>
+          <!-- Windshield -->
+          <path d="M18 16 Q24 14 30 16 L29 20 L19 20 Z" fill="#020617"/>
+          <!-- Rear Window -->
+          <path d="M18 30 Q24 32 30 30 L29 26 L19 26 Z" fill="#020617"/>
+          <!-- Headlights -->
+          <rect x="17" y="6" width="3" height="2" fill="#fbbf24" rx="1"/>
+          <rect x="28" y="6" width="3" height="2" fill="#fbbf24" rx="1"/>
+          <!-- Tail lights -->
+          <rect x="17" y="36" width="4" height="2" fill="#ef4444" rx="1"/>
+          <rect x="27" y="36" width="4" height="2" fill="#ef4444" rx="1"/>
+          <!-- Mirrors -->
+          <rect x="14" y="18" width="2" height="3" fill="#1e293b" rx="1"/>
+          <rect x="32" y="18" width="2" height="3" fill="#1e293b" rx="1"/>
+        </g>
+      </svg>
+    `;
+    return {
+      url: "data:image/svg+xml," + encodeURIComponent(carSvg),
+      scaledSize: new google.maps.Size(48, 48),
+      anchor: new google.maps.Point(24, 24),
+    };
+  };
 
   /**
    * Check if location is in service area
@@ -452,6 +491,16 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
     if (!map.current || !driverLocation) return;
 
     const position = new google.maps.LatLng(driverLocation.lat, driverLocation.lng);
+    let targetHeading = driverLocation.heading || 0;
+
+    // Fallback: calculate heading if device didn't provide one
+    if (!driverLocation.heading && prevDriverLocationRef.current) {
+      const pLat = prevDriverLocationRef.current.lat;
+      const pLng = prevDriverLocationRef.current.lng;
+      if (pLat !== driverLocation.lat || pLng !== driverLocation.lng) {
+        targetHeading = calculateHeading(pLat, pLng, driverLocation.lat, driverLocation.lng);
+      }
+    }
 
     if (driverMarkerRef.current) {
       // Calculate if we should animate or teleport
@@ -481,6 +530,7 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
             driverMarkerRef.current?.setPosition(
               new google.maps.LatLng(interpolated.lat, interpolated.lng)
             );
+            driverMarkerRef.current?.setIcon(drawCarIcon(targetHeading));
 
             if (progress < 1) {
               driverAnimationRef.current = requestAnimationFrame(animate);
@@ -490,16 +540,18 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
           driverAnimationRef.current = requestAnimationFrame(animate);
         } else {
           driverMarkerRef.current.setPosition(position);
+          driverMarkerRef.current.setIcon(drawCarIcon(targetHeading));
         }
       } else {
         driverMarkerRef.current.setPosition(position);
+        driverMarkerRef.current.setIcon(drawCarIcon(targetHeading));
       }
     } else {
       driverMarkerRef.current = new google.maps.Marker({
         map: map.current,
         position,
         title: "السائق",
-        icon: getMarkerIcon("driver"),
+        icon: drawCarIcon(targetHeading),
       });
     }
 
@@ -515,7 +567,7 @@ const Map = forwardRef<MapRef, MapProps>((props, ref) => {
         cancelAnimationFrame(driverAnimationRef.current);
       }
     };
-  }, [driverLocation, centerOnDriver]);
+  }, [driverLocation?.lat, driverLocation?.lng, driverLocation?.heading, centerOnDriver]);
 
   // Handle nearby drivers — diff markers instead of destroy-recreate
   useEffect(() => {

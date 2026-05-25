@@ -14,6 +14,7 @@ import { useMapContext } from "@/contexts/MapContext";
 import type { IGeocodingAdapter } from "@/lib/adapters";
 import { NominatimGeocodingAdapter } from "@/lib/adapters/NominatimGeocodingAdapter";
 import { logger } from "@/lib/logger";
+import userPinIcon from "@/assets/user-pin.png";
 
 interface LocationType {
   lat: number;
@@ -877,32 +878,24 @@ export const useLocationPicker = (
       logger.debug("useLocationPicker", "Map panned to user location", userLocation);
     }
 
-    // 🟢 النقطة الخضراء — google.maps.Marker مع SVG
-    const svgIcon = {
-      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-        <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-          <!-- هالة شفافة خارجية -->
-          <circle cx="16" cy="16" r="15" fill="rgba(91,221,166,0.20)" />
-          <!-- حلقة خضراء -->
-          <circle cx="16" cy="16" r="10" fill="#5bdda6" stroke="white" stroke-width="3"/>
-          <!-- نقطة مركزية بيضاء صغيرة -->
-          <circle cx="16" cy="16" r="3.5" fill="white"/>
-        </svg>
-      `)}`,
-      scaledSize: new google.maps.Size(32, 32),
-      anchor: new google.maps.Point(16, 16),
+    // 🟢 صورة الدبوس المخصصة للموقع الفعلي
+    const userPinMarkerIcon = {
+      url: userPinIcon,
+      scaledSize: new google.maps.Size(36, 36),
+      anchor: new google.maps.Point(18, 18),
     };
 
     if (userMarkerRef.current) {
       // تحديث الموضع والخريطة
       userMarkerRef.current.setPosition({ lat: userLocation.lat, lng: userLocation.lng });
+      userMarkerRef.current.setIcon(userPinMarkerIcon);
       userMarkerRef.current.setMap(map.current);
     } else {
       // إنشاء marker جديد
       userMarkerRef.current = new google.maps.Marker({
         position: { lat: userLocation.lat, lng: userLocation.lng },
         map: map.current,
-        icon: svgIcon,
+        icon: userPinMarkerIcon,
         title: 'موقعي الحالي',
         zIndex: 5,
         clickable: false,

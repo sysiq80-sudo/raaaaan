@@ -100,6 +100,8 @@ const DriverHome = () => {
   const [currentLocation, setCurrentLocation] = useState<{
     lat: number;
     lng: number;
+    heading?: number | null;
+    speed?: number | null;
   } | null>(cachedLoc ? { lat: cachedLoc.lat, lng: cachedLoc.lng } : null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showNavigationModal, setShowNavigationModal] = useState(false);
@@ -424,13 +426,14 @@ const DriverHome = () => {
 
   // Update driver location in database with retry
   const updateDriverLocation = useCallback(
-    async (lat: number, lng: number) => {
+    async (lat: number, lng: number, heading?: number | null) => {
       if (!driverId || (!isOnline && !hasActiveRide)) return;
 
       // Round to 6 decimal places (precision: ~0.1 meters)
       // Higher precision than usual for accurate location tracking
       const preciseLat = Math.round(lat * 1000000) / 1000000;
       const preciseLng = Math.round(lng * 1000000) / 1000000;
+      const preciseHeading = heading !== undefined && heading !== null ? Math.round(heading) : null;
 
       let retries = 3;
       while (retries > 0) {
@@ -438,14 +441,14 @@ const DriverHome = () => {
           const { error } = await supabase
             .from("drivers")
             .update({
-              current_location: { lat: preciseLat, lng: preciseLng },
+              current_location: { lat: preciseLat, lng: preciseLng, heading: preciseHeading },
               // لا نعدل is_available هنا - يتم التحكم بها عبر handlePauseToggle فقط
               updated_at: new Date().toISOString(),
             })
             .eq("id", driverId);
 
           if (error) throw error;
-          console.log("📍 Location updated (Real-time):", { lat: preciseLat, lng: preciseLng });
+          console.log("📍 Location updated (Real-time):", { lat: preciseLat, lng: preciseLng, heading: preciseHeading });
           // ⚡ البث للراكب يتم عبر ActiveRideCard (قناة مشتركة subscribed)
           // لا نبث هنا لأنه ينتج قناة غير مشتركة وتسبب تحذير REST fallback
           return;
@@ -479,22 +482,22 @@ const DriverHome = () => {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const { latitude, longitude } = position.coords;
-        const newLocation = { lat: latitude, lng: longitude };
+        const { latitude, longitude, heading } = position.coords;
+        const newLocation = { lat: latitude, lng: longitude, heading };
         setCurrentLocation(newLocation);
         latestLocationRef.current = newLocation;
-        updateDriverLocation(latitude, longitude);
+        updateDriverLocation(latitude, longitude, heading);
       },
       (error) => {
         console.error("Geolocation error (high accuracy):", error);
         // إذا فشل الـ GPS الدقيق، نحاول بدقة أقل لضمان عمل التطبيق
         navigator.geolocation.getCurrentPosition(
           (position) => {
-            const { latitude, longitude } = position.coords;
-            const newLocation = { lat: latitude, lng: longitude };
+            const { latitude, longitude, heading } = position.coords;
+            const newLocation = { lat: latitude, lng: longitude, heading };
             setCurrentLocation(newLocation);
             latestLocationRef.current = newLocation;
-            updateDriverLocation(latitude, longitude);
+            updateDriverLocation(latitude, longitude, heading);
             console.log('GPS fallback (low accuracy) succeeded');
           },
           (fallbackError) => {
@@ -543,7 +546,7 @@ const DriverHome = () => {
         // 2. Throttle: تحديث قاعدة البيانات (الأساسي الموجود سابقاً)
         if (now - lastUpdateTime >= MIN_UPDATE_INTERVAL) {
           lastUpdateTime = now;
-          updateDriverLocation(latitude, longitude);
+          updateDriverLocation(latitude, longitude, heading);
         }
       },
       (error) => console.error("Watch position error:", error),
@@ -557,7 +560,8 @@ const DriverHome = () => {
       if (latestLocationRef.current) {
         updateDriverLocation(
           latestLocationRef.current.lat,
-          latestLocationRef.current.lng
+          latestLocationRef.current.lng,
+          (latestLocationRef.current as any).heading
         );
       }
     }, 15000);
