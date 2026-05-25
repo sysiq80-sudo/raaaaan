@@ -98,30 +98,30 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
 
   const drawCarIcon = (currentHeading: number): google.maps.Icon => {
     const carSvg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+      <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
         <defs>
           <linearGradient id="lightBeam" x1="0" y1="1" x2="0" y2="0">
             <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.6"/>
             <stop offset="100%" stop-color="#fbbf24" stop-opacity="0"/>
           </linearGradient>
         </defs>
-        <g transform="rotate(${Math.round(currentHeading)} 24 24)">
+        <g transform="rotate(${Math.round(currentHeading)} 40 40)">
           <!-- Soft shadow -->
-          <ellipse cx="24" cy="25" rx="18" ry="9" fill="black" opacity="0.25" transform="rotate(90 24 24)" />
+          <ellipse cx="40" cy="41.6" rx="30" ry="15" fill="black" opacity="0.25" transform="rotate(90 40 40)" />
           
           <!-- Headlight beams (beams of light pointing forward) -->
-          <path d="M 19.5,8 L 10,-8 L 23,-8 Z" fill="url(#lightBeam)" />
-          <path d="M 28.5,8 L 25,-8 L 38,-8 Z" fill="url(#lightBeam)" />
+          <path d="M 32.5,13.3 L 16.7,-13.3 L 38.3,-13.3 Z" fill="url(#lightBeam)" />
+          <path d="M 47.5,13.3 L 41.7,-13.3 L 63.3,-13.3 Z" fill="url(#lightBeam)" />
 
           <!-- Car image (rotated 90deg to face UP) -->
-          <image href="${carBase64}" x="4" y="12.35" width="40" height="23.3" transform="rotate(90 24 24)" />
+          <image href="${carBase64}" x="6.7" y="20.6" width="66.6" height="38.8" transform="rotate(90 40 40)" />
         </g>
       </svg>
     `;
     return {
       url: "data:image/svg+xml," + encodeURIComponent(carSvg),
-      scaledSize: new google.maps.Size(48, 48),
-      anchor: new google.maps.Point(24, 24),
+      scaledSize: new google.maps.Size(80, 80),
+      anchor: new google.maps.Point(40, 40),
     };
   };
   // Initialize map
