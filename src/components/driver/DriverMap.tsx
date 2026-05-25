@@ -6,6 +6,7 @@ import { MapPin, Loader2, AlertCircle, RefreshCw, Zap, ShieldAlert, WifiOff } fr
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import carIcon from "@/assets/white color car .png";
+import { carBase64 } from "@/assets/carBase64";
 import { useAutoAccept } from "@/stores/driverStore";
 import useDriverStore from "@/stores/driverStore";
 import { logger } from "@/lib/logger";
@@ -106,32 +107,14 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
         </defs>
         <g transform="rotate(${Math.round(currentHeading)} 24 24)">
           <!-- Soft shadow -->
-          <path d="M 19,8 L 29,8 C 31,8 32,12 32,20 L 31,36 C 31,39 29,40 24,40 C 19,40 17,39 17,36 L 16,20 C 16,12 17,8 19,8 Z" fill="black" opacity="0.25"/>
+          <ellipse cx="24" cy="25" rx="18" ry="9" fill="black" opacity="0.25" transform="rotate(90 24 24)" />
           
           <!-- Headlight beams (beams of light pointing forward) -->
           <path d="M 19.5,8 L 10,-8 L 23,-8 Z" fill="url(#lightBeam)" />
           <path d="M 28.5,8 L 25,-8 L 38,-8 Z" fill="url(#lightBeam)" />
 
-          <!-- Car body (Premium sleek design, emerald tinted dark) -->
-          <path d="M 19,8 L 29,8 C 31,8 32,12 32,20 L 31,36 C 31,39 29,40 24,40 C 19,40 17,39 17,36 L 16,20 C 16,12 17,8 19,8 Z" fill="#0f172a" stroke="#5bdda6" stroke-width="1.5"/>
-          
-          <!-- Windshield (Facing forward, curved glass) -->
-          <path d="M 19,18 C 19,14 24,13 29,14 L 28.2,21 C 28.2,21 24,20 19.8,21 Z" fill="#1e293b" stroke="#334155" stroke-width="0.7"/>
-          
-          <!-- Rear Window -->
-          <path d="M 18,32 C 18,33 24,34 30,33 L 29.2,29 C 29.2,29 24,28 18.8,29 Z" fill="#1e293b" stroke="#334155" stroke-width="0.7"/>
-          
-          <!-- Headlights (Yellow LEDs) -->
-          <rect x="19" y="8" width="2" height="1.5" rx="0.5" fill="#fbbf24"/>
-          <rect x="27" y="8" width="2" height="1.5" rx="0.5" fill="#fbbf24"/>
-          
-          <!-- Tail lights (Red LEDs) -->
-          <rect x="17.5" y="38" width="2.5" height="1.2" rx="0.5" fill="#ef4444"/>
-          <rect x="28" y="38" width="2.5" height="1.2" rx="0.5" fill="#ef4444"/>
-          
-          <!-- Side Mirrors -->
-          <rect x="14" y="19" width="2.2" height="3" fill="#1e293b" rx="1"/>
-          <rect x="31.8" y="19" width="2.2" height="3" fill="#1e293b" rx="1"/>
+          <!-- Car image (rotated 90deg to face UP) -->
+          <image href="${carBase64}" x="4" y="12.35" width="40" height="23.3" transform="rotate(90 24 24)" />
         </g>
       </svg>
     `;
