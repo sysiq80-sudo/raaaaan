@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { getMarkerIcon, getDarkMapStyle } from "@/lib/googleMapService";
-import { MapPin, Loader2, AlertCircle, RefreshCw, Zap, ShieldAlert, WifiOff } from "lucide-react";
+import { MapPin, Loader2, AlertCircle, RefreshCw, Zap, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import carIcon from "@/assets/white color car .png";
@@ -703,14 +703,6 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
       
       {/* Right Controls — Emergency + Auto-Accept + My Location */}
       <div className="absolute top-20 right-4 z-[9999] flex flex-col items-end gap-3">
-        {/* Safety Shield */}
-        <button
-          className="w-12 h-12 flex items-center justify-center rounded-full border-none outline-none ring-0 shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)] transition-all bg-red-500 hover:bg-red-600 backdrop-blur group"
-          title="الطوارئ والدعم"
-          onClick={() => toast.error("تنبيه طوارئ: تم إشعار فريق الدعم الأمني", { description: "سنقوم بالتواصل معك فوراً" })}
-        >
-          <ShieldAlert className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
-        </button>
 
 
 
