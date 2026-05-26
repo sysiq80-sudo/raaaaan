@@ -1,6 +1,6 @@
 # RAAN — حالة المشروع وتقرير فحص الكود
 
-> آخر تحديث: 24 مايو 2026 | مبني حصرياً على فحص الكود المصدري والـ git log الفعلي
+> آخر تحديث: 26 مايو 2026 | مبني حصرياً على فحص الكود المصدري والـ git log الفعلي
 
 ---
 
@@ -121,6 +121,27 @@
 1. تقسيم App.tsx إلى route files منفصلة
 2. حذف `sanitizeForDatabase` من sanitization.ts
 3. إزالة مكتبات الخرائط غير المستخدمة (leaflet, mapbox-gl) من package.json
+
+---
+
+## 📋 سجل التغييرات — 26 مايو 2026
+
+### `b352883` ui: تطبيق ثيم الفخامة الداكن، تنظيف العناوين العربية، وإصلاح رسم المسار وزر المفضلة
+**الملفات:** 
+- `src/components/rider/LiveRideTracker.tsx`
+- `src/components/rider/RideWaitingScreen.tsx`
+- `src/pages/rider/GoPage.tsx`
+- `src/components/rider/DynamicSearchResults.tsx`
+- `src/hooks/useBookingFlow.ts`
+- `src/components/driver/ActiveRideCard.tsx`
+- `src/components/driver/RideRequestCard.tsx`
+
+**التفاصيل:**
+- **ثيم الفخامة الداكن (Dark Luxury):** تطبيق الثيم بالكامل على بطاقة تتبع حالة الرحلة (قَبِل/وصل/بالطريق/وصلنا) والقائمة السفلية (Bottom Sheet) والرسائل السياقية السريعة في واجهة تتبع الرحلة `LiveRideTracker.tsx`؛ وكذلك على بطاقة معلومات السائق ومسار الرحلة في واجهة الانتظار `RideWaitingScreen.tsx`. تم استبدال جميع درجات اللون الأبيض والرمادي الفاتح (`#E4E7EC`, `#101828`) بألوان لوحة السائل الداكنة المعتمدة (`bg-[#1a2333]`, `bg-[#0d1321]`, `border-slate-800/40`, `text-slate-100`, `text-slate-200`).
+- **تنظيف العناوين بالكامل (Arabic Address Only):** تصفية كل من عنوان الانطلاق والوصول المعروضين في واجهات السائق (`ActiveRideCard` و `RideRequestCard`) باستخدام دالة `cleanArabicAddress()` لإرجاع نصوص عربية نقية خالية من التشوهات أو العناوين الإنجليزية المكررة التي ترجعها Google Maps API.
+- **تعديل زر حفظ المفضلة (Heart Location Icon):** نقل زر المفضلة ليكون عائماً فوق زر تحديد الموقع الجغرافي مباشرة في `GoPage.tsx` وتثبيت شرط ظهوره بناءً على توافر إحداثيات خطوط الطول والعرض فقط (`centerLat && centerLng`) بدون اشتراط العنوان النصي لتسريع عملية حفظ الأماكن المفضلة.
+- **إلغاء التكرار في نتائج البحث:** حذف أزرار حفظ المفضلة وتحديد الموقع الجغرافي المكررة من مكون `DynamicSearchHeader` بداخل `DynamicSearchResults.tsx` لمنع تداخل أزرار التحكم.
+- **تجاوز مشاكل خرائط جوجل غير المفوترة (Billing Workaround):** إصلاح تعطل رسم المسار عند الضغط على "احجز الآن" (`useBookingFlow.ts`) عبر استدعاء دالة جلب المسار والرسم `fetchRouteAndDraw` مباشرة عند توفر المواقع بدلاً من تعليق الاستدعاء على حدث `idle` الخاص بالخريطة، مما يضمن عمل مسار الحجز حتى وإن كان هناك خطأ في تفعيل فوترة الخريطة (`BillingNotEnabledMapError`).
 
 ---
 
