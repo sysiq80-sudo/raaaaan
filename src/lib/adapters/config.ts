@@ -132,8 +132,8 @@ export const ADAPTER_CONFIG: AdapterFactoryConfig = {
   },
 
   routing: {
-    primary: 'osrm' as RoutingProvider,
-    fallback: ['google', 'haversine'] as RoutingProvider[],
+    primary: 'google' as RoutingProvider,
+    fallback: ['osrm', 'haversine'] as RoutingProvider[],
     timeout: 8000, // 8 seconds
   },
 

@@ -19,6 +19,7 @@ import { GoogleMapsAdapter } from './GoogleMapsAdapter';
 import { StaticMapAdapter } from './StaticMapAdapter';
 import { OSRMRoutingAdapter } from './OSRMRoutingAdapter';
 import { HaversineRoutingAdapter } from './HaversineRoutingAdapter';
+import { GoogleDirectionsAdapter } from './GoogleDirectionsAdapter';
 import { NominatimGeocodingAdapter } from './NominatimGeocodingAdapter';
 import { PhotonGeocodingAdapter } from './PhotonGeocodingAdapter';
 import { GooglePlacesGeocodingAdapter } from './GooglePlacesGeocodingAdapter';
@@ -100,8 +101,8 @@ export class RoutingAdapterFactory {
         adapter = new HaversineRoutingAdapter();
         break;
       case 'google':
-        // TODO: Implement GoogleDirectionsAdapter in Phase 2
-        throw new Error('Google Directions adapter not yet implemented');
+        adapter = new GoogleDirectionsAdapter();
+        break;
       default:
         throw new Error(`Unknown routing provider: ${provider}`);
     }

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { useAdaptiveRouting } from "@/hooks/useAdaptiveRouting";
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   });
 
   const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
+  const { getRoute: getAdaptiveRoute } = useAdaptiveRouting();
   const [driver, setDriver] = useState<Driver | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [estimatedArrival, setEstimatedArrival] = useState<number | null>(null);
@@ -420,73 +422,60 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     return polyline;
   }, []);
 
-  // Fetch route using Google Directions
+  // Fetch route using adaptive routing (Google/OSRM fallback consistent with booking)
   const fetchRoute = async () => {
-    if (!map.current || !directionsServiceRef.current) return;
+    if (!map.current) return;
 
     try {
-      const result = await directionsServiceRef.current.route({
-        origin: ride.pickup_location,
-        destination: ride.dropoff_location,
-        travelMode: google.maps.TravelMode.DRIVING,
-      });
+      const origin = { lat: ride.pickup_location.lat, lng: ride.pickup_location.lng };
+      const destination = { lat: ride.dropoff_location.lat, lng: ride.dropoff_location.lng };
+      const routeResult = await getAdaptiveRoute(origin, destination);
 
-      if (result.routes?.[0]) {
-        const route = result.routes[0];
-        const path = route.overview_path;
+      if (routeResult && routeResult.path.length > 0) {
+        const pathLatLng = routeResult.path.map(p => new google.maps.LatLng(p.lat, p.lng));
 
         // رسم خط التوهج (glow)
         routeGlowRef.current?.setMap(null);
-        routeGlowRef.current = drawPolyline(path, "#00d9a5", 12, 0.3);
+        routeGlowRef.current = drawPolyline(pathLatLng, "#00d9a5", 12, 0.3);
 
         // رسم خط المسار الأساسي
         routePolylineRef.current?.setMap(null);
-        routePolylineRef.current = drawPolyline(path, "#00d9a5", 5, 1);
+        routePolylineRef.current = drawPolyline(pathLatLng, "#00d9a5", 5, 1);
 
         // حفظ إحداثيات المسار
-        const coords = path.map(p => ({ lng: p.lng(), lat: p.lat() }));
-        setRouteCoordinates(coords);
+        setRouteCoordinates(routeResult.path);
         
         // المسافة المتبقية
-        const leg = route.legs?.[0];
-        if (leg?.distance?.value) {
-          setRemainingDistance(leg.distance.value / 1000);
-        }
+        setRemainingDistance(routeResult.distance / 1000);
 
         // ضبط الإطار
         fitBoundsToPoints([ride.pickup_location, ride.dropoff_location]);
       }
     } catch (error) {
-      console.error("Error fetching route:", error);
+      console.error("Error fetching route via adaptive routing:", error);
     }
   };
 
-  // Update route to destination after arrival
+  // Update route to destination after arrival using adaptive routing
   const updateRouteToDestination = async (driverLocation: { lat: number; lng: number }) => {
-    if (!map.current || !directionsServiceRef.current) return;
+    if (!map.current) return;
 
     try {
-      const result = await directionsServiceRef.current.route({
-        origin: driverLocation,
-        destination: ride.dropoff_location,
-        travelMode: google.maps.TravelMode.DRIVING,
-      });
+      const origin = { lat: driverLocation.lat, lng: driverLocation.lng };
+      const destination = { lat: ride.dropoff_location.lat, lng: ride.dropoff_location.lng };
+      const routeResult = await getAdaptiveRoute(origin, destination);
 
-      if (result.routes?.[0]) {
-        const route = result.routes[0];
-        const path = route.overview_path;
+      if (routeResult && routeResult.path.length > 0) {
+        const pathLatLng = routeResult.path.map(p => new google.maps.LatLng(p.lat, p.lng));
 
         // تحديث خط المسار
         routeGlowRef.current?.setMap(null);
-        routeGlowRef.current = drawPolyline(path, "#00d9a5", 12, 0.3);
+        routeGlowRef.current = drawPolyline(pathLatLng, "#00d9a5", 12, 0.3);
 
         routePolylineRef.current?.setMap(null);
-        routePolylineRef.current = drawPolyline(path, "#00d9a5", 5, 1);
+        routePolylineRef.current = drawPolyline(pathLatLng, "#00d9a5", 5, 1);
 
-        const leg = route.legs?.[0];
-        if (leg?.distance?.value) {
-          setRemainingDistance(leg.distance.value / 1000);
-        }
+        setRemainingDistance(routeResult.distance / 1000);
 
         fitBoundsToPoints([driverLocation, ride.dropoff_location]);
       }

@@ -61,16 +61,6 @@ serve(async (req) => {
       driver_id = null,
     } = body;
 
-    let {
-      pickup_lat,
-      pickup_lng,
-      dropoff_lat,
-      dropoff_lng,
-      distance_km,
-      vehicle_type = "economy",
-      waiting_minutes = 0,
-      driver_id = null,
-    } = await req.json();
 
     pickup_lat = parseFloat(pickup_lat);
     pickup_lng = parseFloat(pickup_lng);
