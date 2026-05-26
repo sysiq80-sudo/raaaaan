@@ -1982,7 +1982,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               ? 'bg-pink-500/20 border-pink-500/50 shadow-[0_0_20px_rgba(244,63,94,0.4)]'
               : 'bg-card border-border/30 hover:bg-secondary'
           }`}
-          style={{ bottom: `${bottomPanelHeight + 68}px` }}
+          style={{ bottom: `${bottomPanelHeight + 80}px` }}
           aria-label={isFav ? 'إزالة من المفضلة' : 'حفظ الموقع'}
           title={isFav ? 'إزالة من المفضلة' : 'حفظ الموقع'}
         >
@@ -1998,7 +1998,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       <button
         onClick={() => manualGeolocateMain()}
         className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-card text-foreground border border-border/30 shadow-md hover:bg-secondary active:scale-95 transition-all"
-        style={{ bottom: `${bottomPanelHeight + 16}px` }}
+        style={{ bottom: `${bottomPanelHeight + 28}px` }}
         aria-label="تحديد موقعي"
       >
         <Navigation className="w-4.5 h-4.5 text-foreground" />
