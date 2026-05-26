@@ -616,43 +616,7 @@ export const DynamicSearchHeader: React.FC<{
               )}
             </AnimatePresence>
 
-            {/* ❤️ حفظ المفضلة */}
-            {onSaveLocation && (
-              <motion.button
-                whileTap={{ scale: 0.85 }}
-                onClick={onSaveLocation}
-                className={cn(
-                  "w-12 h-12 rounded-xl flex items-center justify-center transition-all border shadow-[0_0_15px_rgba(244,63,94,0.15)]",
-                  isFavorite
-                    ? "bg-pink-500/20 hover:bg-pink-500/30 border-pink-500/50 shadow-[0_0_20px_rgba(244,63,94,0.4)]"
-                    : "bg-secondary hover:bg-secondary/80 border-border/30"
-                )}
-                title={isFavorite ? 'إزالة من المفضلة' : 'حفظ الموقع'}
-                aria-label={isFavorite ? 'إزالة من المفضلة' : 'حفظ الموقع'}
-              >
-                <Heart
-                  className={cn(
-                    'w-5.5 h-5.5 transition-all drop-shadow-[0_0_8px_rgba(244,63,94,0.5)]',
-                    isFavorite
-                      ? 'text-pink-500 fill-pink-500'
-                      : 'text-muted-foreground'
-                  )}
-                />
-              </motion.button>
-            )}
 
-            {/* 📍 موقعي الحالي */}
-            {onCurrentLocation && (
-              <motion.button
-                whileTap={{ scale: 0.85 }}
-                onClick={onCurrentLocation}
-                className="w-12 h-12 rounded-xl bg-ring/10 border border-ring/30 hover:bg-ring/25 flex items-center justify-center transition-all group shadow-[0_0_15px_hsl(var(--ring)/0.15)]"
-                title="موقعي الحالي"
-                aria-label="تحديد موقعي الحالي"
-              >
-                <Navigation className="w-5.5 h-5.5 text-ring drop-shadow-[0_0_8px_hsl(var(--ring)/0.5)] group-hover:scale-110 transition-transform" />
-              </motion.button>
-            )}
           </div>
         </div>
 

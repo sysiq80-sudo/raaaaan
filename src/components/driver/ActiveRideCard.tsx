@@ -9,6 +9,7 @@ import { DriverRideCompleted } from "./DriverRideCompleted";
 import { ChatButton } from "@/components/ride/RideChat";
 import { DriverEmergencyButton } from "./DriverEmergencyButton";
 import { logger } from "@/lib/logger";
+import { cleanArabicAddress } from "@/utils/addressCleaner";
 import { useDriverLocationSync } from "@/hooks/useDriverLocationSync";
 import { useDriverStore } from "@/stores/driverStore";
 import {
@@ -1496,8 +1497,8 @@ export const ActiveRideCard = ({
                 </p>
                 <p className="text-sm font-bold text-white leading-snug">
                   {(activeRide.status === "accepted" || activeRide.status === "arrived")
-                    ? (activeRide.pickup_address || getLocationString(activeRide.pickup_location))
-                    : (activeRide.dropoff_address || getLocationString(activeRide.dropoff_location))}
+                    ? cleanArabicAddress(activeRide.pickup_address || getLocationString(activeRide.pickup_location))
+                    : cleanArabicAddress(activeRide.dropoff_address || getLocationString(activeRide.dropoff_location))}
                 </p>
               </div>
 

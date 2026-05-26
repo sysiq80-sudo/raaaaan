@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import SplashScreen from "@/components/common/SplashScreen";
-import { Navigation, Loader2, MapPin, AlertTriangle, AlertCircle, Search, Bookmark, Home, Briefcase, Star, Clock, ArrowRight, Edit2 } from "lucide-react";
+import { Navigation, Loader2, MapPin, AlertTriangle, AlertCircle, Search, Bookmark, Home, Briefcase, Star, Clock, ArrowRight, Edit2, Heart } from "lucide-react";
 import logo from "@/assets/logo.png";
 import RiderMapHeader from "@/components/rider/RiderMapHeader";
 import RiderBottomSheet from "@/components/rider/RiderBottomSheet";
@@ -1973,6 +1973,27 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
       </div>
 
+      {/* Floating save location button */}
+      {centerLat && centerLng && (
+        <button
+          onClick={() => setShowSaveModal(true)}
+          className={`absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl border shadow-md active:scale-95 transition-all ${
+            isFav
+              ? 'bg-pink-500/20 border-pink-500/50 shadow-[0_0_20px_rgba(244,63,94,0.4)]'
+              : 'bg-card border-border/30 hover:bg-secondary'
+          }`}
+          style={{ bottom: `${bottomPanelHeight + 68}px` }}
+          aria-label={isFav ? 'إزالة من المفضلة' : 'حفظ الموقع'}
+          title={isFav ? 'إزالة من المفضلة' : 'حفظ الموقع'}
+        >
+          <Heart
+            className={`w-4.5 h-4.5 transition-all ${
+              isFav ? 'text-pink-500 fill-pink-500' : 'text-foreground'
+            }`}
+          />
+        </button>
+      )}
+
       {/* Floating geolocate button — dynamically positioned above bottom sheet */}
       <button
         onClick={() => manualGeolocateMain()}
@@ -2019,12 +2040,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
             {/* Pickup summary — ملخص الانطلاق في شاشة الوجهة (مضغوط) */}
             {!isLocationFocused && !isPickup && pickupLocation && (
-              <div className="flex items-center gap-2 p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/40 dark:border-emerald-800/30 mb-2">
+              <div className="flex items-center gap-2 p-2 rounded-xl bg-card border border-border/30 shadow-sm mb-2">
                 <div className="w-6 h-6 rounded-md bg-emerald-500/15 flex items-center justify-center shrink-0">
-                  <Navigation className="w-3 h-3 text-emerald-600" />
+                  <Navigation className="w-3 h-3 text-emerald-500" />
                 </div>
                 <p className="flex-1 min-w-0 text-[11px] font-semibold text-foreground truncate">
-                  <span className="text-emerald-600 font-bold">من: </span>
+                  <span className="text-emerald-500 font-bold">من: </span>
                   {buildDescriptiveAddress(pickupLocation.address)}
                 </p>
                 <button
@@ -2032,7 +2053,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                     setCurrentMode('pickup');
                     setIsLocationFocused(false);
                   }}
-                  className="shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-300/30 hover:bg-emerald-500/20 active:scale-95 transition-all"
+                  className="shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-95 transition-all"
                 >
                   تعديل
                 </button>

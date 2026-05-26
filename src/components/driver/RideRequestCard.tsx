@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { logger } from "@/lib/logger";
+import { cleanArabicAddress } from "@/utils/addressCleaner";
 import { roundFare } from "@/lib/constants";
 import { stopRideAlert } from "@/lib/loudAlerts";
 import {
@@ -1064,11 +1065,11 @@ export const RideRequestCard = ({
                 <div className="flex-1 flex flex-col justify-between gap-4 min-w-0 py-0.5">
                   <div>
                     <p className="text-xs text-[#5bdda6] font-bold mb-1" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>نقطة الانطلاق</p>
-                    <p className="text-base font-semibold text-slate-200 line-clamp-1 leading-snug">{pendingRide.pickup_address || "موقع الانطلاق"}</p>
+                    <p className="text-base font-semibold text-slate-200 line-clamp-1 leading-snug">{cleanArabicAddress(pendingRide.pickup_address || "موقع الانطلاق")}</p>
                   </div>
                   <div>
                     <p className="text-xs text-blue-400 font-bold mb-1" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>الوجهة</p>
-                    <p className="text-base font-semibold text-slate-200 line-clamp-1 leading-snug">{pendingRide.dropoff_address || "الوجهة"}</p>
+                    <p className="text-base font-semibold text-slate-200 line-clamp-1 leading-snug">{cleanArabicAddress(pendingRide.dropoff_address || "الوجهة")}</p>
                   </div>
                 </div>
               </div>

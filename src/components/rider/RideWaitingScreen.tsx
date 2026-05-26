@@ -772,7 +772,7 @@ export const RideWaitingScreen = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="rounded-2xl overflow-hidden bg-white border border-[#E4E7EC] shadow-sm"
+            className="rounded-2xl overflow-hidden bg-[#1a2333] border border-slate-800/40 shadow-lg"
           >
             <div className="p-4 flex items-center gap-3">
               <div className="relative shrink-0">
@@ -782,19 +782,19 @@ export const RideWaitingScreen = ({
                     {acceptedDriver.full_name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center bg-[#00B3B0] border-2 border-white">
+                <div className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center bg-[#00B3B0] border-2 border-[#1a2333]">
                   <User className="w-2.5 h-2.5 text-white" />
                 </div>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-[16px] font-black text-[#101828] truncate">{acceptedDriver.full_name}</h3>
+                <h3 className="text-[16px] font-black text-slate-100 truncate">{acceptedDriver.full_name}</h3>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <span className="flex items-center gap-1 text-[12px] font-bold px-2 py-0.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-200">
+                  <span className="flex items-center gap-1 text-[12px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
                     <Star className="w-3 h-3 fill-current" />
                     {acceptedDriver.rating?.toFixed(1) || '5.0'}
                   </span>
                   {acceptedDriver.vehicle_plate && (
-                    <span className="text-[11px] font-black px-2 py-0.5 rounded-lg bg-[#F2F4F7] text-[#101828] border border-[#E4E7EC]" style={{ direction: "ltr" }}>
+                    <span className="text-[11px] font-black px-2 py-0.5 rounded-lg bg-slate-700/60 text-slate-300 border border-slate-700/50" style={{ direction: "ltr" }}>
                       {acceptedDriver.vehicle_plate}
                     </span>
                   )}
@@ -803,11 +803,11 @@ export const RideWaitingScreen = ({
             </div>
 
             {/* معلومات المركبة */}
-            <div className="px-4 py-3 flex items-center gap-2 border-t border-[#E4E7EC]">
+            <div className="px-4 py-3 flex items-center gap-2 border-t border-slate-800/40">
               <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-[#00B3B0]/10">
                 <Car className="w-4 h-4 text-[#00B3B0]" />
               </div>
-              <span className="text-[13px] text-[#475467]">
+              <span className="text-[13px] text-slate-400">
                 {getVehicleTypeName(acceptedDriver.vehicle_type)}
                 {acceptedDriver.vehicle_model && ` • ${acceptedDriver.vehicle_model}`}
                 {acceptedDriver.vehicle_color && ` • ${acceptedDriver.vehicle_color}`}
@@ -815,10 +815,10 @@ export const RideWaitingScreen = ({
             </div>
 
             {/* أزرار التواصل */}
-            <div className="grid grid-cols-2 border-t border-[#E4E7EC]">
+            <div className="grid grid-cols-2 border-t border-slate-800/40">
               <button
                 onClick={() => window.open(`tel:${acceptedDriver.phone}`, '_self')}
-                className="flex items-center justify-center gap-2 py-3.5 text-[13px] font-bold transition-all active:opacity-70 text-[#00B3B0] border-l border-[#E4E7EC]"
+                className="flex items-center justify-center gap-2 py-3.5 text-[13px] font-bold transition-all active:opacity-70 text-[#00B3B0] border-l border-slate-800/40"
               >
                 <Phone className="w-4 h-4" /> اتصال
               </button>
@@ -836,43 +836,43 @@ export const RideWaitingScreen = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="rounded-2xl overflow-hidden bg-white border border-[#E4E7EC] shadow-sm"
+            className="rounded-2xl overflow-hidden bg-[#1a2333] border border-slate-800/40 shadow-lg"
           >
             {/* الانطلاق */}
             <div className="flex items-center gap-3 px-4 py-3.5">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-[#12B76A]/10 border border-[#12B76A]/20">
-                <Rocket className="w-4 h-4 text-[#12B76A]" />
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-emerald-500/10 border border-emerald-500/20">
+                <Rocket className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold tracking-widest mb-0.5 text-[#12B76A]">الانطلاق</p>
-                <p className="text-[13px] font-semibold text-[#101828] truncate">{cleanArabicAddress(pickupAddress)}</p>
+                <p className="text-[10px] font-bold tracking-widest mb-0.5 text-emerald-400">الانطلاق</p>
+                <p className="text-[13px] font-semibold text-slate-100 truncate">{cleanArabicAddress(pickupAddress)}</p>
               </div>
             </div>
 
             {/* فاصل */}
-            <div className="flex items-center gap-3 px-4 border-t border-[#E4E7EC]">
+            <div className="flex items-center gap-3 px-4 border-t border-slate-800/40">
               <div className="w-9 flex justify-center">
                 <div className="flex flex-col items-center gap-0.5 py-1">
-                  <div className="w-px h-2 bg-[#D0D5DD]" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#98A2B3]" />
-                  <div className="w-px h-2 bg-[#D0D5DD]" />
+                  <div className="w-px h-2 bg-slate-700" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+                  <div className="w-px h-2 bg-slate-700" />
                 </div>
               </div>
             </div>
 
             {/* الوجهة + الأجرة */}
-            <div className="flex items-center gap-3 px-4 py-3.5 border-t border-[#E4E7EC]">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-orange-50 border border-orange-200">
-                <Navigation className="w-4 h-4 text-orange-500" />
+            <div className="flex items-center gap-3 px-4 py-3.5 border-t border-slate-800/40">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-orange-500/10 border border-orange-500/20">
+                <Navigation className="w-4 h-4 text-orange-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold tracking-widest text-orange-500 mb-0.5">الوجهة</p>
-                <p className="text-[13px] font-semibold text-[#101828] truncate">{cleanArabicAddress(dropoffAddress)}</p>
+                <p className="text-[10px] font-bold tracking-widest text-orange-400 mb-0.5">الوجهة</p>
+                <p className="text-[13px] font-semibold text-slate-100 truncate">{cleanArabicAddress(dropoffAddress)}</p>
               </div>
-              <div className="shrink-0 text-left border-r border-[#E4E7EC] pr-3 mr-1">
-                <p className="text-[10px] text-[#98A2B3] mb-0.5">الأجرة</p>
+              <div className="shrink-0 text-left border-r border-slate-700/50 pr-3 mr-1">
+                <p className="text-[10px] text-slate-500 mb-0.5">الأجرة</p>
                 <p className="text-[18px] font-black text-[#00B3B0]">{estimatedFare.toLocaleString()}</p>
-                <p className="text-[10px] text-[#98A2B3]">د.ع</p>
+                <p className="text-[10px] text-slate-500">د.ع</p>
               </div>
             </div>
           </motion.div>

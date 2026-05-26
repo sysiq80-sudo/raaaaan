@@ -332,7 +332,7 @@ export const useBookingFlow = () => {
               title: `محطة ${index + 1}: ${stop.address}`,
               icon: {
                 path: google.maps.SymbolPath.CIRCLE,
-                fillColor: "#f59e0b", // Yellow/Orange
+                fillColor: "#f59e0b",
                 fillOpacity: 1,
                 strokeColor: "#fff",
                 strokeWeight: 2,
@@ -346,14 +346,9 @@ export const useBookingFlow = () => {
         });
       }
 
-      // Fetch and draw the route after map is fully loaded
-      if (bookingMap.current) {
-        google.maps.event.addListenerOnce(bookingMap.current, 'idle', () => {
-          fetchRouteAndDraw(pickupLocation, dropoffLocation, intermediateStops);
-        });
-      } else {
-        fetchRouteAndDraw(pickupLocation, dropoffLocation, intermediateStops);
-      }
+      // Fetch and draw the route — call immediately (OSRM works without map tiles)
+      // Using 'idle' event was unreliable when Google Maps billing is not enabled
+      fetchRouteAndDraw(pickupLocation, dropoffLocation, intermediateStops);
     },
     [googleApiKey, fetchRouteAndDraw, clearDrawing]
   );
