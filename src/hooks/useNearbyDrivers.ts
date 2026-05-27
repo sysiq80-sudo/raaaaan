@@ -89,7 +89,7 @@ export const useNearbyDrivers = (
 
     fetchNearbyDrivers();
     
-    const interval = setInterval(fetchNearbyDrivers, 15000);
+    const interval = setInterval(fetchNearbyDrivers, 45000); // كان 15 ثانية — رُفع لتقليل Disk IO
     return () => {
       isCancelled = true;
       clearInterval(interval);

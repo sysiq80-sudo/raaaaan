@@ -518,7 +518,7 @@ const DriverHome = () => {
     // Watch position changes with throttle
     let lastUpdateTime = 0;
     let lastUiUpdateTime = 0;
-    const MIN_UPDATE_INTERVAL = 10000; // 10 ثوان
+    const MIN_UPDATE_INTERVAL = 15000; // 15 ثانية (كان 10) — لتقليل Disk IO
     const UI_UPDATE_INTERVAL = 5000; // تحديث الواجهة كل 5 ثوانٍ كحد أقصى — مع شرط التحرك > 10 متر
 
     const watchId = navigator.geolocation.watchPosition(
@@ -555,7 +555,7 @@ const DriverHome = () => {
 
     watchIdRef.current = watchId;
 
-    // Fallback: تحديث كل 15 ثانية كحد أدنى للحالات التي لا يتحرك فيها GPS
+    // Fallback: تحديث كل 20 ثانية للحالات التي لا يتحرك فيها GPS (كان 15)
     const intervalId = setInterval(() => {
       if (latestLocationRef.current) {
         updateDriverLocation(
@@ -564,7 +564,7 @@ const DriverHome = () => {
           (latestLocationRef.current as any).heading
         );
       }
-    }, 15000);
+    }, 20000);
 
     locationUpdateIntervalRef.current = intervalId;
     setLocationTracking(true);
@@ -880,7 +880,7 @@ const DriverHome = () => {
         if (currentBalance < minBalance) {
           toast({
             title: "لا يمكنك العمل بسبب الرصيد",
-            description: `رصيدك الحالي (${currentBalance.toLocaleString()} د.ع) أقل من الحد المسموح للعمل (${minBalance.toLocaleString()} د.ع). يرجى شحن محفظتك أولاً.`,
+            description: `رصيدك الحالي (${currentBalance.toLocaleString('en-US')} د.ع) أقل من الحد المسموح للعمل (${minBalance.toLocaleString('en-US')} د.ع). يرجى شحن محفظتك أولاً.`,
             variant: "destructive",
             duration: 8000,
           });

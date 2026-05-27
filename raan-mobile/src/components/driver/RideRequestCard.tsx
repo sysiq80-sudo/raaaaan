@@ -102,7 +102,7 @@ export default function RideRequestCard({
       .subscribe();
 
     // Polling كاحتياط
-    const poll = setInterval(fetchRides, 15000);
+    const poll = setInterval(fetchRides, 30000); // كان 15 ثانية — رُفع لتقليل Disk IO
 
     return () => {
       supabase.removeChannel(channel);

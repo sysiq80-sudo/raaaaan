@@ -238,8 +238,8 @@ export const RideRequestCard = ({
     };
 
     checkActiveRide();
-    // فحص الرحلة النشطة كل 15 ثانية فقط (بدل 10) — لتقليل حمل قاعدة البيانات
-    const interval = setInterval(checkActiveRide, 15000);
+    // فحص الرحلة النشطة كل 30 ثانية (كان 15) — لتقليل Disk IO
+    const interval = setInterval(checkActiveRide, 30000);
 
     return () => clearInterval(interval);
   }, [driverId, isOnline]);
@@ -248,6 +248,12 @@ export const RideRequestCard = ({
     if (actionInProgressRef.current) return;
     if (!isOnline || isPaused) {
       setPendingRides([]);
+      return;
+    }
+
+    if (!driverId) {
+      setPendingRides([]);
+      stableOnRideRequestVisible(false);
       return;
     }
 
@@ -273,11 +279,10 @@ export const RideRequestCard = ({
         });
 
         try {
-          const { data, error } = await supabase.rpc("get_nearby_pending_rides", {
-            driver_lat: searchLocation.lat,
-            driver_lng: searchLocation.lng,
-            max_radius_km: maxPickupRadius,
-            driver_vehicle_type: (vehicleType || "economy") as "economy" | "comfort" | "premium" | "women_only",
+          const { data, error } = await supabase.rpc("get_nearby_pending_rides_geospatial", {
+            p_driver_id: driverId,
+            p_radius_meters: maxPickupRadius * 1000,
+            p_limit: 5,
           });
 
           if (!error && data && data.length > 0) {
@@ -1009,7 +1014,7 @@ export const RideRequestCard = ({
           <div className="px-5 pt-3 pb-2 space-y-4 flex-1 flex flex-col min-h-0 overflow-y-auto">
             {/* هيدر: العنوان */}
             <div className="flex items-center justify-center shrink-0">
-              <span className="font-extrabold text-xl text-white tracking-wide" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>طلب جديد</span>
+              <span className="font-extrabold text-xl text-white tracking-wide" style={{ fontFamily: "Cairo, sans-serif" }}>طلب جديد</span>
             </div>
 
             {/* الأجرة + الإحصائيات (Bento Layout) */}
@@ -1023,9 +1028,9 @@ export const RideRequestCard = ({
                    <Wallet className="w-4 h-4 text-[#5bdda6]/70" />
                    <span className="text-xs font-semibold text-slate-400">الأجرة المقدرة</span>
                   </div>
-                  <div className="flex items-baseline gap-1.5" style={{ fontFamily: "Inter, sans-serif" }}>
+                  <div className="flex items-baseline gap-1.5" style={{ fontFamily: "Cairo, sans-serif" }}>
                     <span className="text-3xl font-black text-[#5bdda6] tabular-nums tracking-tight">
-                      {roundFare(pendingRide.estimated_fare || 0).toLocaleString()}
+                      {roundFare(pendingRide.estimated_fare || 0).toLocaleString('en-US')}
                     </span>
                     <span className="text-sm text-[#5bdda6]/70 font-semibold">د.ع</span>
                   </div>
@@ -1044,7 +1049,7 @@ export const RideRequestCard = ({
                     <span className="text-xs font-semibold text-slate-400">نوع السيارة</span>
                   </div>
                   <span className="text-2xl mt-1">{getVehicleIcon(pendingRide.vehicle_type)}</span>
-                  <span className="text-xl font-black text-[#5bdda6] tracking-wide mt-0.5" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                  <span className="text-xl font-black text-[#5bdda6] tracking-wide mt-0.5" style={{ fontFamily: "Cairo, sans-serif" }}>
                     {getVehicleName(pendingRide.vehicle_type)}
                   </span>
                 </div>
@@ -1064,11 +1069,11 @@ export const RideRequestCard = ({
                 {/* Locations */}
                 <div className="flex-1 flex flex-col justify-between gap-4 min-w-0 py-0.5">
                   <div>
-                    <p className="text-xs text-[#5bdda6] font-bold mb-1" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>نقطة الانطلاق</p>
+                    <p className="text-xs text-[#5bdda6] font-bold mb-1" style={{ fontFamily: "Cairo, sans-serif" }}>نقطة الانطلاق</p>
                     <p className="text-base font-semibold text-slate-200 line-clamp-1 leading-snug">{cleanArabicAddress(pendingRide.pickup_address || "موقع الانطلاق")}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-blue-400 font-bold mb-1" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>الوجهة</p>
+                    <p className="text-xs text-blue-400 font-bold mb-1" style={{ fontFamily: "Cairo, sans-serif" }}>الوجهة</p>
                     <p className="text-base font-semibold text-slate-200 line-clamp-1 leading-snug">{cleanArabicAddress(pendingRide.dropoff_address || "الوجهة")}</p>
                   </div>
                 </div>
@@ -1108,7 +1113,7 @@ export const RideRequestCard = ({
               className="flex-1 max-w-[120px] h-[72px] rounded-none flex items-center justify-center text-sm font-bold text-emerald-300 bg-[#0f2922] hover:bg-[#163d30] transition-colors disabled:opacity-50 touch-manipulation border-none border-t border-l border-emerald-500/20"
               onClick={handleRejectClick}
               disabled={loading}
-              style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+              style={{ fontFamily: "Cairo, sans-serif" }}
             >
               {loading && actionType === "reject" ? (
                 <Loader2 className="w-5 h-5 animate-spin mx-auto" />
@@ -1130,7 +1135,7 @@ export const RideRequestCard = ({
                 className="relative overflow-hidden w-full h-[72px] text-lg font-bold text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
                 onClick={handleAcceptClick}
                 disabled={loading}
-                style={{ fontFamily: "Plus Jakarta Sans, sans-serif", padding: 0 }}
+                style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}
               >
                 {/* 1. السحب اللوني المتكرر (Animated Gradient Background) */}
                 <motion.div

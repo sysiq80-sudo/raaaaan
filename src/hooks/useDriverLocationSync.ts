@@ -17,8 +17,9 @@ interface UseDriverLocationSyncProps {
   isActive: boolean; // true عندما حالة الرحلة accepted/arrived/in_progress
 }
 
-// الحد الأدنى بين التحديثات (5 ثوانٍ)
-const SYNC_INTERVAL_MS = 5000;
+// Phase 5B: aligned with MIN_UPDATE_INTERVAL in DriverHome (15 s) to prevent
+// driver_live_locations writes from running twice as often as drivers.current_location
+const SYNC_INTERVAL_MS = 15000;
 // الحد الأدنى للمسافة للتحديث (10 أمتار)
 const MIN_DISTANCE_METERS = 10;
 

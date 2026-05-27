@@ -225,7 +225,7 @@ export const useOptimizedNearbyDrivers = (
       }
 
       // Add fallback fake drivers for development if no real drivers found
-      if (newLocations.length === 0 && pickupCoords) {
+      if (newLocations.length === 0 && pickupCoords && import.meta.env.DEV) {
         if (!fallbackLogShownRef.current) {
           console.log("No drivers found, adding fallback drivers for development");
           fallbackLogShownRef.current = true;
@@ -425,7 +425,7 @@ export const useOptimizedNearbyDrivers = (
   // Periodic refresh as fallback (less frequent with realtime enabled)
   useEffect(() => {
     if (!pickupCoords) return; // Don't poll if no pickup location
-    const interval = opts.enableRealtime ? 45000 : 20000; // 45s with realtime, 20s without (increased)
+    const interval = opts.enableRealtime ? 60000 : 60000; // 60s في كلتا الحالتين (كان 45s/20s) — لتقليل Disk IO
     const timer = setInterval(fetchDrivers, interval);
     return () => clearInterval(timer);
   }, [fetchDrivers, opts.enableRealtime, pickupCoords]);
