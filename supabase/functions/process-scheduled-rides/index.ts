@@ -71,6 +71,22 @@ serve(async (req) => {
         if (minutesToRide <= 30 && !scheduledRide.ride_id) {
           if (scheduledRide.status === 'scheduled' || scheduledRide.status === 'reserved') {
             const shouldReleaseDriver = !scheduledRide.driver_confirmed_at;
+            const originalStatus = scheduledRide.status;
+
+            // ATOMIC CLAIM: set status='processing' only if still in original status and no ride_id yet.
+            // This prevents double-activation if the cron fires twice before the first run commits.
+            const { data: claimed, error: claimError } = await supabase
+              .from('scheduled_rides')
+              .update({ status: 'processing', updated_at: new Date().toISOString() })
+              .eq('id', scheduledRide.id)
+              .in('status', ['scheduled', 'reserved'])
+              .is('ride_id', null)
+              .select('id');
+
+            if (claimError || !claimed || claimed.length === 0) {
+              console.log(`Scheduled ride ${scheduledRide.id} already claimed by concurrent run, skipping`);
+              continue;
+            }
 
             const { data: urgentRide, error: urgentRideError } = await supabase
               .from('rides')
@@ -95,6 +111,12 @@ serve(async (req) => {
 
             if (urgentRideError) {
               console.error(`Error creating urgent ride for scheduled ride ${scheduledRide.id}:`, urgentRideError);
+              // Roll back the claim so the next cron run can retry
+              await supabase
+                .from('scheduled_rides')
+                .update({ status: originalStatus, updated_at: new Date().toISOString() })
+                .eq('id', scheduledRide.id)
+                .eq('status', 'processing');
               continue;
             }
 
@@ -107,7 +129,8 @@ serve(async (req) => {
                 driver_id: shouldReleaseDriver ? null : scheduledRide.driver_id,
                 updated_at: new Date().toISOString()
               })
-              .eq('id', scheduledRide.id);
+              .eq('id', scheduledRide.id)
+              .eq('status', 'processing');
 
             // Broadcast urgent matching
             await supabase.functions.invoke('match-ride', {
@@ -126,10 +149,19 @@ serve(async (req) => {
 
         // 3) Confirmed driver: create assigned ride at 15 minutes
         if (minutesToRide <= 15 && !scheduledRide.ride_id && scheduledRide.status === 'confirmed') {
-          await supabase
+          // ATOMIC CLAIM: set status='processing' only if still 'confirmed' and no ride_id yet.
+          const { data: claimed15, error: claimError15 } = await supabase
             .from('scheduled_rides')
             .update({ status: 'processing', updated_at: new Date().toISOString() })
-            .eq('id', scheduledRide.id);
+            .eq('id', scheduledRide.id)
+            .eq('status', 'confirmed')
+            .is('ride_id', null)
+            .select('id');
+
+          if (claimError15 || !claimed15 || claimed15.length === 0) {
+            console.log(`Scheduled ride ${scheduledRide.id} (confirmed) already claimed by concurrent run, skipping`);
+            continue;
+          }
 
           const { data: newRide, error: rideError } = await supabase
             .from('rides')
@@ -154,10 +186,12 @@ serve(async (req) => {
 
           if (rideError) {
             console.error(`Error creating ride for scheduled ride ${scheduledRide.id}:`, rideError);
+            // Roll back the claim so the next cron run can retry
             await supabase
               .from('scheduled_rides')
               .update({ status: 'confirmed', updated_at: new Date().toISOString() })
-              .eq('id', scheduledRide.id);
+              .eq('id', scheduledRide.id)
+              .eq('status', 'processing');
             continue;
           }
 
@@ -175,7 +209,8 @@ serve(async (req) => {
               ride_id: newRide.id,
               updated_at: new Date().toISOString()
             })
-            .eq('id', scheduledRide.id);
+            .eq('id', scheduledRide.id)
+            .eq('status', 'processing');
 
           results.push({
             scheduled_ride_id: scheduledRide.id,
