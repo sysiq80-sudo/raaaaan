@@ -3,11 +3,12 @@
  * يحتوي فقط على صفحات ومسارات الراكب
  */
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
 import { lazy, Suspense, useState, useEffect } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { RaanThemeProvider } from "@/contexts/RaanThemeContext";
@@ -59,6 +60,17 @@ const queryClient = new QueryClient({
 
 const LoadingFallback = () => <SplashScreen />;
 
+// Layout ثابت لا يُنمَّط عند التنقل بين صفحات الراكب
+const RiderProtectedLayout = () => (
+  <ErrorBoundary>
+    <ProtectedRoute requiredRole="rider">
+      <RiderLayout>
+        <Outlet />
+      </RiderLayout>
+    </ProtectedRoute>
+  </ErrorBoundary>
+);
+
 const RiderApp = () => {
   return (
     <ErrorBoundary>
@@ -68,6 +80,7 @@ const RiderApp = () => {
           <AuthProvider>
             <MapProviderContext>
               <Sonner />
+              <Toaster />
               <RiderNotificationBootstrap />
               {isNativePlatform ? (
                 <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -161,16 +174,18 @@ const RiderRoutes = () => {
       <Route path="/track/:token" element={<ErrorBoundary><TrackRide /></ErrorBoundary>} />
       <Route path="/payment/result" element={<ErrorBoundary><PaymentResult /></ErrorBoundary>} />
 
-      <Route path="/rider" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><AIVoiceHome /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/rider/go" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><GoPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/rider/schedule" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><GoPage scheduleMode={true} /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/rider/rides" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><RiderRidesPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/rider/payments" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><RiderPaymentsPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/rider/wallet-topup" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><WalletTopupPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/rider/saved-places" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><RiderSavedPlacesPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/rider/settings" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><RiderSettingsPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/rider/profile-v2" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><RiderProfileMigratedPage /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/rider/go-v2" element={<ErrorBoundary><ProtectedRoute requiredRole="rider"><RiderLayout><RiderGoMigrated /></RiderLayout></ProtectedRoute></ErrorBoundary>} />
+      <Route path="/rider" element={<RiderProtectedLayout />}>
+        <Route index element={<AIVoiceHome />} />
+        <Route path="go" element={<GoPage />} />
+        <Route path="schedule" element={<GoPage scheduleMode={true} />} />
+        <Route path="rides" element={<RiderRidesPage />} />
+        <Route path="payments" element={<RiderPaymentsPage />} />
+        <Route path="wallet-topup" element={<WalletTopupPage />} />
+        <Route path="saved-places" element={<RiderSavedPlacesPage />} />
+        <Route path="settings" element={<RiderSettingsPage />} />
+        <Route path="profile-v2" element={<RiderProfileMigratedPage />} />
+        <Route path="go-v2" element={<RiderGoMigrated />} />
+      </Route>
 
       <Route path="*" element={<NotFound />} />
     </Routes>

@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { startRideAlert, stopRideAlert } from "@/lib/loudAlerts";
@@ -69,8 +69,12 @@ export const useDriverNotifications = (
 ) => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  // ref لتجنب إعادة إنشاء openRideRequestFromNotification عند كل navigation
+  const locationRef = useRef(location);
+  locationRef.current = location;
   const DRIVER_NOTIFICATION_DEDUPE_TTL_MS = 300_000; // 5 دقائق لتفادي إعادة الإشعار عند إعادة الاتصال
-  const CHANNEL_STALE_MS = 300_000;
+  const CHANNEL_STALE_MS = 600_000; // 10 دقائق — تقليل recreateChannel وما يرافقه من catch-up queries
   const dedupeMapRef = useRef<Map<string, number>>(new Map());
   const lastRealtimeEventAtRef = useRef<number>(Date.now());
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('default');
@@ -97,20 +101,22 @@ export const useDriverNotifications = (
     }
 
     const targetSearch = `?ride_id=${rideId}&action=open_request`;
-    if (window.location.pathname === '/driver' && window.location.search === targetSearch) {
+    const loc = locationRef.current;
+
+    // تجنب التنقل المكرر إذا كنا على نفس الصفحة بنفس المعاملات
+    if (loc.pathname === '/driver' && loc.search === targetSearch) {
       return;
     }
 
-    if (window.location.pathname === '/driver') {
-      // استخدام navigate بدلاً من PopStateEvent لمنع إعادة تحميل المسار وإزالة الوميض
-      navigate(
-        { pathname: '/driver', search: targetSearch },
-        { replace: true }
-      );
-      return;
-    }
-
-    window.location.assign(`/driver${targetSearch}`);
+    // navigate داخلي يعمل مع HashRouter (native) وBrowserRouter (web) — لا reload
+    navigate(
+      { pathname: '/driver', search: targetSearch },
+      {
+        // replace فقط إذا كنا بالفعل على /driver — حفاظاً على history للصفحات الأخرى
+        replace: loc.pathname === '/driver',
+        state: { fromNotification: true },
+      }
+    );
   }, [navigate]);
 
   // Request notification permission with user feedback
@@ -185,7 +191,7 @@ export const useDriverNotifications = (
         console.debug(`[showPushNotification] Suppressed duplicate: ${rideId}`);
         toast({
           title: "🚗 طلب رحلة جديد!",
-          description: `${estimatedFare.toLocaleString()} د.ع - ${pickupAddress}`,
+          description: `${estimatedFare.toLocaleString('en-US')} د.ع - ${pickupAddress}`,
           duration: 20000,
         });
         return;
@@ -214,7 +220,7 @@ export const useDriverNotifications = (
       // Show enhanced toast notification
       toast({
         title: "🚗 طلب رحلة جديد!",
-        description: `${estimatedFare.toLocaleString()} د.ع - ${pickupAddress}`,
+        description: `${estimatedFare.toLocaleString('en-US')} د.ع - ${pickupAddress}`,
         duration: 20000,
       });
 
@@ -227,7 +233,7 @@ export const useDriverNotifications = (
       const WebNotif = getWebNotification();
       if (!isNativePlatform && WebNotif && WebNotif.permission === 'granted') {
         const notificationBody = [
-          `💰 الأجرة: ${estimatedFare.toLocaleString()} د.ع`,
+          `💰 الأجرة: ${estimatedFare.toLocaleString('en-US')} د.ع`,
           `📍 من: ${pickupAddress}`,
           dropoffAddress ? `🎯 إلى: ${dropoffAddress}` : '',
           distance > 0 ? `📏 المسافة: ${distance.toFixed(1)} كم` : ''
@@ -460,44 +466,12 @@ export const useDriverNotifications = (
       
       const ch = supabase
         .channel(channelName)
-        // ═══ INSERT: رحلات تُنشأ مباشرة بحالة pending ═══
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'rides',
-            filter: 'status=eq.pending'
-          },
-          (payload) => {
-            console.log('⚡ INSTANT INSERT: New ride detected:', payload.new?.id);
-            retryCount = 0; // إعادة تعيين عداد المحاولات عند نجاح الاتصال
-            lastRealtimeEventAtRef.current = Date.now();
-            handleNewRide(payload as { new: Record<string, unknown> });
-          }
-        )
-        // ═══ UPDATE: فحص يدوي للحالة ═══
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'rides',
-          },
-          (payload) => {
-            const newStatus = (payload.new as Record<string, unknown>)?.status;
-            const oldStatus = (payload.old as Record<string, unknown>)?.status;
-            if (newStatus === 'pending' && oldStatus !== 'pending') {
-              console.log('⚡ INSTANT UPDATE: Ride became pending:', payload.new?.id, `(${oldStatus} → ${newStatus})`);
-              lastRealtimeEventAtRef.current = Date.now();
-              handleNewRide(payload as { new: Record<string, unknown> });
-            }
-          }
-        )
+        // Phase 3C: لا اشتراكات postgres_changes للرحلات — الإشعارات عبر driver-notif-{id} broadcast فقط
+        // هذا الكانال موجود لتشغيل catch-up query عند reconnect فقط
         .subscribe(async (status) => {
           console.log('🔴 Notification subscription status:', status);
           if (status === 'SUBSCRIBED') {
-            console.log('✅ INSTANT notifications ready — listening for INSERT + UPDATE to pending');
+            console.log('✅ Realtime reconnect channel ready — targeted notifications via driver-notif-{id} broadcast only');
             retryCount = 0;
             isRetrying = false;
             // جلب فوري للرحلات المعلقة لتغطية أي رحلات أُنشئت أثناء إعادة الاتصال
@@ -569,6 +543,21 @@ export const useDriverNotifications = (
     
     let channel = createChannel();
 
+    // ═══ Phase 3C: قناة شخصية للإشعارات الموجهة من match-ride ═══
+    // match-ride يرسل broadcast إلى هذه القناة للمرشحين فقط (بعد spatial filter)
+    // يحل محل postgres_changes INSERT الذي كان يُرسل لكل السائقين
+    const personalChannelName = `driver-notif-${driverId}`;
+    const personalChannel = supabase
+      .channel(personalChannelName)
+      .on('broadcast', { event: 'new_ride_request' }, (payload) => {
+        console.log('🎯 [Phase 3C] Targeted ride notification:', payload.payload?.ride_id);
+        lastRealtimeEventAtRef.current = Date.now();
+        handleNewRide({ new: payload.payload as Record<string, unknown> });
+      })
+      .subscribe((status) => {
+        console.log('🎯 Personal notification channel status:', status);
+      });
+
     // 📱 Capacitor: إعادة اتصال Realtime عند عودة التطبيق من الخلفية
     const setupAppStateListener = async () => {
       cleanupAppState = await onAppStateChange((isActive) => {
@@ -605,7 +594,7 @@ export const useDriverNotifications = (
       if (staleForMs > CHANNEL_STALE_MS) {
         recreateChannel('stale_channel');
       }
-    }, 15_000);
+    }, 60_000); // فحص كل دقيقة بدل 15 ثانية
 
     return () => {
       console.log('Cleaning up ride notification subscription');
@@ -613,6 +602,7 @@ export const useDriverNotifications = (
       if (retryTimer) clearTimeout(retryTimer);
       if (healthCheckTimer) clearInterval(healthCheckTimer);
       supabase.removeChannel(channel);
+      supabase.removeChannel(personalChannel);
       if (cleanupAppState) cleanupAppState();
       if (localNotifListenerHandle) localNotifListenerHandle.remove();
       if (visibilityHandler) {
