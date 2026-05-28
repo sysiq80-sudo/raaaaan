@@ -33,6 +33,7 @@ import logo from "@/assets/logo.png";
 import { GooglePlacesGeocodingAdapter } from "@/lib/adapters/GooglePlacesGeocodingAdapter";
 import type { PlacePrediction } from "@/lib/adapters/types";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
 
 /* ──────────────────────────────────────────
    ثوابت
@@ -397,6 +398,13 @@ const AIVoiceHome: React.FC = () => {
   const { result, error, amplitude, startRecording, stopRecording, resetVoice } = voiceHook;
 
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // [Android] Back button — close side menu first, then double-back to exit on root
+  useAndroidBackButton(() => {
+    if (menuOpen) { setMenuOpen(false); return true; }
+    return false;
+  });
+
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isPressing, setIsPressing] = useState(false);
   const [isTextMode, setIsTextMode] = useState(false);

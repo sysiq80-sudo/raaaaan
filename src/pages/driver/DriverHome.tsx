@@ -42,6 +42,7 @@ import { saveLastKnownLocation, getLastKnownLocation } from "@/services/lastKnow
 import { MapNetworkOverlay } from "@/components/common/MapNetworkOverlay";
 import { useNotificationRouter } from "@/hooks/useNotificationRouter";
 import { useRealtimeRideEvents } from "@/hooks/useRealtimeRideEvents";
+import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
 import {
   Menu,
   X,
@@ -252,7 +253,18 @@ const DriverHome = () => {
     }
   };
 
-  // 🔒 قفل الشاشة — يمنع إطفاء الشاشة أثناء القيادة
+  // [Android] Back button — close open panels first, then double-back to exit on root
+  useAndroidBackButton(() => {
+    if (menuOpen || notificationsOpen || rewardsOpen) {
+      setMenuOpen(false);
+      setNotificationsOpen(false);
+      setRewardsOpen(false);
+      return true;
+    }
+    return false;
+  });
+
+  // قفل الشاشة — يمنع إطفاء الشاشة أثناء القيادة
   const { isWakeLockActive, requestWakeLock, releaseWakeLock } = useWakeLock();
 
   // Enable real-time notifications for new rides

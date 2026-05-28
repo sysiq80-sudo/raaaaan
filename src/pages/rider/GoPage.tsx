@@ -53,6 +53,7 @@ import { cleanArabicAddress } from "@/utils/addressCleaner";
 
 // Performance & Enhancement hooks
 import { usePerformanceMonitoring, useOperationTiming } from "@/hooks/usePerformanceMonitoring";
+import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
 import { useLastRide, useRiderPreferences } from "@/hooks/useLocalStorage";
 import { useOfflineMode } from "@/hooks/useOfflineMode";
 
@@ -159,6 +160,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     menuOpen,
     setMenuOpen
   } = useRiderData();
+
+  // [Android] Back button — close side menu first, then navigate(-1)
+  useAndroidBackButton(() => {
+    if (menuOpen) { setMenuOpen(false); return true; }
+    return false;
+  });
 
   // Get bottom nav state from store
   const bottomNavEnabled = useRiderStore((state) => state.bottomNavEnabled);
