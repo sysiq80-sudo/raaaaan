@@ -50,7 +50,7 @@ export default function DriverScheduledRidesBoard() {
       if (error) throw error;
       return (data || []) as ScheduledRide[];
     },
-    refetchInterval: 10000, // تحديث كل 10 ثوان
+    refetchInterval: 30000, // 30 ثانية — الرحلات المجدولة لا تتغير بسرعة
   });
 
   // جلب الرحلات المحجوزة من قبل السائق الحالي
@@ -76,7 +76,7 @@ export default function DriverScheduledRidesBoard() {
       if (error) throw error;
       return (data || []) as ScheduledRide[];
     },
-    refetchInterval: 10000,
+    refetchInterval: 30000,
   });
 
   const handleAcceptRide = async (ride: ScheduledRide) => {

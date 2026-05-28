@@ -218,26 +218,7 @@ export const LiveRideTracker = ({
           }
         },
       )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "drivers",
-          filter: `id=eq.${driverId}`,
-        },
-        (payload) => {
-          const newLocation = payload.new.current_location as {
-            lat: number;
-            lng: number;
-          };
-          if (newLocation) {
-            console.log("📍 Driver location updated:", newLocation);
-            setDriverLocation(newLocation);
-            calculateETA(newLocation);
-          }
-        },
-      )
+      // Note: drivers table removed from Realtime publication — no postgres_changes subscription
       .subscribe((status) => {
         console.log("Subscription status:", status);
       });
@@ -786,7 +767,7 @@ export const LiveRideTracker = ({
                   </div>
                   <div className="text-left">
                     <span className="text-3xl font-black text-primary">
-                      {ride.estimated_fare?.toLocaleString() || "..."}
+                      {ride.estimated_fare?.toLocaleString('en-US') || "..."}
                     </span>
                     <span className="text-sm text-muted-foreground mr-1">
                       د.ع

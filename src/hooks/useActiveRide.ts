@@ -407,8 +407,8 @@ export const useActiveRide = (userId: string | null) => {
 
     // Fallback polling - smart interval:
     // 10s when no active ride (just checking for new ones)
-    // 2s when tracking an active ride (need fast status updates)
-    const getPollingInterval = () => activeRideIdRef.current ? 2000 : 10000;
+    // 15s when tracking an active ride (Realtime is primary source; poll is fallback only)
+    const getPollingInterval = () => activeRideIdRef.current ? 15000 : 10000;
     let pollTimer: ReturnType<typeof setTimeout>;
 
     const schedulePoll = () => {
