@@ -58,8 +58,9 @@ const config: CapacitorConfig = {
       pausesLocationUpdatesAutomatically: false, // عدم إيقاف التحديثات تلقائياً
     },
     LocalNotifications: {
-      smallIcon: 'ic_transparent',
-      iconColor: '#10b981',
+      smallIcon: 'ic_stat_notify',
+      iconColor: '#000000',
+      largeIcon: 'ic_notify_large',
     },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],

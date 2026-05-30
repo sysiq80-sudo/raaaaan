@@ -20,6 +20,9 @@ project(':capacitor-browser').projectDir = new File('../node_modules/@capacitor/
 include ':capacitor-device'
 project(':capacitor-device').projectDir = new File('../node_modules/@capacitor/device/android')
 
+include ':capacitor-dialog'
+project(':capacitor-dialog').projectDir = new File('../node_modules/@capacitor/dialog/android')
+
 include ':capacitor-geolocation'
 project(':capacitor-geolocation').projectDir = new File('../node_modules/@capacitor/geolocation/android')
 
@@ -41,6 +44,9 @@ project(':capacitor-preferences').projectDir = new File('../node_modules/@capaci
 include ':capacitor-push-notifications'
 project(':capacitor-push-notifications').projectDir = new File('../node_modules/@capacitor/push-notifications/android')
 
+include ':capacitor-screen-orientation'
+project(':capacitor-screen-orientation').projectDir = new File('../node_modules/@capacitor/screen-orientation/android')
+
 include ':capacitor-share'
 project(':capacitor-share').projectDir = new File('../node_modules/@capacitor/share/android')
 
@@ -49,6 +55,9 @@ project(':capacitor-splash-screen').projectDir = new File('../node_modules/@capa
 
 include ':capacitor-status-bar'
 project(':capacitor-status-bar').projectDir = new File('../node_modules/@capacitor/status-bar/android')
+
+include ':capacitor-toast'
+project(':capacitor-toast').projectDir = new File('../node_modules/@capacitor/toast/android')
 
 include ':transistorsoft-capacitor-background-geolocation'
 project(':transistorsoft-capacitor-background-geolocation').projectDir = new File('../node_modules/@transistorsoft/capacitor-background-geolocation/android')
