@@ -4,11 +4,11 @@
  * Google Maps Version
  */
 
-import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo, type SetStateAction } from "react";
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { useToast } from "./use-toast";
 import { getMapStyle, watchThemeChanges } from "@/utils/mapStyles";
-import { getGeocoder } from "@/lib/googleMapService";
+import { getGeocoder, getOrCreateSharedMap } from "@/lib/googleMapService";
 import { saveLastKnownLocation, getLastKnownLocation } from "@/services/lastKnownLocationService";
 import { useMapContext } from "@/contexts/MapContext";
 import type { IGeocodingAdapter } from "@/lib/adapters";
@@ -49,6 +49,7 @@ export const useLocationPicker = (
 
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
+  const googleListenersRef = useRef<google.maps.MapsEventListener[]>([]);
   const userMarkerRef = useRef<google.maps.Marker | null>(null);
   const userAccuracyCircleRef = useRef<google.maps.Circle | null>(null);
   const osmMapRef = useRef<any>(null);
@@ -60,7 +61,10 @@ export const useLocationPicker = (
   const centerAddressRef = useRef<string>(""); // ✨ Ref لتجنب stale closure في idle listener
   const isDraggingRef = useRef(false); // ✨ Ref بدل state لتجنب stale closure في idle listener
   const lastGeocodedLatLngRef = useRef<{ lat: number; lng: number } | null>(null); // ✨ لمنع تكرار geocoding لنفس الإحداثيات
+  const isGeocodingRef = useRef(false); // ✨ لمنع طلبات geocode متزامنة (حل تكرار idle)
+  const pendingGeocodeRef = useRef<{ lat: number; lng: number } | null>(null);
   const geocodingAdaptersRef = useRef<IGeocodingAdapter[]>([]);
+  const reverseGeocodeRef = useRef<((lat: number, lng: number) => Promise<void>) | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -72,6 +76,20 @@ export const useLocationPicker = (
   const [isCheckingService, setIsCheckingService] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapProvider, setMapProvider] = useState<ActiveMapProvider>("none");
+
+  const isAddressResolving = (address: string) =>
+    !address.trim() || address.includes("جاري تحديد العنوان");
+
+  const setCenterAddressSynced = useCallback((value: SetStateAction<string>) => {
+    setCenterAddress((previous) => {
+      const next = typeof value === "function"
+        ? (value as (previous: string) => string)(previous)
+        : value;
+
+      centerAddressRef.current = next;
+      return next;
+    });
+  }, []);
 
   // تحميل Geocoding adapters (Nominatim مجاني كـ fallback عن Google)
   useEffect(() => {
@@ -191,10 +209,43 @@ export const useLocationPicker = (
     async (lat: number, lng: number) => {
       // ✨ تخطي إذا الإحداثيات لم تتغير (أقل من 5 متر)
       const last = lastGeocodedLatLngRef.current;
-      if (last && haversineDistance(lat, lng, last.lat, last.lng) < 5) {
+      if (
+        last &&
+        !isAddressResolving(centerAddressRef.current) &&
+        haversineDistance(lat, lng, last.lat, last.lng) < 5
+      ) {
         logger.debug("useLocationPicker", "Skipping reverseGeocode for same location");
         return;
       }
+
+      // ✨ لا نرمي آخر نقطة أثناء السحب: نخزنها لتعمل فور انتهاء الطلب الحالي.
+      if (isGeocodingRef.current) {
+        pendingGeocodeRef.current = { lat, lng };
+        centerAddressRef.current = "جاري تحديد العنوان...";
+        setCenterAddress("جاري تحديد العنوان...");
+        logger.debug("useLocationPicker", "Queued reverseGeocode while another request is in progress");
+        return;
+      }
+      isGeocodingRef.current = true;
+      centerAddressRef.current = "جاري تحديد العنوان...";
+      setCenterAddress("جاري تحديد العنوان...");
+
+      const hasNewerPendingGeocode = () => {
+        const pending = pendingGeocodeRef.current;
+        return Boolean(pending && haversineDistance(lat, lng, pending.lat, pending.lng) >= 5);
+      };
+
+      const commitResolvedLocation = (address: string, resolvedLat = lat, resolvedLng = lng) => {
+        if (!address.trim() || hasNewerPendingGeocode()) return false;
+
+        centerAddressRef.current = address;
+        setCenterAddress(address);
+        setCenterLat(resolvedLat);
+        setCenterLng(resolvedLng);
+        lastGeocodedLatLngRef.current = { lat: resolvedLat, lng: resolvedLng };
+        checkServiceArea(resolvedLat, resolvedLng);
+        return true;
+      };
 
       try {
         // 1) محاولة عبر geocoding adapters (مجاني/أرخص) أولاً
@@ -206,12 +257,7 @@ export const useLocationPicker = (
               continue;
             }
 
-            centerAddressRef.current = adapterAddress;
-            setCenterAddress(adapterAddress);
-            setCenterLat(lat);
-            setCenterLng(lng);
-            lastGeocodedLatLngRef.current = { lat, lng };
-            checkServiceArea(lat, lng);
+            const committed = commitResolvedLocation(adapterAddress);
 
             // إذا Google غير متوفر، نكتفي بعنوان الـ adapter
             if (!window.google?.maps) {
@@ -219,7 +265,7 @@ export const useLocationPicker = (
             }
 
             // إذا Google متوفر نتابع لتحسين عنوان POI، لكن نحتفظ بالعنوان الحالي كـ fallback
-            break;
+            if (committed) break;
           } catch (adapterError) {
             logger.warn("useLocationPicker", "Adaptive reverse geocode failed, trying next provider", adapterError);
           }
@@ -228,14 +274,9 @@ export const useLocationPicker = (
         // 2) Google-based enrichment (POI first) إذا متوفر
         if (!window.google?.maps) {
           // إذا لم يكن هناك عنوان من الـ adapter، نستخدم الإحداثيات
-          if (!centerAddressRef.current || centerAddressRef.current === "جاري تحديد العنوان...") {
+          if (isAddressResolving(centerAddressRef.current)) {
             const fallbackAddr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-            centerAddressRef.current = fallbackAddr;
-            setCenterAddress(fallbackAddr);
-            setCenterLat(lat);
-            setCenterLng(lng);
-            lastGeocodedLatLngRef.current = { lat, lng };
-            checkServiceArea(lat, lng);
+            commitResolvedLocation(fallbackAddr);
           }
           return;
         }
@@ -291,6 +332,7 @@ export const useLocationPicker = (
         const geocodePromise = geocoder.geocode({
           location: new window.google.maps.LatLng(lat, lng),
           language: "ar",
+          region: "IQ",
         });
 
         // 🚫 SearchNearby معطّل — تكلفة $32/1000 طلب
@@ -429,34 +471,9 @@ export const useLocationPicker = (
           logger.debug("useLocationPicker", "Fallback address selected", { finalAddress });
         }
 
-        let finalLat = lat;
-        let finalLng = lng;
-
-        if (geoResults[0]?.geometry?.location) {
-          const snappedLoc = geoResults[0].geometry.location;
-          const sLat = snappedLoc.lat();
-          const sLng = snappedLoc.lng();
-          const dist = haversineDistance(lat, lng, sLat, sLng);
-          
-          // Snap only if distance is between 2m and 120m
-          if (dist > 2 && dist < 120) {
-            logger.debug("useLocationPicker", `Snapping pin to nearest geocoded address. Distance: ${dist.toFixed(1)}m`);
-            finalLat = sLat;
-            finalLng = sLng;
-            
-            if (map.current) {
-              skipNextReverseGeocodeRef.current = true;
-              map.current.panTo(snappedLoc);
-            }
-          }
-        }
-
-        centerAddressRef.current = finalAddress;
-        setCenterAddress(finalAddress);
-        setCenterLat(finalLat);
-        setCenterLng(finalLng);
-        lastGeocodedLatLngRef.current = { lat: finalLat, lng: finalLng }; // ✨ تحديث آخر إحداثيات تم geocode لها
-        checkServiceArea(finalLat, finalLng);
+        // لا نحرّك الخريطة تلقائياً إلى نتيجة Geocoder. الدبوس الثابت يجب أن يبقى مربوطاً
+        // بالمركز المرئي الحقيقي، أما Geocoder فيُستخدم لتسمية الطريق/المعلم فقط.
+        commitResolvedLocation(finalAddress);
 
         } catch (googleError: any) {
           // Google enrichment failed — keep the adapter (Nominatim) result if we have one
@@ -467,12 +484,9 @@ export const useLocationPicker = (
           }
           // إذا Nominatim نجح سابقاً، العنوان محفوظ بالفعل — لا نحتاج تعديل
           // إذا لم ينجح، نضع إحداثيات كـ fallback
-          if (!centerAddressRef.current || centerAddressRef.current === "جاري تحديد العنوان..." || centerAddressRef.current.length < 3) {
+          if (isAddressResolving(centerAddressRef.current) || centerAddressRef.current.length < 3) {
             const fallbackAddr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-            centerAddressRef.current = fallbackAddr;
-            setCenterAddress(fallbackAddr);
-            setCenterLat(lat);
-            setCenterLng(lng);
+            commitResolvedLocation(fallbackAddr);
           }
         }
 
@@ -480,14 +494,30 @@ export const useLocationPicker = (
         logger.error("useLocationPicker", "Reverse geocode error", error);
 
         const fallbackAddr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-        centerAddressRef.current = fallbackAddr;
-        setCenterAddress(fallbackAddr);
-        setCenterLat(lat);
-        setCenterLng(lng);
+        commitResolvedLocation(fallbackAddr);
+      } finally {
+        isGeocodingRef.current = false; // ✨ إعادة السماح بطلبات جديدة
+        const pending = pendingGeocodeRef.current;
+        if (pending) {
+          pendingGeocodeRef.current = null;
+          window.setTimeout(() => {
+            reverseGeocodeRef.current?.(pending.lat, pending.lng);
+          }, 0);
+        }
       }
     },
     [checkServiceArea],
   );
+
+  // Reset geocode cache to allow re-geocoding same coordinates
+  // Keep ref in sync with latest reverseGeocode callback
+  reverseGeocodeRef.current = reverseGeocode;
+
+  const resetGeocodeCache = useCallback(() => {
+    lastGeocodedLatLngRef.current = null;
+    isGeocodingRef.current = false;
+    pendingGeocodeRef.current = null;
+  }, []);
 
   const initOsmFallbackMap = useCallback(
     async (reason: string) => {
@@ -513,14 +543,14 @@ export const useLocationPicker = (
 
         osmMap.setView([initialCenter.lat, initialCenter.lng], 15);
 
-        osmMap.on("movestart", () => {
+        osmMap.on("dragstart", () => {
           setIsDragging(true);
           isDraggingRef.current = true;
           centerAddressRef.current = "جاري تحديد العنوان...";
           setCenterAddress("جاري تحديد العنوان...");
         });
 
-        osmMap.on("moveend", () => {
+        osmMap.on("dragend", () => {
           setIsDragging(false);
           isDraggingRef.current = false;
           const c = osmMap.getCenter();
@@ -662,7 +692,7 @@ export const useLocationPicker = (
           // 🌙 استخدام أنماط الخريطة الذكية (تتكيف مع Dark/Light تلقائياً)
           const mapStyle = getMapStyle();
 
-          map.current = new window.google.maps.Map(mapContainer.current, {
+          map.current = getOrCreateSharedMap(mapContainer.current, {
             center: initialCenter,
             zoom: 15,
             mapTypeId: window.google.maps.MapTypeId.ROADMAP,
@@ -695,85 +725,60 @@ export const useLocationPicker = (
           const center = map.current.getCenter();
           if (center) {
             logger.debug("useLocationPicker", "Initial reverseGeocode");
-            reverseGeocode(center.lat(), center.lng());
+            reverseGeocodeRef.current?.(center.lat(), center.lng());
           }
 
-          // Handle drag events - update address immediately when drag ends
-          map.current.addListener("dragstart", () => {
-            setIsDragging(true);
-            isDraggingRef.current = true; // ✨ Ref sync
-            centerAddressRef.current = "جاري تحديد العنوان...";
-            setCenterAddress("جاري تحديد العنوان..."); // Show loading state
-          });
+          // Remove existing listeners first to prevent duplicates if re-mounting
+          googleListenersRef.current.forEach((l) => window.google.maps.event.removeListener(l));
+          googleListenersRef.current = [];
 
-          map.current.addListener("dragend", () => {
-            setIsDragging(false);
-            isDraggingRef.current = false; // ✨ Ref sync
-            // ✨ تخطي reverseGeocode إذا كان العنوان تم تعيينه يدوياً من البحث
+          let idleGeocodeTimer: ReturnType<typeof window.setTimeout> | null = null;
+          const requestCenterReverseGeocode = (source: string) => {
             if (skipNextReverseGeocodeRef.current) {
-              logger.debug("useLocationPicker", "Skipping reverseGeocode after manual address set");
+              logger.debug("useLocationPicker", `Skipping reverseGeocode after manual address set (${source})`);
               skipNextReverseGeocodeRef.current = false;
               return;
             }
+
             const center = map.current?.getCenter();
             if (center) {
-              logger.debug("useLocationPicker", "Drag ended; reverse geocoding");
-              reverseGeocode(center.lat(), center.lng());
+              logger.debug("useLocationPicker", `Map ${source}; resolving center address`);
+              reverseGeocodeRef.current?.(center.lat(), center.lng());
             }
-          });
+          };
 
-          // Handle cursor changes for better UX
-          map.current.addListener("mouseover", () => {
-            if (mapContainer.current) {
-              mapContainer.current.style.cursor = 'grab';
-            }
-          });
+          // Handle drag events - update address immediately when drag ends
+          googleListenersRef.current.push(
+            map.current.addListener("dragstart", () => {
+              setIsDragging(true);
+              isDraggingRef.current = true; // ✨ Ref sync
+              centerAddressRef.current = "جاري تحديد العنوان...";
+              setCenterAddress("جاري تحديد العنوان..."); // Show loading state
+            })
+          );
 
-          map.current.addListener("mouseout", () => {
-            if (mapContainer.current) {
-              mapContainer.current.style.cursor = 'default';
-            }
-          });
+          googleListenersRef.current.push(
+            map.current.addListener("dragend", () => {
+              setIsDragging(false);
+              isDraggingRef.current = false; // ✨ Ref sync
+              requestCenterReverseGeocode("dragend");
+            })
+          );
 
-          map.current.addListener("mousedown", () => {
-            if (mapContainer.current) {
-              mapContainer.current.style.cursor = 'grabbing';
-            }
-          });
+          googleListenersRef.current.push(
+            map.current.addListener("idle", () => {
+              if (currentMode === "booking" || isDraggingRef.current) return;
+              if (idleGeocodeTimer) window.clearTimeout(idleGeocodeTimer);
 
-          map.current.addListener("mouseup", () => {
-            if (mapContainer.current) {
-              mapContainer.current.style.cursor = 'grab';
-            }
-          });
-
-          // ⚡ idle listener ذكي - فقط للحالات الخاصة
-          map.current.addListener("idle", () => {
-            // تخطي إذا كان العنوان تم تعيينه يدوياً
-            if (skipNextReverseGeocodeRef.current) {
-              logger.debug("useLocationPicker", "Skipping reverseGeocode after manual address set");
-              skipNextReverseGeocodeRef.current = false;
-              return;
-            }
-
-            // ⚡ تشغيل فقط إذا كان العنوان فارغ أو "جاري تحديد"
-            if (
-              !isDraggingRef.current &&
-              (!centerAddressRef.current ||
-                centerAddressRef.current === "جاري تحديد العنوان..." ||
-                centerAddressRef.current.length < 5)
-            ) {
-              const center = map.current?.getCenter();
-              if (center) {
-                logger.debug("useLocationPicker", "Idle; getting missing address");
-                reverseGeocode(center.lat(), center.lng());
-              }
-            }
-          });
+              idleGeocodeTimer = window.setTimeout(() => {
+                requestCenterReverseGeocode("idle");
+              }, 350);
+            })
+          );
 
           // ✨ Handle clicking on POIs (Points of Interest) - only in pickup/dropoff modes
           if (currentMode !== "booking") {
-            map.current.addListener(
+            googleListenersRef.current.push(map.current.addListener(
               "click",
               async (event: google.maps.MapMouseEvent) => {
                 if (event.placeId) {
@@ -811,7 +816,7 @@ export const useLocationPicker = (
                   }
                 }
               },
-            );
+            ));
           }
         } catch (error) {
           logger.error("useLocationPicker", "Map initialization error", error);
@@ -843,6 +848,61 @@ export const useLocationPicker = (
     }, 150);
     return () => clearTimeout(timer);
   }, [mapProvider, reloadKey]);
+
+  // ✅ Auto-retry geocoding if address didn't load on first attempt
+  useEffect(() => {
+    if (isLoading) return; // Map not ready yet
+    if (centerAddressRef.current && centerAddressRef.current !== "جاري تحديد العنوان...") return; // Already have address
+    
+    let retries = 0;
+    const maxRetries = 5;
+    
+    const retryGeocode = setInterval(() => {
+      retries++;
+      if (retries > maxRetries) {
+        clearInterval(retryGeocode);
+        return;
+      }
+      // Check again if address appeared
+      if (centerAddressRef.current && centerAddressRef.current !== "جاري تحديد العنوان...") {
+        clearInterval(retryGeocode);
+        return;
+      }
+      const center = map.current?.getCenter?.();
+      if (center) {
+        lastGeocodedLatLngRef.current = null; // Reset to bypass same-location check
+        isGeocodingRef.current = false;
+        logger.debug("useLocationPicker", `Auto-retry geocoding attempt ${retries}`);
+        reverseGeocodeRef.current?.(center.lat(), center.lng());
+      }
+    }, 2000);
+
+    return () => clearInterval(retryGeocode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
+
+  // ✅ Trigger reverse geocode when mode changes (e.g. pickup → dropoff)
+  // بدون هذا، عند الانتقال إلى الوصول لا يظهر العنوان فوق الدبوس تلقائياً
+  useEffect(() => {
+    if (isLoading) return;
+    if (!currentMode || currentMode === "booking") return;
+
+    // تأخير بسيط لضمان اكتمال أي panTo/animation قبل الاستعلام
+    const timer = setTimeout(() => {
+      const center = map.current?.getCenter?.();
+      if (center) {
+        // Reset caches to force fresh geocoding
+        lastGeocodedLatLngRef.current = null;
+        isGeocodingRef.current = false;
+        skipNextReverseGeocodeRef.current = false;
+        logger.debug("useLocationPicker", `Mode changed to "${currentMode}" — triggering reverseGeocode`);
+        reverseGeocodeRef.current?.(center.lat(), center.lng());
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMode, isLoading]);
 
   // (تم نقل userMarkerRef, userAccuracyCircleRef, و hasPannedToUserOnce إلى الأعلى لتسهيل إدارتها عند التحديث)
 
@@ -966,10 +1026,15 @@ export const useLocationPicker = (
   }, [userLocation, isLoading, mapProvider]);
 
   // ✨ دالة لتعيين العنوان يدوياً (من البحث) مع منع reverseGeocode التلقائي
-  const setManualAddress = useCallback((address: string) => {
-    logger.debug("useLocationPicker", "Setting manual address", { address });
+  const setManualAddress = useCallback((address: string, coords?: { lat: number; lng: number }) => {
+    logger.debug("useLocationPicker", "Setting manual address", { address, coords });
     centerAddressRef.current = address;
     setCenterAddress(address);
+    if (coords) {
+      setCenterLat(coords.lat);
+      setCenterLng(coords.lng);
+      lastGeocodedLatLngRef.current = coords;
+    }
     skipNextReverseGeocodeRef.current = true;
 
     // إعادة الـ flag بعد 2 ثانية لتجنب منع reverseGeocode المستقبلي
@@ -982,9 +1047,21 @@ export const useLocationPicker = (
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      // Remove all Google Maps listeners to prevent callback leaks
+      googleListenersRef.current.forEach((l) => window.google.maps.event.removeListener(l));
+      googleListenersRef.current = [];
+
       if (osmMapRef.current) {
         osmMapRef.current.remove();
         osmMapRef.current = null;
+      }
+      if (userMarkerRef.current) {
+        userMarkerRef.current.setMap(null);
+        userMarkerRef.current = null;
+      }
+      if (userAccuracyCircleRef.current) {
+        userAccuracyCircleRef.current.setMap(null);
+        userAccuracyCircleRef.current = null;
       }
       if (map.current) {
         // Google Maps doesn't have a remove() method
@@ -1006,12 +1083,13 @@ export const useLocationPicker = (
     isCheckingService,
     mapProvider,
     mapError, // ✨ خطأ تحميل الخريطة
-    setCenterAddress,
+    setCenterAddress: setCenterAddressSynced,
     setCenterLat,
     setCenterLng,
     setManualAddress, // ✨ NEW
     checkServiceArea,
     reverseGeocode,
+    resetGeocodeCache,
     setIsDragging,
     setIsLoading,
   };
