@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import SplashScreen from "@/components/common/SplashScreen";
-import { Navigation, Loader2, MapPin, AlertTriangle, AlertCircle, Search, Bookmark, Home, Briefcase, Star, Clock, ArrowRight, Edit2, Heart } from "lucide-react";
+import { Navigation, Loader2, MapPin, AlertTriangle, AlertCircle, Search, Bookmark, Home, Briefcase, Star, Clock, ArrowRight, Edit2, Heart, X } from "lucide-react";
 import logo from "@/assets/logo.png";
 import RiderMapHeader from "@/components/rider/RiderMapHeader";
 import RiderBottomSheet from "@/components/rider/RiderBottomSheet";
@@ -43,7 +43,7 @@ import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { DynamicSearchHeader, DynamicSearchResults, SEARCH_CATEGORIES, type CategoryFilter } from "@/components/rider/DynamicSearchResults";
 import { LocationPermissionPrompt } from "@/components/rider/LocationPermissionPrompt";
 import { useVoiceSearch } from "@/hooks/useVoiceSearch";
-import { useUnifiedSearch } from "@/hooks/useUnifiedSearch";
+import { useUnifiedSearch, type UnifiedSearchResult } from "@/hooks/useUnifiedSearch";
 
 import FavoriteMarkersLayer from "@/components/rider/FavoriteMarkersLayer";
 import { useFavoritesStore } from "@/stores/useFavoritesStore";
@@ -113,7 +113,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     // ✅ فحص الإحداثيات: إذا كان العنوان يحتوي على أرقام فقط + فاصلة (33.4186, 43.2691)
     const coordinatePattern = /^[-+]?\d+\.?\d*\s*[،,]\s*[-+]?\d+\.?\d*$/;
     if (coordinatePattern.test(address.trim())) {
-      return "موقعك الحالي"; // عرض نص وصفي بدلاً من الإحداثيات
+      return "نقطة محددة على الخريطة";
     }
     
     // ✅ أولاً: تنظيف العنوان من النص الإنجليزي
@@ -161,11 +161,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     setMenuOpen
   } = useRiderData();
 
-  // [Android] Back button — close side menu first, then navigate(-1)
-  useAndroidBackButton(() => {
-    if (menuOpen) { setMenuOpen(false); return true; }
-    return false;
-  });
+  // [Android] Back button handler is defined below after handleGoBack is declared
 
   // Get bottom nav state from store
   const bottomNavEnabled = useRiderStore((state) => state.bottomNavEnabled);
@@ -190,6 +186,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     setManualAddress, // ✨ NEW
     checkServiceArea,
     reverseGeocode,
+    resetGeocodeCache,
     setIsLoading,
   } = useLocationPicker(mapToken, userLocation, mapReloadKey, currentMode);
 
@@ -608,6 +605,133 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     }
   }, [userId]);
 
+  // إضافة أو إزالة المكان من المفضلة
+  const handleToggleFavorite = useCallback(async (result: UnifiedSearchResult) => {
+    if (!userId) {
+      toast({
+        title: "⚠️ يرجى تسجيل الدخول",
+        description: "يجب تسجيل الدخول لتتمكن من إضافة الأماكن إلى المفضلة",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // ابحث عن المكان في قائمة الأماكن المحفوظة الحالية
+    const savedItem = supabaseSavedPlaces.find(
+      (place) =>
+        (result.place_id && place.id === result.place_id) ||
+        (result.lat && result.lng && Math.abs(place.lat - result.lat) < 0.0001 && Math.abs(place.lng - result.lng) < 0.0001) ||
+        place.address === result.description ||
+        place.name === result.main_text
+    );
+
+    if (savedItem) {
+      // إزالة من المفضلة
+      try {
+        const { error } = await supabase
+          .from("saved_places")
+          .delete()
+          .eq("id", savedItem.id);
+
+        if (error) throw error;
+
+        setSupabaseSavedPlaces((prev) => prev.filter((p) => p.id !== savedItem.id));
+        removeFavorite(savedItem.id);
+        toast({
+          title: "تمت الإزالة من المفضلة 💔",
+          description: `تمت إزالة ${result.main_text} من أماكنك المفضلة`,
+        });
+      } catch (error: any) {
+        console.error("Error removing favorite:", error);
+        toast({
+          title: "خطأ في الإزالة ❌",
+          description: error.message || "تعذر إزالة المكان من المفضلة",
+          variant: "destructive"
+        });
+      }
+    } else {
+      // إضافة إلى المفضلة
+      let lat = result.lat;
+      let lng = result.lng;
+      let address = result.secondary_text || result.description || '';
+      const name = result.main_text;
+
+      // إذا لم تتوفر إحداثيات (نتيجة من Google مثلاً)
+      if ((lat === undefined || lng === undefined) && result.place_id) {
+        try {
+          const placeDetails = await getPlaceDetails(result.place_id);
+          if (placeDetails) {
+            lat = placeDetails.lat;
+            lng = placeDetails.lng;
+            if (!address) address = placeDetails.address;
+          }
+        } catch (err) {
+          console.error("Error fetching place details for favorite:", err);
+        }
+      }
+
+      if (lat === undefined || lng === undefined) {
+        toast({
+          title: "⚠️ تعذر تحديد موقع المكان",
+          description: "فشل الحصول على إحداثيات المكان لحفظه",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("saved_places")
+          .insert({
+            user_id: userId,
+            name: name,
+            label: "favorite",
+            address: address,
+            lat: lat,
+            lng: lng,
+            icon: "heart",
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          const newPlace = {
+            id: data.id,
+            name: data.name,
+            address: data.address,
+            lat: data.lat,
+            lng: data.lng,
+            icon: data.icon || "heart",
+            label: data.label || "favorite"
+          };
+          setSupabaseSavedPlaces((prev) => [...prev, newPlace]);
+          addFavorite({
+            id: data.id,
+            name: data.name,
+            address: data.address,
+            lat: data.lat,
+            lng: data.lng,
+            icon: "other",
+            createdAt: Date.now()
+          });
+        }
+        toast({
+          title: "تمت الإضافة للمفضلة ❤️",
+          description: `تم حفظ ${name} في أماكنك المفضلة`,
+        });
+      } catch (error: any) {
+        console.error("Error adding favorite:", error);
+        toast({
+          title: "خطأ في الحفظ ❌",
+          description: error.message || "تعذر حفظ المكان في المفضلة",
+          variant: "destructive"
+        });
+      }
+    }
+  }, [userId, supabaseSavedPlaces, getPlaceDetails, toast, removeFavorite, addFavorite]);
+
   // Fare calculation
   const {
     fareBreakdown,
@@ -618,6 +742,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   // Show fare calculation error
   useEffect(() => {
     if (fareError) {
+      if (fareError === "المسافة قصيرة جداً") {
+        return;
+      }
       toast({
         title: "خطأ في حساب السعر ❌",
         description: "تحقق من الاتصال أو حاول مرة أخرى",
@@ -837,11 +964,15 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userLocation?.lat, userLocation?.lng]);
 
-  // Initialize booking mode map
+  // Initialize booking mode map — cleanup on exit
   useEffect(() => {
     if (currentMode !== "booking" || !pickupLocation || !dropoffLocation) return;
     initializeBookingMap(pickupLocation, dropoffLocation, intermediateStops);
-  }, [currentMode, pickupLocation, dropoffLocation, intermediateStops, initializeBookingMap]);
+    // Cleanup markers when leaving booking mode
+    return () => {
+      cleanupBooking();
+    };
+  }, [currentMode, pickupLocation, dropoffLocation, intermediateStops, initializeBookingMap, cleanupBooking]);
 
   // تحذير المستخدم قبل مغادرة الصفحة أثناء الحجز
   useEffect(() => {
@@ -921,9 +1052,13 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       const actualLng: number = center.lng();
       
       let address = centerAddress;
+      const addressNeedsRefresh =
+        !address ||
+        address.includes("جاري تحديد العنوان") ||
+        !buildDescriptiveAddress(address);
 
       // إذا لم نحصل على عنوان، نحصل عليه من Google Geocoding
-      if (!address) {
+      if (addressNeedsRefresh) {
         try {
           if (window.google?.maps && map.current) {
             // Step 1: Get full address from Geocoding API first
@@ -1019,6 +1154,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           address = `${actualLat.toFixed(5)}, ${actualLng.toFixed(5)}`;
         }
       }
+
+      if (address) setCenterAddress(address);
 
       // فحص منطقة الخدمة
       const serviceCheck = await checkServiceArea(actualLat, actualLng);
@@ -1120,7 +1257,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     } finally {
       setIsConfirming(false);
     }
-  }, [currentMode, centerAddress, isConfirming, map, checkServiceArea, toast, pickupLocation, dropoffLocation, activeStopId, setCurrentMode, setSearchQuery, setMapReloadKey]);
+  }, [currentMode, centerAddress, isConfirming, map, checkServiceArea, toast, pickupLocation, dropoffLocation, activeStopId, setCurrentMode, setSearchQuery, setMapReloadKey, setCenterAddress, buildDescriptiveAddress, mapToken]);
 
   // Track first drag to hide tooltip permanently
   useEffect(() => {
@@ -1185,15 +1322,49 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   // ═══ رجوع بين المراحل ═══
   const handleGoBack = useCallback(() => {
     if (currentMode === "dropoff" || currentMode === "stop") {
+      // Going back to pickup — clear dropoff selection
+      setDropoffLocation(null);
+      setCenterAddress('');
       setCurrentMode("pickup");
       setIsLocationFocused(false);
       setLocationSearchQuery('');
       clearSearch();
+      // Trigger fresh geocode after map re-attaches
+      resetGeocodeCache();
+      setTimeout(() => {
+        const center = map.current?.getCenter?.();
+        if (center) reverseGeocode(center.lat(), center.lng());
+      }, 300);
     } else if (currentMode === "booking") {
+      // Going back to dropoff — clear booking map markers & route data
+      cleanupBooking();
+      setDropoffLocation(null);
+      setCenterAddress('');
       setCurrentMode("dropoff");
       setIsLocationFocused(false);
+      setRouteDistance(null);
+      setRouteDuration(null);
+      // Trigger fresh geocode after map re-attaches
+      resetGeocodeCache();
+      setTimeout(() => {
+        const center = map.current?.getCenter?.();
+        if (center) reverseGeocode(center.lat(), center.lng());
+      }, 300);
     }
-  }, [currentMode, clearSearch]);
+  }, [currentMode, clearSearch, cleanupBooking, setRouteDistance, setRouteDuration, setCenterAddress, reverseGeocode, resetGeocodeCache, map]);
+
+  // [Android] Back button — close side menu first, handle booking stages, then navigate(-1)
+  useAndroidBackButton(() => {
+    if (menuOpen) {
+      setMenuOpen(false);
+      return true;
+    }
+    if (currentMode !== "pickup") {
+      handleGoBack();
+      return true;
+    }
+    return false;
+  });
 
   // Handle booking submission
   const handleBookRide = async () => {
@@ -1659,14 +1830,19 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   const isStopMode = currentMode === "stop";
   const isDropoff = currentMode === "dropoff";
   const isBookingMode = currentMode === "booking";
+  const isCenterAddressResolving = centerAddress.includes("جاري تحديد العنوان");
+  const centerAddressDisplay = isCenterAddressResolving
+    ? "جاري تحديد العنوان..."
+    : buildDescriptiveAddress(centerAddress);
+  const hasResolvedCenterAddress = Boolean(
+    centerAddress && !isCenterAddressResolving && centerAddressDisplay
+  );
   const currentSelectionLabel = isPickup
     ? "موقع الانطلاق"
     : isStopMode
       ? "المحطة"
       : "الوجهة";
-  const currentSelectionAddress = centerAddress
-    ? buildDescriptiveAddress(centerAddress)
-    : "حرّك الخريطة أو ابحث عن المكان";
+  const currentSelectionAddress = centerAddressDisplay || "حرّك الخريطة أو ابحث عن المكان";
   const pickupPreviewAddress = pickupLocation
     ? buildDescriptiveAddress(pickupLocation.address)
     : isPickup && centerAddress
@@ -1677,7 +1853,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     : (isDropoff || isStopMode) && centerAddress
       ? currentSelectionAddress
       : "حدد الوجهة";
-  const selectionReady = Boolean(centerAddress && !isCheckingService && !isConfirming);
+  const selectionReady = Boolean(hasResolvedCenterAddress && !isCheckingService && !isConfirming);
   const flowSteps = [
     {
       key: "pickup",
@@ -1901,7 +2077,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 map.current.panTo({ lat, lng });
                 map.current.setZoom(16);
               }
-              setManualAddress(address);
+              setManualAddress(address, { lat, lng });
               checkServiceArea(lat, lng);
             }}
           />
@@ -1919,55 +2095,55 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
 
 
-        {/* Simplified map pin — clean and minimal */}
-        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[15]">
-          <div className="relative w-0 h-0 flex flex-col items-center">
+        {/* Center map pin — the SVG tip is anchored exactly at the map center */}
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[15] -translate-x-1/2">
+          <div className="relative w-0 h-0">
             {/* Address label above pin */}
-            {centerAddress && (
-              <div className="absolute bottom-[84px] left-1/2 -translate-x-1/2 z-20 w-max">
+            {(centerAddress || isDragging) && (
+              <div className="absolute bottom-[78px] left-1/2 -translate-x-1/2 z-20 w-max">
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-card px-3.5 py-2 rounded-xl shadow-md border border-border/30 text-foreground max-w-[260px] text-center"
+                  className="bg-white px-3.5 py-2 rounded-xl shadow-[0_12px_30px_rgba(15,23,42,0.18)] border border-white/80 text-[#101828] max-w-[260px] text-center"
                 >
-                  <p className="text-sm font-bold text-foreground truncate">
-                    {buildDescriptiveAddress(centerAddress)}
+                  <p className="text-sm font-bold truncate">
+                    {isDragging && !centerAddressDisplay ? "حرّك الخريطة لتحديد المكان" : centerAddressDisplay}
                   </p>
                 </motion.div>
               </div>
             )}
             
             {/* Floating Pin */}
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10 w-20 h-20">
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10 w-[54px] h-[72px]">
               <motion.div 
-                animate={{ y: isDragging ? -20 : 0 }} 
+                animate={{ y: isDragging ? -18 : 0 }} 
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 className="w-full h-full"
               >
                 <svg 
-                  viewBox="0 0 24 24" 
-                  className={`w-full h-full drop-shadow-[0_2px_4px_rgba(0,0,0,0.12)] translate-y-[6.87px] ${
+                  viewBox="0 0 48 64"
+                  className={`w-full h-full drop-shadow-[0_6px_12px_rgba(15,23,42,0.24)] ${
                     isPickup ? 'text-emerald-500' : 'text-cyan-500'
                   }`}
                   fill="currentColor"
                   xmlns="http://www.w3.org/2000/svg"
                 >
-                  <g id="Map_Pin" data-name="Map Pin">
-                    <path d="M12,2.06a5.5,5.5,0,0,0-.5,10.97v8.41a.5.5,0,0,0,.5.5.5.5,0,0,0,.5-.5V13.03A5.5,5.5,0,0,0,12,2.06Zm0,10a4.5,4.5,0,1,1,4.5-4.5A4.5,4.5,0,0,1,12,12.06Z"/>
-                  </g>
+                  <path d="M24 64C20.2 58.8 4 35.8 4 22C4 9.85 12.95 0 24 0s20 9.85 20 22c0 13.8-16.2 36.8-20 42Z" />
+                  <circle cx="24" cy="22" r="9" fill="white" fillOpacity="0.96" />
+                  <circle cx="24" cy="22" r="4.5" fill="currentColor" />
                 </svg>
               </motion.div>
             </div>
             
             {/* Static Shadow on the ground — shrinks when pin lifts */}
-            <div className="absolute top-[-2px] left-1/2 -translate-x-1/2 w-6 h-1.5">
+            <div className="absolute top-[-1px] left-1/2 -translate-x-1/2 w-7 h-2">
               <motion.div 
                 animate={{ 
                   scale: isDragging ? 0.4 : 1,
                   opacity: isDragging ? 0.1 : 0.25
                 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                className="w-full h-full bg-black/20 rounded-full blur-[2px] mix-blend-multiply"
+                className="w-full h-full bg-black/25 rounded-full blur-[2px] mix-blend-multiply"
               />
             </div>
           </div>
@@ -1981,13 +2157,13 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       </div>
 
       {/* Floating save location button */}
-      {centerLat && centerLng && (
+      {centerLat && centerLng && hasResolvedCenterAddress && (
         <button
           onClick={() => setShowSaveModal(true)}
           className={`absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl border shadow-md active:scale-95 transition-all ${
             isFav
               ? 'bg-pink-500/20 border-pink-500/50 shadow-[0_0_20px_rgba(244,63,94,0.4)]'
-              : 'bg-card border-border/30 hover:bg-secondary'
+              : 'bg-[#5bdda6] border-[#5bdda6]/30 shadow-[0_0_18px_rgba(91,221,166,0.5)] hover:bg-[#4ecf99]'
           }`}
           style={{ bottom: `${bottomPanelHeight + 80}px` }}
           aria-label={isFav ? 'إزالة من المفضلة' : 'حفظ الموقع'}
@@ -1995,7 +2171,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         >
           <Heart
             className={`w-4.5 h-4.5 transition-all ${
-              isFav ? 'text-pink-500 fill-pink-500' : 'text-foreground'
+              isFav ? 'text-pink-500 fill-pink-500' : 'text-[#0b1326]'
             }`}
           />
         </button>
@@ -2003,12 +2179,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
       {/* Floating geolocate button — dynamically positioned above bottom sheet */}
       <button
-        onClick={() => manualGeolocateMain()}
-        className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-card text-foreground border border-border/30 shadow-md hover:bg-secondary active:scale-95 transition-all"
+        onClick={() => manualGeolocateMain(true)}
+        className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-[#5bdda6] border border-[#5bdda6]/30 shadow-[0_0_18px_rgba(91,221,166,0.5)] hover:bg-[#4ecf99] active:scale-95 transition-all"
         style={{ bottom: `${bottomPanelHeight + 28}px` }}
         aria-label="تحديد موقعي"
       >
-        <Navigation className="w-4.5 h-4.5 text-foreground" />
+        <Navigation className="w-4.5 h-4.5 text-[#0b1326]" />
       </button>
 
       {/* ═══ Bottom Sheet — Clean white design ═══ */}
@@ -2038,37 +2214,33 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           }
         }}
       >
-        {/* ═══ Content ═══ */}
-        <div className="flex flex-col flex-1 min-h-0 overflow-y-auto pb-2 overscroll-contain">
-
-          {/* Headline + Search */}
-          <div className="px-4 pb-3">
-
-
-            {/* Pickup summary — ملخص الانطلاق في شاشة الوجهة (مضغوط) */}
-            {!isLocationFocused && !isPickup && pickupLocation && (
-              <div className="flex items-center gap-2 p-2 rounded-xl bg-card border border-border/30 shadow-sm mb-2">
-                <div className="w-6 h-6 rounded-md bg-emerald-500/15 flex items-center justify-center shrink-0">
-                  <Navigation className="w-3 h-3 text-emerald-500" />
-                </div>
-                <p className="flex-1 min-w-0 text-[11px] font-semibold text-foreground truncate">
-                  <span className="text-emerald-500 font-bold">من: </span>
-                  {buildDescriptiveAddress(pickupLocation.address)}
-                </p>
-                <button
-                  onClick={() => {
-                    setCurrentMode('pickup');
-                    setIsLocationFocused(false);
-                  }}
-                  className="shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-95 transition-all"
-                >
-                  تعديل
-                </button>
+        {/* ═══ Header Section (Fixed at top) ═══ */}
+        <div className="shrink-0 px-4 pt-1.5 pb-3.5 flex flex-col gap-3 border-b border-border/10 bg-card/95 backdrop-blur-md">
+          {/* Pickup summary — ملخص الانطلاق في شاشة الوجهة (مضغوط) */}
+          {!isLocationFocused && !isPickup && pickupLocation && (
+            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-card border border-border/30 shadow-sm">
+              <div className="w-6 h-6 rounded-md bg-emerald-500/15 flex items-center justify-center shrink-0">
+                <Navigation className="w-3 h-3 text-emerald-500" />
               </div>
-            )}
+              <p className="flex-1 min-w-0 text-sm font-semibold text-foreground truncate">
+                <span className="text-emerald-500 font-bold">الانطلاق من: </span>
+                {buildDescriptiveAddress(pickupLocation.address)}
+              </p>
+              <button
+                onClick={() => {
+                  setCurrentMode('pickup');
+                  setIsLocationFocused(false);
+                }}
+                className="shrink-0 px-2 py-1 rounded-md text-xs font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-95 transition-all"
+              >
+                تعديل
+              </button>
+            </div>
+          )}
 
-            {/* Search input */}
-            <div className="relative">
+          {/* Search input + close button */}
+          <div className="relative flex items-center gap-2.5">
+            <div className="flex-1 min-w-0">
               <DynamicSearchHeader
                 query={locationSearchQuery}
                 onQueryChange={(v) => {
@@ -2080,9 +2252,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 onClear={() => {
                   setLocationSearchQuery('');
                   clearSearch();
-                  setIsLocationFocused(false);
-                  setCenterAddress('');
-                  setManualAddress('');
+                  setIsLocationFocused(true);
                   setActiveCategory(null);
                 }}
                 isSearching={isSearching}
@@ -2102,7 +2272,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 }}
                 onCurrentLocation={() => manualGeolocateMain(true)}
                 onSaveLocation={() => {
-                  if (centerAddress && centerLat && centerLng) setShowSaveModal(true);
+                  if (hasResolvedCenterAddress && centerLat && centerLng) setShowSaveModal(true);
                 }}
                 isFavorite={!!isFav}
                 onClearAddress={() => {
@@ -2117,8 +2287,31 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 onVoiceToggle={toggleListening}
                 voiceTranscript={voiceTranscript}
               />
+            </div>
+            {/* زر الإغلاق — يظهر فقط عند البحث الكامل ومحاذي للوسط تماماً بجانب صندوق البحث الفاخر */}
+            {isLocationFocused && (
+              <button
+                onClick={() => {
+                  setIsLocationFocused(false);
+                  setLocationSearchQuery('');
+                  clearSearch();
+                  setActiveCategory(null);
+                  setPanelExpanded(true);
+                }}
+                className="flex-shrink-0 w-11 h-11 rounded-2xl bg-red-500 shadow-[0_0_16px_rgba(239,68,68,0.4)] hover:bg-red-600 active:bg-red-700 active:scale-90 flex items-center justify-center transition-all"
+                aria-label="إغلاق"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            )}
+          </div>
+        </div>
 
-              {/* Search results */}
+        {/* ═══ Scrollable Content Area (Results and Warnings) ═══ */}
+        <div className="flex-1 min-h-0 overflow-y-auto pb-2 overscroll-contain">
+          {/* Search results */}
+          {isLocationFocused && (
+            <div className="px-4 pb-3">
               <DynamicSearchResults
                 query={locationSearchQuery}
                 results={predictions}
@@ -2130,7 +2323,17 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                   : undefined}
                 recentSearches={recentSearches}
                 smartSuggestions={unified.getSmartSuggestions()}
-                nearbyLandmarks={unified.getNearbyLandmarks(5)}
+                nearbyLandmarks={unified.getNearbyLandmarks(5).filter(lm => {
+                  const isSaved = supabaseSavedPlaces.some(place =>
+                    (lm.lat && lm.lng && Math.abs(place.lat - lm.lat) < 0.0001 && Math.abs(place.lng - lm.lng) < 0.0001) ||
+                    place.name === lm.main_text
+                  );
+                  const isRecent = recentSearches.some(recent =>
+                    (lm.lat && lm.lng && Math.abs(recent.lat - lm.lat) < 0.0001 && Math.abs(recent.lng - lm.lng) < 0.0001) ||
+                    recent.mainText === lm.main_text
+                  );
+                  return !isSaved && !isRecent;
+                })}
                 savedPlaces={supabaseSavedPlaces}
                 isSearching={isSearching}
                 isLoadingDetails={isLoadingDetails}
@@ -2247,48 +2450,19 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                   applySelectedLocation(location);
                 }}
                 onRemoveRecent={removeRecentSearch}
+                onClearRecent={clearAllSearches}
                 maxResults={6}
                 maxRecentResults={3}
                 onClose={() => setIsLocationFocused(false)}
+                onToggleFavorite={handleToggleFavorite}
+                className="border-none shadow-none bg-transparent max-h-none mt-0 overflow-visible"
               />
-            </div>
-          </div>
-
-          {/* Saved places quick strip — when not searching, panel is expanded, and user has saved places */}
-          {!isLocationFocused && panelExpanded && supabaseSavedPlaces.length > 0 && (
-            <div className="px-4 pb-3">
-              <div className="flex gap-2 overflow-x-auto scrollbar-none" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
-                {/* Quick saved place buttons */}
-                <button
-                  onClick={() => {
-                    fetchSavedPlaces();
-                    setShowSavedPlacesDropdown(!showSavedPlacesDropdown);
-                  }}
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary hover:bg-secondary/80 border border-border/10 transition-colors text-xs font-semibold text-muted-foreground"
-                >
-                  <Bookmark className="w-3.5 h-3.5" />
-                  <span>المحفوظة</span>
-                </button>
-                {supabaseSavedPlaces.slice(0, 3).map((place) => (
-                  <button
-                    key={place.id}
-                    onClick={() => {
-                      const location = { lat: place.lat, lng: place.lng, address: place.address || place.name };
-                      applySelectedLocation(location);
-                    }}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary hover:bg-secondary/80 border border-border/10 transition-colors text-xs font-semibold text-foreground"
-                  >
-                    <span>{place.icon === 'home' ? '🏠' : place.icon === 'work' ? '💼' : '📍'}</span>
-                    <span className="max-w-[80px] truncate">{place.name}</span>
-                  </button>
-                ))}
-              </div>
             </div>
           )}
 
           {/* Service area warning */}
           {localServiceAreaStatus && !localServiceAreaStatus.in_service && (
-            <div className="mx-4 mb-3 flex items-center gap-3 p-3 rounded-2xl bg-destructive/5 border border-destructive/15">
+            <div className="mx-4 my-3 flex items-center gap-3 p-3 rounded-2xl bg-destructive/5 border border-destructive/15">
               <div className="w-8 h-8 rounded-xl bg-destructive/10 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4 text-destructive" />
               </div>
@@ -2304,7 +2478,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           )}
         </div>
 
-        {/* CTA Button — always at bottom */}
+        {/* CTA Button — hidden when search focused; user confirms by selecting a suggestion */}
+        {!isLocationFocused && (
         <div
           className="shrink-0 w-full pointer-events-auto flex bg-card border-t border-border/30 relative z-[10]"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0px)' }}
@@ -2314,15 +2489,45 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               if (navigator.vibrate) navigator.vibrate(50);
               handleConfirm();
             }}
-            disabled={!centerAddress || isCheckingService || isConfirming}
-            whileTap={(!centerAddress || isCheckingService || isConfirming) ? {} : { scale: 0.98 }}
-            style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-            className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
+            disabled={!hasResolvedCenterAddress || isCheckingService || isConfirming}
+            whileTap={(!hasResolvedCenterAddress || isCheckingService || isConfirming) ? {} : { scale: 0.98 }}
+            animate={
+              (selectionReady && !isCheckingService && !isConfirming)
+                ? {
+                    scale: [1, 1.015, 1],
+                    filter: ["brightness(1)", "brightness(1.15)", "brightness(1)"],
+                    boxShadow: isPickup
+                      ? [
+                          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 0px rgba(16, 185, 129, 0)",
+                          "0 10px 15px -3px rgba(16, 185, 129, 0.4), 0 4px 6px -2px rgba(16, 185, 129, 0.2), 0 0 0 8px rgba(16, 185, 129, 0.25)",
+                          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 0px rgba(16, 185, 129, 0)"
+                        ]
+                      : [
+                          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 0px rgba(34, 211, 238, 0)",
+                          "0 10px 15px -3px rgba(34, 211, 238, 0.4), 0 4px 6px -2px rgba(34, 211, 238, 0.2), 0 0 0 8px rgba(34, 211, 238, 0.25)",
+                          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 0px rgba(34, 211, 238, 0)"
+                        ]
+                  }
+                : {}
+            }
+            transition={
+              (selectionReady && !isCheckingService && !isConfirming)
+                ? {
+                    duration: 1.8,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }
+                : {}
+            }
+            style={{ fontFamily: "Cairo, sans-serif" }}
+            className={`flex-auto min-h-[52px] rounded-none flex items-center justify-center gap-2 text-base font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
               selectionReady
                 ? isPickup
                   ? 'border-emerald-700/30 text-white bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900'
                   : 'border-cyan-400/30 text-[#083344] bg-cyan-400 hover:bg-cyan-500 active:bg-cyan-600'
-                : 'border-border/30 text-muted-foreground bg-muted cursor-not-allowed shadow-none'
+                : isPickup
+                  ? 'border-emerald-500/10 text-emerald-500/50 bg-emerald-500/10 cursor-not-allowed shadow-none'
+                  : 'border-cyan-500/10 text-cyan-400/50 bg-cyan-500/10 cursor-not-allowed shadow-none'
             }`}
           >
             {isCheckingService || isConfirming ? (
@@ -2330,8 +2535,11 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 <Loader2 className="w-6 h-6 animate-spin" />
                 <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
               </>
-            ) : !centerAddress ? (
-              <span>{isPickup ? 'حدد مكان الانطلاق' : 'حدد مكان الوصول'}</span>
+            ) : !hasResolvedCenterAddress ? (
+              <>
+                {isCenterAddressResolving && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{isCenterAddressResolving ? 'جاري تحديد العنوان...' : isPickup ? 'حدد مكان الانطلاق' : 'حدد مكان الوصول'}</span>
+              </>
             ) : (
               <>
                 <Navigation className="w-5 h-5" />
@@ -2340,19 +2548,20 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             )}
           </motion.button>
         </div>
+        )}
       </RiderBottomSheet>
 
       {/* نافذة حفظ الموقع */}
       <SaveLocationModal
         open={showSaveModal}
         onOpenChange={setShowSaveModal}
-        address={centerAddress ? buildDescriptiveAddress(centerAddress) : ''}
+        address={hasResolvedCenterAddress ? centerAddressDisplay : ''}
         onSave={async (name, icon) => {
-          if (!centerLat || !centerLng || !centerAddress) return;
+          if (!centerLat || !centerLng || !hasResolvedCenterAddress) return;
           try {
             const { data: { user: authUser } } = await supabase.auth.getUser();
             if (!authUser) return;
-            const addr = buildDescriptiveAddress(centerAddress);
+            const addr = centerAddressDisplay;
             if (isFav) {
               const { favorites } = useFavoritesStore.getState();
               const fav = favorites.find(f => Math.abs(f.lat - centerLat) < 0.001 && Math.abs(f.lng - centerLng) < 0.001);
@@ -2370,7 +2579,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       />
 
       {/* Side Menu */}
-      <RiderSideMenu user={user} isOpen={menuOpen} onClose={() => setMenuOpen(false)} onLogout={async () => {
+      <RiderSideMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} onLogout={async () => {
       await supabase.auth.signOut();
       if (navigate) {
         navigate("/auth");

@@ -12,7 +12,7 @@
  * ═══════════════════════════════════════════════════════════════════
  */
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -20,7 +20,7 @@ import {
   Check, X, Map as MapIcon, Navigation, Send, Keyboard,
   ChevronLeft, Search, Clock, Home, Briefcase, Coffee,
   Dumbbell, Landmark, Car, Zap, Leaf, ArrowLeft, Menu,
-  BookOpen, Stethoscope, Building2, Utensils
+  BookOpen, Stethoscope, Building2, Utensils, LayoutGrid, List
 } from "lucide-react";
 import RiderSideMenu from "@/components/rider/RiderSideMenu";
 import { Button } from "@/components/ui/button";
@@ -31,9 +31,12 @@ import { reverseGeocodeCoordinates } from "@/lib/googleMapService";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
 import { GooglePlacesGeocodingAdapter } from "@/lib/adapters/GooglePlacesGeocodingAdapter";
+import { NominatimGeocodingAdapter } from "@/lib/adapters/NominatimGeocodingAdapter";
 import type { PlacePrediction } from "@/lib/adapters/types";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
+
+const nominatimAdapter = new NominatimGeocodingAdapter();
 
 /* ──────────────────────────────────────────
    ثوابت
@@ -62,10 +65,9 @@ const QUICK_CATEGORIES = [
   {
     id: "landmarks",
     label: "معالم الرمادي",
-    icon: <MapPin className="w-3.5 h-3.5" />,
+    icon: <MapPin className="w-5 h-5" />,
     color: "bg-[#5bdda6]/10 text-[#5bdda6] border border-[#5bdda6]/30 shadow-[0_0_20px_rgba(91,221,166,0.15)]",
     items: [
-      { name: "جامعة الأنبار", lat: 33.399525, lng: 43.263532 },
       { name: "جسر فلسطين", lat: 33.437142, lng: 43.326012 },
       { name: "مجمع الأندلس", lat: 33.423985, lng: 43.313021 },
       { name: "ملعب الأنبار", lat: 33.402011, lng: 43.313045 },
@@ -75,7 +77,7 @@ const QUICK_CATEGORIES = [
   {
     id: "roads",
     label: "شوارع وأحياء",
-    icon: <Navigation className="w-3.5 h-3.5" />,
+    icon: <Navigation className="w-5 h-5" />,
     color: "bg-blue-500/10 text-blue-400 border border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]",
     items: [
       { name: "شارع المستودع", lat: 33.422510, lng: 43.293021 },
@@ -89,38 +91,85 @@ const QUICK_CATEGORIES = [
   {
     id: "gov",
     label: "دوائر حكومية",
-    icon: <Landmark className="w-3.5 h-3.5" />,
+    icon: <Landmark className="w-5 h-5" />,
     color: "bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.15)]",
     items: [
       { name: "المرور العامة", lat: 33.421045, lng: 43.287012 },
       { name: "الجنسية والجوازات", lat: 33.427015, lng: 43.311088 },
       { name: "محكمة الرمادي", lat: 33.421544, lng: 43.295067 },
       { name: "ضريبة الرمادي", lat: 33.427099, lng: 43.302045 },
-      { name: "المجمع الحكومي", lat: 33.428055, lng: 43.311022 }
+      { name: "المجمع الحكومي", lat: 33.428055, lng: 43.311022 },
+      { name: "مديرية تربية الأنبار", lat: 33.425300, lng: 43.300500 },
+      { name: "مديرية صحة الأنبار", lat: 33.424800, lng: 43.298700 },
+      { name: "مديرية الكهرباء - الرمادي", lat: 33.423100, lng: 43.293400 },
+      { name: "مديرية الماء - الرمادي", lat: 33.422700, lng: 43.291800 },
+      { name: "مديرية الزراعة - الأنبار", lat: 33.426200, lng: 43.304100 },
+      { name: "مديرية العمل والشؤون الاجتماعية", lat: 33.427500, lng: 43.308300 },
+      { name: "محكمة استئناف الأنبار", lat: 33.421800, lng: 43.296200 },
+      { name: "مجلس محافظة الأنبار", lat: 33.429100, lng: 43.312000 },
+      { name: "مديرية البلدية - الرمادي", lat: 33.420500, lng: 43.290100 },
+      { name: "دائرة التقاعد الوطني", lat: 33.426700, lng: 43.306800 }
     ]
   },
   {
     id: "health",
     label: "مستشفيات",
-    icon: <Stethoscope className="w-3.5 h-3.5" />,
+    icon: <Stethoscope className="w-5 h-5" />,
     color: "bg-rose-500/10 text-rose-400 border border-rose-500/30 shadow-[0_0_20px_rgba(244,63,94,0.15)]",
     items: [
       { name: "مستشفى الرمادي التعليمي", lat: 33.422532, lng: 43.313545 },
-      { name: "النسائية والولادة", lat: 33.421011, lng: 43.314055 },
-      { name: "الرشيد الأهلي", lat: 33.425088, lng: 43.315012 }
+      { name: "مستشفى النسائية والولادة", lat: 33.421011, lng: 43.314055 },
+      { name: "مستشفى الرشيد الأهلي", lat: 33.425088, lng: 43.315012 },
+      { name: "مستشفى الأنبار العام", lat: 33.423400, lng: 43.312100 },
+      { name: "مستشفى الأطفال - الرمادي", lat: 33.421900, lng: 43.315800 },
+      { name: "مستشفى الصدر - الرمادي", lat: 33.424100, lng: 43.316200 },
+      { name: "مستشفى الطوارئ - الرمادي", lat: 33.422800, lng: 43.314700 },
+      { name: "مركز صحة حي التأميم", lat: 33.410200, lng: 43.261500 },
+      { name: "مركز صحة حي الأندلس", lat: 33.425500, lng: 43.311300 },
+      { name: "مركز صحة الحي العسكري", lat: 33.419800, lng: 43.284600 },
+      { name: "مركز صحة البو فراج", lat: 33.418500, lng: 43.278900 }
     ]
   },
   {
     id: "food",
     label: "مطاعم وكافيهات",
-    icon: <Utensils className="w-3.5 h-3.5" />,
+    icon: <Utensils className="w-5 h-5" />,
     color: "bg-orange-500/10 text-orange-400 border border-orange-500/30 shadow-[0_0_20px_rgba(249,115,22,0.15)]",
     items: [
       { name: "مطعم حجي زياد", lat: 33.426511, lng: 43.303534 },
       { name: "البيت الدمشقي", lat: 33.425576, lng: 43.306012 },
       { name: "مطعم المضايف", lat: 33.425022, lng: 43.301044 },
       { name: "بيترو كافيه", lat: 33.422033, lng: 43.315066 },
-      { name: "شنشل", lat: 33.420088, lng: 43.318045 }
+      { name: "شنشل", lat: 33.420088, lng: 43.318045 },
+      { name: "مطعم أبو عفيف", lat: 33.428310, lng: 43.300120 },
+      { name: "مطعم الريف", lat: 33.424780, lng: 43.298530 },
+      { name: "كافيه لافا", lat: 33.423150, lng: 43.310200 },
+      { name: "مطعم الخيمة", lat: 33.427200, lng: 43.307800 },
+      { name: "فلافل أبو يوسف", lat: 33.425900, lng: 43.295400 },
+      { name: "مشويات الأنبار", lat: 33.421500, lng: 43.302100 },
+      { name: "كافيه ديوان", lat: 33.424300, lng: 43.312500 },
+      { name: "مطعم سمك الرمادي", lat: 33.430100, lng: 43.296700 },
+      { name: "حلويات النجم", lat: 33.426800, lng: 43.309300 },
+      { name: "مطعم بيت الكباب", lat: 33.423700, lng: 43.304600 }
+    ]
+  },
+  {
+    id: "universities",
+    label: "جامعات الرمادي",
+    icon: <BookOpen className="w-5 h-5" />,
+    color: "bg-violet-500/10 text-violet-400 border border-violet-500/30 shadow-[0_0_20px_rgba(139,92,246,0.15)]",
+    items: [
+      { name: "جامعة الأنبار - الحرم الرئيسي", lat: 33.399525, lng: 43.263532 },
+      { name: "كلية الطب - جامعة الأنبار", lat: 33.422100, lng: 43.312800 },
+      { name: "كلية الهندسة - جامعة الأنبار", lat: 33.400200, lng: 43.264100 },
+      { name: "كلية التربية للعلوم الصرفة", lat: 33.399800, lng: 43.262900 },
+      { name: "كلية العلوم - جامعة الأنبار", lat: 33.400500, lng: 43.263000 },
+      { name: "كلية الحقوق - جامعة الأنبار", lat: 33.399100, lng: 43.264500 },
+      { name: "كلية الإدارة والاقتصاد", lat: 33.400800, lng: 43.262500 },
+      { name: "كلية التربية - جامعة الأنبار", lat: 33.398700, lng: 43.263800 },
+      { name: "كلية الزراعة - جامعة الأنبار", lat: 33.401200, lng: 43.261900 },
+      { name: "كلية المعارف الجامعة - الأنبار", lat: 33.424500, lng: 43.299800 },
+      { name: "المعهد التقني - الرمادي", lat: 33.418600, lng: 43.285300 }
     ]
   }
 ];
@@ -415,8 +464,46 @@ const AIVoiceHome: React.FC = () => {
   const [activeSavedPlaceIndex, setActiveSavedPlaceIndex] = useState(0);
   const [isSavedPlacesSliderPaused, setIsSavedPlacesSliderPaused] = useState(false);
   const [activeCategory, setActiveCategory] = useState("landmarks");
+  const [categorySelected, setCategorySelected] = useState<string | null>(null);
+  const [catViewMode, setCatViewMode] = useState<'grid' | 'tabs'>('grid');
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedPlaceCardRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [savedPlacesExpanded, setSavedPlacesExpanded] = useState(false);
+
+  // ═══ Pull-to-Refresh (سحب للتحديث) ═══
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const pullStartY = useRef<number | null>(null);
+  const PULL_THRESHOLD = 100;
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (isRefreshing) return;
+    pullStartY.current = e.touches[0].clientY;
+  }, [isRefreshing]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (pullStartY.current === null || isRefreshing) return;
+    const dy = e.touches[0].clientY - pullStartY.current;
+    if (dy > 0) {
+      setPullDistance(Math.min(dy * 0.5, PULL_THRESHOLD * 1.5));
+    } else {
+      setPullDistance(0);
+    }
+  }, [isRefreshing]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (pullDistance >= PULL_THRESHOLD && !isRefreshing) {
+      setIsRefreshing(true);
+      setPullDistance(PULL_THRESHOLD);
+      setTimeout(() => {
+        window.location.reload();
+      }, 600);
+    } else {
+      setPullDistance(0);
+    }
+    pullStartY.current = null;
+  }, [pullDistance, isRefreshing]);
   const [searchResults, setSearchResults] = useState<PlacePrediction[]>([]);
   
   const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
@@ -497,6 +584,30 @@ const AIVoiceHome: React.FC = () => {
     if (voiceState === "success" && result) setShowConfirmation(true);
   }, [voiceState, result]);
 
+  // ── بحث حي أثناء الكتابة (Live Search — Nominatim بدون CORS) ──
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    const trimmed = textInput.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+    setIsSearching(true);
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const center = pickupCoords ?? { lat: 33.4233, lng: 43.2974 };
+        const results = await nominatimAdapter.searchPlaces(trimmed, center);
+        setSearchResults(results.slice(0, 6) as PlacePrediction[]);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 350);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [textInput, pickupCoords]);
+
   useEffect(() => {
     if (activeSavedPlaceIndex >= normalizedFavorites.length) {
       setActiveSavedPlaceIndex(0);
@@ -528,16 +639,25 @@ const AIVoiceHome: React.FC = () => {
   const handleTextSubmit = useCallback(async () => {
     const trimmed = textInput.trim();
     if (!trimmed || trimmed.length < 2 || isSubmittingText) return;
-    
+
+    // اختصار: إذا النتائج الحية موجودة → اختر الأولى مباشرة (inline لتجنب circular deps)
+    if (searchResults.length > 0) {
+      const first = searchResults[0];
+      const savedDropoff = { lat: first.lat ?? 0, lng: first.lng ?? 0, address: first.description || first.main_text };
+      setDropoffLocation(savedDropoff);
+      setPickupLocation(null);
+      setVehicle("economy");
+      setSearchResults([]);
+      setTextResult(null);
+      navigate("/rider/go", { state: { fromVoice: true, fromSavedPlace: true, preferredMode: "pickup", savedDropoff, savedPickup: null } });
+      return;
+    }
+
     setIsSubmittingText(true);
     try {
-      // استخدام Google Places API للبحث
-      const adapter = new GooglePlacesGeocodingAdapter(googleMapsApiKey);
-      await adapter.load();
-      
-      // البحث في الرمادي
-      const centerRamadi = { lat: 33.4233, lng: 43.2974 };
-      const results = await adapter.searchPlaces(trimmed, centerRamadi);
+      // البحث عبر Nominatim (بدون CORS — يعمل في المتصفح والجهاز)
+      const center = pickupCoords ?? { lat: 33.4233, lng: 43.2974 };
+      const results = await nominatimAdapter.searchPlaces(trimmed, center);
       
       console.log(`[AIVoiceHome] البحث عن "${trimmed}" - النتائج: ${results.length}`);
       
@@ -581,7 +701,7 @@ const AIVoiceHome: React.FC = () => {
       
       // نتائج متعددة → عرض قائمة للاختيار
       console.log(`[AIVoiceHome] 📋 عدة نتائج (${results.length}) - عرض القائمة`);
-      setSearchResults(results);
+      setSearchResults(results as PlacePrediction[]);
       setTextResult({
         transcript: trimmed,
         origin: null,
@@ -601,7 +721,7 @@ const AIVoiceHome: React.FC = () => {
     } finally { 
       setIsSubmittingText(false); 
     }
-  }, [textInput, isSubmittingText, toast, googleMapsApiKey, navigate, setDropoffLocation, setPickupLocation, setVehicle]);
+  }, [textInput, isSubmittingText, searchResults, pickupCoords, toast, navigate, setDropoffLocation, setPickupLocation, setVehicle]);
 
   const handleDirectPlaceSelect = useCallback((place: { name: string, lat: number, lng: number }) => {
     // الاختيار المباشر من الأماكن السريعة (Quick Categories)
@@ -766,18 +886,66 @@ const AIVoiceHome: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 flex flex-col overflow-hidden select-none"
+      className="fixed inset-0 flex flex-col overflow-hidden select-none ai-voice-home-root"
       dir="rtl"
       style={{ background: "linear-gradient(170deg, #060d18 0%, #0b1326 40%, #091120 100%)" }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
+      {/* ── مؤشر السحب للتحديث ── */}
+      <AnimatePresence>
+        {pullDistance > 0 && (
+          <motion.div
+            className="absolute top-0 left-0 right-0 z-[200] flex items-center justify-center"
+            style={{ height: pullDistance }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.2 } }}
+          >
+            <motion.div
+              className="flex flex-col items-center gap-1.5"
+              animate={{
+                rotate: isRefreshing ? 360 : (pullDistance / PULL_THRESHOLD) * 180,
+                scale: Math.min(1, pullDistance / PULL_THRESHOLD),
+              }}
+              transition={isRefreshing ? { duration: 0.8, repeat: Infinity, ease: 'linear' } : { duration: 0.1 }}
+            >
+              <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors duration-200 ${
+                pullDistance >= PULL_THRESHOLD ? 'border-[#5bdda6] bg-[#5bdda6]/20' : 'border-white/20 bg-white/5'
+              }`}>
+                <svg className={`w-4 h-4 transition-colors duration-200 ${pullDistance >= PULL_THRESHOLD ? 'text-[#5bdda6]' : 'text-white/40'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+              {pullDistance >= PULL_THRESHOLD && (
+                <motion.span
+                  className="text-[10px] font-bold text-[#5bdda6]"
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  {isRefreshing ? 'جاري التحديث...' : 'اترك للتحديث'}
+                </motion.span>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <style dangerouslySetInnerHTML={{ __html: `
+        .ai-voice-home-root,
+        .ai-voice-home-root * {
+          font-family: 'Cairo', 'Tajawal', sans-serif !important;
+        }
+      `}} />
       {/* ── زر القائمة الجانبية ── */}
+      {!menuOpen && (
       <div 
         className="absolute top-0 right-0 z-30 pb-4 px-4"
         style={{ paddingTop: "max(16px, calc(env(safe-area-inset-top, 0px) + 16px))" }}
       >
         <motion.button
           onClick={() => setMenuOpen(true)}
-          className="w-11 h-11 rounded-2xl bg-[#5bdda6] flex items-center justify-center shadow-[0_0_20px_rgba(91,221,166,0.45)] hover:bg-[#4ecf99] active:bg-[#3dbe88] transition-all duration-200"
+          className="w-10 h-10 rounded-xl bg-[#5bdda6] flex items-center justify-center shadow-[0_0_20px_rgba(91,221,166,0.45)] hover:bg-[#4ecf99] active:bg-[#3dbe88] transition-all duration-200"
           whileTap={{ scale: 0.92 }}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -786,6 +954,7 @@ const AIVoiceHome: React.FC = () => {
           <Menu className="w-5 h-5 text-[#0b1326]" />
         </motion.button>
       </div>
+      )}
 
       {/* ── القائمة الجانبية ── */}
       <RiderSideMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -841,79 +1010,260 @@ const AIVoiceHome: React.FC = () => {
                 <h1 className="text-4xl font-black text-white tracking-tight leading-tight">
                   وين تحب تروح؟
                 </h1>
-                <p className="text-sm text-white/35 leading-relaxed max-w-[260px] mx-auto">
-                  اكتب وجهتك والذكاء الاصطناعي يحجز لك 🚕
-                </p>
               </div>
 
-              {/* حقل الإدخال */}
-              <div className="w-full max-w-sm relative">
-                <div className="flex items-center bg-[#0f1a2e]/80 border-2 border-[#5bdda6]/15 rounded-2xl focus-within:border-[#5bdda6]/50 transition-all duration-300 focus-within:bg-[#0f1a2e]">
-                  <motion.button
-                    onClick={handleTextSubmit}
-                    disabled={!textInput.trim() || textInput.trim().length < 2 || isSubmittingText}
-                    className="flex-shrink-0 mr-2 ml-1 w-10 h-10 min-w-[2.5rem] rounded-xl bg-[#5bdda6] hover:bg-[#4ecf99] active:bg-[#3dbe88] disabled:bg-white/8 disabled:opacity-50 flex items-center justify-center transition-all"
-                    whileTap={{ scale: 0.92 }}
-                  >
-                    <Send className="w-4.5 h-4.5 text-[#0b1326] disabled:text-white/40" />
-                  </motion.button>
-                  <input
-                    ref={textInputRef}
-                    type="text"
-                    value={textInput}
-                    onChange={(e) => setTextInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleTextSubmit(); }}
-                    placeholder="  مثال: جامعة الأنبار..."
-                    className="flex-1 min-w-0 bg-transparent text-white text-base pl-6 pr-2 py-4 placeholder:text-white/20 outline-none text-left overflow-hidden text-ellipsis"
-                    dir="rtl"
-                    autoFocus
-                    disabled={isSubmittingText}
-                  />
-                </div>
+              {/* ── حقل الوجهة فقط ── */}
+              <div className="w-full max-w-sm flex items-center rounded-2xl overflow-hidden border border-white/[0.08] bg-[#0f1a2e]/80 backdrop-blur-md shadow-xl" dir="rtl">
+                <motion.button
+                  onClick={handleTextSubmit}
+                  disabled={!textInput.trim() || textInput.trim().length < 2 || isSubmittingText}
+                  className="flex-shrink-0 mr-3 ml-1 w-9 h-9 min-w-[2.25rem] rounded-xl bg-[#5bdda6] flex items-center justify-center shadow-[0_0_16px_rgba(91,221,166,0.4)] hover:bg-[#4ecf99] active:bg-[#3dbe88] disabled:opacity-40 transition-all duration-200"
+                  whileTap={{ scale: 0.92 }}
+                >
+                  <Send className="w-4 h-4 text-[#0b1326]" />
+                </motion.button>
+                <input
+                  ref={textInputRef}
+                  type="text"
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleTextSubmit(); }}
+                  placeholder="إلى أين؟"
+                  className="flex-1 min-w-0 bg-transparent text-white text-[15px] font-medium pl-4 pr-1 py-4 placeholder:text-white/25 outline-none text-right overflow-hidden text-ellipsis"
+                  dir="rtl"
+                  autoFocus
+                  disabled={isSubmittingText}
+                />
               </div>
 
-              {/* ── اقتراحات مسارات (مصنفة ومضغوطة) ── */}
-              <div className="w-full max-w-sm flex flex-col gap-4 mt-2" dir="rtl">
-                {/* شريط الأقسام (Tabs) */}
-                <div className="flex flex-row overflow-x-auto gap-2.5 pt-3 pb-3 no-scrollbar -mx-5 px-5 select-none justify-start w-[calc(100%+2.5rem)]">
-                  {QUICK_CATEGORIES.map((cat) => {
-                    const isActive = activeCategory === cat.id;
-                    return (
+              {/* ── نتائج البحث الحي أو اقتراحات المسارات ── */}
+              <div className="w-full max-w-sm mt-3" dir="rtl">
+                <AnimatePresence mode="wait">
+
+                  {/* ══ حالة الكتابة: نتائج بحث حية ══ */}
+                  {textInput.trim().length >= 2 ? (
+                    <motion.div
+                      key="live-results"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      transition={{ duration: 0.18 }}
+                      className="flex flex-col gap-0 rounded-2xl overflow-hidden border border-white/[0.08] bg-[#0f1a2e]/90 backdrop-blur-md"
+                    >
+                      {/* مؤشر البحث */}
+                      {isSearching && (
+                        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.05]">
+                          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}>
+                            <Zap className="w-3.5 h-3.5 text-[#5bdda6]" />
+                          </motion.div>
+                          <span className="text-[11px] text-white/40 font-semibold">جاري البحث...</span>
+                        </div>
+                      )}
+
+                      {/* لا نتائج */}
+                      {!isSearching && searchResults.length === 0 && (
+                        <div className="flex items-center gap-3 px-4 py-4">
+                          <div className="w-8 h-8 rounded-xl bg-white/[0.05] flex items-center justify-center shrink-0">
+                            <Search className="w-4 h-4 text-white/20" />
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[13px] font-bold text-white/50">لا توجد نتائج</p>
+                            <p className="text-[11px] text-white/25">جرّب كلمات مختلفة</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* النتائج */}
+                      <AnimatePresence mode="popLayout">
+                        {searchResults.map((place, idx) => (
+                          <motion.button
+                            key={place.place_id || place.main_text}
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 10 }}
+                            transition={{ delay: idx * 0.035, duration: 0.15 }}
+                            onClick={() => handleSelectFromSearchResults(place)}
+                            whileTap={{ scale: 0.98 }}
+                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.05] active:bg-white/[0.08] transition-colors border-b border-white/[0.04] last:border-b-0 text-right"
+                          >
+                            <div className="w-8 h-8 rounded-xl bg-[#5bdda6]/10 border border-[#5bdda6]/20 flex items-center justify-center shrink-0">
+                              <MapPin className="w-4 h-4 text-[#5bdda6]" />
+                            </div>
+                            <div className="flex-1 min-w-0 text-right">
+                              <p className="text-[13px] font-bold text-white truncate">{place.main_text}</p>
+                              {place.secondary_text && (
+                                <p className="text-[11px] text-white/40 truncate">{place.secondary_text}</p>
+                              )}
+                            </div>
+                            <ChevronLeft className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                          </motion.button>
+                        ))}
+                      </AnimatePresence>
+                    </motion.div>
+                  ) : (
+                    /* ══ حالة الفراغ: التصنيفات ══ */
+                    <motion.div
+                      key="categories-section"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="flex flex-col gap-0"
+                    >
+
+                  {/* ── شريط زر التبديل ── */}
+                  <div className="flex items-center justify-center gap-3 mb-2.5">
+                    <div className="flex items-center gap-1 bg-white/[0.05] rounded-xl p-1 border border-white/[0.07]">
                       <button
-                        key={cat.id}
-                        onClick={() => setActiveCategory(cat.id)}
-                        className={`relative flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl whitespace-nowrap text-[12px] font-bold transition-all duration-300 backdrop-blur-md ${
-                          isActive
-                            ? cat.color
-                            : "bg-[#0b1326]/60 text-white/40 border border-white/5 hover:bg-white/5 hover:border-white/10 hover:text-white/70"
+                        onClick={() => { setCatViewMode('grid'); setCategorySelected(null); }}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                          catViewMode === 'grid'
+                            ? 'bg-[#5bdda6] shadow-[0_0_10px_rgba(91,221,166,0.4)] text-[#0b1326]'
+                            : 'text-white/30 hover:text-white/60'
                         }`}
                       >
-                        {cat.icon}
-                        <span>{cat.label}</span>
+                        <LayoutGrid className="w-3.5 h-3.5" />
                       </button>
-                    );
-                  })}
-                </div>
-
-                {/* عناصر القسم النشط */}
-                <div className="flex flex-wrap gap-2 max-h-[130px] overflow-y-auto no-scrollbar pb-2 pt-1 w-[calc(100%+1.5rem)] -mx-3 px-3 justify-end text-right" dir="rtl">
-                  <AnimatePresence mode="popLayout">
-                    {QUICK_CATEGORIES.find((c) => c.id === activeCategory)?.items.map((place) => (
-                      <motion.button
-                        key={place.name}
-                        initial={{ opacity: 0, scale: 0.9, y: 5 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.2 }}
-                        onClick={() => handleDirectPlaceSelect(place)}
-                        className="px-3.5 py-2 rounded-xl bg-white/[0.04] flex items-center justify-center text-white/80 text-[13px] font-semibold hover:bg-white/[0.08] hover:text-white transition-all whitespace-nowrap"
-                        whileTap={{ scale: 0.96 }}
+                      <button
+                        onClick={() => { setCatViewMode('tabs'); setCategorySelected(null); }}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                          catViewMode === 'tabs'
+                            ? 'bg-[#5bdda6] shadow-[0_0_10px_rgba(91,221,166,0.4)] text-[#0b1326]'
+                            : 'text-white/30 hover:text-white/60'
+                        }`}
                       >
-                        {place.name}
-                      </motion.button>
-                    ))}
+                        <List className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <AnimatePresence mode="wait">
+                    {/* ══════ وضع المربعات ══════ */}
+                    {catViewMode === 'grid' && !categorySelected && (
+                    <motion.div
+                      key="cat-grid"
+                      initial={{ opacity: 0, scale: 0.96 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.94, y: -8 }}
+                      transition={{ duration: 0.22, ease: [0.32,0.72,0,1] }}
+                      className="grid grid-cols-3 gap-2.5"
+                    >
+                      {QUICK_CATEGORIES.map((cat, i) => (
+                        <motion.button
+                          key={cat.id}
+                          initial={{ opacity: 0, y: 12, scale: 0.92 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          transition={{ delay: i * 0.045, duration: 0.22 }}
+                          onClick={() => { setActiveCategory(cat.id); setCategorySelected(cat.id); }}
+                          whileTap={{ scale: 0.93 }}
+                          className={`aspect-square flex flex-col items-center justify-center gap-1.5 rounded-2xl border backdrop-blur-md transition-all duration-200 hover:brightness-110 active:brightness-90 select-none ${cat.color}`}
+                        >
+                          <span className="text-xl">{cat.icon}</span>
+                          <span className="text-[11px] font-bold text-center leading-tight px-1">{cat.label}</span>
+                        </motion.button>
+                      ))}
+                    </motion.div>
+                  )}
+
+                  {/* ══════ قائمة الأماكن (مشتركة بين الوضعين) ══════ */}
+                  {catViewMode === 'grid' && categorySelected && (
+                    <motion.div
+                      key={`places-grid-${categorySelected}`}
+                      initial={{ opacity: 0, x: 30 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 30 }}
+                      transition={{ duration: 0.22, ease: [0.32,0.72,0,1] }}
+                      className="flex flex-col gap-2"
+                    >
+                      <div className="flex flex-row-reverse items-center gap-2 mb-1">
+                        <button
+                          onClick={() => setCategorySelected(null)}
+                          className="w-8 h-8 rounded-xl bg-[#5bdda6] flex items-center justify-center shadow-[0_0_16px_rgba(91,221,166,0.45)] hover:bg-[#4ecf99] active:bg-[#3dbe88] active:scale-90 transition-all flex-shrink-0"
+                        >
+                          <ChevronLeft className="w-4 h-4 text-[#0b1326]" />
+                        </button>
+                        <span className={`flex-1 text-left text-sm font-bold ${QUICK_CATEGORIES.find(c=>c.id===categorySelected)?.color.split(' ')[1] ?? 'text-white/60'}`}>
+                          {QUICK_CATEGORIES.find(c => c.id === categorySelected)?.label}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 max-h-[140px] overflow-y-auto custom-scrollbar pb-1 pr-0.5" dir="rtl">
+                        <AnimatePresence mode="popLayout">
+                          {QUICK_CATEGORIES.find(c => c.id === categorySelected)?.items.map((place, idx) => (
+                            <motion.button
+                              key={place.name}
+                              initial={{ opacity: 0, scale: 0.88, y: 6 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.88 }}
+                              transition={{ delay: idx * 0.03, duration: 0.18 }}
+                              onClick={() => handleDirectPlaceSelect(place)}
+                              whileTap={{ scale: 0.94 }}
+                              className="px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-white/80 text-[12px] font-semibold hover:bg-white/[0.1] hover:text-white hover:border-white/15 transition-all whitespace-nowrap"
+                            >
+                              {place.name}
+                            </motion.button>
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* ══════ وضع التابات ══════ */}
+                  {catViewMode === 'tabs' && (
+                    <motion.div
+                      key="cat-tabs"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      transition={{ duration: 0.22, ease: [0.32,0.72,0,1] }}
+                      className="flex flex-col gap-3"
+                    >
+                      {/* شريط التابات */}
+                      <div className="flex flex-row overflow-x-auto gap-2 custom-scrollbar -mx-5 px-5 pb-2 select-none w-[calc(100%+2.5rem)]">
+                        {QUICK_CATEGORIES.map((cat) => {
+                          const isActive = activeCategory === cat.id;
+                          return (
+                            <button
+                              key={cat.id}
+                              onClick={() => setActiveCategory(cat.id)}
+                              className={`relative flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-2xl whitespace-nowrap text-[12px] font-bold transition-all duration-300 backdrop-blur-md flex-shrink-0 ${
+                                isActive
+                                  ? cat.color
+                                  : 'bg-[#0b1326]/60 text-white/40 border border-white/5 hover:bg-white/5 hover:border-white/10 hover:text-white/70'
+                              }`}
+                            >
+                              {cat.icon}
+                              <span>{cat.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {/* عناصر التاب النشط */}
+                      <div className="flex flex-wrap gap-2 max-h-[130px] overflow-y-auto custom-scrollbar pb-2 pt-0.5 pr-0.5" dir="rtl">
+                        <AnimatePresence mode="popLayout">
+                          {QUICK_CATEGORIES.find(c => c.id === activeCategory)?.items.map((place, idx) => (
+                            <motion.button
+                              key={place.name}
+                              initial={{ opacity: 0, scale: 0.9, y: 5 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.9 }}
+                              transition={{ delay: idx * 0.025, duration: 0.18 }}
+                              onClick={() => handleDirectPlaceSelect(place)}
+                              whileTap={{ scale: 0.96 }}
+                              className="px-3.5 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/80 text-[13px] font-semibold hover:bg-white/[0.08] hover:text-white transition-all whitespace-nowrap"
+                            >
+                              {place.name}
+                            </motion.button>
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    </motion.div>
+                  )}
+
                   </AnimatePresence>
-                </div>
+                    </motion.div>
+                  )}
+
+                </AnimatePresence>
               </div>
 
             </motion.div>
@@ -1040,6 +1390,7 @@ const AIVoiceHome: React.FC = () => {
       {/* ══════════════════════════════════════
          البانل السفلي — Bottom Sheet متكامل
          ══════════════════════════════════════ */}
+      {!menuOpen && (
       <motion.div
         className="absolute bottom-0 left-0 right-0 w-full z-[100]"
         initial={{ opacity: 0, y: 12 }}
@@ -1076,24 +1427,7 @@ const AIVoiceHome: React.FC = () => {
               }}
               transition={{ duration: 0.3 }}
             />
-            {/* أيقونة + نص */}
-            <div className="flex items-center gap-2 mt-0.5">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center shadow-[0_0_12px_rgba(91,221,166,0.25)] transition-all duration-300 ${
-                savedPlacesExpanded
-                  ? 'bg-[#5bdda6]/20 border border-[#5bdda6]/30'
-                  : 'bg-[#5bdda6]/10 border border-[#5bdda6]/20'
-              }`}>
-                <motion.div
-                  animate={{ rotate: savedPlacesExpanded ? 90 : -90 }}
-                  transition={{ type: 'tween', duration: 0.25 }}
-                >
-                  <ChevronLeft className="w-3.5 h-3.5 text-[#5bdda6]" />
-                </motion.div>
-              </div>
-              <p className="text-[13px] font-bold tracking-widest text-[#5bdda6]/60 uppercase">
-                {savedPlacesExpanded ? 'أغلق' : 'أماكنك المحفوظة'}
-              </p>
-            </div>
+
           </div>
 
           {/* ── محتوى الأماكن المحفوظة — يظهر تحت المقبض مباشرة ── */}
@@ -1108,10 +1442,7 @@ const AIVoiceHome: React.FC = () => {
                 style={{ overflow: 'hidden' }}
               >
                 <div className="px-4 pt-1 pb-4 border-t border-[#5bdda6]/10">
-                  <p className="text-[10px] text-white/25 font-bold mb-3 text-center tracking-widest uppercase">
-                    اختر وجهتك المحفوظة
-                  </p>
-                  <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1" dir="rtl">
+                  <div className="flex gap-3 justify-center overflow-x-auto no-scrollbar pb-1" dir="rtl">
                     {normalizedFavorites.map((fav) => (
                       <motion.button
                         key={fav.id}
@@ -1151,21 +1482,12 @@ const AIVoiceHome: React.FC = () => {
           {/* ── صف الأزرار ── */}
           <div
             className="w-full flex border-t border-[#5bdda6]/10"
-            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           >
-            {/* اكتب وجهتك */}
-            <button
-              onClick={() => { setIsTextMode(true); }}
-              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation active:scale-[0.98] bg-[#0f1a2e]/80 hover:bg-[#0f1a2e] border-l border-[#5bdda6]/10 transition-colors"
-            >
-              <Keyboard className="w-5 h-5 text-[#5bdda6]" />
-              <span className="text-[#5bdda6]">اكتب وجهتك</span>
-            </button>
-
             {/* استخدم الخريطة */}
             <button
               onClick={() => navigate("/rider/go")}
-              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation active:scale-[0.98] bg-[#5bdda6] hover:bg-[#4ecf99] active:bg-[#3dbe88] transition-colors"
+              className="flex-auto min-h-[52px] rounded-none flex items-center justify-center gap-2 text-base font-black touch-manipulation active:scale-[0.98] bg-[#5bdda6] hover:bg-[#4ecf99] active:bg-[#3dbe88] transition-colors"
             >
               <MapIcon className="w-5 h-5 text-[#0b1326]" />
               <span className="text-[#0b1326]">استخدم الخريطة</span>
@@ -1173,6 +1495,7 @@ const AIVoiceHome: React.FC = () => {
           </div>
         </motion.div>
       </motion.div>
+      )}
       {/* ── مودال التأكيد ── */}
       <AnimatePresence>
         {showConfirmation && activeResult && (

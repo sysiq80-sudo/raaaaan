@@ -15,6 +15,7 @@ import { roundFare } from "@/lib/constants";
 import type { FareBreakdown } from "@/hooks/useFareCalculation";
 import type { PaymentMethod as PaymentMethodType } from "@/types/savedCards";
 import { useToast } from "@/hooks/use-toast";
+import { calculateDistanceMeters } from "@/lib/mapUtils";
 
 type VehicleType = "economy" | "comfort" | "premium" | "women_only";
 
@@ -22,6 +23,8 @@ interface LocationType {
   lat: number;
   lng: number;
   address: string;
+  snappedLat?: number;
+  snappedLng?: number;
 }
 
 interface IntermediateStop {
@@ -125,6 +128,15 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
   const [bookingMode, setBookingMode] = useState<"now" | "schedule">("now");
   const { toast } = useToast();
 
+  // Reactive distance check — is pickup ≈ dropoff?
+  const isTooClose = React.useMemo(() => {
+    const distanceM = calculateDistanceMeters(
+      { lat: pickupLocation.lat, lng: pickupLocation.lng },
+      { lat: dropoffLocation.lat, lng: dropoffLocation.lng }
+    );
+    return distanceM < 100;
+  }, [pickupLocation.lat, pickupLocation.lng, dropoffLocation.lat, dropoffLocation.lng]);
+
   // Force selected vehicle to 'economy' temporarily as per user request (one type for all)
   useEffect(() => {
     if (selectedVehicle !== "economy" && onVehicleChange) {
@@ -145,6 +157,9 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
       scheduleDialogRef.current?.openDialog();
       return;
     }
+
+    // Distance check now handled reactively via isTooClose — button shows inline warning
+    if (isTooClose) return;
 
     if (fareLoading) {
       toast({
@@ -197,11 +212,11 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
         {/* Geolocate button — above bottom sheet */}
         <button
           onClick={onGeolocate}
-          className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-card text-foreground border border-border/30 shadow-md hover:bg-secondary active:scale-95 transition-all"
+          className="absolute left-4 z-40 w-10 h-10 flex items-center justify-center rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-400/30 shadow-[0_0_12px_rgba(16,185,129,0.5)] hover:shadow-[0_0_18px_rgba(16,185,129,0.75)] active:scale-95 transition-all"
           style={{ bottom: "calc(55% + 16px)" }}
           aria-label="تحديد موقعي"
         >
-          <Navigation className="w-4.5 h-4.5 text-foreground" />
+          <Navigation className="w-5 h-5 text-white" />
         </button>
       </div>
 
@@ -226,21 +241,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
             onSwap={onSwapLocations}
           />
 
-          {/* Multi-stop */}
-          <MultiStopSelector
-            pickup={{
-              address: buildDescriptiveAddress(pickupLocation.address || ""),
-              location: { lat: pickupLocation.lat, lng: pickupLocation.lng },
-            }}
-            dropoff={{
-              address: buildDescriptiveAddress(dropoffLocation.address || ""),
-              location: { lat: dropoffLocation.lat, lng: dropoffLocation.lng },
-            }}
-            intermediateStops={intermediateStops}
-            onStopsChange={onStopsChange}
-            onStopSelect={onStopSelect}
-            disabled={isBooking}
-          />
+
 
           {/* Vehicle selection — inline cards (Temporarily disabled and hidden) */}
           {/*
@@ -292,6 +293,8 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
                 onPress={() => setPaymentSheetOpen(true)}
               />
             </div>
+            {/* ── الجدولة معطلة مؤقتاً — سيتم تفعيلها في إصدار مستقبلي ── */}
+            {/*
             <div className="shrink-0 flex rounded-2xl bg-secondary border border-border/30 p-1 gap-0.5">
               <button
                 onClick={() => setBookingMode("now")}
@@ -314,6 +317,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
                 جدولة
               </button>
             </div>
+            */}
           </div>
         </div>
 
@@ -327,19 +331,26 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
             onClick={handlePrimaryBookAction}
             disabled={isBooking}
             whileTap={isBooking ? {} : { scale: 0.98 }}
-            style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-            className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
+            style={{ fontFamily: "Cairo, sans-serif" }}
+            className={`flex-auto min-h-[52px] rounded-none flex items-center justify-center gap-2 text-base font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
               isBooking
                 ? "border-border/30 text-muted-foreground bg-muted cursor-not-allowed"
+                : isTooClose
+                ? "border-red-700/30 text-white bg-gradient-to-r from-red-700 via-red-600 to-red-700"
                 : fareLoading
-                ? "border-ring/30 text-primary-foreground bg-ring/70 cursor-wait"
-                : "border-ring/30 text-primary-foreground bg-ring hover:bg-ring/90"
+                ? "border-emerald-700/30 text-white bg-emerald-800/70 cursor-wait"
+                : "border-emerald-700/30 text-white bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-800 hover:from-emerald-700 hover:via-emerald-600 hover:to-emerald-700"
             }`}
           >
             {isBooking ? (
               <>
                 <Loader2 className="w-6 h-6 animate-spin" />
                 <span>جاري إنشاء الحجز...</span>
+              </>
+            ) : isTooClose ? (
+              <>
+                <AlertTriangle className="w-5 h-5 animate-pulse" />
+                <span className="text-base">الوجهة قريبة جداً — ١٠٠م على الأقل</span>
               </>
             ) : fareLoading ? (
               <>
@@ -355,8 +366,8 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
                 )}
                 <span>{bookingMode === "schedule" ? "جدولة الرحلة" : "اطلب الآن"}</span>
                 {totalFare && (
-                  <span className="bg-primary-foreground/20 px-3 py-1 rounded-xl text-sm font-bold">
-                    {totalFare.toLocaleString()} د.ع
+                  <span className="bg-gray-700 px-3 py-1 rounded-xl text-sm font-bold">
+                    {totalFare.toLocaleString('en-US')} د.ع
                   </span>
                 )}
               </>
@@ -396,7 +407,6 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
 
       {/* Side Menu */}
       <RiderSideMenu
-        user={user}
         isOpen={menuOpen}
         onClose={() => onMenuToggle(false)}
         onLogout={onLogout}

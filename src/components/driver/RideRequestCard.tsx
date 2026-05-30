@@ -1106,11 +1106,11 @@ export const RideRequestCard = ({
           </div>
 
           {/* ═══ أزرار الإجراءات ═══ */}
-          <div className="flex w-full mt-auto shrink-0 bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)', zIndex: 10 }}>
+          <div className="flex w-full mt-auto shrink-0 bg-[#163d30]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', zIndex: 10 }}>
             {/* تخطي — Style Dark Luxury Secondary */}
             <Button
               variant="outline"
-              className="flex-1 max-w-[120px] h-[72px] rounded-none flex items-center justify-center text-sm font-bold text-emerald-300 bg-[#0f2922] hover:bg-[#163d30] transition-colors disabled:opacity-50 touch-manipulation border-none border-t border-l border-emerald-500/20"
+              className="flex-1 max-w-[120px] min-h-[52px] rounded-none flex items-center justify-center text-sm font-bold text-emerald-300 bg-[#0f2922] hover:bg-[#163d30] transition-colors disabled:opacity-50 touch-manipulation border-none border-t border-l border-emerald-500/20"
               onClick={handleRejectClick}
               disabled={loading}
               style={{ fontFamily: "Cairo, sans-serif" }}
@@ -1132,7 +1132,7 @@ export const RideRequestCard = ({
               className="flex-auto rounded-none"
             >
               <Button
-                className="relative overflow-hidden w-full h-[72px] text-lg font-bold text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
+                className="relative overflow-hidden w-full min-h-[52px] text-base font-bold text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
                 onClick={handleAcceptClick}
                 disabled={loading}
                 style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}

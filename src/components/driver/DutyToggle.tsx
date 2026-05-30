@@ -122,7 +122,7 @@ const DutyToggle = ({
 
       {/* ═══ الزر الرئيسي — نفس تنسيق زر "احجز الآن" ═══ */}
       {!hasActiveRide && (
-        <div className="w-full pointer-events-auto flex bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0px)' }}>
+        <div className="w-full pointer-events-auto flex bg-[#163d30]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           <button
             onClick={() => {
               handlePress();
@@ -132,8 +132,8 @@ const DutyToggle = ({
               handlePress();
             }}
             disabled={isDisabled}
-            style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
-            className={`flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
+            style={{ fontFamily: "Cairo, sans-serif" }}
+            className={`flex-auto min-h-[52px] rounded-none flex items-center justify-center gap-2 text-base font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
               isOnline
                 ? isPaused
                   ? "border-amber-500/30 text-white bg-amber-500 hover:bg-amber-600 active:bg-amber-700"
@@ -196,8 +196,8 @@ const DutyToggle = ({
                         <Navigation className="w-5 h-5 text-[#5bdda6]" />
                       </motion.div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-base font-black text-white leading-tight tracking-tight whitespace-nowrap" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>جاري البحث عن طلبات</p>
-                        <p className="text-xs text-[#5bdda6]/80 mt-1.5 font-bold whitespace-nowrap" style={{ fontFamily: "Inter, sans-serif" }}>
+                        <p className="text-base font-black text-white leading-tight tracking-tight whitespace-nowrap" style={{ fontFamily: "Cairo, sans-serif" }}>جاري البحث عن طلبات</p>
+                        <p className="text-xs text-[#5bdda6]/80 mt-1.5 font-bold whitespace-nowrap" style={{ fontFamily: "Cairo, sans-serif" }}>
                           {driverLocation ? `أنت ضمن نطاق ${maxPickupRadius} كم` : "جاري تحديد الموقع..."}
                         </p>
                       </div>
@@ -223,7 +223,7 @@ const DutyToggle = ({
                         <Wifi className="w-5 h-5 text-[#5bdda6]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-base font-black text-white leading-tight tracking-tight whitespace-nowrap" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>متصل</p>
+                        <p className="text-base font-black text-white leading-tight tracking-tight whitespace-nowrap" style={{ fontFamily: "Cairo, sans-serif" }}>متصل</p>
                         <p className="text-xs text-slate-300 mt-1.5 font-bold whitespace-nowrap">
                           {locationTracking ? "مستعد لاستقبال الطلبات القريبة" : "جاري تفعيل إحداثيات الموقع..."}
                         </p>
@@ -249,7 +249,7 @@ const DutyToggle = ({
                         <Coffee className="w-5 h-5 text-amber-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-base font-black text-white leading-tight tracking-tight whitespace-nowrap" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>إيقاف مؤقت</p>
+                        <p className="text-base font-black text-white leading-tight tracking-tight whitespace-nowrap" style={{ fontFamily: "Cairo, sans-serif" }}>إيقاف مؤقت</p>
                         <p className="text-xs text-amber-500/80 mt-1.5 font-bold whitespace-nowrap">لن تصلك أي طلبات جديدة</p>
                       </div>
                       <button
@@ -272,7 +272,7 @@ const DutyToggle = ({
                         <WifiOff className="w-5 h-5 text-slate-400" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-base font-black text-slate-200 leading-tight tracking-tight whitespace-nowrap" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>غير متصل</p>
+                        <p className="text-base font-black text-slate-200 leading-tight tracking-tight whitespace-nowrap" style={{ fontFamily: "Cairo, sans-serif" }}>غير متصل</p>
                         <p className="text-xs text-slate-500 mt-1.5 font-medium whitespace-nowrap">
                           {isApproved ? "انقر للعمل واستقبال الطلبات" : "حسابك غير معتمد - في انتظار الموافقة"}
                         </p>

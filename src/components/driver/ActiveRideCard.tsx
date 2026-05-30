@@ -350,7 +350,7 @@ export const ActiveRideCard = ({
                 showNotification(
                   "❌ العميل ألغى الرحلة",
                   fee > 0
-                    ? `ستحصل على تعويض مالي بقيمة ${fee.toLocaleString()} د.ع`
+                    ? `ستحصل على تعويض مالي بقيمة ${fee.toLocaleString('en-US')} د.ع`
                     : "تم إلغاء الرحلة",
                   { tag: "ride-cancelled", requireInteraction: true },
                 );
@@ -359,7 +359,7 @@ export const ActiveRideCard = ({
                   title: "❌ تم إلغاء الرحلة من العميل",
                   description:
                     fee > 0
-                      ? `ستحصل على تعويض: ${fee.toLocaleString()} د.ع`
+                      ? `ستحصل على تعويض: ${fee.toLocaleString('en-US')} د.ع`
                       : updatedRide.cancellation_reason || "تم إلغاء الطلب",
                   duration: 10000,
                 });
@@ -1250,7 +1250,7 @@ export const ActiveRideCard = ({
                 <span className="font-bold">تعويض مالي</span>
               </div>
               <p className="text-2xl font-bold text-success">
-                {cancellationInfo.fee.toLocaleString()} د.ع
+                {cancellationInfo.fee.toLocaleString('en-US')} د.ع
               </p>
               <p className="text-sm text-muted-foreground mt-2">
                 سيتم إضافة هذا المبلغ تلقائياً إلى حسابك
@@ -1349,63 +1349,42 @@ export const ActiveRideCard = ({
         className="absolute inset-0 z-40 pointer-events-none"
         dir="rtl"
       >
-        {/* ═══ TOP SECTION: Floating Indicators ═══ */}
-        <div className="absolute top-0 inset-x-0 pt-[max(env(safe-area-inset-top,80px),80px)] px-4 flex justify-end pointer-events-none">
-          {/* Waiting Status Card (Upper Left in RTL means justify-end / left side) */}
+        {/* ═══ TOP SECTION: Floating Indicators — ملتصقة بالجانب وملونة حسب المرحلة ═══ */}
+        <div className="absolute z-10" dir="rtl" style={{ top: 'calc(env(safe-area-inset-top, 56px) + 64px)', left: '0' }}>
+          {/* Waiting Status Card */}
           {activeRide.status === "arrived" && (
             <motion.div
               initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
-              className="bg-[#0a0f1c]/80 backdrop-blur-xl border border-amber-500/30 rounded-[28px] p-4 flex items-center gap-4 shadow-[0_10px_40px_rgba(245,158,11,0.15)] pointer-events-auto"
+              className="bg-gradient-to-r from-amber-600/80 to-amber-800/70 backdrop-blur-xl border border-amber-400/20 rounded-r-2xl rounded-l-none border-l-0 px-4 py-2.5 shadow-lg shadow-amber-900/30 pointer-events-auto"
             >
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shadow-inner">
-                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
-                  <Clock className="w-6 h-6 text-amber-400" />
-                </motion.div>
-              </div>
-              <div className="flex flex-col items-start mr-2">
-                <h3 className="text-sm font-bold text-slate-300 tracking-tight font-plus-jakarta">في الانتظار</h3>
-                <p className={`text-2xl font-black tabular-nums tracking-tighter ${waitingTime >= WAITING_CRITICAL_THRESHOLD ? "text-red-400" : "text-amber-400"} drop-shadow-md`}>
-                  {formatWaitingTime(waitingTime)}
-                </p>
-              </div>
+              <p className="text-[10px] text-amber-200/80 font-medium font-cairo">في الانتظار</p>
+              <p className={`text-lg font-black tabular-nums ${waitingTime >= WAITING_CRITICAL_THRESHOLD ? "text-red-300" : "text-white"}`}>
+                {formatWaitingTime(waitingTime)}
+              </p>
             </motion.div>
           )}
 
           {activeRide.status === "in_progress" && (
             <motion.div
               initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
-              className="bg-[#0a0f1c]/80 backdrop-blur-xl border border-cyan-500/30 rounded-[28px] p-4 flex items-center gap-4 shadow-[0_10px_40px_rgba(6,182,212,0.15)] pointer-events-auto"
+              className="bg-gradient-to-r from-violet-600/80 to-purple-800/70 backdrop-blur-xl border border-violet-400/20 rounded-r-2xl rounded-l-none border-l-0 px-4 py-2.5 shadow-lg shadow-violet-900/30 pointer-events-auto"
             >
-              <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 shadow-inner">
-                <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-                  <Car className="w-6 h-6 text-cyan-400" />
-                </motion.div>
-              </div>
-              <div className="flex flex-col items-start mr-2">
-                <h3 className="text-sm font-bold text-slate-300 tracking-tight font-plus-jakarta">الرحلة جارية</h3>
-                <p className="text-2xl font-black tabular-nums tracking-tighter text-cyan-400 drop-shadow-md">
-                  {formatTime(elapsedTime)}
-                </p>
-              </div>
+              <p className="text-[10px] text-violet-200/80 font-medium font-cairo">الرحلة جارية</p>
+              <p className="text-lg font-black tabular-nums text-white">
+                {formatTime(elapsedTime)}
+              </p>
             </motion.div>
           )}
 
           {activeRide.status === "accepted" && (
             <motion.div
               initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
-              className="bg-[#0a0f1c]/80 backdrop-blur-xl border border-blue-500/30 rounded-[28px] p-4 flex items-center gap-4 shadow-[0_10px_40px_rgba(59,130,246,0.15)] pointer-events-auto"
+              className="bg-gradient-to-r from-blue-600/80 to-blue-800/70 backdrop-blur-xl border border-blue-400/20 rounded-r-2xl rounded-l-none border-l-0 px-4 py-2.5 shadow-lg shadow-blue-900/30 pointer-events-auto"
             >
-              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shadow-inner">
-                <motion.div animate={{ x: [0, 4, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>
-                  <Navigation className="w-6 h-6 text-blue-400" />
-                </motion.div>
-              </div>
-              <div className="flex flex-col items-start mr-2">
-                <h3 className="text-sm font-bold text-slate-300 tracking-tight font-plus-jakarta">متجه للعميل</h3>
-                <p className="text-2xl font-black tabular-nums tracking-tighter text-blue-400 drop-shadow-md">
-                  {distanceToPickupM !== null ? (distanceToPickupM >= 1000 ? `${(distanceToPickupM / 1000).toFixed(1)} كم` : `${distanceToPickupM} م`) : "—"}
-                </p>
-              </div>
+              <p className="text-[10px] text-blue-200/80 font-medium font-cairo">متجه للعميل</p>
+              <p className="text-lg font-black tabular-nums text-white">
+                {distanceToPickupM !== null ? (distanceToPickupM >= 1000 ? `${(distanceToPickupM / 1000).toFixed(1)} كم` : `${distanceToPickupM} م`) : "—"}
+              </p>
             </motion.div>
           )}
         </div>
@@ -1452,7 +1431,7 @@ export const ActiveRideCard = ({
 
                   {/* Info */}
                   <div className="flex flex-col">
-                    <span className="font-extrabold text-white text-lg tracking-tight font-plus-jakarta">{riderInfo?.full_name || "العميل"}</span>
+                    <span className="font-extrabold text-white text-lg tracking-tight font-cairo">{riderInfo?.full_name || "العميل"}</span>
                     <div className="flex items-center gap-1.5 mt-1">
                       <span className="text-[10px] bg-[#0a0f1c]/50 border border-white/10 text-cyan-300 px-3 py-1 rounded-full font-bold tracking-wide shadow-inner">
                         {activeRide.payment_method === "cash" ? "💵 نقداً" : activeRide.payment_method === "wallet" ? "💳 محفظة" : "💵 نقداً"}
@@ -1466,7 +1445,7 @@ export const ActiveRideCard = ({
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">الأجرة المقدرة</span>
                   <div className="flex items-baseline gap-1.5">
                     <span className={`text-3xl font-black tabular-nums tracking-tighter ${activeRide.status === "in_progress" ? "text-cyan-400" : activeRide.status === "arrived" ? "text-amber-400" : "text-blue-400"} drop-shadow-[0_0_15px_currentColor]`}>
-                      {roundFare(activeRide.estimated_fare || 0).toLocaleString()}
+                      {roundFare(activeRide.estimated_fare || 0).toLocaleString('en-US')}
                     </span>
                     <span className="text-xs font-bold text-slate-400">د.ع</span>
                   </div>
@@ -1546,7 +1525,7 @@ export const ActiveRideCard = ({
           </div>
 
           {/* 4. Primary CTA Button */}
-          <div className="w-full shrink-0 flex mt-1 bg-[#163d30]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)', zIndex: 10 }}>
+          <div className="w-full shrink-0 flex mt-1 bg-[#163d30]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', zIndex: 10 }}>
             {activeRide.status === "accepted" && (
               <motion.div
                 animate={isNearPickup ? { boxShadow: ["0 0 0px 0px rgba(91,221,166,0)", "0 0 25px 5px rgba(91,221,166,0.4)", "0 0 0px 0px rgba(91,221,166,0)"] } : {}}
@@ -1554,9 +1533,9 @@ export const ActiveRideCard = ({
                 className="w-full rounded-none"
               >
                 <button
-                  className="relative overflow-hidden w-full h-[72px] text-[18px] font-black text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
+                  className="relative overflow-hidden w-full min-h-[52px] text-base font-black text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
                   onClick={handleArrived} disabled={loading}
-                  style={{ fontFamily: "Plus Jakarta Sans, sans-serif", padding: 0 }}
+                  style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}
                 >
                   <motion.div className="absolute inset-0"
                     style={{ backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)", backgroundSize: "200% 100%" }}
@@ -1585,9 +1564,9 @@ export const ActiveRideCard = ({
                 className="w-full rounded-none"
               >
                 <button
-                  className="relative overflow-hidden w-full h-[72px] text-[18px] font-black text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
+                  className="relative overflow-hidden w-full min-h-[52px] text-base font-black text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
                   onClick={handleStartRide} disabled={loading}
-                  style={{ fontFamily: "Plus Jakarta Sans, sans-serif", padding: 0 }}
+                  style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}
                 >
                   <motion.div className="absolute inset-0"
                     style={{ backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)", backgroundSize: "200% 100%" }}
@@ -1616,9 +1595,9 @@ export const ActiveRideCard = ({
                 className="w-full rounded-none"
               >
                 <button
-                  className="relative overflow-hidden w-full h-[72px] text-[18px] font-black text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
+                  className="relative overflow-hidden w-full min-h-[52px] text-base font-black text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
                   onClick={handleCompleteRide} disabled={loading}
-                  style={{ fontFamily: "Plus Jakarta Sans, sans-serif", padding: 0 }}
+                  style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}
                 >
                   <motion.div className="absolute inset-0"
                     style={{ backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)", backgroundSize: "200% 100%" }}
