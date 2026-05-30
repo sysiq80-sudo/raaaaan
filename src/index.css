@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@100;200;300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&family=IBM+Plex+Sans+Arabic:wght@100;200;300;400;500;600;700&family=Tajawal:wght@200;300;400;500;700;800;900&display=swap");
 
 @import "./styles/rtl.css";
 @import "./styles/typography.css";
@@ -72,6 +72,10 @@ html, body {
   /* الموقع التعريفي يحتاج تمريراً طبيعياً */
   min-height: 100%;
   width: 100%;
+  /* ✅ منع Android WebView من تكبير النص حسب إعدادات النظام */
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -637,13 +641,17 @@ html.light-rider .dots-pattern {
 @layer base {
   * {
     @apply border-border;
-    font-family: "Graphik Arabic", "IBM Plex Sans Arabic", sans-serif !important;
+    font-family: "Cairo", "Tajawal", "Graphik Arabic", sans-serif;
   }
 
   html {
-    font-family: "Graphik Arabic", "IBM Plex Sans Arabic", sans-serif !important;
+    font-family: "Cairo", "Tajawal", "Graphik Arabic", sans-serif;
     direction: rtl;
     font-size: 14px; /* Base font size for better mobile scaling */
+  }
+
+  h1, h2, h3, h4, h5, h6, button, .btn, .btn-glow {
+    font-family: "Cairo", "Tajawal", "Graphik Arabic", sans-serif !important;
   }
 
   @media (min-width: 640px) {
@@ -663,17 +671,10 @@ html.light-rider .dots-pattern {
     user-select: auto;
   }
 
-  /* ── إزالة الخط الأزرق عند الضغط على الأزرار ── */
-  button, a, [role="button"], input, select, textarea,
-  [tabindex]:not([tabindex="-1"]) {
-    outline: none;
+  /* ── إزالة كل الحواف عند الضغط/التركيز — تطبيق جوال ── */
+  *, *:focus, *:focus-visible, *:focus-within {
+    outline: none !important;
     -webkit-tap-highlight-color: transparent;
-  }
-  /* إبقاء outline فقط للتنقل بالكيبورد (accessibility) */
-  button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
-  input:focus-visible, select:focus-visible, textarea:focus-visible {
-    outline: 2px solid hsl(160 100% 45%);
-    outline-offset: 2px;
   }
 
   /* Responsive text scaling */
@@ -1062,23 +1063,40 @@ html.light-rider .dots-pattern {
   animation-fill-mode: forwards;
 }
 
-/* Scrollbar مخصص */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Scrollbar مخصص — overlay يختفي تلقائياً */
+/* إخفاء كامل على تطبيقات الموبايل (الراكب/السائق) */
+html {
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox: إخفاء */
 }
 
-::-webkit-scrollbar-track {
-  background: hsl(160 15% 8%);
+html::-webkit-scrollbar {
+  width: 0;
+  display: none; /* Chrome/Safari: إخفاء */
 }
 
-::-webkit-scrollbar-thumb {
-  background: hsl(160 100% 45% / 0.4);
+/* إظهار scrollbar رفيع فقط في لوحة الإدارة (ديسكتوب) */
+.admin-layout ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.admin-layout ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-layout ::-webkit-scrollbar-thumb {
+  background: hsl(160 100% 45% / 0.25);
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(160 100% 45% / 0.6);
+.admin-layout ::-webkit-scrollbar-thumb:hover {
+  background: hsl(160 100% 45% / 0.45);
+}
+
+.admin-layout {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(160 100% 45% / 0.25) transparent;
 }
 
 /* ✅ Safe-area CSS helpers for notches, home indicators */
@@ -1730,4 +1748,26 @@ body.car-mode .car-quick-btn svg {
 .driver-luxury textarea:focus,
 .driver-luxury [role="combobox"]:focus {
   border-color: rgba(91, 221, 166, 0.35) !important;
+}
+
+/* Custom Green Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #5bdda6;
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4ecf99;
+}
+/* Firefox support */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #5bdda6 rgba(255, 255, 255, 0.02);
 }
