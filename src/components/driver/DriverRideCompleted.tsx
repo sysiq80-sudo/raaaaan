@@ -7,7 +7,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import confetti from "canvas-confetti";
+
 
 /* ──────────────────────── Types ──────────────────────── */
 interface DriverRideCompletedProps {
@@ -83,9 +83,7 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
       audio.play().catch(() => {});
     } catch { /* ignore */ }
 
-    try {
-      confetti({ particleCount: 20, spread: 70, origin: { y: 0.6 }, colors: ["#10b981","#fbbf24","#06b6d4"] });
-    } catch { /* ignore */ }
+
   }, []);
 
   const toggleBadge = (id: string) => {
@@ -135,10 +133,7 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
       /* 3️⃣ ملاحظة: متوسط تقييم الراكب يُحسب عند الحاجة من rides.rider_rating
          لأن جدول profiles لا يحتوي على عمود rider_rating حالياً */
 
-      /* ✅ الاحتفال دائماً */
-      try {
-        confetti({ particleCount: 25, spread: 90, origin: { y: 0.5 }, colors: ["#10b981","#fbbf24","#06b6d4","#8b5cf6"] });
-      } catch { /* ignore */ }
+
 
       setSubmitted(true);
       toast({ title: "شكراً لتقييمك! ⭐", description: "تم الحفظ بنجاح" });
@@ -171,7 +166,7 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
             <Sparkles className="w-12 h-12 text-[#0b1326]" />
           </div>
           <div>
-            <h2 className="text-3xl font-black text-white mb-2 tracking-tight" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>أحسنت الكابتن! 💪</h2>
+            <h2 className="text-3xl font-black text-white mb-2 tracking-tight" style={{ fontFamily: "Cairo, sans-serif" }}>أحسنت الكابتن! 💪</h2>
             <p className="text-[#5bdda6]/70 text-sm font-medium">أرباحك تتراكم — استمر بالعمل الرائع</p>
           </div>
           <div className="flex gap-1.5 mt-2">
@@ -203,7 +198,7 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
       {/* ═══ هيدر ═══ */}
       <div className="relative shrink-0 pt-[calc(env(safe-area-inset-top)+2rem)] pb-3 px-5 text-center">
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <h1 className="text-2xl font-black text-white tracking-tight" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>الحمد لله على السلامة!</h1>
+          <h1 className="text-2xl font-black text-white tracking-tight" style={{ fontFamily: "Cairo, sans-serif" }}>الحمد لله على السلامة!</h1>
         </motion.div>
       </div>
 
@@ -221,10 +216,10 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
             <p className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">
               {hasReceipt ? "صافي ربحك من الرحلة" : "أرباح هذه الرحلة"}
             </p>
-            <div className="flex items-center justify-center gap-1.5" style={{ fontFamily: "Inter, sans-serif" }}>
+            <div className="flex items-center justify-center gap-1.5" style={{ fontFamily: "Cairo, sans-serif" }}>
               <Wallet className="w-6 h-6 text-[#5bdda6] mb-1" />
               <span className="text-4xl font-black text-white tabular-nums tracking-tighter">
-                {netEarning.toLocaleString()}
+                {netEarning.toLocaleString('en-US')}
               </span>
               <span className="text-base font-bold text-[#5bdda6]/80 self-end mb-1">د.ع</span>
             </div>
@@ -245,7 +240,7 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
                       <Zap className="w-3 h-3" />
                       اشتراك يومي (أول رحلة اليوم)
                     </span>
-                    <span className="text-amber-400/80 font-bold">-{(receipt.daily_fee_amount || 0).toLocaleString()} د.ع</span>
+                    <span className="text-amber-400/80 font-bold">-{(receipt.daily_fee_amount || 0).toLocaleString('en-US')} د.ع</span>
                   </div>
                 )}
                 {receipt?.daily_fee_reason === "already_charged_today" && (
@@ -273,14 +268,14 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
                     <Wallet className="w-3 h-3" />
                     أجرة الرحلة
                   </span>
-                  <span className="text-slate-300 font-bold">{ride.final_fare.toLocaleString()} د.ع</span>
+                  <span className="text-slate-300 font-bold">{ride.final_fare.toLocaleString('en-US')} د.ع</span>
                 </div>
                 <div className="flex justify-between text-[11px] px-1">
                   <span className="text-red-400/70 flex items-center gap-1">
                     <Percent className="w-3 h-3" />
                     عمولة ({receipt?.commission_rate_percent || 0}%)
                   </span>
-                  <span className="text-red-400/80 font-bold">-{commissionAmount.toLocaleString()} د.ع</span>
+                  <span className="text-red-400/80 font-bold">-{commissionAmount.toLocaleString('en-US')} د.ع</span>
                 </div>
 
                 {/* خصومات مُطبّقة */}
@@ -308,7 +303,7 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
                     <TrendingUp className="w-3.5 h-3.5" />
                     صافي ربحك
                   </span>
-                  <span className="text-[#5bdda6] font-black text-[14px]">{netEarning.toLocaleString()} د.ع</span>
+                  <span className="text-[#5bdda6] font-black text-[14px]">{netEarning.toLocaleString('en-US')} د.ع</span>
                 </div>
               </div>
             ) : null}
@@ -317,11 +312,11 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
           <div className="flex items-center divide-x divide-x-reverse divide-slate-700/30 bg-slate-900/20">
             <div className="flex-1 flex flex-col items-center justify-center py-3">
               <Route className="w-4 h-4 text-slate-400 mb-1" />
-              <span className="text-sm font-bold text-slate-200 tabular-nums" style={{ fontFamily: "Inter, sans-serif" }}>{(ride.distance_km || 0).toFixed(1)} كم</span>
+              <span className="text-sm font-bold text-slate-200 tabular-nums" style={{ fontFamily: "Cairo, sans-serif" }}>{(ride.distance_km || 0).toFixed(1)} كم</span>
             </div>
             <div className="flex-1 flex flex-col items-center justify-center py-3">
               <Clock className="w-4 h-4 text-slate-400 mb-1" />
-              <span className="text-sm font-bold text-slate-200 tabular-nums" style={{ fontFamily: "Inter, sans-serif" }}>{ride.duration_minutes || 0} د</span>
+              <span className="text-sm font-bold text-slate-200 tabular-nums" style={{ fontFamily: "Cairo, sans-serif" }}>{ride.duration_minutes || 0} د</span>
             </div>
           </div>
         </div>
@@ -420,7 +415,7 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
            type="button"
            onClick={handleSubmit}
            disabled={loading}
-           style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+           style={{ fontFamily: "Cairo, sans-serif" }}
            className="flex-[2] h-[72px] flex items-center justify-center gap-2 text-lg font-bold text-[#0b1326] bg-[#5bdda6] shadow-[0_-5px_30px_rgba(91,221,166,0.2)] hover:bg-[#4bcc98] active:bg-[#3eba89] transition-all disabled:opacity-50 rounded-none pointer-events-auto touch-manipulation border-t border-[#5bdda6]"
         >
           {loading
