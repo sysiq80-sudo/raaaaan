@@ -18,6 +18,8 @@ export interface FareParams {
   waitingMinutes?: number;
   freeWaitingMinutes?: number;
   waitingFarePerMinute?: number;
+  /** Duration from OSRM/routing in minutes. If provided, used instead of estimating from distance. */
+  durationMinutes?: number;
 }
 
 export interface FareResult {
@@ -57,8 +59,10 @@ export function calculateFare(params: FareParams): FareResult {
   // أجرة المسافة
   const distanceFare = distanceKm * perKmRate;
 
-  // تقدير وقت الرحلة
-  const estimatedMinutes = Math.max(1, Math.round((distanceKm / DEFAULT_CITY_SPEED_KMH) * 60));
+  // تقدير وقت الرحلة — يستخدم durationMinutes من OSRM إذا متوفر، وإلا يحسب من المسافة
+  const estimatedMinutes = params.durationMinutes
+    ? Math.max(1, Math.round(params.durationMinutes))
+    : Math.max(1, Math.round((distanceKm / DEFAULT_CITY_SPEED_KMH) * 60));
   const timeFare = estimatedMinutes * perMinuteRate;
 
   // أجرة الانتظار (بعد خصم الوقت المجاني)

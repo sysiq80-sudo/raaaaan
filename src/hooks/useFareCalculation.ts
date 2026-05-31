@@ -28,7 +28,8 @@ export const useFareCalculation = (
   pickupCoords: { lat: number; lng: number } | null,
   dropoffCoords: { lat: number; lng: number } | null,
   selectedVehicle: VehicleType,
-  routeDistance: number | null
+  routeDistance: number | null,
+  routeDuration?: number | null
 ) => {
   const [fareBreakdown, setFareBreakdown] = useState<FareBreakdown | null>(null);
   const [fareLoading, setFareLoading] = useState(false);
@@ -46,6 +47,7 @@ export const useFareCalculation = (
   const estimateFareLocally = (
     distanceKm: number,
     vehicle: VehicleType,
+    durationMin?: number | null,
   ): FareBreakdown => {
     const baseFare = defaultFare.base_fare;
     const perKmRate = defaultFare.per_km_fare;
@@ -61,6 +63,7 @@ export const useFareCalculation = (
       perMinuteRate,
       vehicleMultiplier,
       surgeMultiplier,
+      durationMinutes: durationMin ?? undefined,
     });
 
     return {
@@ -77,7 +80,7 @@ export const useFareCalculation = (
       service_fee: 0,
       total_fare: result.totalFare,
       region_name: "تقدير تقريبي",
-      formatted_fare: `${result.totalFare.toLocaleString()} د.ع`,
+      formatted_fare: `${result.totalFare.toLocaleString('en-US')} د.ع`,
     };
   };
 
@@ -115,7 +118,7 @@ export const useFareCalculation = (
       setFareError(null);
 
       // ⚡ عرض تقدير محلي فوري حتى يأتي الرد من السيرفر
-      const localEstimate = estimateFareLocally(routeDistance, selectedVehicle);
+      const localEstimate = estimateFareLocally(routeDistance, selectedVehicle, routeDuration);
       setFareBreakdown(localEstimate);
       lastSuccessfulFareRef.current = localEstimate;
       setFareLoading(true);
@@ -136,6 +139,7 @@ export const useFareCalculation = (
               dropoff_lat: dropoffCoords.lat,
               dropoff_lng: dropoffCoords.lng,
               distance_km: routeDistance,
+              duration_minutes: routeDuration ?? null,
               vehicle_type: selectedVehicle,
               waiting_minutes: 0
             }
@@ -194,7 +198,7 @@ export const useFareCalculation = (
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [pickupCoords, dropoffCoords, selectedVehicle, routeDistance]);
+  }, [pickupCoords, dropoffCoords, selectedVehicle, routeDistance, routeDuration]);
 
   return { fareBreakdown, fareLoading, fareError, setFareBreakdown };
 };

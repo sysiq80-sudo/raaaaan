@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
 // Point-in-Polygon algorithm (Ray casting)
 function isPointInPolygon(
   lat: number,
@@ -39,6 +39,7 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -56,6 +57,9 @@ serve(async (req) => {
       dropoff_lat,
       dropoff_lng,
       distance_km,
+      duration_minutes = null,
+    } = body;
+    const {
       vehicle_type = "economy",
       waiting_minutes = 0,
       driver_id = null,
@@ -67,6 +71,8 @@ serve(async (req) => {
     dropoff_lat = parseFloat(dropoff_lat);
     dropoff_lng = parseFloat(dropoff_lng);
     distance_km = parseFloat(distance_km);
+    // duration_minutes — اختياري من OSRM/routing؛ يُستخدم بدل تقدير distance/30kmh إذا كان صالحاً
+    duration_minutes = duration_minutes != null ? parseFloat(duration_minutes) : null;
 
     // ═══ Input Validation ═══
     // التحقق من أن الإحداثيات ضمن حدود العراق (lat ~29-37, lng ~38-49)
@@ -312,8 +318,23 @@ serve(async (req) => {
 
     // Calculate fare components
     const distanceFare = Math.round(distance_km * perKmFare);
-    // تقدير وقت الرحلة: متوسط 30 كم/ساعة في المدن العراقية
-    const estimatedMinutes = Math.max(1, Math.round((distance_km / 30) * 60));
+    // تقدير وقت الرحلة: يُستخدم duration_minutes من OSRM إن توفر وكان منطقياً.
+    // 🔒 حماية ضد التلاعب بالأجرة: المدة القادمة من العميل تُقبل فقط إذا
+    // أعطت سرعة ضمنية منطقية (5–100 كم/ساعة)؛ غير ذلك يُتجاهل ويُعتمد تقدير 30 كم/س.
+    // وإلا فالتقدير الاحتياطي: متوسط 30 كم/ساعة في المدن العراقية
+    const fallbackMinutes = Math.max(1, Math.round((distance_km / 30) * 60));
+    let estimatedMinutes = fallbackMinutes;
+    if (duration_minutes != null && !isNaN(duration_minutes) && duration_minutes > 0) {
+      // السرعة الضمنية = المسافة / (المدة بالساعات)
+      const impliedSpeedKmh = distance_km / (duration_minutes / 60);
+      if (impliedSpeedKmh >= 5 && impliedSpeedKmh <= 100) {
+        estimatedMinutes = Math.max(1, Math.round(duration_minutes));
+      } else {
+        console.warn(
+          `[calculate-fare] Rejected duration_minutes=${duration_minutes} — implied speed ${impliedSpeedKmh.toFixed(1)}km/h out of [5,100], using fallback`,
+        );
+      }
+    }
     const timeFare = Math.round(estimatedMinutes * perMinuteFare);
     const waitingFare = Math.round(waiting_minutes * waitingFarePerMin);
     const subtotal = baseFare + distanceFare + timeFare + waitingFare;
