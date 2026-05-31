@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 import { useAdaptiveRouting } from "@/hooks/useAdaptiveRouting";
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
+import { getOrCreateSharedMap } from "@/lib/googleMapService";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -101,9 +102,16 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   });
 
   const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
-  const { getRoute: getAdaptiveRoute } = useAdaptiveRouting();
+  const { getRoute: getAdaptiveRoute, currentAdapter: routingAdapter } = useAdaptiveRouting();
   const [driver, setDriver] = useState<Driver | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [mapLoadFailed, setMapLoadFailed] = useState(false);
+  // Leaflet fallback refs
+  const osmMapRef = useRef<any>(null);
+  const osmDriverMarkerRef = useRef<any>(null);
+  const leafletRef = useRef<typeof import('leaflet') | null>(null);
+  // ETA throttle — only fetch OSRM route every 30s or when driver moves > 300m
+  const lastETAFetchRef = useRef<{ time: number; lat: number; lng: number } | null>(null);
   const [estimatedArrival, setEstimatedArrival] = useState<number | null>(null);
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
   const [previousStatus, setPreviousStatus] = useState<string>(ride.status);
@@ -223,12 +231,68 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   // Load Google Maps API script
   useEffect(() => {
     if (typeof window === "undefined" || window.google?.maps) return;
-    if (!googleMapsApiKey) return;
+    if (!googleMapsApiKey) {
+      setMapLoadFailed(true);
+      return;
+    }
 
     loadGoogleMaps(googleMapsApiKey).catch(err => {
       console.error("LiveRideTracker: Google Maps load error", err);
     });
   }, [googleMapsApiKey]);
+
+  // Initialize Leaflet fallback map when Google Maps is unavailable
+  useEffect(() => {
+    if (!mapLoadFailed || !mapContainer.current || osmMapRef.current) return;
+
+    (async () => {
+      const L = await import('leaflet');
+      await import('leaflet/dist/leaflet.css');
+      leafletRef.current = L;
+
+      if (!mapContainer.current || osmMapRef.current) return;
+
+      const osmMap = L.map(mapContainer.current, {
+        center: [ride.pickup_location.lat, ride.pickup_location.lng],
+        zoom: 14,
+        attributionControl: false,
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors',
+      }).addTo(osmMap);
+
+      // Pickup marker (green)
+      L.circleMarker([ride.pickup_location.lat, ride.pickup_location.lng], {
+        radius: 10, color: '#059669', fillColor: '#34d399', fillOpacity: 0.9, weight: 2,
+      }).addTo(osmMap);
+
+      // Dropoff marker (orange)
+      L.circleMarker([ride.dropoff_location.lat, ride.dropoff_location.lng], {
+        radius: 10, color: '#ea580c', fillColor: '#ff9f43', fillOpacity: 0.9, weight: 2,
+      }).addTo(osmMap);
+
+      // Fit both points in view
+      osmMap.fitBounds(
+        L.latLngBounds([
+          [ride.pickup_location.lat, ride.pickup_location.lng],
+          [ride.dropoff_location.lat, ride.dropoff_location.lng],
+        ]),
+        { padding: [40, 40] }
+      );
+
+      osmMapRef.current = osmMap;
+      setIsLoading(false);
+    })();
+
+    return () => {
+      osmMapRef.current?.remove();
+      osmMapRef.current = null;
+      osmDriverMarkerRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapLoadFailed]);
 
   // Fetch driver info
   useEffect(() => {
@@ -267,6 +331,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
       if (attempts >= MAX_ATTEMPTS) {
         clearInterval(checkGoogleMaps);
         console.error("[LiveRideTracker] ❌ Google Maps failed to load after 5s");
+        setMapLoadFailed(true);
         setIsLoading(false);
         return;
       }
@@ -274,7 +339,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         clearInterval(checkGoogleMaps);
         if (!mapContainer.current || map.current) return;
 
-        map.current = new google.maps.Map(mapContainer.current, {
+        map.current = getOrCreateSharedMap(mapContainer.current, {
           center: { lat: ride.pickup_location.lat, lng: ride.pickup_location.lng },
           zoom: 14,
           disableDefaultUI: true,
@@ -284,27 +349,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           streetViewControl: false,
           rotateControl: false,
           fullscreenControl: false,
-          styles: [
-            // نمط داكن مشابه لـ dark-v11
-            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-            { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
-            { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
-            { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#263c3f" }] },
-            { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#6b9a76" }] },
-            { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
-            { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
-            { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b3" }] },
-            { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#746855" }] },
-            { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#1f2835" }] },
-            { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#f3d19c" }] },
-            { featureType: "transit", elementType: "geometry", stylers: [{ color: "#2f3948" }] },
-            { featureType: "transit.station", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
-            { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] },
-            { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#515c6d" }] },
-            { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] },
-          ],
+          // ✅ بدون styles مخصصة — نفس المظهر الافتراضي لباقي خرائط الراكب
         });
 
         directionsServiceRef.current = new google.maps.DirectionsService();
@@ -418,6 +463,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   const fetchRoute = async () => {
     if (!map.current) return;
 
+    // ✅ الـ useEffect أدناه يضمن استدعاء fetchRoute فقط بعد جهوز الـ adapter
     try {
       const origin = { lat: ride.pickup_location.lat, lng: ride.pickup_location.lng };
       const destination = { lat: ride.dropoff_location.lat, lng: ride.dropoff_location.lng };
@@ -436,17 +482,27 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
         // حفظ إحداثيات المسار
         setRouteCoordinates(routeResult.path);
-        
+
         // المسافة المتبقية
         setRemainingDistance(routeResult.distance / 1000);
 
         // ضبط الإطار
         fitBoundsToPoints([ride.pickup_location, ride.dropoff_location]);
       }
-    } catch (error) {
+    } catch (error: any) {
+      // إذا الـ adapter لم يجهز بعد — الـ useEffect سيعيد المحاولة تلقائياً
+      if (error?.message?.includes('not initialized')) return;
       console.error("Error fetching route via adaptive routing:", error);
     }
   };
+
+  // ✅ إذا الـ adapter جهز بعد الخريطة — ارسم المسار تلقائياً
+  useEffect(() => {
+    if (routingAdapter && map.current && !routePolylineRef.current) {
+      fetchRoute();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routingAdapter]);
 
   // Update route to destination after arrival using adaptive routing
   const updateRouteToDestination = async (driverLocation: { lat: number; lng: number }) => {
@@ -614,6 +670,19 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   const animationRef = useRef<number | null>(null);
 
   const updateDriverMarker = (location: { lat: number; lng: number; heading?: number; speed?: number }) => {
+    // Leaflet fallback mode — simple marker update, no animations
+    if (osmMapRef.current && leafletRef.current) {
+      const L = leafletRef.current;
+      if (!osmDriverMarkerRef.current) {
+        osmDriverMarkerRef.current = L.circleMarker([location.lat, location.lng], {
+          radius: 8, color: '#0d9488', fillColor: '#14b8a6', fillOpacity: 1, weight: 2,
+        }).addTo(osmMapRef.current);
+      } else {
+        osmDriverMarkerRef.current.setLatLng([location.lat, location.lng]);
+      }
+      return;
+    }
+
     if (!map.current) return;
 
     let targetHeading = location.heading || 0;
@@ -741,21 +810,37 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
     return R * c;
   };
 
-  // Calculate ETA using Google Directions
+  // Calculate ETA via OSRM adaptive routing (throttled: max once per 30s or every 300m moved).
+  // Falls back to Haversine only if the routing adapter fails completely.
   const calculateETA = async (driverLocation: { lat: number; lng: number }) => {
     const targetLocation =
       ride.status === "in_progress"
         ? ride.dropoff_location
         : ride.pickup_location;
 
+    const now = Date.now();
+    const last = lastETAFetchRef.current;
+    if (last) {
+      const movedMeters = calculateDistanceMeters(
+        { lat: last.lat, lng: last.lng },
+        driverLocation
+      );
+      if ((now - last.time) < 30_000 && movedMeters < 300) return; // still fresh
+    }
+
     try {
-      // 🚫 STOPPED using Directions API for real-time ETA to prevent massive cost.
-      // Fallback: Haversine distance with assumed 30km/h average city speed (8.33 m/s).
+      const route = await getAdaptiveRoute(
+        { lat: driverLocation.lat, lng: driverLocation.lng },
+        { lat: targetLocation.lat, lng: targetLocation.lng }
+      );
+      lastETAFetchRef.current = { time: now, lat: driverLocation.lat, lng: driverLocation.lng };
+      setEstimatedArrival(Math.max(1, Math.round(route.duration / 60)));
+    } catch {
+      // OSRM failed — apply the same 30s cooldown so we don't hammer it on every
+      // location update, and fall back to Haversine for this cycle.
+      lastETAFetchRef.current = { time: now, lat: driverLocation.lat, lng: driverLocation.lng };
       const distanceMeters = calculateDistanceMeters(driverLocation, targetLocation);
-      const durationSec = distanceMeters / 8.33; 
-      setEstimatedArrival(Math.max(1, Math.round(durationSec / 60)));
-    } catch (error) {
-      console.error("Error calculating ETA:", error);
+      setEstimatedArrival(Math.max(1, Math.round(distanceMeters / 8.33 / 60)));
     }
   };
 
@@ -942,14 +1027,14 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         stepLabel={ride.status === 'accepted' ? 'السائق في الطريق' : ride.status === 'arrived' ? 'السائق وصل' : ride.status === 'in_progress' ? 'في الرحلة' : 'تتبع الرحلة'}
       />
 
-      {/* Status Floating Card - ملتصقة بالحافة */}
+      {/* Status Floating Card - ملتصقة بالحافة — ملونة حسب المرحلة */}
       <div className="absolute z-10" dir="rtl" style={{ top: 'calc(3.5rem + env(safe-area-inset-top) + 8px)', right: '0' }}>
         {ride.status === "accepted" && (
           <motion.div
             initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-            className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-l-2xl rounded-r-none border-r-0 px-4 py-2.5"
+            className="bg-gradient-to-l from-blue-600/80 to-blue-800/70 backdrop-blur-xl border border-blue-400/20 rounded-l-2xl rounded-r-none border-r-0 px-4 py-2.5 shadow-lg shadow-blue-900/30"
           >
-            <p className="text-[10px] text-slate-400">السائق في الطريق</p>
+            <p className="text-[10px] text-blue-200/80 font-medium">السائق في الطريق</p>
             <p className="text-lg font-black tabular-nums text-white">
               {estimatedArrival ? `${estimatedArrival} د` : "—"}
             </p>
@@ -959,9 +1044,9 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         {ride.status === "arrived" && (
           <motion.div
             initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-            className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-l-2xl rounded-r-none border-r-0 px-4 py-2.5"
+            className="bg-gradient-to-l from-emerald-600/80 to-teal-800/70 backdrop-blur-xl border border-emerald-400/20 rounded-l-2xl rounded-r-none border-r-0 px-4 py-2.5 shadow-lg shadow-emerald-900/30"
           >
-            <p className="text-[10px] text-slate-400">السائق وصل</p>
+            <p className="text-[10px] text-emerald-200/80 font-medium">السائق وصل</p>
             <p className="text-lg font-black text-white">بانتظارك</p>
           </motion.div>
         )}
@@ -969,9 +1054,9 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         {ride.status === "in_progress" && (
           <motion.div
             initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-            className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-l-2xl rounded-r-none border-r-0 px-4 py-2.5"
+            className="bg-gradient-to-l from-violet-600/80 to-purple-800/70 backdrop-blur-xl border border-violet-400/20 rounded-l-2xl rounded-r-none border-r-0 px-4 py-2.5 shadow-lg shadow-violet-900/30"
           >
-            <p className="text-[10px] text-slate-400">في الرحلة</p>
+            <p className="text-[10px] text-violet-200/80 font-medium">في الرحلة</p>
             <p className="text-lg font-black tabular-nums text-white">
               {remainingDistance
                 ? remainingDistance < 1
