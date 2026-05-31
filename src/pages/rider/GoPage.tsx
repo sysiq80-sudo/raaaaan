@@ -737,7 +737,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     fareBreakdown,
     fareLoading,
     fareError
-  } = useFareCalculation(pickupLocation, dropoffLocation, selectedVehicle, routeDistance);
+  } = useFareCalculation(pickupLocation, dropoffLocation, selectedVehicle, routeDistance, routeDuration);
 
   // Show fare calculation error
   useEffect(() => {
