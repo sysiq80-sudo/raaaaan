@@ -23,7 +23,7 @@ import {
   MapPin, Loader2, AlertCircle, ChevronRight, Clock, X, Heart,
   Navigation, Mic, MicOff, WifiOff, Search,
   Utensils, Hospital, ShoppingBag, GraduationCap, Fuel, Landmark,
-  Home, Briefcase, Star, Sparkles,
+  Home, Briefcase, Star,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { RecentSearch } from '@/hooks/useRecentSearches';
@@ -48,12 +48,12 @@ export interface CategoryFilter {
 }
 
 export const SEARCH_CATEGORIES: CategoryFilter[] = [
+  { id: 'government', label: 'دوائر حكومية', icon: <Landmark className="w-3.5 h-3.5" />, keyword: 'دائرة' },
   { id: 'restaurant', label: 'مطاعم', icon: <Utensils className="w-3.5 h-3.5" />, keyword: 'مطعم' },
   { id: 'hospital', label: 'مستشفيات', icon: <Hospital className="w-3.5 h-3.5" />, keyword: 'مستشفى' },
   { id: 'university', label: 'جامعات', icon: <GraduationCap className="w-3.5 h-3.5" />, keyword: 'جامعة' },
   { id: 'gas_station', label: 'محطات وقود', icon: <Fuel className="w-3.5 h-3.5" />, keyword: 'محطة وقود' },
   { id: 'mall', label: 'مولات', icon: <ShoppingBag className="w-3.5 h-3.5" />, keyword: 'مول' },
-  { id: 'government', label: 'دوائر حكومية', icon: <Landmark className="w-3.5 h-3.5" />, keyword: 'دائرة' },
 ];
 
 // ─── مساعدات الأيقونات ───
@@ -71,7 +71,7 @@ const getCategoryIcon = (iconType?: string): React.ReactNode => {
     case 'heart': return <Heart className="w-4 h-4" />;
     case 'star': return <Star className="w-4 h-4" />;
     case 'clock': return <Clock className="w-4 h-4" />;
-    default: return <MapPin className="w-4 h-4" />;
+    default: return <MapPin className="w-4 h-4 text-[#5bdda6] drop-shadow-[0_0_6px_rgba(91,221,166,0.8)] filter" />;
   }
 };
 
@@ -92,15 +92,7 @@ const getCategoryColor = (iconType?: string): string => {
   }
 };
 
-const getSmartSuggestionIcon = (type: string): React.ReactNode => {
-  switch (type) {
-    case 'home': return <Home className="w-4 h-4" />;
-    case 'work': return <Briefcase className="w-4 h-4" />;
-    case 'lunch': return <Utensils className="w-4 h-4" />;
-    case 'shopping': return <ShoppingBag className="w-4 h-4" />;
-    default: return <Sparkles className="w-4 h-4" />;
-  }
-};
+
 
 const getPlaceSideLabel = (text?: string): string | undefined => {
   if (!text) return undefined;
@@ -142,6 +134,7 @@ interface DynamicSearchResultsProps {
   onSelectSmart?: (suggestion: SmartSuggestion) => void;
   onSelectSavedPlace?: (place: { name: string; address: string; lat: number; lng: number }) => void;
   onRemoveRecent?: (id: string) => void;
+  onClearRecent?: () => void;
   onClear?: () => void;
   onClose?: () => void;
   onCategorySelect?: (category: CategoryFilter) => void;
@@ -150,6 +143,7 @@ interface DynamicSearchResultsProps {
   maxResults?: number;
   maxRecentResults?: number;
   isOpen?: boolean;
+  onToggleFavorite?: (result: UnifiedSearchResult) => void;
 }
 
 export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
@@ -169,6 +163,7 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
   onSelectSmart,
   onSelectSavedPlace,
   onRemoveRecent,
+  onClearRecent,
   onClear,
   onClose,
   onCategorySelect,
@@ -177,6 +172,7 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
   maxResults = 6,
   maxRecentResults = 3,
   isOpen = true,
+  onToggleFavorite,
 }) => {
   const showRecent = !query && recentSearches && recentSearches.length > 0;
   const showZeroState = !query;
@@ -192,6 +188,16 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
   const totalResults = unifiedResults?.length || results.length;
   const hasMore = totalResults > maxResults;
 
+  const isItemSaved = (item: UnifiedSearchResult) => {
+    return savedPlaces.some(
+      (place) =>
+        (item.place_id && place.id === item.place_id) ||
+        (item.lat && item.lng && Math.abs(place.lat - item.lat) < 0.0001 && Math.abs(place.lng - item.lng) < 0.0001) ||
+        place.address === item.description ||
+        place.name === item.main_text
+    );
+  };
+
   if (!isOpen) return null;
   if (!showZeroState && !query) return null;
 
@@ -205,7 +211,7 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
         className={cn(
           "relative left-0 right-0 mt-2 z-[100]",
           "bg-card border border-border/30 rounded-2xl shadow-xl",
-          "max-h-[60vh] overflow-y-auto scrollbar-thin",
+          "max-h-[78vh] overflow-y-auto scrollbar-thin",
           className
         )}
         dir="rtl"
@@ -220,17 +226,17 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
 
         {/* ─── فلاتر التصنيفات ─── */}
         {onCategorySelect && (
-          <div className="px-3 py-2 border-b border-border/30">
-            <div className="flex flex-row-reverse gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+          <div className="px-3 py-2 border-b border-border/35">
+            <div className="flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
               {SEARCH_CATEGORIES.map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => onCategorySelect(cat)}
                   className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0",
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-200 shrink-0",
                     activeCategory === cat.id
-                      ? "bg-ring/20 text-ring border border-ring/30"
-                      : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground border border-transparent"
+                      ? "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 dark:text-emerald-400 dark:bg-emerald-500/10 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+                      : "bg-secondary/60 text-muted-foreground hover:bg-secondary/90 hover:text-foreground border border-border/20"
                   )}
                 >
                   {cat.icon}
@@ -244,49 +250,17 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
         {showZeroState && !query ? (
           // ═══ Zero-State: اقتراحات ذكية + محفوظ + أخير + معالم ═══
           <div>
-            {/* اقتراحات ذكية */}
-            {smartSuggestions.length > 0 && (
-              <div className="border-b border-border/20">
-                <div className="px-3 py-2 flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5 text-ring/70" />
-                  <span className="text-[10px] font-bold text-ring/60 uppercase tracking-wider">اقتراحات لك</span>
-                </div>
-                {smartSuggestions.slice(0, 2).map((suggestion, index) => (
-                  <motion.button
-                    key={suggestion.id}
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    onClick={() => onSelectSmart?.(suggestion)}
-                    className="w-full px-3 py-2.5 hover:bg-secondary/50 transition-colors flex items-center gap-3"
-                  >
-                    <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
-                      suggestion.type === 'home' ? 'bg-sky-500/10 text-sky-400' :
-                      suggestion.type === 'work' ? 'bg-amber-500/10 text-amber-400' :
-                      suggestion.type === 'lunch' ? 'bg-orange-500/10 text-orange-400' :
-                      'bg-purple-500/10 text-purple-400'
-                    )}>
-                      {getSmartSuggestionIcon(suggestion.type)}
-                    </div>
-                    <div className="flex-1 min-w-0 text-right">
-                      <p className="text-sm font-bold text-foreground truncate">{suggestion.title}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">{suggestion.subtitle || suggestion.reason}</p>
-                    </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 shrink-0" />
-                  </motion.button>
-                ))}
-              </div>
-            )}
+
 
             {/* الأماكن المحفوظة */}
             {savedPlaces.length > 0 && (
               <div className="border-b border-border/20">
-                <div className="px-3 py-2 flex items-center gap-2">
-                  <Heart className="w-3.5 h-3.5 text-pink-500/70" />
-                  <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider">الأماكن المحفوظة</span>
+                <div className="px-3 py-2 flex items-center justify-center gap-2 bg-[#5bdda6]/10 mt-1">
+                  <Heart className="w-4.5 h-4.5 text-pink-500" />
+                  <span className="text-[13px] font-extrabold text-foreground uppercase tracking-wider">الأماكن المحفوظة</span>
                 </div>
-                <div className="flex gap-2 px-3 pb-2.5 overflow-x-auto scrollbar-none">
-                  {savedPlaces.slice(0, 4).map((place) => (
+                <div className="flex gap-2 px-3 py-2.5 overflow-x-auto scrollbar-none" dir="ltr">
+                  {savedPlaces.map((place) => (
                     <motion.button
                       key={place.id}
                       whileTap={{ scale: 0.95 }}
@@ -312,50 +286,94 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
               <div className="border-b border-border/20">
                 <div className="px-3 py-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-3.5 h-3.5 text-muted-foreground/50" />
-                    <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider">بحث سابق</span>
+                    <Clock className="w-4.5 h-4.5 text-muted-foreground" />
+                    <span className="text-[13px] font-extrabold text-foreground uppercase tracking-wider">بحث سابق</span>
                   </div>
-                  {onClose && (
+                  {onClearRecent && (
                     <button
-                      onClick={onClose}
-                      className="p-1 rounded-md hover:bg-secondary transition-colors"
-                      aria-label="إغلاق"
+                      onClick={onClearRecent}
+                      className="p-1 rounded-md bg-[#5bdda6] text-[#0b1326] shadow-[0_0_12px_rgba(91,221,166,0.5)] border border-[#5bdda6]/30 hover:bg-[#4ecf99] active:scale-95 transition-all"
+                      aria-label="مسح البحوثات السابقة"
+                      title="مسح البحوثات السابقة"
                     >
-                      <X className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-foreground" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
                 {recentSearches.slice(0, maxRecentResults).map((search, index) => (
-                  <div key={search.id} className="relative group">
-                    <motion.button
-                      initial={{ opacity: 0, x: 10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.04 }}
-                      onClick={() => onSelectRecent?.(search)}
-                      className="w-full px-3 py-2.5 hover:bg-secondary/50 transition-colors flex items-center gap-3"
-                    >
-                      <div className="w-8 h-8 rounded-xl bg-secondary flex items-center justify-center shrink-0">
-                        <Clock className="w-4 h-4 text-muted-foreground/60" />
-                      </div>
-                      <div className="flex-1 min-w-0 text-right">
-                        <p className="text-sm font-medium text-foreground truncate">{search.mainText}</p>
-                        {search.secondaryText && (
-                          <p className="text-[11px] text-muted-foreground truncate">{search.secondaryText}</p>
-                        )}
-                      </div>
-                      <div className="w-7 shrink-0" />
-                    </motion.button>
+                  <motion.div
+                    key={search.id}
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.04 }}
+                    className="w-full px-3 py-2.5 hover:bg-secondary/50 transition-colors flex items-center gap-3 group"
+                  >
+                    {/* أيقونة الساعة */}
                     <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); onRemoveRecent?.(search.id); }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') onRemoveRecent?.(search.id); }}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 hover:bg-destructive/10 rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer z-10"
-                      aria-label="حذف"
+                      className="w-8 h-8 rounded-xl bg-secondary flex items-center justify-center shrink-0 cursor-pointer"
+                      onClick={() => onSelectRecent?.(search)}
                     >
-                      <X className="w-3 h-3 text-destructive/80" />
+                      <Clock className="w-4 h-4 text-muted-foreground/60" />
                     </div>
-                  </div>
+
+                    {/* النص */}
+                    <div
+                      className="flex-1 min-w-0 text-right cursor-pointer"
+                      onClick={() => onSelectRecent?.(search)}
+                    >
+                      <p className="text-sm font-medium text-foreground truncate">{search.mainText}</p>
+                      {search.secondaryText && (
+                        <p className="text-[11px] text-muted-foreground truncate">{search.secondaryText}</p>
+                      )}
+                    </div>
+
+                    {/* ── الأزرار: مفضلة + حذف ── */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* زر المفضلة */}
+                      {onToggleFavorite && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const asFav: UnifiedSearchResult = {
+                              id: search.id,
+                              source: 'recent',
+                              place_id: search.id,
+                              main_text: search.mainText,
+                              secondary_text: search.secondaryText,
+                              description: search.secondaryText || search.address || '',
+                              lat: search.lat,
+                              lng: search.lng,
+                              score: 0,
+                            };
+                            onToggleFavorite(asFav);
+                          }}
+                          className={cn(
+                            "w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200",
+                            savedPlaces.some(p => p.name === search.mainText || (search.lat && search.lng && Math.abs(p.lat - (search.lat || 0)) < 0.0001 && Math.abs(p.lng - (search.lng || 0)) < 0.0001))
+                              ? "bg-pink-500/15 text-pink-500"
+                              : "text-muted-foreground/40 hover:bg-pink-500/10 hover:text-pink-500"
+                          )}
+                          aria-label="إضافة للمفضلة"
+                          title="إضافة للمفضلة"
+                        >
+                          <Heart className={cn("w-3.5 h-3.5",
+                            savedPlaces.some(p => p.name === search.mainText) ? "fill-pink-500" : ""
+                          )} />
+                        </button>
+                      )}
+                      {/* زر الحذف */}
+                      {onRemoveRecent && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onRemoveRecent(search.id); }}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:bg-destructive/15 hover:text-destructive transition-all"
+                          aria-label="حذف"
+                          title="حذف من البحوثات السابقة"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
                 ))}
               </div>
             )}
@@ -363,9 +381,9 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
             {/* أقرب المعالم */}
             {nearbyLandmarks.length > 0 && (
               <div>
-                <div className="px-3 py-2 flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5 text-muted-foreground/50" />
-                  <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider">أماكن قريبة</span>
+                <div className="px-3 py-2 flex items-center justify-center gap-2 bg-[#5bdda6]/10 mt-1">
+                  <MapPin className="w-4.5 h-4.5 text-[#5bdda6] drop-shadow-[0_0_8px_rgba(91,221,166,0.9)] filter" />
+                  <span className="text-[13px] font-extrabold text-foreground uppercase tracking-wider">أماكن قريبة</span>
                 </div>
                 {nearbyLandmarks.slice(0, 3).map((lm, index) => (
                   <motion.button
@@ -376,10 +394,24 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                     onClick={() => onSelectUnified?.(lm)}
                     className="w-full px-3 py-2.5 hover:bg-secondary/50 transition-colors flex items-center gap-3"
                   >
-                    <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
-                      getCategoryColor(lm.icon_type)
-                    )}>
-                      {getCategoryIcon(lm.icon_type)}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleFavorite?.(lm);
+                      }}
+                      className={cn(
+                        "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-200 group/fav cursor-pointer",
+                        isItemSaved(lm)
+                          ? "bg-pink-500/10 border-pink-500/30 text-pink-500"
+                          : "bg-secondary/80 border-border/10 text-muted-foreground hover:bg-pink-500/10 hover:border-pink-500/30 hover:text-pink-500"
+                      )}
+                      title={isItemSaved(lm) ? "حذف من المفضلة" : "إضافة للمفضلة"}
+                    >
+                      <Heart className={cn("w-4 h-4 transition-all duration-200", 
+                        isItemSaved(lm) ? "fill-pink-500 scale-110" : "scale-100 group-hover/fav:scale-110"
+                      )} />
                     </div>
                     <div className="flex-1 min-w-0 text-right">
                       <p className="text-sm font-medium text-foreground truncate">{lm.main_text}</p>
@@ -387,11 +419,6 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                         <p className="text-[11px] text-muted-foreground truncate">{lm.secondary_text}</p>
                       )}
                     </div>
-                    {getPlaceSideLabel(lm.secondary_text || lm.description) && (
-                      <span className="text-[10px] text-ring/80 whitespace-nowrap shrink-0 max-w-[96px] truncate">
-                        {getPlaceSideLabel(lm.secondary_text || lm.description)}
-                      </span>
-                    )}
                   </motion.button>
                 ))}
               </div>
@@ -461,11 +488,50 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                       disabled={isLoadingDetails}
                       className="w-full px-3 py-2.5 hover:bg-secondary/50 transition-colors disabled:opacity-50 flex items-center gap-3 group relative"
                     >
-                      {/* أيقونة حسب التصنيف */}
-                      <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
-                        getCategoryColor(iconType)
-                      )}>
-                        {getCategoryIcon(iconType)}
+                      {/* زر الحفظ للمفضلة بدلاً من الأيقونة */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const itemForFav: UnifiedSearchResult = unified || {
+                            id: (result as any).place_id || index.toString(),
+                            source: 'google',
+                            place_id: (result as any).place_id,
+                            main_text: (result as any).main_text,
+                            secondary_text: (result as any).secondary_text,
+                            description: (result as any).description || '',
+                            score: 0,
+                          };
+                          onToggleFavorite?.(itemForFav);
+                        }}
+                        className={cn(
+                          "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-200 group/fav cursor-pointer",
+                          isItemSaved(unified || {
+                            id: (result as any).place_id || index.toString(),
+                            source: 'google',
+                            place_id: (result as any).place_id,
+                            main_text: (result as any).main_text,
+                            secondary_text: (result as any).secondary_text,
+                            description: (result as any).description || '',
+                            score: 0,
+                          })
+                            ? "bg-pink-500/10 border-pink-500/30 text-pink-500"
+                            : "bg-secondary/80 border-border/10 text-muted-foreground hover:bg-pink-500/10 hover:border-pink-500/30 hover:text-pink-500"
+                        )}
+                        title={unified && isItemSaved(unified) ? "حذف من المفضلة" : "إضافة للمفضلة"}
+                      >
+                        <Heart className={cn("w-4 h-4 transition-all duration-200", 
+                          isItemSaved(unified || {
+                            id: (result as any).place_id || index.toString(),
+                            source: 'google',
+                            place_id: (result as any).place_id,
+                            main_text: (result as any).main_text,
+                            secondary_text: (result as any).secondary_text,
+                            description: (result as any).description || '',
+                            score: 0,
+                          }) ? "fill-pink-500 scale-110" : "scale-100 group-hover/fav:scale-110"
+                        )} />
                       </div>
 
                       {/* النص */}
@@ -487,17 +553,11 @@ export const DynamicSearchResults: React.FC<DynamicSearchResultsProps> = ({
                           </div>
                         )}
 
-                        {placeSubtitle && (
+                        {placeSubtitle && !placeName?.includes(placeSideLabel || '') && (
                           <p className="text-[11px] text-muted-foreground truncate">{placeSubtitle}</p>
                         )}
                       </div>
 
-                      {/* اسم المكان المختصر (بدل المسافة) */}
-                      {placeSideLabel && (
-                        <span className="text-[10px] text-ring/80 whitespace-nowrap shrink-0 max-w-[110px] truncate">
-                          {placeSideLabel}
-                        </span>
-                      )}
 
                       <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 group-hover:text-ring/60 transition-colors shrink-0" />
 
@@ -580,7 +640,7 @@ export const DynamicSearchHeader: React.FC<{
       <div
         className={cn(
           "relative flex flex-col gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300",
-          "bg-gradient-to-l from-card to-card/85",
+          "bg-white dark:bg-card",
           isListening
             ? "shadow-[0_0_20px_rgba(239,68,68,0.2),0_8px_32px_rgba(0,0,0,0.6)] border border-destructive/40"
             : isFocused || isSearching
@@ -595,66 +655,25 @@ export const DynamicSearchHeader: React.FC<{
           </div>
         )}
 
-        {/* السطر الأول الداخلي: أيقونات الإجراءات السريعة */}
-        <div className="flex items-center justify-end w-full">
-          {/* ── أيقونات الإجراءات ── */}
-          <div className="flex items-center gap-2.5 shrink-0 pl-1">
-            {/* مسح نص البحث */}
-            <AnimatePresence>
-              {query && (
-                <motion.button
-                  initial={{ opacity: 0, scale: 0.7 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.7 }}
-                  whileTap={{ scale: 0.85 }}
-                  onClick={onClear}
-                  className="w-12 h-12 rounded-xl bg-secondary/80 border border-border/30 hover:bg-secondary flex items-center justify-center transition-all group"
-                  aria-label="مسح البحث"
-                >
-                  <X className="w-5.5 h-5.5 text-muted-foreground group-hover:text-foreground transition-colors" />
-                </motion.button>
-              )}
-            </AnimatePresence>
-
-
-          </div>
-        </div>
-
-        {/* السطر السفلي: أيقونة البحث / أوفلاين + حقل النص */}
-        <div className={cn(
-          "flex items-center gap-2 transition-all duration-300 w-full",
-          showAddress && !query && !isFocused
-            ? "bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 dark:border-emerald-500/30 rounded-xl px-3 py-2 shadow-[0_2px_10px_rgba(16,185,129,0.08)]"
-            : ""
-        )}>
+        {/* سطر البحث الرئيسي: يدمج الأيقونة والمدخلات وزر المسح في صف واحد متناسق */}
+        <div className="flex items-center gap-3 w-full">
           {/* ── أيقونة البحث / حذف العنوان / أوفلاين ── */}
           {isOffline ? (
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 shadow-inner">
               <WifiOff className="w-4.5 h-4.5 text-amber-500 drop-shadow-sm" />
             </div>
-          ) : !query && showAddress && onClearAddress ? (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.7 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.7 }}
-              whileTap={{ scale: 0.85 }}
-              onClick={onClearAddress}
-              className="w-10 h-10 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground border border-destructive/20 flex items-center justify-center transition-all shrink-0 shadow-md group"
-              aria-label="حذف الموقع"
-              title="حذف الموقع المحدد"
-            >
-              <X className="w-4.5 h-4.5 drop-shadow-md group-hover:scale-110 transition-transform" />
-            </motion.button>
           ) : (
-            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-inner transition-colors",
-              isListening ? "bg-destructive/10 border-destructive/20" : "bg-ring/5 border-ring/15"
+            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-300",
+              isListening
+                ? "bg-destructive/10 border-destructive/20 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+                : "bg-emerald-950/80 border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.35)]"
             )}>
               {isSearching ? (
                 <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
                 >
-                  <Loader2 className="w-5 h-5 text-ring" />
+                  <Loader2 className="w-5 h-5 text-emerald-400" />
                 </motion.div>
               ) : isListening ? (
                 <motion.div
@@ -664,13 +683,13 @@ export const DynamicSearchHeader: React.FC<{
                   <Mic className="w-5 h-5 text-destructive drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
                 </motion.div>
               ) : (
-                <Search className="w-5 h-5 text-ring/70 drop-shadow-[0_0_8px_hsl(var(--ring)/0.2)]" />
+                <Search className="w-5 h-5 text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
               )}
             </div>
           )}
 
           {/* ── حقل النص / عرض العنوان ── */}
-          <div className="flex-1 relative min-w-0 py-1" dir="rtl">
+          <div className="flex-1 relative min-w-0 py-1.5" dir="rtl">
             {/* عرض النص الصوتي الحي */}
             {isListening && voiceTranscript && (
               <div className="pointer-events-none">
@@ -687,14 +706,14 @@ export const DynamicSearchHeader: React.FC<{
                 onClick={onAddressClick}
                 className={`flex flex-col justify-center h-full ${onAddressClick ? 'pointer-events-auto cursor-pointer active:scale-95 transition-transform' : 'pointer-events-none'}`}
               >
-                <p className="text-[15px] text-foreground font-bold truncate leading-tight pr-1 drop-shadow-sm">{showAddress}</p>
+                <p className="text-[15px] font-bold truncate leading-tight pr-1" style={{ color: '#000000' }}>{showAddress}</p>
               </motion.div>
             )}
 
             {/* Placeholder الافتراضي — يختفي عند التركيز */}
             {!isListening && !query && !showAddress && !isFocused && (
               <div className="pointer-events-none">
-                <p className="text-[15px] text-muted-foreground/60 font-bold leading-tight py-1.5">
+                <p className="text-[15px] text-muted-foreground/60 font-bold leading-tight py-1">
                   {placeholder || "إلى أين؟"}
                 </p>
               </div>
@@ -711,14 +730,31 @@ export const DynamicSearchHeader: React.FC<{
               onBlur={() => setIsFocused(false)}
               placeholder={isFocused ? placeholder : ''}
               className={cn(
-                "w-full bg-transparent text-[15px] font-bold text-right",
-                "text-foreground placeholder:text-muted-foreground",
-                "focus:outline-none caret-ring",
-                (query || isFocused) && !isListening ? "relative opacity-100 py-2.5" : "absolute inset-0 opacity-0 py-2.5 z-10 cursor-text"
+                "w-full bg-transparent text-[15px] font-bold",
+                "placeholder:text-gray-400",
+                "focus:outline-none caret-emerald-500",
+                (query || isFocused) && !isListening ? "relative opacity-100 py-1" : "absolute inset-0 opacity-0 py-1 z-10 cursor-text"
               )}
-              dir="rtl"
+              style={{ color: '#000000', direction: 'rtl', textAlign: 'right', unicodeBidi: 'plaintext' }}
             />
           </div>
+
+          {/* ── زر مسح النص البحثي (Clear) ── */}
+          <AnimatePresence>
+            {query && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.7 }}
+                whileTap={{ scale: 0.85 }}
+                onClick={onClear}
+                className="w-8 h-8 rounded-lg bg-secondary/80 border border-border/30 hover:bg-secondary flex items-center justify-center transition-all shrink-0 group"
+                aria-label="مسح البحث"
+              >
+                <X className="w-4.5 h-4.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

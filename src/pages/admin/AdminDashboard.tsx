@@ -188,7 +188,7 @@ const AdminDashboard = () => {
             id: claim.id,
             type: "incentive_claimed",
             title: "مكافأة جديدة",
-            details: `${claim.bonus_earned.toLocaleString()} د.ع`,
+            details: `${claim.bonus_earned.toLocaleString('en-US')} د.ع`,
             created_at: claim.claimed_at || new Date().toISOString(),
           });
         });
@@ -258,7 +258,7 @@ const AdminDashboard = () => {
         <StatCard
           icon={<Route className="w-5 h-5" />}
           label="إجمالي الرحلات"
-          value={statsLoading ? "..." : stats.totalRides.toLocaleString()}
+          value={statsLoading ? "..." : stats.totalRides.toLocaleString('en-US')}
           onClick={() => navigate("/admin/rides")}
           color="primary"
         />
@@ -272,7 +272,7 @@ const AdminDashboard = () => {
         <StatCard
           icon={<Users className="w-5 h-5" />}
           label="إجمالي المستخدمين"
-          value={statsLoading ? "..." : stats.totalUsers.toLocaleString()}
+          value={statsLoading ? "..." : stats.totalUsers.toLocaleString('en-US')}
           onClick={() => navigate("/admin/riders")}
           color="blue"
         />
@@ -295,7 +295,7 @@ const AdminDashboard = () => {
               </div>
               <span className="text-xs bg-green-500/20 text-green-600 px-2 py-1 rounded-full">اليوم</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">{statsLoading ? "..." : `${(stats.todayEarnings / 1000).toLocaleString()}K`}</p>
+            <p className="text-2xl font-bold text-foreground">{statsLoading ? "..." : `${(stats.todayEarnings / 1000).toLocaleString('en-US')}K`}</p>
             <p className="text-sm text-muted-foreground">أرباح اليوم (د.ع)</p>
             <div className="mt-2 text-xs text-green-600">
               {stats.todayRides} رحلة اليوم
@@ -311,7 +311,7 @@ const AdminDashboard = () => {
               </div>
               <span className="text-xs bg-blue-500/20 text-blue-600 px-2 py-1 rounded-full">هذا الأسبوع</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">{statsLoading ? "..." : `${(stats.weeklyEarnings / 1000).toLocaleString()}K`}</p>
+            <p className="text-2xl font-bold text-foreground">{statsLoading ? "..." : `${(stats.weeklyEarnings / 1000).toLocaleString('en-US')}K`}</p>
             <p className="text-sm text-muted-foreground">أرباح الأسبوع (د.ع)</p>
             <div className="mt-2 text-xs text-blue-600">
               {stats.weeklyRides} رحلة
@@ -327,7 +327,7 @@ const AdminDashboard = () => {
               </div>
               <span className="text-xs bg-purple-500/20 text-purple-600 px-2 py-1 rounded-full">حوافز</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">{statsLoading ? "..." : `${(stats.totalIncentivesPaid / 1000).toLocaleString()}K`}</p>
+            <p className="text-2xl font-bold text-foreground">{statsLoading ? "..." : `${(stats.totalIncentivesPaid / 1000).toLocaleString('en-US')}K`}</p>
             <p className="text-sm text-muted-foreground">مكافآت مدفوعة (د.ع)</p>
             <div className="mt-2">
               <Button variant="ghost" size="sm" className="text-xs h-6 px-2 text-purple-600" onClick={() => navigate("/admin/incentives")}>
@@ -356,7 +356,7 @@ const AdminDashboard = () => {
           icon={<Banknote className="w-5 h-5 text-sky-600" />}
           label="إجمالي رصيد المحافظ"
           color="sky"
-          onClick={() => navigate("/admin/wallets")}
+          onClick={() => navigate("/admin/wallet-requests")}
         />
       </div>
 
@@ -380,12 +380,12 @@ const AdminDashboard = () => {
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div className="text-center p-3 bg-green-500/10 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-green-600 mx-auto mb-1" />
-                <p className="text-lg font-bold text-foreground">{stats.completedRides.toLocaleString()}</p>
+                <p className="text-lg font-bold text-foreground">{stats.completedRides.toLocaleString('en-US')}</p>
                 <p className="text-xs text-muted-foreground">مكتملة</p>
               </div>
               <div className="text-center p-3 bg-red-500/10 rounded-lg">
                 <XCircle className="w-5 h-5 text-red-600 mx-auto mb-1" />
-                <p className="text-lg font-bold text-foreground">{stats.cancelledRides.toLocaleString()}</p>
+                <p className="text-lg font-bold text-foreground">{stats.cancelledRides.toLocaleString('en-US')}</p>
                 <p className="text-xs text-muted-foreground">ملغية</p>
               </div>
             </div>

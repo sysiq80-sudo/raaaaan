@@ -402,20 +402,30 @@ const RiderSavedPlacesPage: React.FC = () => {
   };
 
   const handleNavigateTo = (place: SavedPlace) => {
-    const params = new URLSearchParams({
-      dropoff_lat: place.lat.toString(),
-      dropoff_lng: place.lng.toString(),
-      dropoff_address: place.address,
+    const savedDropoff = {
+      lat: place.lat,
+      lng: place.lng,
+      address: place.address,
+    };
+    navigate("/rider/go", {
+      state: {
+        fromSavedPlace: true,
+        preferredMode: "pickup",
+        savedDropoff,
+        savedPickup: null,
+      },
     });
-    navigate(`/rider?${params.toString()}`);
   };
 
   return (
-    <div className="flex flex-col bg-background h-full">
+    <div 
+      className="flex flex-col bg-background min-h-screen"
+      style={{ paddingTop: 'calc(4rem + env(safe-area-inset-top, 0px))' }}
+    >
       <RiderPageHeader title="الأماكن المحفوظة" />
 
       {/* زر إضافة مكان — ثابت */}
-      <div className="pt-16 px-4 py-3 flex-shrink-0 bg-background/95 backdrop-blur-xl border-b border-slate-700/30 flex items-center justify-end">
+      <div className="px-4 py-3 flex-shrink-0 bg-background/95 backdrop-blur-xl border-b border-slate-700/30 flex items-center justify-end">
         <button
           onClick={openAddDialog}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-semibold text-[13px] shadow-lg shadow-emerald-500/20 transition-all"
@@ -772,51 +782,3 @@ const RiderSavedPlacesPage: React.FC = () => {
 
 
 export default RiderSavedPlacesPage;
-
-/*
-// TODO: Future Implementation (moved from AIVoiceHome)
-// This slider component was removed from AIVoiceHome.tsx and should be integrated here or reconstructed:
-      {/* ══════════════════════════════════════
-         سلايدر المواقع المحفوظة
-         ══════════════════════════════════════ *\/}
-      {normalizedFavorites.length > 0 && (
-        <motion.div
-          className="relative z-10 w-full max-w-none mx-auto px-4 pb-3"
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.34 }}
-        >
-          <div className="mb-2 px-1 text-[11px] text-[#5bdda6]/75 text-center">
-            اسحب يمين ويسار واختر المكان المناسب
-          </div>
-
-          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 px-0.5 scrollbar-hide">
-            {normalizedFavorites.map((fav, index) => (
-              <motion.div
-                key={fav.id}
-                className="min-w-[280px] w-[280px] flex-shrink-0 snap-center rounded-3xl border border-[#5bdda6]/20 bg-[#0f1a2e]/75 backdrop-blur-xl px-4 py-4 shadow-[0_8px_30px_rgba(0,0,0,0.35)]"
-              >
-                <div className="mb-3 flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-2xl border border-[#5bdda6]/35 bg-[#5bdda6]/15 text-[#5bdda6] flex items-center justify-center">
-                    {FAV_ICON_MAP[fav.icon || 'other']}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-white font-extrabold text-base leading-tight truncate">
-                      {fav.name || FAV_NAMES[fav.icon || 'other']}
-                    </p>
-                    <p className="text-white/50 text-xs truncate mt-1">
-                      {fav.address}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  className="w-full h-10 rounded-xl bg-[#5bdda6] text-[#071321] text-sm font-black hover:bg-[#4ed19b] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-                  <span>الوصول إلى {fav.name || FAV_NAMES[fav.icon || 'other']}</span>
-                </button>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-*/

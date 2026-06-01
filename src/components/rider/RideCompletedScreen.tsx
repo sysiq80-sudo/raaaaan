@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import confetti from "canvas-confetti";
+
 import { motion, AnimatePresence } from "framer-motion";
 
 interface RideCompletedScreenProps {
@@ -98,11 +98,7 @@ export const RideCompletedScreen = ({
     fetchDriverData();
   }, [ride.driver_id]);
 
-  useEffect(() => {
-    try {
-      confetti({ particleCount: 20, spread: 70, origin: { y: 0.6 }, colors: ["#10b981","#fbbf24","#06b6d4"] });
-    } catch { /* ignore */ }
-  }, []);
+
 
   const display          = hovered || rating;
   const cfg              = RATING_CONFIG[display as keyof typeof RATING_CONFIG];
@@ -175,7 +171,7 @@ export const RideCompletedScreen = ({
         }
       } catch { /* ignore */ }
 
-      try { confetti({ particleCount: 30, spread: 90, origin: { y: 0.4 }, colors: ["#10b981","#fbbf24","#06b6d4","#8b5cf6"] }); } catch { /* ignore */ }
+
       setSubmitted(true);
       toast({ title: "شكراً لتقييمك! ⭐", description: "تقييمك يجعل الخدمة أفضل" });
       setTimeout(() => onClose(), 2200);

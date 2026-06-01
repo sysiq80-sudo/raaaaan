@@ -95,6 +95,16 @@ export const PaymentMethodsAdmin = () => {
 
   // تبديل تفعيل طريقة الدفع
   const toggleEnabled = async (methodId: string, currentState: boolean) => {
+    const method = methods.find((m) => m.id === methodId);
+    if (method && !["cash", "wallet"].includes(method.method_key)) {
+      toast({
+        title: "طريقة الدفع معطلة بالنظام",
+        description: "وضع التشغيل الحالي يسمح بالنقدي والمحفظة المشحونة بكروت RAAN فقط",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from("payment_methods")
@@ -127,6 +137,14 @@ export const PaymentMethodsAdmin = () => {
   // حفظ التعديلات
   const saveChanges = async () => {
     if (!editingMethod) return;
+    if (!["cash", "wallet"].includes(editingMethod.method_key)) {
+      toast({
+        title: "طريقة الدفع معطلة بالنظام",
+        description: "لا يمكن تعديل أو تفعيل بوابات الدفع الخارجية في وضع كروت RAAN",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -226,10 +244,14 @@ export const PaymentMethodsAdmin = () => {
                   <TableCell>
                     <Switch
                       checked={method.is_enabled}
+                      disabled={!["cash", "wallet"].includes(method.method_key)}
                       onCheckedChange={() =>
                         toggleEnabled(method.id, method.is_enabled)
                       }
                     />
+                    {!["cash", "wallet"].includes(method.method_key) && (
+                      <p className="mt-1 text-[10px] text-muted-foreground">معطل بالنظام</p>
+                    )}
                   </TableCell>
                   <TableCell>
                     {method.is_available_for_riders ? (
@@ -253,7 +275,7 @@ export const PaymentMethodsAdmin = () => {
                         {method.processing_fee_percentage > 0 &&
                           `${method.processing_fee_percentage}%`}
                         {method.processing_fee_fixed > 0 &&
-                          ` +${method.processing_fee_fixed.toLocaleString()}د`}
+                          ` +${method.processing_fee_fixed.toLocaleString('en-US')}د`}
                       </Badge>
                     ) : (
                       <span className="text-muted-foreground">بدون رسوم</span>
@@ -265,6 +287,7 @@ export const PaymentMethodsAdmin = () => {
                         setEditingMethod(method);
                         setShowEditDialog(true);
                       }}
+                      disabled={!["cash", "wallet"].includes(method.method_key)}
                       variant="ghost"
                       size="sm"
                     >

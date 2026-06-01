@@ -343,7 +343,7 @@ export const useBroadcastChannel = ({
   }, [ride.status]);
 
   const sendQuickMessage = useCallback(
-    (event: string, title: string, description: string) => {
+    async (event: string, title: string, description: string) => {
       console.log(
         "[sendQuickMessage] Sending event:",
         event,
@@ -351,6 +351,7 @@ export const useBroadcastChannel = ({
         ride.id
       );
 
+      // 1. Broadcast (best-effort)
       if (broadcastChannel.current) {
         broadcastChannel.current
           .send({
@@ -371,6 +372,28 @@ export const useBroadcastChannel = ({
           });
       } else {
         console.warn("[sendQuickMessage] Broadcast channel not initialized!");
+      }
+
+      // 2. DB fallback: write to ride_messages to ensure delivery and display in chat
+      let dbMessage = description;
+      if (event === "rider_waiting") dbMessage = "👋 أنا بالانتظار";
+      else if (event === "rider_where_are_you") dbMessage = "📍 أين وصلت؟";
+      else if (event === "rider_wait_moment") dbMessage = "⏱️ انتظرني لحظة لو سمحت";
+      else if (event === "rider_on_my_way") dbMessage = "🚶 أنا في الطريق إليك";
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from("ride_messages").insert({
+            ride_id: ride.id,
+            sender_type: "rider",
+            sender_id: user.id,
+            message: dbMessage,
+          });
+          console.log("[sendQuickMessage] Message successfully written to database");
+        }
+      } catch (dbErr) {
+        console.warn("[sendQuickMessage] Quick message DB insert failed", dbErr);
       }
 
       playSound("messageSent");

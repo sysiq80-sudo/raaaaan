@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import SplashScreen from "@/components/common/SplashScreen";
-import { Navigation, Loader2, MapPin, AlertTriangle, AlertCircle, Search, Bookmark, Home, Briefcase, Star, Clock, ArrowRight, Edit2, Heart, X } from "lucide-react";
+import { Navigation, Loader2, MapPin, AlertTriangle, AlertCircle, Search, Bookmark, Home, Briefcase, Star, Clock, ArrowRight, Edit2, Heart, X, Crosshair, LocateFixed } from "lucide-react";
 import logo from "@/assets/logo.png";
 import RiderMapHeader from "@/components/rider/RiderMapHeader";
 import RiderBottomSheet from "@/components/rider/RiderBottomSheet";
@@ -157,6 +157,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     user,
     mapToken,
     userLocation,
+    userAccuracy,
     menuOpen,
     setMenuOpen
   } = useRiderData();
@@ -172,6 +173,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   // Location picker
   const {
     mapContainer,
+    mapContainerRef,
     map,
     isLoading,
     isDragging,
@@ -188,7 +190,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     reverseGeocode,
     resetGeocodeCache,
     setIsLoading,
-  } = useLocationPicker(mapToken, userLocation, mapReloadKey, currentMode);
+  } = useLocationPicker(mapToken, userLocation, mapReloadKey, currentMode, userAccuracy);
 
   // Booking flow
   const {
@@ -450,22 +452,38 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     setTimeout(tick, 350); // انتظر انتهاء panTo أولاً
   }, []);
 
-  const manualGeolocateMain = useCallback(async (forceHardRequest = false) => {
-    // إذا كان userLocation معروفاً بالفعل ولم يُطلب طلب قاسي، انتقل إليه بسلاسة
-    if (userLocation && map.current && !forceHardRequest) {
+  // حالة تحميل زر الموقع
+  const [isLocating, setIsLocating] = useState(false);
+  // هل الخريطة متمركزة على موقع المستخدم حالياً
+  const [isCenteredOnUser, setIsCenteredOnUser] = useState(false);
+
+  // تتبع هل الخريطة متمركزة على المستخدم
+  useEffect(() => {
+    if (!map.current || !userLocation || !centerLat || !centerLng) {
+      setIsCenteredOnUser(false);
+      return;
+    }
+    const dist = Math.abs(centerLat - userLocation.lat) + Math.abs(centerLng - userLocation.lng);
+    setIsCenteredOnUser(dist < 0.0005); // ~50 متر
+  }, [centerLat, centerLng, userLocation]);
+
+  const manualGeolocateMain = useCallback(async () => {
+    // ✅ المسار السريع: userLocation متوفر من watchPosition — نقل الخريطة فوراً
+    if (userLocation && map.current) {
       map.current.panTo({ lat: userLocation.lat, lng: userLocation.lng });
       smoothZoomTo(map.current, 17);
       reverseGeocode(userLocation.lat, userLocation.lng);
       return;
     }
 
-    // محاولة استخدام Capacitor Geolocation الأصلي (أسرع وأدق على الجوال)
+    // ⏳ لا يوجد موقع مخزن — طلب GPS جديد مع مؤشر تحميل
+    setIsLocating(true);
+
     try {
+      // محاولة Capacitor أولاً
       const { Capacitor } = await import('@capacitor/core');
       if (Capacitor.isNativePlatform()) {
         const { Geolocation } = await import('@capacitor/geolocation');
-        
-        // طلب الإذن أولاً
         const perm = await Geolocation.requestPermissions();
         if (perm.location !== 'granted' && perm.coarseLocation !== 'granted') {
           toast({
@@ -473,13 +491,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             description: 'يرجى منح التطبيق صلاحية الوصول للموقع من الإعدادات',
             variant: 'destructive',
           });
+          setIsLocating(false);
           return;
         }
 
         const position = await Geolocation.getCurrentPosition({
           enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0, // دائماً طلب موقع جديد
+          timeout: 10000,
+          maximumAge: 0,
         });
 
         const { latitude, longitude } = position.coords;
@@ -489,13 +508,14 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           reverseGeocode(latitude, longitude);
         }
         setStoreUserLocation({ lat: latitude, lng: longitude } as any);
-        return; // نجح — لا حاجة للـ fallback
+        setIsLocating(false);
+        return;
       }
     } catch (capErr) {
       console.warn('Capacitor Geolocation failed, falling back to Web API:', capErr);
     }
 
-    // Fallback: استخدام Web Geolocation API (للمتصفح)
+    // Fallback: Web Geolocation API
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -506,6 +526,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             reverseGeocode(latitude, longitude);
           }
           setStoreUserLocation({ lat: latitude, lng: longitude } as any);
+          setIsLocating(false);
         },
         (error) => {
           console.warn('⚠️ Geolocation error:', error.message);
@@ -514,8 +535,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
             description: 'يرجى تفعيل خدمة الموقع من إعدادات المتصفح',
             variant: 'destructive',
           });
+          setIsLocating(false);
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } else {
       toast({
@@ -523,8 +545,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         description: 'متصفحك لا يدعم خدمة الموقع',
         variant: 'destructive',
       });
+      setIsLocating(false);
     }
-  }, [handleGeolocate, map, reverseGeocode, smoothZoomTo, toast, userLocation, setStoreUserLocation]);
+  }, [map, reverseGeocode, smoothZoomTo, toast, userLocation, setStoreUserLocation]);
   const manualGeolocateBooking = useCallback(() => handleGeolocate(bookingMap, false), [handleGeolocate, bookingMap]);
   
   // Layout management - Bottom panel height tracking
@@ -838,8 +861,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         setBottomPanelHeight(height);
         
         // تطبيق padding على الخريطة
-        if (mapContainer.current) {
-          mapContainer.current.style.paddingBottom = "0px";
+        if (mapContainerRef.current) {
+          mapContainerRef.current.style.paddingBottom = "0px";
         }
       }
     };
@@ -1052,6 +1075,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       const actualLng: number = center.lng();
       
       let address = centerAddress;
+      // ✅ Fix 1: متغير محلي ثابت — لا يعتمد على React state الذي قد لا يتحدث فوراً
+      let serviceCheckForCurrentPoint: Awaited<ReturnType<typeof checkServiceArea>> | null = null;
+
       const addressNeedsRefresh =
         !address ||
         address.includes("جاري تحديد العنوان") ||
@@ -1061,88 +1087,46 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       if (addressNeedsRefresh) {
         try {
           if (window.google?.maps && map.current) {
-            // Step 1: Get full address from Geocoding API first
+            // Step 1: Geocoding + checkServiceArea بالتوازي
             const geocoder = await getGeocoder();
             if (!geocoder) throw new Error('Geocoder not available');
-            const result = await geocoder.geocode({ 
-              location: { lat: actualLat, lng: actualLng },
-              language: 'ar'
-            });
+
+            const [result, serviceCheckParallel] = await Promise.all([
+              geocoder.geocode({ location: { lat: actualLat, lng: actualLng }, language: 'ar' }),
+              checkServiceArea(actualLat, actualLng),
+            ]);
             
+            // ✅ تخزين في المتغير المحلي الخارجي + تحديث state للعرض
+            serviceCheckForCurrentPoint = serviceCheckParallel;
+            setLocalServiceAreaStatus(serviceCheckParallel);
+
             if (result.results && result.results.length > 0) {
               const finalAddress = result.results[0].formatted_address;
-              let poiName: string | null = null;
-              
-              // Step 2: 🚫 SearchNearby معطّل — تكلفة $32/1000 طلب
-              // POI يُستخرج من نتائج Geocoding بدلاً (Step 3 أدناه)
 
-              // Step 3: Look for POI in geocoding results if not found
-              if (!poiName) {
-                const poiResult = result.results.find(r => 
-                  r.types.includes('point_of_interest') && 
-                  r.name &&
-                  !r.types.includes('route') &&
-                  !r.types.includes('neighborhood')
-                );
-                
-                if (poiResult && poiResult.name) {
-                  poiName = poiResult.name;
-                  console.log("✅ POI name from geocoding:", poiName);
-                }
-              }
+              // Step 2: POI من نتائج Geocoding (SearchNearby معطّل)
+              const poiResult = result.results.find(r =>
+                (r.types.includes('point_of_interest') || r.types.includes('establishment')) &&
+                r.name &&
+                !r.types.includes('route')
+              );
+              const poiName = poiResult?.name || null;
 
-              // Step 4: Build descriptive final address with priority logic
+              // Step 3: بناء العنوان بـ buildHumanAddress() + serviceRegionName من DB
+              const { buildHumanAddress, extractGoogleComponents } = await import('@/utils/buildHumanAddress');
               const components = result.results[0]?.address_components || [];
-              const getComponent = (type: string) =>
-                components.find(c => c.types.includes(type))?.long_name;
+              const comps = extractGoogleComponents(components, poiName);
 
-              const streetNumber = getComponent('street_number');
-              const route = getComponent('route');
-              const neighborhood =
-                getComponent('neighborhood') ||
-                getComponent('sublocality') ||
-                getComponent('sublocality_level_1') ||
-                getComponent('sublocality_level_2');
-              const locality = getComponent('locality') || getComponent('administrative_area_level_2');
-              const admin1 = getComponent('administrative_area_level_1');
+              address = buildHumanAddress({
+                poiName:           comps.poiName,
+                neighborhood:      comps.neighborhood,
+                street:            comps.street,
+                city:              comps.city,
+                serviceRegionName: (serviceCheckParallel as any)?.region?.name_ar || null,
+                lat:               actualLat,
+                lng:               actualLng,
+                formattedAddress:  finalAddress,
+              }) || `${actualLat.toFixed(5)}, ${actualLng.toFixed(5)}`;
 
-              const street = [route, streetNumber].filter(Boolean).join(' ').trim();
-              const city = locality || admin1;
-
-              const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
-              let mainPart = poiName?.trim() || "";
-              if (!mainPart || plusCodeRegex.test(mainPart)) {
-                mainPart = street || neighborhood || city || "";
-              }
-
-              const detailParts = [mainPart, neighborhood || "", city || ""]
-                .filter(p => p && p.length > 0)
-                .filter((p, idx, arr) => arr.indexOf(p) === idx);
-
-              let priorityAddress = detailParts.join('، ');
-              if (priorityAddress) {
-                console.log("✅ Priority 1 - Address components:", priorityAddress);
-              }
-
-              // بديل: تنظيف formatted_address عند الحاجة
-              if (!priorityAddress) {
-                const addressParts = finalAddress
-                  .split(/[،,]/)
-                  .map(p => p.trim())
-                  .filter(p => p.length > 0 && !plusCodeRegex.test(p));
-                priorityAddress = addressParts.slice(0, 3).join('، ');
-                if (priorityAddress) {
-                  console.log("✅ Priority 2 - Multiple address parts:", priorityAddress);
-                }
-              }
-
-              // البديل الأخير
-              if (!priorityAddress) {
-                priorityAddress = finalAddress || `${actualLat.toFixed(4)}, ${actualLng.toFixed(4)}`;
-                console.log("✅ Fallback - Using original or coordinates:", priorityAddress);
-              }
-
-              address = priorityAddress;
             } else {
               address = `${actualLat.toFixed(5)}, ${actualLng.toFixed(5)}`;
             }
@@ -1157,17 +1141,19 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
       if (address) setCenterAddress(address);
 
-      // فحص منطقة الخدمة
-      const serviceCheck = await checkServiceArea(actualLat, actualLng);
-      setLocalServiceAreaStatus(serviceCheck);
+      // ✅ Fix 1: استخدام المتغير المحلي مباشرة — إن لم يكن معيّناً (لم يدخل addressNeedsRefresh) نطلبه الآن
+      if (!serviceCheckForCurrentPoint) {
+        serviceCheckForCurrentPoint = await checkServiceArea(actualLat, actualLng);
+        setLocalServiceAreaStatus(serviceCheckForCurrentPoint);
+      }
 
       // إذا الموقع خارج منطقة الخدمة — إظهار إشعار واضح
-      if (serviceCheck && serviceCheck.in_service === false) {
+      if (serviceCheckForCurrentPoint && serviceCheckForCurrentPoint.in_service === false) {
         const modeLabel = currentMode === 'pickup' ? 'موقع الانطلاق' : currentMode === 'stop' ? 'المحطة' : 'الوجهة';
         toast({
           title: `⚠️ ${modeLabel} خارج نطاق الخدمة`,
-          description: serviceCheck.nearest_city
-            ? `أقرب مدينة مغطاة: ${serviceCheck.nearest_city}. حرّك الخريطة لاختيار موقع داخل منطقة الخدمة.`
+          description: serviceCheckForCurrentPoint.nearest_city
+            ? `أقرب مدينة مغطاة: ${serviceCheckForCurrentPoint.nearest_city}. حرّك الخريطة لاختيار موقع داخل منطقة الخدمة.`
             : 'هذا الموقع غير مشمول بالخدمة حالياً. حرّك الخريطة لاختيار موقع آخر.',
           variant: 'destructive',
         });
@@ -1336,7 +1322,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         if (center) reverseGeocode(center.lat(), center.lng());
       }, 300);
     } else if (currentMode === "booking") {
-      // Going back to dropoff — clear booking map markers & route data
+      // Going back to dropoff — clean up booking map & reinitialize main map
       cleanupBooking();
       setDropoffLocation(null);
       setCenterAddress('');
@@ -1344,14 +1330,19 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       setIsLocationFocused(false);
       setRouteDistance(null);
       setRouteDuration(null);
+
+      // ✅ إعادة تهيئة خريطة اختيار الموقع — بدون هذا الخطوة تظهر شاشة بيضاء/سوداء
+      setIsLoading(true);
+      setMapReloadKey((prev) => prev + 1);
+
       // Trigger fresh geocode after map re-attaches
       resetGeocodeCache();
       setTimeout(() => {
         const center = map.current?.getCenter?.();
         if (center) reverseGeocode(center.lat(), center.lng());
-      }, 300);
+      }, 500);
     }
-  }, [currentMode, clearSearch, cleanupBooking, setRouteDistance, setRouteDuration, setCenterAddress, reverseGeocode, resetGeocodeCache, map]);
+  }, [currentMode, clearSearch, cleanupBooking, setRouteDistance, setRouteDuration, setCenterAddress, reverseGeocode, resetGeocodeCache, map, setIsLoading, setMapReloadKey]);
 
   // [Android] Back button — close side menu first, handle booking stages, then navigate(-1)
   useAndroidBackButton(() => {
@@ -1454,24 +1445,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         toast({
           title: "معلومات ناقصة",
           description: "الرجاء تحديد نقطة الانطلاق والوجهة",
-          variant: "destructive"
-        });
-        setIsBooking(false);
-        return;
-      }
-
-      // ✅ التحقق من أن نقطة الانطلاق ≠ الوجهة (مسافة أقل من 100 متر)
-      const toRad = (deg: number) => (deg * Math.PI) / 180;
-      const R = 6371000; // نصف قطر الأرض بالأمتار
-      const dLat = toRad(dropoffLocation.lat - pickupLocation.lat);
-      const dLng = toRad(dropoffLocation.lng - pickupLocation.lng);
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(pickupLocation.lat)) * Math.cos(toRad(dropoffLocation.lat)) * Math.sin(dLng / 2) ** 2;
-      const pickupDropoffDistance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      if (pickupDropoffDistance < 100) {
-        console.warn('🚫 handleBookRide: pickup ≈ dropoff');
-        toast({
-          title: "الوجهة قريبة جداً",
-          description: "الرجاء اختيار وجهة مختلفة عن نقطة الانطلاق (100 متر على الأقل)",
           variant: "destructive"
         });
         setIsBooking(false);
@@ -1958,6 +1931,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         onGeolocate={manualGeolocateBooking}
         fareBreakdown={fareBreakdown}
         fareLoading={fareLoading}
+        fareError={fareError}
         selectedVehicle={selectedVehicle}
         onVehicleChange={setSelectedVehicle}
         paymentMethod={paymentMethod}
@@ -2005,11 +1979,10 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
   // Location picker screen
   return (
-    <div className="relative h-full w-full z-10 flex flex-col bg-background max-w-[480px] mx-auto" dir="rtl">
-      {/* Map visible wrapper */}
+    <div className="relative h-full w-full z-10 flex flex-col bg-transparent max-w-[480px] mx-auto" dir="rtl">
+      {/* Map visible wrapper — extends full screen so map shows behind bottom sheet rounded corners */}
       <div 
-        className="absolute inset-x-0 top-0 overflow-hidden z-0 transition-[bottom] duration-300 ease-out"
-        style={{ bottom: `${bottomPanelHeight}px` }}
+        className="absolute inset-0 overflow-hidden z-0"
       >
         {/* Enhanced map loading placeholder - pointer-events-none when map is ready */}
         {(!mapToken || isLoading) && !mapError && (
@@ -2068,6 +2041,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
         {/* ✅ مؤشر حالة الشبكة فوق الخريطة */}
         <MapNetworkOverlay />
+
+
         {/* Favorite Markers Layer (Google-only) */}
         {mapProvider === "google" && map.current && !isPickup && (
           <FavoriteMarkersLayer
@@ -2095,55 +2070,123 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
 
 
-        {/* Center map pin — the SVG tip is anchored exactly at the map center */}
+        {/* Center map pin — premium 3D glassmorphic design */}
         <div className="pointer-events-none absolute left-1/2 top-1/2 z-[15] -translate-x-1/2">
           <div className="relative w-0 h-0">
-            {/* Address label above pin */}
+            {/* Address label above pin — frosted glass */}
             {(centerAddress || isDragging) && (
-              <div className="absolute bottom-[78px] left-1/2 -translate-x-1/2 z-20 w-max">
+              <div className="absolute bottom-[82px] left-1/2 -translate-x-1/2 z-20 w-max">
                 <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white px-3.5 py-2 rounded-xl shadow-[0_12px_30px_rgba(15,23,42,0.18)] border border-white/80 text-[#101828] max-w-[260px] text-center"
+                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  className="max-w-[260px] text-center"
+                  style={{ fontFamily: "Cairo, sans-serif" }}
                 >
-                  <p className="text-sm font-bold truncate">
-                    {isDragging && !centerAddressDisplay ? "حرّك الخريطة لتحديد المكان" : centerAddressDisplay}
-                  </p>
+                  <div
+                    className="px-4 py-2.5 rounded-2xl text-[#101828]"
+                    style={{
+                      background: 'rgba(255,255,255,0.92)',
+                      backdropFilter: 'blur(16px) saturate(1.8)',
+                      WebkitBackdropFilter: 'blur(16px) saturate(1.8)',
+                      boxShadow: `0 8px 32px rgba(15,23,42,0.12), 0 2px 8px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.6), 0 0 0 1px ${isPickup ? 'rgba(16,185,129,0.15)' : 'rgba(6,182,212,0.15)'}`,
+                      border: '1px solid rgba(255,255,255,0.7)',
+                    }}
+                  >
+                    <p className="text-[13px] font-bold truncate leading-tight">
+                      {isDragging && !centerAddressDisplay ? "حرّك الخريطة لتحديد المكان" : centerAddressDisplay}
+                    </p>
+                  </div>
+                  {/* Small triangle pointer */}
+                  <div className="flex justify-center -mt-[1px]">
+                    <div style={{
+                      width: 0, height: 0,
+                      borderLeft: '7px solid transparent',
+                      borderRight: '7px solid transparent',
+                      borderTop: '7px solid rgba(255,255,255,0.92)',
+                      filter: 'drop-shadow(0 2px 2px rgba(15,23,42,0.06))',
+                    }} />
+                  </div>
                 </motion.div>
               </div>
             )}
             
-            {/* Floating Pin */}
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10 w-[54px] h-[72px]">
+            {/* Pulsing ground glow dot */}
+            <div className="absolute top-[-2px] left-1/2 -translate-x-1/2">
+              <motion.div
+                animate={{ 
+                  scale: isDragging ? [1, 1.8, 1] : [1, 1.4, 1],
+                  opacity: isDragging ? [0.05, 0.2, 0.05] : [0.2, 0.4, 0.2],
+                }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                className="w-5 h-5 rounded-full"
+                style={{
+                  background: isPickup 
+                    ? 'radial-gradient(circle, rgba(16,185,129,0.7), transparent 70%)'
+                    : 'radial-gradient(circle, rgba(6,182,212,0.7), transparent 70%)',
+                  filter: 'blur(3px)',
+                }}
+              />
+            </div>
+
+            {/* Lollipop Pin — circle on a stick, anchor at bottom */}
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10" style={{ width: '44px', height: '80px' }}>
               <motion.div 
                 animate={{ y: isDragging ? -18 : 0 }} 
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                transition={{ type: "spring", stiffness: 320, damping: 22 }}
                 className="w-full h-full"
               >
                 <svg 
-                  viewBox="0 0 48 64"
-                  className={`w-full h-full drop-shadow-[0_6px_12px_rgba(15,23,42,0.24)] ${
-                    isPickup ? 'text-emerald-500' : 'text-cyan-500'
-                  }`}
-                  fill="currentColor"
+                  viewBox="0 0 44 80"
+                  className="w-full h-full"
+                  fill="none"
                   xmlns="http://www.w3.org/2000/svg"
+                  style={{ filter: `drop-shadow(0 4px 12px ${isPickup ? 'rgba(16,185,129,0.3)' : 'rgba(6,182,212,0.3)'}) drop-shadow(0 1px 3px rgba(15,23,42,0.15))` }}
                 >
-                  <path d="M24 64C20.2 58.8 4 35.8 4 22C4 9.85 12.95 0 24 0s20 9.85 20 22c0 13.8-16.2 36.8-20 42Z" />
-                  <circle cx="24" cy="22" r="9" fill="white" fillOpacity="0.96" />
-                  <circle cx="24" cy="22" r="4.5" fill="currentColor" />
+                  <defs>
+                    <linearGradient id={`lolliGrad-${isPickup ? 'p' : 'd'}`} x1="22" y1="2" x2="22" y2="42" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stopColor={isPickup ? '#34d399' : '#22d3ee'} />
+                      <stop offset="100%" stopColor={isPickup ? '#059669' : '#0891b2'} />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Stick — thin line from circle bottom to anchor point */}
+                  <line 
+                    x1="22" y1="38" x2="22" y2="80" 
+                    stroke={isPickup ? '#059669' : '#0891b2'} 
+                    strokeWidth="3" 
+                    strokeLinecap="round"
+                  />
+
+                  {/* Circle — colored ring, transparent inside */}
+                  <circle 
+                    cx="22" cy="22" r="17" 
+                    stroke={`url(#lolliGrad-${isPickup ? 'p' : 'd'})`}
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  
+                  {/* Top-left glossy highlight on ring */}
+                  <path 
+                    d="M12 8 A17 17 0 0 1 32 8" 
+                    stroke="white" strokeOpacity="0.35" strokeWidth="2" fill="none" strokeLinecap="round"
+                  />
                 </svg>
               </motion.div>
             </div>
             
-            {/* Static Shadow on the ground — shrinks when pin lifts */}
-            <div className="absolute top-[-1px] left-1/2 -translate-x-1/2 w-7 h-2">
+            {/* Ground shadow — shrinks when pin lifts */}
+            <div className="absolute top-[-1px] left-1/2 -translate-x-1/2 w-5 h-2">
               <motion.div 
                 animate={{ 
-                  scale: isDragging ? 0.4 : 1,
-                  opacity: isDragging ? 0.1 : 0.25
+                  scale: isDragging ? 0.3 : 1,
+                  opacity: isDragging ? 0.06 : 0.2
                 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                className="w-full h-full bg-black/25 rounded-full blur-[2px] mix-blend-multiply"
+                transition={{ type: "spring", stiffness: 320, damping: 22 }}
+                className="w-full h-full rounded-full"
+                style={{
+                  background: `radial-gradient(ellipse, ${isPickup ? 'rgba(16,185,129,0.5)' : 'rgba(6,182,212,0.5)'}, rgba(0,0,0,0.12) 60%, transparent 80%)`,
+                  filter: 'blur(2px)',
+                }}
               />
             </div>
           </div>
@@ -2177,14 +2220,20 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         </button>
       )}
 
-      {/* Floating geolocate button — dynamically positioned above bottom sheet */}
+      {/* Floating geolocate button — Google Maps style My Location */}
       <button
-        onClick={() => manualGeolocateMain(true)}
+        onClick={() => manualGeolocateMain()}
+        disabled={isLocating}
         className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-[#5bdda6] border border-[#5bdda6]/30 shadow-[0_0_18px_rgba(91,221,166,0.5)] hover:bg-[#4ecf99] active:scale-95 transition-all"
         style={{ bottom: `${bottomPanelHeight + 28}px` }}
         aria-label="تحديد موقعي"
+        title="تحديد موقعي"
       >
-        <Navigation className="w-4.5 h-4.5 text-[#0b1326]" />
+        {isLocating ? (
+          <Loader2 className="w-4.5 h-4.5 text-[#0b1326] animate-spin" />
+        ) : (
+          <LocateFixed className="w-4.5 h-4.5 text-[#0b1326]" />
+        )}
       </button>
 
       {/* ═══ Bottom Sheet — Clean white design ═══ */}
@@ -2265,12 +2314,12 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 showAddress={!locationSearchQuery && centerAddress ? currentSelectionAddress : undefined}
                 onAddressClick={() => {
                   if (!centerAddress || centerAddress.includes('بدون اسم') || centerAddress.includes('غير مفعل')) {
-                    manualGeolocateMain(true);
+                    manualGeolocateMain();
                   } else {
                     setIsLocationFocused(true);
                   }
                 }}
-                onCurrentLocation={() => manualGeolocateMain(true)}
+                onCurrentLocation={() => manualGeolocateMain()}
                 onSaveLocation={() => {
                   if (hasResolvedCenterAddress && centerLat && centerLng) setShowSaveModal(true);
                 }}
@@ -2307,8 +2356,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           </div>
         </div>
 
-        {/* ═══ Scrollable Content Area (Results and Warnings) ═══ */}
-        <div className="flex-1 min-h-0 overflow-y-auto pb-2 overscroll-contain">
+
           {/* Search results */}
           {isLocationFocused && (
             <div className="px-4 pb-3">
@@ -2476,77 +2524,51 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
               </div>
             </div>
           )}
-        </div>
+
 
         {/* CTA Button — hidden when search focused; user confirms by selecting a suggestion */}
         {!isLocationFocused && (
         <div
-          className="shrink-0 w-full pointer-events-auto flex bg-card border-t border-border/30 relative z-[10]"
-          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0px)' }}
+          className="shrink-0 w-full pointer-events-auto bg-card border-t border-white/[0.06] relative z-[10]"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
-          <motion.button
-            onClick={() => {
-              if (navigator.vibrate) navigator.vibrate(50);
-              handleConfirm();
-            }}
-            disabled={!hasResolvedCenterAddress || isCheckingService || isConfirming}
-            whileTap={(!hasResolvedCenterAddress || isCheckingService || isConfirming) ? {} : { scale: 0.98 }}
-            animate={
-              (selectionReady && !isCheckingService && !isConfirming)
-                ? {
-                    scale: [1, 1.015, 1],
-                    filter: ["brightness(1)", "brightness(1.15)", "brightness(1)"],
-                    boxShadow: isPickup
-                      ? [
-                          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 0px rgba(16, 185, 129, 0)",
-                          "0 10px 15px -3px rgba(16, 185, 129, 0.4), 0 4px 6px -2px rgba(16, 185, 129, 0.2), 0 0 0 8px rgba(16, 185, 129, 0.25)",
-                          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 0px rgba(16, 185, 129, 0)"
-                        ]
-                      : [
-                          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 0px rgba(34, 211, 238, 0)",
-                          "0 10px 15px -3px rgba(34, 211, 238, 0.4), 0 4px 6px -2px rgba(34, 211, 238, 0.2), 0 0 0 8px rgba(34, 211, 238, 0.25)",
-                          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 0px rgba(34, 211, 238, 0)"
-                        ]
-                  }
-                : {}
-            }
-            transition={
-              (selectionReady && !isCheckingService && !isConfirming)
-                ? {
-                    duration: 1.8,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }
-                : {}
-            }
-            style={{ fontFamily: "Cairo, sans-serif" }}
-            className={`flex-auto min-h-[52px] rounded-none flex items-center justify-center gap-2 text-base font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
-              selectionReady
-                ? isPickup
-                  ? 'border-emerald-700/30 text-white bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900'
-                  : 'border-cyan-400/30 text-[#083344] bg-cyan-400 hover:bg-cyan-500 active:bg-cyan-600'
-                : isPickup
-                  ? 'border-emerald-500/10 text-emerald-500/50 bg-emerald-500/10 cursor-not-allowed shadow-none'
-                  : 'border-cyan-500/10 text-cyan-400/50 bg-cyan-500/10 cursor-not-allowed shadow-none'
-            }`}
-          >
-            {isCheckingService || isConfirming ? (
-              <>
-                <Loader2 className="w-6 h-6 animate-spin" />
-                <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
-              </>
-            ) : !hasResolvedCenterAddress ? (
-              <>
-                {isCenterAddressResolving && <Loader2 className="w-4 h-4 animate-spin" />}
-                <span>{isCenterAddressResolving ? 'جاري تحديد العنوان...' : isPickup ? 'حدد مكان الانطلاق' : 'حدد مكان الوصول'}</span>
-              </>
-            ) : (
-              <>
-                <Navigation className="w-5 h-5" />
-                <span>{confirmButtonLabel}</span>
-              </>
-            )}
-          </motion.button>
+          <div className="flex items-stretch h-[58px]">
+            <motion.button
+              onClick={() => {
+                if (navigator.vibrate) navigator.vibrate(50);
+                handleConfirm();
+              }}
+              disabled={!hasResolvedCenterAddress || isCheckingService || isConfirming}
+              whileTap={(!hasResolvedCenterAddress || isCheckingService || isConfirming) ? {} : { scale: 0.98 }}
+              style={{ fontFamily: "Cairo, sans-serif" }}
+              className={`flex-1 h-full flex items-center justify-center gap-2 text-[15px] font-black touch-manipulation transition-all ${
+                selectionReady
+                  ? isPickup
+                    ? 'text-[#070b13] bg-[#5bdda6] shadow-[0_-4px_20px_rgba(91,221,166,0.2)] hover:bg-[#4ecf99] active:bg-[#34d399] border-t border-[#5bdda6]'
+                    : 'text-[#083344] bg-cyan-400 shadow-[0_-4px_20px_rgba(34,211,238,0.2)] hover:bg-cyan-500 active:bg-cyan-600 border-t border-cyan-400'
+                  : isPickup
+                    ? 'text-white/40 bg-[#0a111c] border-t border-white/[0.07] cursor-not-allowed'
+                    : 'text-white/40 bg-[#0a111c] border-t border-white/[0.07] cursor-not-allowed'
+              }`}
+            >
+              {isCheckingService || isConfirming ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
+                </>
+              ) : !hasResolvedCenterAddress ? (
+                <>
+                  {isCenterAddressResolving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{isCenterAddressResolving ? 'جاري تحديد العنوان...' : isPickup ? 'حدد مكان الانطلاق' : 'حدد مكان الوصول'}</span>
+                </>
+              ) : (
+                <>
+                  <Navigation className="w-5 h-5" />
+                  <span>{confirmButtonLabel}</span>
+                </>
+              )}
+            </motion.button>
+          </div>
         </div>
         )}
       </RiderBottomSheet>

@@ -20,7 +20,55 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/utils.ts";
+import { getCorsHeaders } from "../_shared/utils.ts";
+
+function constantTimeEqual(a: string, b: string): boolean {
+    if (a.length !== b.length) return false;
+    let result = 0;
+    for (let i = 0; i < a.length; i++) {
+        result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return result === 0;
+}
+
+async function hmacSha256Hex(secret: string, payload: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+    );
+    const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+    return Array.from(new Uint8Array(signature))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+}
+
+async function isValidInfobipWebhook(req: Request, rawBody: string): Promise<boolean> {
+    const secret = Deno.env.get("INFOBIP_WEBHOOK_SECRET") || Deno.env.get("SMS_WEBHOOK_SECRET") || "";
+    if (!secret) {
+        console.warn("[sms-webhook] INFOBIP_WEBHOOK_SECRET not configured; webhook secret validation is not enforced");
+        return true;
+    }
+
+    const tokenHeader = req.headers.get("x-infobip-webhook-secret") || req.headers.get("x-webhook-secret") || "";
+    const authHeader = req.headers.get("authorization") || "";
+    const bearerToken = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
+
+    if (tokenHeader && constantTimeEqual(tokenHeader, secret)) return true;
+    if (bearerToken && constantTimeEqual(bearerToken, secret)) return true;
+
+    const signatureHeader = req.headers.get("x-infobip-signature") || req.headers.get("x-hub-signature-256") || "";
+    if (signatureHeader) {
+        const providedSignature = signatureHeader.startsWith("sha256=") ? signatureHeader.slice(7) : signatureHeader;
+        const expectedSignature = await hmacSha256Hex(secret, rawBody);
+        return constantTimeEqual(providedSignature, expectedSignature);
+    }
+
+    return false;
+}
 // ════════════════════════════════════════════════════════════
 // Landmarks Database
 // ════════════════════════════════════════════════════════════
@@ -276,21 +324,31 @@ async function saveSession(supabase: any, phone: string, data: Record<string, un
 // ════════════════════════════════════════════════════════════
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
     if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
     console.log(`[sms-webhook] ═══ INBOUND — ${new Date().toISOString()} ═══`);
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     try {
         const rawBody = await req.text();
         console.log(`[sms-webhook] 📨 RAW (${rawBody.length}c): ${rawBody.substring(0, 500)}`);
 
+        if (!(await isValidInfobipWebhook(req, rawBody))) {
+            console.warn("[sms-webhook] Invalid webhook secret/signature");
+            return new Response(JSON.stringify({ error: "Invalid webhook signature" }), {
+                status: 401,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
+
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const internalSecret = Deno.env.get("INTERNAL_EDGE_SECRET");
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
         let payload: any;
         try { payload = JSON.parse(rawBody); }
-        catch { return jsonOk({ error: "Invalid JSON" }); }
+        catch { return jsonOk({ error: "Invalid JSON" }, corsHeaders); }
 
         // Parse Infobip MO payload
         let senderPhone = "", messageText = "", messageId = "";
@@ -303,10 +361,10 @@ serve(async (req) => {
             senderPhone = payload.phone; messageText = payload.message;
         } else {
             console.error(`[sms-webhook] ❌ Unknown payload format`);
-            return jsonOk({ error: "Unknown format" });
+            return jsonOk({ error: "Unknown format" }, corsHeaders);
         }
 
-        if (!senderPhone || !messageText) return jsonOk({ error: "Missing phone/text" });
+        if (!senderPhone || !messageText) return jsonOk({ error: "Missing phone/text" }, corsHeaders);
 
         const phone = formatIraqiPhone(senderPhone);
         const text = messageText.trim();
@@ -338,7 +396,7 @@ serve(async (req) => {
                 console.log(`[sms-webhook] 🚫 Cancelled rides for ${profile.user_id}`);
             }
             await saveSession(supabase, phone, { state: "idle" });
-            return jsonOk({ action: "cancelled" });
+            return jsonOk({ action: "cancelled" }, corsHeaders);
         }
 
         // Rating (1-5)
@@ -352,7 +410,7 @@ serve(async (req) => {
                 if (recent) {
                     await supabase.from("rides").update({ driver_rating: parseInt(textLower) }).eq("id", recent.id);
                     console.log(`[sms-webhook] ⭐ Rating ${textLower}/5 for ride ${recent.id}`);
-                    return jsonOk({ action: "rated", rating: parseInt(textLower) });
+                    return jsonOk({ action: "rated", rating: parseInt(textLower) }, corsHeaders);
                 }
             }
         }
@@ -392,13 +450,18 @@ serve(async (req) => {
 
             if (rideErr) {
                 console.error(`[sms-webhook] ❌ Ride creation failed:`, rideErr);
-                return jsonOk({ action: "error", error: rideErr.message });
+                return jsonOk({ action: "error", error: rideErr.message }, corsHeaders);
             }
 
             console.log(`[sms-webhook] ✅ Ride ${ride.id} created as PENDING (fare=${fareResult.fare}, silent)`);
 
             // Match ride → broadcast to drivers
-            try { await supabase.functions.invoke("match-ride", { body: { rideId: ride.id } }); } catch { }
+            try {
+                await supabase.functions.invoke("match-ride", {
+                    body: { rideId: ride.id },
+                    headers: internalSecret ? { "x-internal-secret": internalSecret } : undefined,
+                });
+            } catch { }
 
             // Save session (for cancel/rating tracking)
             await saveSession(supabase, phone, {
@@ -414,7 +477,7 @@ serve(async (req) => {
                 fare: fareResult.fare,
                 pickup: rideIntent.pickup,
                 dropoff: rideIntent.dropoff,
-            });
+            }, corsHeaders);
         }
 
         // ══════════════════════════════════════════════════════════
@@ -422,7 +485,7 @@ serve(async (req) => {
         // ══════════════════════════════════════════════════════════
 
         console.log(`[sms-webhook] ⚠️ No ride intent recognized for: "${text}" — SILENT (no reply)`);
-        return jsonOk({ action: "no_intent", text });
+        return jsonOk({ action: "no_intent", text }, corsHeaders);
 
     } catch (error) {
         console.error(`[sms-webhook] ❌ FATAL:`, error);
@@ -431,7 +494,7 @@ serve(async (req) => {
     }
 });
 
-function jsonOk(data: Record<string, unknown>) {
+function jsonOk(data: Record<string, unknown>, headers: Record<string, string>) {
     console.log(`[sms-webhook] ✅ ${JSON.stringify(data)}`);
-    return new Response(JSON.stringify(data), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify(data), { status: 200, headers: { ...headers, "Content-Type": "application/json" } });
 }

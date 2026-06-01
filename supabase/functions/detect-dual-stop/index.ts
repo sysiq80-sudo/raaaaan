@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/utils.ts'
+import { getCorsHeaders } from '../_shared/utils.ts'
 
 interface DualStopAlert {
   ride_id: string
@@ -30,6 +30,7 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })

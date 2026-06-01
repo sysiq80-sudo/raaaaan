@@ -7,9 +7,10 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createServiceClient } from "../_shared/config.ts";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

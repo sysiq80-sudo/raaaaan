@@ -3,7 +3,7 @@ import {
   type Coordinates,
 } from "@/lib/mapUtils";
 
-export const MIN_PICKUP_DROPOFF_DISTANCE_METERS = 100;
+
 
 export interface BookingLocation extends Coordinates {
   address?: string;
@@ -17,7 +17,7 @@ export interface BookingStop {
 
 export type RideLocationValidation = {
   ok: boolean;
-  reason?: "missing_location" | "pickup_dropoff_too_close" | "outside_iraq";
+  reason?: "missing_location" | "outside_iraq";
   distanceMeters?: number;
 };
 
@@ -49,14 +49,7 @@ export const validateRideLocations = (
     return { ok: false, reason: "missing_location" };
   }
 
-  const distanceMeters = calculateDistanceMeters(pickupLocation, dropoffLocation);
-  if (distanceMeters < MIN_PICKUP_DROPOFF_DISTANCE_METERS) {
-    return {
-      ok: false,
-      reason: "pickup_dropoff_too_close",
-      distanceMeters,
-    };
-  }
+
 
   if (
     !isCoordinateInIraq(pickupLocation) ||
@@ -65,7 +58,7 @@ export const validateRideLocations = (
     return { ok: false, reason: "outside_iraq" };
   }
 
-  return { ok: true, distanceMeters };
+  return { ok: true };
 };
 
 export const buildRideStopsPayload = (

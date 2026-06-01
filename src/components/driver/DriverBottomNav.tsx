@@ -2,12 +2,18 @@
  * ران - شريط التنقل السفلي للسائق
  * shrink-0 — لا fixed، لا تراكب، يدفع المحتوى للأعلى طبيعياً
  * مطابق لتصميم RiderBottomNav في الأبعاد والارتفاع والـ safe-area
+ *
+ * Haptic-like feedback: motion(Link) + whileTap
+ * يحافظ على accessibility وسلوك React Router الكامل
  */
 
 import { useLocation, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Home, Car, Wallet, User, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+/** motion-enhanced Link يحافظ على كل سلوك <Link> الأصلي */
+const MotionLink = motion(Link);
 
 // ترتيب من اليمين لليسار (RTL) — الرئيسية أولاً من اليمين
 const navItems = [
@@ -70,48 +76,53 @@ const DriverBottomNav = () => {
   return (
     <div
       dir="rtl"
-      className="shrink-0 w-full transition-colors duration-300 border-t border-[#5bdda6]/10"
+      className="shrink-0 w-full border-t border-[#5bdda6]/10"
       role="navigation"
       aria-label="القائمة الرئيسية للسائق"
     >
       <div
-        className="backdrop-blur-xl flex items-center h-[68px] transition-colors duration-300 bg-[#0b1326] pb-[env(safe-area-inset-bottom)]"
+        className="backdrop-blur-xl flex items-center h-[68px] bg-[#0b1326]"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)' }}
       >
         {navItems.map((item, index) => {
           const isActive = index === activeIndex;
           const Icon = item.icon;
 
           return (
-            <Link
+            <MotionLink
               key={item.id}
               to={item.path}
               aria-label={item.label}
               aria-current={isActive ? "page" : undefined}
               className="relative flex flex-col items-center justify-center flex-1 h-full gap-1 group"
+              style={{ WebkitTapHighlightColor: "transparent" }}
+              whileTap={{ scale: 0.82, opacity: 0.65 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.6 }}
             >
               {isActive && (
                 <motion.div
                   layoutId="driver-nav-indicator"
                   className="absolute top-0 inset-x-3 h-0.5 rounded-full bg-[#5bdda6]"
-                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  transition={{ type: "spring", stiffness: 600, damping: 40 }}
                 />
               )}
               <Icon
                 className={cn(
-                  "w-5 h-5 transition-all duration-200",
+                  "w-5 h-5 transition-colors duration-150",
                   isActive
-                    ? "stroke-[2.5px] drop-shadow-[0_0_8px_rgba(91,221,166,0.6)]"
-                    : "stroke-[1.8px]"
+                    ? "text-[#5bdda6] stroke-[2.5px] drop-shadow-[0_0_8px_rgba(91,221,166,0.6)]"
+                    : "text-slate-600 stroke-[1.8px]"
                 )}
-                style={{ color: isActive ? '#5bdda6' : '#475569' }}
               />
               <span
-                className={cn("text-[10px] font-semibold leading-none transition-colors")}
-                style={{ color: isActive ? '#5bdda6' : '#475569' }}
+                className={cn(
+                  "text-[10px] font-semibold leading-none transition-colors duration-150",
+                  isActive ? "text-[#5bdda6]" : "text-slate-600"
+                )}
               >
                 {item.label}
               </span>
-            </Link>
+            </MotionLink>
           );
         })}
       </div>

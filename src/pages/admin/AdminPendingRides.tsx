@@ -513,7 +513,7 @@ const AdminPendingRides = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {ride.estimated_fare ? `${ride.estimated_fare.toLocaleString()} د.ع` : '-'}
+                      {ride.estimated_fare ? `${ride.estimated_fare.toLocaleString('en-US')} د.ع` : '-'}
                     </TableCell>
                     <TableCell>
                       <span className={isStale(ride.created_at) ? 'text-destructive font-medium' : ''}>

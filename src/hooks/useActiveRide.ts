@@ -101,25 +101,23 @@ export const useActiveRide = (userId: string | null) => {
           } else {
             logger.debug(LOG_CONTEXT, "Setting completed ride data for rating screen");
             
-            // ✅ FIX: جلب اسم السائق الحقيقي
-            if (updatedRide.driver_id) {
-              supabase
-                .from("drivers")
-                .select("full_name")
-                .eq("id", updatedRide.driver_id)
-                .maybeSingle()
-                .then(({ data: driverData }) => {
+            // ✅ جلب اسم السائق أولاً ثم عرض الشاشة
+            const showCompletedWithDriver = async () => {
+              let driverFullName: string | null = null;
+              if (updatedRide.driver_id) {
+                try {
+                  const { data: driverData } = await supabase
+                    .from("drivers")
+                    .select("full_name")
+                    .eq("id", updatedRide.driver_id)
+                    .maybeSingle();
                   if (driverData?.full_name) {
-                    setCompletedRide({ ...completedRideData, driver_name: driverData.full_name });
+                    driverFullName = driverData.full_name;
                   }
-                })
-                .then(undefined, () => {});
-            }
-            
-            setCompletedRide(completedRideData);
-            
-            // ✅ عرض شاشة التقييم فوراً — queueMicrotask أسرع من setTimeout
-            queueMicrotask(() => {
+                } catch { /* ignore */ }
+              }
+              
+              setCompletedRide({ ...completedRideData, driver_name: driverFullName });
               setShowCompletedScreen(true);
               playSound("completed");
               vibrate(VibrationPatterns.inProgress);
@@ -128,7 +126,9 @@ export const useActiveRide = (userId: string | null) => {
                 description: "شكراً لاستخدامك ران - يرجى تقييم السائق",
                 duration: 5000,
               });
-            });
+            };
+            
+            showCompletedWithDriver();
           }
         }
 

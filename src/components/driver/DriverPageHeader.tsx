@@ -42,7 +42,7 @@ const DriverPageHeader = ({ title, backTo = "/driver" }: DriverPageHeaderProps) 
           <img
             src={logo}
             alt="RAAN"
-            className="w-8 h-8 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]"
+            className="w-10 h-10 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]"
           />
           <span className="font-black text-white text-base tracking-wider">
             {title}

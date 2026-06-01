@@ -6,7 +6,7 @@
  * التدفق: اختيار الانطلاق → اختيار الوجهة → نوع المركبة → حساب الأجرة → حجز → تتبع
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useFareCalculation } from "@/hooks/useFareCalculation";
@@ -286,6 +286,9 @@ const RiderGoMigrated: React.FC = () => {
       setErrorMsg("يرجى تحديد نقطة الانطلاق والوجهة");
       return;
     }
+
+
+
     if (!fareBreakdown || fareBreakdown.total_fare <= 0) {
       setErrorMsg("لم يتم حساب الأجرة بعد");
       return;
@@ -380,11 +383,12 @@ const RiderGoMigrated: React.FC = () => {
     return null;
   };
 
+
+
   /* ── fare display ── */
-  const fareDisplay = useMemo(() => {
-    if (!fareBreakdown) return null;
-    return roundFare(fareBreakdown.total_fare).toLocaleString();
-  }, [fareBreakdown]);
+  const fareDisplay = fareBreakdown
+    ? roundFare(fareBreakdown.total_fare).toLocaleString('en-US')
+    : null;
 
   /* ═══════════════ JSX ═══════════════ */
   return (
@@ -622,11 +626,11 @@ const RiderGoMigrated: React.FC = () => {
                   <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
                     <div className="flex justify-between">
                       <span>أجرة الأساس</span>
-                      <span>{fareBreakdown.base_fare.toLocaleString()} د.ع</span>
+                      <span>{fareBreakdown.base_fare.toLocaleString('en-US')} د.ع</span>
                     </div>
                     <div className="flex justify-between">
                       <span>أجرة المسافة ({fareBreakdown.distance_km.toFixed(1)} كم)</span>
-                      <span>{fareBreakdown.distance_fare.toLocaleString()} د.ع</span>
+                      <span>{fareBreakdown.distance_fare.toLocaleString('en-US')} د.ع</span>
                     </div>
                     <div className="flex justify-between">
                       <span>معامل المركبة</span>
@@ -640,7 +644,7 @@ const RiderGoMigrated: React.FC = () => {
             {/* زر الحجز */}
             <Button
               className="w-full h-14 text-lg"
-              disabled={booking || !fareBreakdown || fareBreakdown.total_fare <= 0}
+              disabled={booking || !fareBreakdown}
               onClick={handleBookRide}
             >
               {booking ? (
@@ -720,7 +724,7 @@ const RiderGoMigrated: React.FC = () => {
                   <span className="text-muted-foreground">الأجرة المقدرة</span>
                   <span className="font-bold text-primary">
                     {activeRide.estimated_fare
-                      ? `${roundFare(activeRide.estimated_fare).toLocaleString()} د.ع`
+                      ? `${roundFare(activeRide.estimated_fare).toLocaleString('en-US')} د.ع`
                       : "—"}
                   </span>
                 </div>

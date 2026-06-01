@@ -177,7 +177,7 @@ const ChangeDestinationSheet: React.FC<ChangeDestinationSheetProps> = ({
         onDestinationChanged(selectedLocation.location, selectedLocation.address, calculatedFare.totalFare);
         toast({
           title: '✅ تم تحديث الوجهة',
-          description: `الأجرة الجديدة: ${calculatedFare.totalFare.toLocaleString()} د.ع`
+          description: `الأجرة الجديدة: ${calculatedFare.totalFare.toLocaleString('en-US')} د.ع`
         });
       } else if (changeType === 'stop') {
         // إضافة محطة توقف - تحديث السعر فقط حالياً
@@ -195,7 +195,7 @@ const ChangeDestinationSheet: React.FC<ChangeDestinationSheetProps> = ({
         onStopAdded(selectedLocation.location, selectedLocation.address, calculatedFare.addedFare);
         toast({
           title: '✅ تم إضافة محطة التوقف',
-          description: `السعر الإضافي: +${calculatedFare.addedFare.toLocaleString()} د.ع`
+          description: `السعر الإضافي: +${calculatedFare.addedFare.toLocaleString('en-US')} د.ع`
         });
       }
       
@@ -367,19 +367,19 @@ const ChangeDestinationSheet: React.FC<ChangeDestinationSheetProps> = ({
               <div className="p-4 bg-primary/5 rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">الأجرة الحالية</span>
-                  <span className="font-medium">{currentFare.toLocaleString()} د.ع</span>
+                  <span className="font-medium">{currentFare.toLocaleString('en-US')} د.ع</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
                     {calculatedFare.addedFare >= 0 ? 'السعر الإضافي' : 'الخصم'}
                   </span>
                   <span className={`font-medium ${calculatedFare.addedFare >= 0 ? 'text-amber-600' : 'text-green-600'}`}>
-                    {calculatedFare.addedFare >= 0 ? '+' : ''}{calculatedFare.addedFare.toLocaleString()} د.ع
+                    {calculatedFare.addedFare >= 0 ? '+' : ''}{calculatedFare.addedFare.toLocaleString('en-US')} د.ع
                   </span>
                 </div>
                 <div className="border-t border-border pt-3 flex items-center justify-between">
                   <span className="font-semibold">السعر الكلي الجديد</span>
-                  <span className="text-xl font-bold text-primary">{calculatedFare.totalFare.toLocaleString()} د.ع</span>
+                  <span className="text-xl font-bold text-primary">{calculatedFare.totalFare.toLocaleString('en-US')} د.ع</span>
                 </div>
               </div>
               

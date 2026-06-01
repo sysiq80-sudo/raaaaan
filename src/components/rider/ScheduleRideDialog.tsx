@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar as CalendarIcon, Clock, MapPin, Plus, X, ChevronDown } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, MapPin, Plus, X, ChevronDown, Loader2 } from 'lucide-react';
 import { format, addDays, addHours, setHours, setMinutes, isBefore, isAfter, startOfDay, differenceInMinutes } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,8 +14,8 @@ import { toast } from 'sonner';
 import { mapPaymentToDb } from '@/types/savedCards';
 
 interface ScheduleRideDialogProps {
-  pickup: { lat: number; lng: number; address: string } | null;
-  dropoff: { lat: number; lng: number; address: string } | null;
+  pickup: { lat: number; lng: number; address: string; snappedLat?: number; snappedLng?: number } | null;
+  dropoff: { lat: number; lng: number; address: string; snappedLat?: number; snappedLng?: number } | null;
   vehicleType: string;
   paymentMethod: string;
   estimatedFare: number | null;
@@ -119,12 +119,33 @@ export const ScheduleRideDialog = forwardRef<
         return;
       }
 
-      const groupId = crypto?.randomUUID?.() || undefined;
+      const generateUUID = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          const v = c === 'x' ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
+      };
+
+      const groupId = generateUUID();
       const basePayload = {
         rider_id: user.id,
-        pickup_location: { lat: pickup.lat, lng: pickup.lng },
+        pickup_location: {
+          lat: pickup.snappedLat ?? pickup.lat,
+          lng: pickup.snappedLng ?? pickup.lng,
+          selected_lat: pickup.lat,
+          selected_lng: pickup.lng
+        },
         pickup_address: pickup.address,
-        dropoff_location: { lat: dropoff.lat, lng: dropoff.lng },
+        dropoff_location: {
+          lat: dropoff.snappedLat ?? dropoff.lat,
+          lng: dropoff.snappedLng ?? dropoff.lng,
+          selected_lat: dropoff.lat,
+          selected_lng: dropoff.lng
+        },
         dropoff_address: dropoff.address,
         scheduled_at: scheduledAt.toISOString(),
         vehicle_type: vehicleType as any,
@@ -149,9 +170,19 @@ export const ScheduleRideDialog = forwardRef<
           .from('scheduled_rides')
           .insert({
             ...basePayload,
-            pickup_location: { lat: dropoff.lat, lng: dropoff.lng },
+            pickup_location: {
+              lat: dropoff.snappedLat ?? dropoff.lat,
+              lng: dropoff.snappedLng ?? dropoff.lng,
+              selected_lat: dropoff.lat,
+              selected_lng: dropoff.lng
+            },
             pickup_address: dropoff.address,
-            dropoff_location: { lat: pickup.lat, lng: pickup.lng },
+            dropoff_location: {
+              lat: pickup.snappedLat ?? pickup.lat,
+              lng: pickup.snappedLng ?? pickup.lng,
+              selected_lat: pickup.lat,
+              selected_lng: pickup.lng
+            },
             dropoff_address: pickup.address,
             scheduled_at: returnAt.toISOString(),
           });
@@ -181,59 +212,71 @@ export const ScheduleRideDialog = forwardRef<
       <DialogTrigger asChild>
         <div className="hidden" />
       </DialogTrigger>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
-        <DialogHeader>
-          <DialogTitle className="text-right flex items-center gap-2 justify-end">
+      <DialogContent className="max-w-md max-h-[95vh] overflow-y-auto border border-slate-800/40 bg-[#0d1a2e] text-white rounded-3xl p-5 shadow-2xl overflow-x-hidden" dir="rtl">
+        <DialogHeader className="border-b border-slate-800/40 pb-4 mb-2">
+          <DialogTitle className="text-right flex items-center gap-2 justify-end text-white font-cairo text-lg font-black">
             <span>جدولة رحلة متقدمة</span>
             <span className="text-2xl">📅</span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* ===== TRIP SUMMARY CARD WITH GLASSMORPHISM ===== */}
-          <div className="bg-gradient-to-br from-blue-50/80 to-indigo-50/80 backdrop-blur-md border border-blue-200/30 rounded-2xl p-4 shadow-sm">
-            <h3 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
+          <div className="bg-[#171f33] border border-white/10 rounded-2xl p-4 shadow-xl relative overflow-hidden">
+            {/* Subtle decorative glow */}
+            <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-20 h-20 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+            
+            <h3 className="text-xs font-bold text-slate-400 mb-4 flex items-center gap-2 font-cairo relative z-10">
               <span className="text-lg">🗺️</span> ملخص الرحلة
             </h3>
             
-            {/* Pickup Location - Green */}
-            <div className="flex items-start gap-3 mb-3 pb-3 border-b border-blue-100/50">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500 text-white text-xs font-bold flex-shrink-0">
-                ✓
+            <div className="relative flex flex-col gap-4">
+              {/* Pickup Location - Green */}
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-emerald-500/10 border border-emerald-500/20 shadow-glow-sm shadow-emerald-500/10">
+                  <span className="text-sm font-bold text-emerald-400">✓</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-bold tracking-wider text-emerald-400 mb-0.5 uppercase font-cairo">نقطة الانطلاق</p>
+                  <p className="text-sm font-bold text-white truncate font-tajawal">{pickup?.address || 'غير محدد'}</p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-green-600 font-semibold">نقطة الانطلاق</p>
-                <p className="text-sm text-blue-900 font-medium truncate">{pickup?.address || 'غير محدد'}</p>
-              </div>
-            </div>
 
-            {/* Dropoff Location - Red */}
-            <div className="flex items-start gap-3 pb-3 border-b border-blue-100/50">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-red-500 text-white text-xs font-bold flex-shrink-0">
-                ✕
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-red-600 font-semibold">نقطة الوصول</p>
-                <p className="text-sm text-blue-900 font-medium truncate">{dropoff?.address || 'غير محدد'}</p>
+              {/* Connecting Line */}
+              <div className="absolute right-[17px] top-[26px] bottom-[26px] w-0.5 bg-gradient-to-b from-emerald-500/40 via-slate-700/20 to-blue-500/40 pointer-events-none" />
+
+              {/* Dropoff Location - Blue */}
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-blue-500/10 border border-blue-500/20 shadow-glow-sm shadow-blue-500/10">
+                  <span className="text-sm font-bold text-blue-400">✕</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-bold tracking-wider text-blue-400 mb-0.5 uppercase font-cairo">نقطة الوصول</p>
+                  <p className="text-sm font-bold text-white truncate font-tajawal">{dropoff?.address || 'غير محدد'}</p>
+                </div>
               </div>
             </div>
 
             {/* Estimated Fare */}
             {estimatedFare && (
-              <div className="flex items-center justify-between pt-3">
-                <span className="text-xs text-blue-600 font-semibold">💰 التكلفة المتوقعة:</span>
-                <span className="text-sm font-bold text-blue-900">{estimatedFare.toLocaleString()} د.ع</span>
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-700/30 relative z-10">
+                <span className="text-xs text-slate-400 font-bold font-cairo">💰 التكلفة المتوقعة:</span>
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-lg font-black text-emerald-400 font-sans">{estimatedFare.toLocaleString('en-US')}</span>
+                  <span className="text-[10px] font-bold text-slate-400 font-sans mr-0.5">د.ع</span>
+                </div>
               </div>
             )}
           </div>
 
           {/* Date Picker - Enhanced */}
           <div className="space-y-2">
-            <label className="text-sm font-bold text-foreground flex items-center gap-2">
-              <CalendarIcon className="w-4 h-4 text-blue-600" />
+            <label className="text-xs font-bold text-slate-400 flex items-center gap-2 font-cairo">
+              <CalendarIcon className="w-4 h-4 text-emerald-400" />
               اختر التاريخ
             </label>
-            <div className="border rounded-xl overflow-hidden bg-white">
+            <div className="border border-slate-800/40 rounded-2xl overflow-hidden bg-[#171f33] shadow-inner">
               <Calendar
                 mode="single"
                 selected={selectedDate}
@@ -243,32 +286,33 @@ export const ScheduleRideDialog = forwardRef<
                   isBefore(startOfDay(date), startOfDay(new Date())) ||
                   isAfter(startOfDay(date), startOfDay(maxScheduleDate))
                 }
-                className="[&_.rdp]:justify-center [&_.rdp-caption]:px-2 [&_.rdp-cell]:p-0.5 [&_.rdp-cell_button]:h-8 [&_.rdp-cell_button]:w-8 [&_.rdp-cell_button]:text-xs [&_.rdp-head_cell]:text-xs [&_.rdp-head_cell]:font-semibold [&_.rdp_today]:bg-green-500/10 [&_.rdp_selected]:bg-green-600 [&_.rdp_selected]:text-white"
+                className="[&_.rdp]:justify-center [&_.rdp-caption]:px-2 [&_.rdp-cell]:p-0.5 [&_.rdp-cell_button]:h-8 [&_.rdp-cell_button]:w-8 [&_.rdp-cell_button]:text-xs [&_.rdp-head_cell]:text-xs [&_.rdp-head_cell]:font-semibold [&_.rdp_today]:bg-emerald-500/10 [&_.rdp_today]:text-emerald-400 [&_.rdp_selected]:bg-emerald-500 [&_.rdp_selected]:text-white [&_.rdp-nav_button]:text-slate-400"
               />
             </div>
-            <p className="text-xs text-muted-foreground">متاح من ساعتين مقدماً إلى 30 يوماً</p>
+            <p className="text-[11px] font-medium text-slate-500 font-tajawal">متاح من ساعتين مقدماً إلى 30 يوماً</p>
           </div>
 
           {/* Time Picker with Button Grid */}
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Clock className="w-4 h-4 text-blue-600" />
+          <div className="space-y-3">
+            <label className="text-xs font-bold text-slate-400 flex items-center gap-2 font-cairo">
+              <Clock className="w-4 h-4 text-emerald-400" />
               اختر الوقت (الساعة والدقيقة)
             </label>
             
-            <div className="grid grid-cols-2 gap-4">
-              {/* Hours - Circular Button Grid */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-2">الساعة</p>
-                <div className="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto border border-blue-200/50 rounded-lg p-2 bg-blue-50/30">
+            <div className="space-y-4">
+              {/* Hours - Circular Button Grid (Full Width) */}
+              <div className="bg-[#171f33] border border-slate-800/40 rounded-2xl p-3 shadow-inner">
+                <p className="text-[11px] font-bold text-slate-400 mb-2 font-cairo">الساعة</p>
+                <div className="grid grid-cols-6 gap-2">
                   {hours.map((hour) => (
                     <button
                       key={hour}
+                      type="button"
                       onClick={() => setSelectedHour(hour)}
-                      className={`py-1.5 px-1 rounded-full text-xs font-bold transition-all ${
+                      className={`h-9 w-full rounded-xl text-xs font-bold transition-all flex items-center justify-center ${
                         selectedHour === hour
-                          ? 'bg-blue-600 text-white shadow-md'
-                          : 'bg-white text-foreground border border-blue-200 hover:bg-blue-100 hover:shadow-sm'
+                          ? 'bg-emerald-500 text-[#0b1326] shadow-md shadow-emerald-500/20 font-sans'
+                          : 'bg-[#0d1a2e] text-slate-300 border border-slate-800/60 hover:bg-[#171f33] hover:shadow-sm font-sans'
                       }`}
                     >
                       {hour}
@@ -277,18 +321,19 @@ export const ScheduleRideDialog = forwardRef<
                 </div>
               </div>
 
-              {/* Minutes - Button Grid */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-2">الدقيقة</p>
-                <div className="grid grid-cols-2 gap-2 border border-blue-200/50 rounded-lg p-2 bg-blue-50/30">
+              {/* Minutes - Button Grid (Full Width) */}
+              <div className="bg-[#171f33] border border-slate-800/40 rounded-2xl p-3 shadow-inner">
+                <p className="text-[11px] font-bold text-slate-400 mb-2 font-cairo">الدقيقة</p>
+                <div className="grid grid-cols-4 gap-2">
                   {minutes.map((minute) => (
                     <button
                       key={minute}
+                      type="button"
                       onClick={() => setSelectedMinute(minute)}
-                      className={`py-2 px-2 rounded-lg text-xs font-bold transition-all ${
+                      className={`h-9 w-full rounded-xl text-xs font-bold transition-all flex items-center justify-center ${
                         selectedMinute === minute
-                          ? 'bg-blue-600 text-white shadow-md'
-                          : 'bg-white text-foreground border border-blue-200 hover:bg-blue-100 hover:shadow-sm'
+                          ? 'bg-emerald-500 text-[#0b1326] shadow-md shadow-emerald-500/20 font-sans'
+                          : 'bg-[#0d1a2e] text-slate-300 border border-slate-800/60 hover:bg-[#171f33] hover:shadow-sm font-sans'
                       }`}
                     >
                       {minute}
@@ -300,9 +345,9 @@ export const ScheduleRideDialog = forwardRef<
 
             {/* Display selected time */}
             {selectedDate && (
-              <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50/80 border border-blue-200/50 p-2.5 rounded-lg">
-                <Clock className="h-4 w-4 flex-shrink-0" />
-                <span className="font-semibold text-right">
+              <div className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl">
+                <Clock className="h-4 w-4 flex-shrink-0 text-emerald-400" />
+                <span className="font-bold text-right font-tajawal">
                   {format(
                     setMinutes(setHours(selectedDate, parseInt(selectedHour)), parseInt(selectedMinute)),
                     'EEEE d MMMM yyyy - HH:mm',
@@ -316,28 +361,29 @@ export const ScheduleRideDialog = forwardRef<
           {/* ===== ACCORDION SECTIONS - ADVANCED FEATURES ===== */}
 
           {/* Trip Type Section */}
-          <div className="border border-border/30 rounded-xl overflow-hidden bg-white">
+          <div className="border border-slate-800/40 rounded-2xl overflow-hidden bg-[#171f33]">
             <button
               onClick={() => toggleSection('tripType')}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-primary/5 transition-colors"
+              type="button"
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#0d1a2e]/50 transition-colors"
             >
-              <span className="text-sm font-bold flex items-center gap-2 text-foreground">
+              <span className="text-sm font-bold flex items-center gap-2 text-white font-cairo">
                 <span className="text-base">🔄</span> نوع الرحلة
               </span>
               <ChevronDown
-                className={`w-4 h-4 transition-transform duration-200 ${
+                className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
                   expandedSections.tripType ? 'rotate-180' : ''
                 }`}
               />
             </button>
 
             {expandedSections.tripType && (
-              <div className="border-t border-border/30 px-4 py-3 space-y-3 bg-primary/5">
+              <div className="border-t border-slate-800/40 px-4 py-3 space-y-3 bg-[#0d1a2e]/20">
                 <Select value={tripType} onValueChange={(value) => setTripType(value as 'one_way' | 'round_trip')}>
-                  <SelectTrigger className="bg-white border border-primary/20">
+                  <SelectTrigger className="bg-[#0d1a2e] border border-slate-800/40 text-white rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#171f33] border border-slate-800/40 text-white">
                     <SelectItem value="one_way">→ ذهاب فقط</SelectItem>
                     <SelectItem value="round_trip">🔄 ذهاب وعودة في نفس اليوم</SelectItem>
                   </SelectContent>
@@ -345,9 +391,9 @@ export const ScheduleRideDialog = forwardRef<
 
                 {/* Return Time - Visible when round_trip selected */}
                 {tripType === 'round_trip' && (
-                  <div className="space-y-3 pt-3 border-t border-border/30">
-                    <p className="text-xs font-bold text-foreground">⏰ موعد العودة</p>
-                    <div className="border rounded-lg overflow-hidden bg-white">
+                  <div className="space-y-3 pt-3 border-t border-slate-800/40">
+                    <p className="text-xs font-bold text-white font-cairo">⏰ موعد العودة</p>
+                    <div className="border border-slate-800/40 rounded-xl overflow-hidden bg-[#171f33]">
                       <Calendar
                         mode="single"
                         selected={returnDate}
@@ -357,22 +403,24 @@ export const ScheduleRideDialog = forwardRef<
                           isBefore(startOfDay(date), startOfDay(new Date())) ||
                           isAfter(startOfDay(date), startOfDay(maxScheduleDate))
                         }
-                        className="[&_.rdp]:justify-center [&_.rdp-caption]:px-2 [&_.rdp-cell]:p-0.5 [&_.rdp-cell_button]:h-7 [&_.rdp-cell_button]:w-7 [&_.rdp-cell_button]:text-xs [&_.rdp-head_cell]:text-xs [&_.rdp_today]:bg-primary/10 [&_.rdp_selected]:bg-primary [&_.rdp_selected]:text-white"
+                        className="[&_.rdp]:justify-center [&_.rdp-caption]:px-2 [&_.rdp-cell]:p-0.5 [&_.rdp-cell_button]:h-7 [&_.rdp-cell_button]:w-7 [&_.rdp-cell_button]:text-xs [&_.rdp-head_cell]:text-xs [&_.rdp_today]:bg-emerald-500/10 [&_.rdp_today]:text-emerald-400 [&_.rdp_selected]:bg-emerald-500 [&_.rdp_selected]:text-white [&_.rdp-nav_button]:text-slate-400"
                       />
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-xs font-semibold text-muted-foreground mb-1.5">الساعة</p>
-                        <div className="grid grid-cols-4 gap-1 max-h-32 overflow-y-auto border border-primary/20 rounded p-1.5 bg-primary/5">
+                    <div className="space-y-3">
+                      {/* Return Hours Grid */}
+                      <div className="bg-[#171f33] border border-slate-800/40 rounded-2xl p-3 shadow-inner">
+                        <p className="text-xs font-bold text-slate-400 mb-2 font-cairo">الساعة</p>
+                        <div className="grid grid-cols-6 gap-2">
                           {hours.map((hour) => (
                             <button
                               key={`return-${hour}`}
+                              type="button"
                               onClick={() => setReturnHour(hour)}
-                              className={`py-1 px-0.5 rounded text-xs font-bold transition-all ${
+                              className={`h-9 w-full rounded-xl text-xs font-bold transition-all flex items-center justify-center ${
                                 returnHour === hour
-                                  ? 'bg-primary text-white shadow-sm'
-                                  : 'bg-white text-foreground hover:bg-primary/10 border border-primary/20'
+                                  ? 'bg-emerald-500 text-[#0b1326] shadow-sm font-sans'
+                                  : 'bg-[#0d1a2e] text-slate-300 hover:bg-[#171f33] border border-slate-800/60 font-sans'
                               }`}
                             >
                               {hour}
@@ -380,17 +428,20 @@ export const ScheduleRideDialog = forwardRef<
                           ))}
                         </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-semibold text-muted-foreground mb-1.5">الدقيقة</p>
-                        <div className="grid grid-cols-2 gap-1 border border-primary/20 rounded p-1.5 bg-primary/5">
+
+                      {/* Return Minutes Grid */}
+                      <div className="bg-[#171f33] border border-slate-800/40 rounded-2xl p-3 shadow-inner">
+                        <p className="text-xs font-bold text-slate-400 mb-2 font-cairo">الدقيقة</p>
+                        <div className="grid grid-cols-4 gap-2">
                           {minutes.map((minute) => (
                             <button
                               key={`return-${minute}`}
+                              type="button"
                               onClick={() => setReturnMinute(minute)}
-                              className={`py-1.5 px-1 rounded text-xs font-bold transition-all ${
+                              className={`h-9 w-full rounded-xl text-xs font-bold transition-all flex items-center justify-center ${
                                 returnMinute === minute
-                                  ? 'bg-primary text-white shadow-sm'
-                                  : 'bg-white text-foreground hover:bg-primary/10 border border-primary/20'
+                                  ? 'bg-emerald-500 text-[#0b1326] shadow-sm font-sans'
+                                  : 'bg-[#0d1a2e] text-slate-300 hover:bg-[#171f33] border border-slate-800/60 font-sans'
                               }`}
                             >
                               {minute}
@@ -406,24 +457,25 @@ export const ScheduleRideDialog = forwardRef<
           </div>
 
           {/* Multi-Stop Section */}
-          <div className="border border-border/30 rounded-xl overflow-hidden bg-white">
+          <div className="border border-slate-800/40 rounded-2xl overflow-hidden bg-[#171f33]">
             <button
               onClick={() => toggleSection('stops')}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-primary/5 transition-colors"
+              type="button"
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#0d1a2e]/50 transition-colors"
             >
-              <span className="text-sm font-bold flex items-center gap-2 text-foreground">
+              <span className="text-sm font-bold flex items-center gap-2 text-white font-cairo">
                 <span className="text-base">🛑</span> محطات توقف إضافية
-                {stops.length > 0 && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full ml-1">({stops.length})</span>}
+                {stops.length > 0 && <span className="text-xs bg-emerald-50/10 text-emerald-400 px-2 py-0.5 rounded-full ml-1 font-sans">({stops.length})</span>}
               </span>
               <ChevronDown
-                className={`w-4 h-4 transition-transform duration-200 ${
+                className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
                   expandedSections.stops ? 'rotate-180' : ''
                 }`}
               />
             </button>
 
             {expandedSections.stops && (
-              <div className="border-t border-border/30 px-4 py-3 space-y-2 bg-primary/5">
+              <div className="border-t border-slate-800/40 px-4 py-3 space-y-2 bg-[#0d1a2e]/20">
                 {/* Add Stop Input - Conditional Display */}
                 <div className="flex gap-2">
                   {showStopInput && (
@@ -431,7 +483,7 @@ export const ScheduleRideDialog = forwardRef<
                       value={stopInput}
                       onChange={(e) => setStopInput(e.target.value)}
                       placeholder="اكتب عنوان المحطة..."
-                      className="text-sm border-primary/20"
+                      className="text-sm bg-[#0d1a2e] border border-slate-800/40 text-white rounded-xl placeholder:text-slate-500"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && stopInput.trim()) {
@@ -455,7 +507,7 @@ export const ScheduleRideDialog = forwardRef<
                         setShowStopInput(!showStopInput);
                       }
                     }}
-                    className="whitespace-nowrap"
+                    className="whitespace-nowrap rounded-xl border-slate-800/40"
                   >
                     {showStopInput && stopInput.trim() ? 'إضافة' : <Plus className="w-4 h-4" />}
                   </Button>
@@ -464,18 +516,19 @@ export const ScheduleRideDialog = forwardRef<
                 {/* Stops List */}
                 {stops.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold text-primary">📍 المحطات المضافة:</p>
+                    <p className="text-[11px] font-bold text-slate-400 font-cairo">📍 المحطات المضافة:</p>
                     {stops.map((stop, index) => (
                       <div
                         key={`${stop}-${index}`}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-primary/20 bg-white px-3 py-2 hover:bg-primary/5 transition-colors"
+                        className="flex items-center justify-between gap-2 rounded-xl border border-slate-800/40 bg-[#0d1a2e] px-3 py-2 hover:bg-[#171f33] transition-colors"
                       >
-                        <span className="text-sm font-medium text-foreground truncate">
-                          <span className="text-primary font-bold">{index + 1}.</span> {stop}
+                        <span className="text-sm font-medium text-white truncate">
+                          <span className="text-emerald-400 font-bold font-sans ml-1">{index + 1}.</span> {stop}
                         </span>
                         <button
+                          type="button"
                           onClick={() => setStops((prev) => prev.filter((_, i) => i !== index))}
-                          className="text-destructive hover:text-destructive/80 hover:bg-destructive/10 rounded p-1 transition-colors flex-shrink-0"
+                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded p-1 transition-colors flex-shrink-0"
                           title="حذف"
                           aria-label={`حذف محطة ${stop}`}
                         >
@@ -490,35 +543,37 @@ export const ScheduleRideDialog = forwardRef<
           </div>
 
           {/* Preferences Section */}
-          <div className="border border-border/30 rounded-xl overflow-hidden bg-white">
+          <div className="border border-slate-800/40 rounded-2xl overflow-hidden bg-[#171f33]">
             <button
               onClick={() => toggleSection('preferences')}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-primary/5 transition-colors"
+              type="button"
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#0d1a2e]/50 transition-colors"
             >
-              <span className="text-sm font-bold flex items-center gap-2 text-foreground">
+              <span className="text-sm font-bold flex items-center gap-2 text-white font-cairo">
                 <span className="text-base">💜</span> تفضيلات خاصة
               </span>
               <ChevronDown
-                className={`w-4 h-4 transition-transform duration-200 ${
+                className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
                   expandedSections.preferences ? 'rotate-180' : ''
                 }`}
               />
             </button>
 
             {expandedSections.preferences && (
-              <div className="border-t border-border/30 px-4 py-3 space-y-2 bg-primary/5">
+              <div className="border-t border-slate-800/40 px-4 py-3 space-y-2 bg-[#0d1a2e]/20">
                 <div 
-                  className="flex items-center gap-3 rounded-lg border border-primary/20 bg-white px-3 py-2.5 cursor-pointer hover:bg-primary/5 transition-colors"
+                  className="flex items-center gap-3 rounded-xl border border-slate-800/40 bg-[#0d1a2e] px-3 py-3 cursor-pointer hover:bg-[#171f33] transition-colors"
                   onClick={() => setPreferWomenDriver(!preferWomenDriver)}
                 >
                   <Checkbox
                     id="preferWomen"
                     checked={preferWomenDriver}
                     onCheckedChange={(value) => setPreferWomenDriver(Boolean(value))}
+                    className="border-slate-500 data-[state=checked]:bg-emerald-500 data-[state=checked]:text-[#0b1326] data-[state=checked]:border-emerald-500"
                   />
-                  <label htmlFor="preferWomen" className="text-sm font-medium text-foreground cursor-pointer flex-1">
+                  <label htmlFor="preferWomen" className="text-sm font-bold text-white cursor-pointer flex-1 font-cairo">
                     👩 عائلات / سائقة فقط
-                    <span className="text-xs text-muted-foreground block">قد تطبق رسوم إضافية</span>
+                    <span className="text-[11px] text-slate-400 font-medium font-tajawal block mt-0.5">قد تطبق رسوم إضافية</span>
                   </label>
                 </div>
               </div>
@@ -527,14 +582,14 @@ export const ScheduleRideDialog = forwardRef<
 
           {/* Notes Section */}
           <div className="space-y-2">
-            <label className="text-sm font-bold text-foreground flex items-center gap-2">
+            <label className="text-xs font-bold text-slate-400 flex items-center gap-2 font-cairo">
               <span>📝</span> ملاحظات للسائق (اختياري)
             </label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="مثال: أحتاج مساعدة في الأمتعة، أو لدي طلب خاص..."
-              className="resize-none text-sm border-border/50"
+              className="resize-none text-sm border border-slate-800/40 bg-[#0d1a2e] text-white rounded-xl placeholder:text-slate-500"
               rows={2}
             />
           </div>
@@ -543,11 +598,11 @@ export const ScheduleRideDialog = forwardRef<
           <Button 
             onClick={handleSchedule} 
             disabled={!canSchedule || isLoading}
-            className="w-full h-12 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold text-base shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full h-12 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-bold text-base shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-cairo"
           >
             {isLoading ? (
               <span className="flex items-center gap-2">
-                <span className="inline-block animate-spin">⏳</span>
+                <Loader2 className="w-5 h-5 animate-spin" />
                 جاري الجدولة...
               </span>
             ) : (

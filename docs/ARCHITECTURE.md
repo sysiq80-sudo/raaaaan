@@ -1,304 +1,215 @@
-# RAAN — دليل المعمارية التقنية
+# توثيق المعمارية
+> تاريخ التوثيق: 2026-05-31 (تحديث — الفحص الأصلي 2026-05-29)
+> المشروع: ران (RAAN) — تطبيق النقل الذكي
+> مصدر الحقيقة: الكود الفعلي
 
-> مبني على فحص مباشر للكود المصدري | آخر تحديث: 26 مايو 2026
+## نظرة عامة على النظام
 
----
+**ران** هو نظام نقل ذكي عراقي متكامل يشمل 4 تطبيقات (راكب، سائق، سيارة، إدارة) مبنية من codebase واحد باستخدام نظام Multi-Flavor. يعمل كـ SPA على الويب وكتطبيق Android أصلي عبر Capacitor.
 
-## Stack التقني الكامل
+## نوع المشروع
 
-| الطبقة | التقنية |
-|--------|---------| 
-| Frontend | React 18 + TypeScript 5 + Vite 5 |
-| Styling | TailwindCSS 3 + shadcn/ui + Radix UI |
-| State | Zustand 5 + TanStack Query 5 |
-| Routing | React Router DOM 6 |
-| Backend | Supabase (PostgreSQL + Realtime + Auth) |
-| Edge Functions | Deno (54 function) |
-| Mobile | Capacitor 8 (Android) |
-| Maps | Google Maps (`@react-google-maps/api`) |
-| Payments | ZainCash + NASS Payment |
-| Monitoring | Sentry |
-| i18n | i18next + react-i18next |
-| Animation | Framer Motion |
-| Charts | Recharts |
-| Forms | React Hook Form + Zod |
-| Notifications | FCM + Web Push + Telegram + SMS |
+| البند | القيمة |
+|---|---|
+| النوع | Full Stack SaaS + Mobile (Multi-Flavor Monorepo) |
+| النمط المعماري | Layered (Client → Edge Functions → Database) — بدون خادم تقليدي |
+| الاتصال | REST (Edge Functions) + Realtime (Supabase Channels) + RPC (Database Functions) |
 
----
+## طبقات النظام
 
-## المعمارية المعيارية
+### طبقة العرض (UI/Frontend)
+- **التقنية:** React 18 + TypeScript + Vite 5 (SPA)
+- **التوجيه:** React Router DOM 6 — كل Routes في 📁 `src/App.tsx` (1231 سطر)
+- **التنقل:**
+  - **الويب:** `BrowserRouter` 🟢 مؤكد
+  - **الجوال (Capacitor):** `HashRouter` 🟢 مؤكد
+- **إدارة الحالة:**
+  - `zustand` — 4 stores: 📁 `src/stores/driverStore.ts`, `riderStore.ts`, `editorStore.ts`, `useFavoritesStore.ts`
+  - `@tanstack/react-query` — cache + server state
+  - `React Context` — 5 contexts: 📁 `src/contexts/` (Auth, Map, Theme, Locale, SupabaseConfig)
+- **التصميم:** TailwindCSS 3 + shadcn/ui (Radix UI) + Framer Motion
+- **الترجمة:** i18next (عربي + إنجليزي) — 📁 `src/locales/`
+- **الملفات الرئيسية:**
+  - 📁 `src/App.tsx` — نقطة الدخول + كل Routes
+  - 📁 `src/main.tsx` — تهيئة React + Sentry
+  - 📁 `src/index.css` — 56KB من الأنماط
 
-### 1. طبقة المحوّلات (Adapter Pattern)
+### طبقة المنطق (Business Logic)
+- **التقنية:** Supabase Edge Functions (Deno) + Database RPC Functions (PL/pgSQL)
+- **عدد Edge Functions:** 57 دالة 🟢 مؤكد (تحديث 2026-05-31)
+- **عدد Database RPCs:** 50+ دالة 🟡 محتمل (مبني على عد migrations)
+- **الملفات الرئيسية:**
+  - 📁 `supabase/functions/` — كل دالة في مجلد منفصل
+  - 📁 `supabase/functions/_shared/` — كود مشترك (CORS, auth helpers)
+  - 📁 `supabase/functions/financial-watchdog/` — **جديد 2026-05** — مراقبة مالية تلقائية
+  - 📁 `supabase/functions/migrate-secrets-to-db/` — **جديد 2026-05** — نقل الأسرار
+- **أنماط التصميم:**
+  - Adapter Pattern — 📁 `src/lib/adapters/` (OSRM, Nominatim, Haversine)
+  - Event Queue — 📁 `src/hooks/useRideEventQueue.ts`
+  - Rate Limiting — 📁 `src/hooks/useRateLimiting.ts`
+
+### طبقة البيانات (Database / Storage)
+- **التقنية:** PostgreSQL (Supabase Hosted) + PostGIS (spatial)
+- **العميل:** `@supabase/supabase-js@^2.87.1`
+- **عدد الجداول:** ~91 🟡 محتمل (مبني على تحليل migrations)
+- **عدد Migrations:** 236 🟢 مؤكد
+- **RLS:** مفعّل على الجداول الأساسية — **لم يُفحص على كل الجداول** ⚠️
+- **Realtime:** مفعّل لجداول الرحلات والمواقع
+- **الملفات الرئيسية:**
+  - 📁 `supabase/migrations/` — 236 ملف SQL
+  - 📁 `supabase/seed.sql` — بيانات أولية
+  - 📁 `src/integrations/supabase/` — عميل + أنواع TypeScript
+
+### طبقة الخدمات الخارجية (External Services)
+
+| الخدمة | الوظيفة | طريقة الاتصال | الملف |
+|---|---|---|---|
+| Google Maps | خرائط + directions + geocoding + places | REST API (عبر Edge Function proxy) | 📁 `supabase/functions/google-maps-proxy/` + `src/lib/googleMapService.ts` |
+| OSRM | حساب مسارات (fallback مجاني) | REST API | 📁 `src/lib/adapters/OSRMRoutingAdapter.test.ts` |
+| Nominatim | geocoding مجاني (fallback) | REST API | 📁 `src/lib/adapters/NominatimGeocodingAdapter.test.ts` |
+| ZainCash | دفع إلكتروني — **معطّل (DR-05)** | REST API (Edge Function) | 📁 `supabase/functions/zaincash-init/` + `zaincash-callback/` |
+| NASS | دفع إلكتروني — **معطّل (DR-07)** | REST API (Edge Function) | 📁 `supabase/functions/nass-*` |
+| Sentry | مراقبة أخطاء | SDK | 📁 `src/lib/sentry.ts` |
+| Telegram | بوت حجز | Webhook (Edge Function) | 📁 `supabase/functions/admin-telegram-webhook/` + `telegram-*` |
+| WhatsApp | إشعارات رحلات | Webhook (Edge Function) | 📁 `supabase/functions/whatsapp-*` |
+| SMS Provider | OTP + إشعارات | REST API (Edge Function) | 📁 `supabase/functions/send-sms/` + `send-otp/` |
+| Mapbox | خرائط إدارية | SDK + REST (عبر proxy) | 📁 `supabase/functions/mapbox-proxy/` |
+| pg_cron | مهام دورية تلقائية | PostgreSQL Extension | watchdog (كل ساعة) + cleanup + dispatch |
+
+## تدفق البيانات (Data Flow)
+
+### تدفق حجز رحلة (أساسي)
 ```
-src/lib/adapters/
-```
-- **الهدف:** تجريد الخرائط والـ routing والـ geocoding
-- **الحالة:** مكتملة 100% مع fallback chains (غير مدمجة بالكامل مع GoPage/DriverHome)
-
-**سلسلة الـ Fallback:**
-- خريطة: OSM → Google Maps → Static Map
-- Routing: OSRM → Google Directions → Haversine (رياضيات)
-- Geocoding: Nominatim → Photon → Google Places
-
-### 2. نظام إلغاء تكرار الأحداث (Lamport Clocks)
-```
-src/lib/eventDeduplication/
-```
-- **الهدف:** منع تكرار أحداث Realtime
-- **التقنية:** Lamport timestamps + 3-tier dedup (Event ID → Hash → Location proximity)
-- **الحالة:** مكتمل، مُدمج في DriverHome
-
-### 3. محرك الإشعارات الذكي
-```
-src/lib/notificationRouter/
-```
-- **الهدف:** إشعارات ذكية تراعي السياق (القيادة، الليل، البعد)
-- **القواعد:** 8 قواعد افتراضية (critical, driving, parked, batching, ETA, night, lifecycle, dedup)
-- **الحالة:** مكتمل، مُدمج جزئياً
-
----
-
-## هيكل GoPage بعد إعادة الهيكلة
-
-### مخطط Data Flow
-```
-GoPage (1,789 سطر — UI orchestration)
-  ├── useLocationPicker          ← خريطة + geocoding + service area
-  ├── useBookingFlow             ← خريطة الحجز + مسار
-  ├── useSearchAndPlaces         ← بحث Google/Nominatim
-  ├── useUnifiedSearch           ← دمج مصادر البحث
-  ├── useRideTracking            ← حالة الرحلة النشطة
-  ├── useBestGeolocation         ← GPS مع request cancellation
-  ├── useRideBookingSubmission   ← مسار الحجز الكامل
-  ├── useLocationSearchPanelHandlers ← أحداث البحث + geofence
-  │
-  └── JSX Components
-      ├── LocationSearchPanel    ← لوحة البحث (pure render)
-      ├── SavedPlacesStrip       ← الأماكن المحفوظة (pure render)
-      └── LocationSelectionActionBar ← زر التأكيد (pure render)
-```
-
----
-
-## نظام CSS والثيم (24 مايو 2026)
-
-### البنية
-- **ملف واحد مركزي:** `src/index.css` — يحتوي على كل Tailwind layers + CSS custom properties + overrides
-- **الثيم العالمي:** `:root` + `.dark` + media queries
-- **ثيم السائق المنفصل:** `.driver-luxury` CSS class يلف كل صفحات السائق
-
-### `.driver-luxury` — ثيم السائق
-CSS class يُضاف على root element صفحات السائق. يُعيد تعريف CSS custom properties لـ shadcn/ui:
-
-```css
-.driver-luxury {
-  --background: 220 22% 5%;
-  --card: 220 20% 10%;
-  --border: 215 12% 20%;
-  --input: 215 10% 13%;
-  --ring: 156 96% 45%;   /* أخضر — اللون الرئيسي للسائق */
-  /* ... */
-}
+الراكب (GoPage/AIVoiceHome)
+    ↓ [يختار الوجهة]
+src/hooks/useBookingFlow.ts → src/hooks/useRideBookingSubmission.ts
+    ↓ [إنشاء طلب]
+Supabase DB: rides (status = 'pending')
+    ↓ [Realtime subscription]
+supabase/functions/cron-dispatch/ → match-ride/
+    ↓ [توزيع على أقرب سائق]
+Supabase DB: rides (status = 'assigned', driver_id = X)
+    ↓ [Realtime → Push Notification]
+السائق (DriverHome) → useDriverNotifications.ts
+    ↓ [قبول/رفض]
+Supabase DB: rides (status = 'accepted'/'rejected')
+    ↓ [Realtime]
+الراكب (LiveRideTracker) — تتبع مباشر
 ```
 
-**قواعد مهمة:**
-- كل المتغيرات بصيغة HSL بدون `hsl()` (تعمل مع Tailwind `hsl(var(--color))`)
-- `--ring` يتحكم في لون focus ring لكل عناصر shadcn — لذا تغييره كافٍ لتوحيد اللون
-
-### توحيد التصميم — `.driver-page-shell`
-CSS class يلف صفحات السائق التفصيلية (غير الخريطة). يفرض هرمية خطوط:
-- `h1` → 20px / 900 weight
-- `h2, h3` → 16px / 700 weight
-- `.text-lg` → 16px (override)
-- `.text-base` → 14px (override)
-
-### إزالة Focus Rings
-`.driver-luxury` تلغي `outline` و `box-shadow` على جميع العناصر التفاعلية بـ `!important`.  
-**السبب:** shadcn/ui يستخدم `focus-visible:ring-2 ring-offset-2` حيث `ring-offset` يملأ الفجوة بلون الخلفية — في الثيم الداكن يظهر هذا كحلقة ملونة.
-
----
-
-## نظام توسيع نطاق البحث التدريجي
-
-### الملف: `src/components/rider/RideWaitingScreen.tsx`
-
-عند البحث عن سائق، يُشغَّل timer يعيد المطابقة كل 60 ثانية مع توسيع تدريجي للنطاق:
-
+### تدفق المصادقة
 ```
-دورة 1 (t=45s):  writes ride.metadata.radius_bonus_km = 3  → invoke match-ride
-دورة 2 (t=105s): writes ride.metadata.radius_bonus_km = 6  → invoke match-ride
-دورة 3 (t=165s): writes ride.metadata.radius_bonus_km = 9  → invoke match-ride
-دورة 4 (t=225s): writes ride.metadata.radius_bonus_km = 12 → invoke match-ride (حد أقصى)
+المستخدم → Auth.tsx / DriverAuth.tsx
+    ↓ [إدخال الهاتف]
+supabase/functions/send-otp/ → SMS Provider
+    ↓ [إدخال OTP]
+Supabase Auth (signInWithOtp)
+    ↓ [onAuthStateChange]
+AuthContext.tsx → detectUserRole()
+    ↓ [فحص user_roles + drivers]
+Supabase DB: user_roles, drivers
+    ↓ [تحديد الدور]
+حفظ الدور → توجيه (rider/driver/admin)
 ```
 
-### دالة `triggerReMatch()` — التسلسل الكامل:
-1. `supabase.from("rides").select("status, metadata")` ← يجلب الـ metadata الحالية
-2. يحسب `newBonus = Math.min(prevBonus + 3, 12)` 
-3. `supabase.from("rides").update({ metadata: { ...currentRide.metadata, radius_bonus_km: newBonus } })`
-4. يستدعي Edge Function `match-ride` بـ `{ re_match: true }`
-
-### Edge Function `match-ride/index.ts` — قراءة النطاق:
-```typescript
-const radiusBonus = (ride.metadata as any)?.radius_bonus_km || 0;
-// لكل سائق:
-maxRadius = (driver.max_pickup_radius || admin_default_radius) + radiusBonus;
+### تدفق الدفع
 ```
-`re_match: true` يُنظّف قائمة `notified_drivers` للسماح بإعادة إشعار السائقين الذين انتهت مهلتهم.
+الراكب/السائق → صفحة الشحن
+    ↓ [اختيار طريقة الدفع]
+supabase/functions/zaincash-init/ أو nass-init-payment/
+    ↓ [إنشاء عملية دفع]
+بوابة الدفع الخارجية
+    ↓ [callback]
+supabase/functions/zaincash-callback/ أو nass-payment-callback/
+    ↓ [تحديث المحفظة]
+Supabase DB: wallet_transactions
+```
 
----
+## نظام Multi-Flavor
 
+المشروع يستخدم نظام **Multi-Flavor** ذكي لبناء 4 تطبيقات من codebase واحد:
 
+| الآلية | الشرح |
+|---|---|
+| Vite Config مخصص لكل flavor | كل تطبيق له `vite.[flavor].config.ts` مع `__APP_MODE__` define |
+| HTML Entry مخصص | كل تطبيق له ملف HTML خاص (`rider.html`, `driver.html`, إلخ) |
+| Capacitor Config مخصص | كل APK له `capacitor.[flavor].config.ts` مع `appId` مختلف |
+| Route Protection | `ProtectedRoute` + `__APP_MODE__` يمنع الوصول غير المصرح |
+| Conditional Loading | `lazy()` لتحميل صفحات كل تطبيق حسب الحاجة |
 
-| Store | الملف | الوظيفة |
-|-------|-------|---------| 
-| driverStore | `src/stores/driverStore.ts` | حالة السائق + الرحلة النشطة + إعدادات كتم الإشعارات |
-| riderStore | `src/stores/riderStore.ts` | حالة الراكب + موقعه + تفضيلات الحجز |
-| editorStore | `src/stores/editorStore.ts` | محرر المرئيات (Admin) |
-| useFavoritesStore | `src/stores/useFavoritesStore.ts` | المواقع المفضلة |
+### IDs التطبيقات (Capacitor)
+- **الراكب:** `com.raan.rider` 🟢 مؤكد
+- **السائق:** يُحدد في `capacitor.driver.config.ts` 🟡 محتمل `com.raan.captain`
+- **السيارة:** يُحدد في `capacitor.car.config.ts`
 
-**ملاحظات تصميمية:**
-- `partialize` يحفظ الإعدادات والتفضيلات فقط (لا يحفظ الموقع أو الرحلة النشطة)
-- Selectors منفصلة لكل حقل لمنع re-renders غير ضرورية
-- `zustandCapacitorStorage` للعمل على Capacitor WebView
+## تكامل Capacitor (Android)
 
----
+### Native Plugins المستخدمة
+| Plugin | الوظيفة | ملف الإعداد |
+|---|---|---|
+| `@capacitor/geolocation` | موقع المستخدم | 📁 `capacitor.config.ts` |
+| `@transistorsoft/capacitor-background-geolocation` | GPS خلفية مستمرة (للسائق) | 📁 `src/hooks/useDriverBackgroundGeolocation.ts` |
+| `@capacitor/push-notifications` | إشعارات Push | 📁 `src/components/PushNotificationSetup.tsx` |
+| `@capacitor/local-notifications` | إشعارات محلية | 📁 `capacitor.config.ts` |
+| `@capacitor-community/text-to-speech` | نطق حالة الرحلة | 📁 `capacitor.config.ts` |
+| `@capacitor-community/speech-recognition` | التعرف على الصوت | 📁 `capacitor.config.ts` |
+| `@capacitor-community/keep-awake` | منع إطفاء الشاشة | 📁 `src/hooks/useWakeLock.ts` |
+| `@capacitor/haptics` | اهتزاز | |
+| `@capacitor/keyboard` | التحكم بالكيبورد | |
+| `@capacitor/network` | حالة الاتصال | 📁 `src/hooks/useNetworkStatus.ts` |
+| `@capacitor/preferences` | تخزين محلي | 📁 `src/lib/capacitorStorage.ts` |
+| `@capacitor/screen-orientation` | اتجاه الشاشة | |
+| `@capacitor/splash-screen` | شاشة البداية | |
+| `@capacitor/status-bar` | شريط الحالة | |
+| `@capacitor/device` | معلومات الجهاز | |
+| `@capacitor/browser` | فتح روابط خارجية | |
+| `@capacitor/share` | مشاركة | |
+| `@capacitor/toast` | رسائل سريعة | |
+| `@capacitor/app` | أحداث التطبيق | 📁 `src/hooks/useAndroidBackButton.ts` |
 
-## Contexts
+### Platform Builds
+- **Android:** ✅ مدعوم بالكامل — `android/` موجود مع Gradle + product flavors
+- **iOS:** ❌ غير مدعوم حالياً
 
-| Context | الملف | الوظيفة |
-|---------|-------|---------| 
-| AuthContext | `src/contexts/AuthContext.tsx` | المصادقة + الأدوار + multi-device + instant role cache |
-| RaanThemeContext | `src/contexts/RaanThemeContext.tsx` | الثيم الداكن/الفاتح |
-| MapContext | `src/contexts/MapContext.tsx` | حالة الخريطة |
-| SupabaseConfigContext | `src/contexts/SupabaseConfigContext.tsx` | إعدادات Supabase الديناميكية (تبديل مشاريع — Admin فقط) |
-| MarketingLocaleContext | `src/contexts/MarketingLocaleContext.tsx` | لغة صفحات التسويق |
+## تحسينات الأداء (Performance Optimizations)
 
----
+| التحسين | التقنية | الملف |
+|---|---|---|
+| Code Splitting | `React.lazy()` لكل الصفحات | 📁 `src/App.tsx` |
+| Manual Chunks | Vite `manualChunks` (react, supabase, radix, maps, charts) | 📁 `vite.config.ts` |
+| Drop Console | `terser` — حذف console.log في الإنتاج | 📁 `vite.config.ts` |
+| Query Cache | `staleTime: 30s`, `gcTime: 5min` | 📁 `src/App.tsx` |
+| Prefetch | تحميل مسبق لأهم الصفحات بعد 3 ثوانٍ | 📁 `src/App.tsx` |
+| Service Worker | `vite-sw-plugin.ts` | 📁 `vite-sw-plugin.ts` |
+| Asset Caching | Vercel — `Cache-Control: immutable` للـ assets | 📁 `vercel.json` |
+| Memoization | مكتبة مخصصة | 📁 `src/lib/memoization.ts` |
+| Event Deduplication | منع تكرار الأحداث | 📁 `src/lib/eventDeduplication/` |
 
-## Hooks المهمة (73 hook)
+## نظام الخرائط والتوجيه (Maps & Routing)
 
-### الموقع والتتبع
-- `useBestGeolocation` — GPS مع request cancellation (GEOLOCATION_SUPERSEDED)
-- `useAdvancedLocationTracking` — تتبع دقيق + background
-- `useNearbyDrivers` — السائقون القريبون (Realtime)
-- `useOptimizedNearbyDrivers` — نسخة محسّنة مع caching
-- `useDriverLocationSync` — مزامنة موقع السائق
+### استراتيجية الخرائط (Adaptive Map)
+| الطبقة | الحالة | الملف | الوصف |
+|---|---|---|---|
+| Google Maps (الأساسي) | ✅ نشط | 📁 `src/lib/googleMapService.ts` + `src/hooks/useGoogleMapsApiKey.ts` | API key من Supabase settings — timeout 5s |
+| Leaflet/OSM (fallback) | ✅ نشط | 📁 `src/components/LeafletMap.tsx` + `src/components/LazyMap.tsx` | يُفعَّل تلقائياً عند `mapLoadFailed = true` |
+| Mapbox (للأدمن فقط) | ✅ نشط | 📁 `supabase/functions/mapbox-proxy/` | admin map فقط |
 
-### الرحلة والحجز
-- `useActiveRide` — الرحلة النشطة (17KB)
-- `useBookingFlow` — تدفق الحجز + Adaptive Routing
-- `useRideBookingSubmission` — مسار الحجز الكامل (auth → validation → insert → match)
-- `useRealtimeRideEvents` — Realtime + dedup
+### استراتيجية التوجيه والـ ETA (Adaptive Routing)
+| المزوّد | الحالة | الاستخدام |
+|---|---|---|
+| OSRM `router.project-osrm.org` | ✅ الأساسي | ETA وحساب مسار — throttle 30s/300m |
+| Haversine (محلي) | ✅ fallback | عند فشل OSRM — تقدير خطي |
 
-### البحث والخرائط
-- `useLocationPicker` — اختيار الموقع (37KB)
-- `useLocationSearchPanelHandlers` — أحداث البحث + geofence chokepoint
-- `useUnifiedSearch` — البحث الموحد (16KB)
-- `useDynamicPlacesSearch` — بحث Nominatim
-- `useAdaptiveGeocoding` — geocoding مع fallback
+**التدفق في LiveRideTracker:**
+```
+getAdaptiveRoute (OSRM) → duration (دقائق حقيقية)
+    ↓ throttle: 30s OR 300m تغيير
+    ↓ lastETAFetchRef (يُحدَّث عند النجاح والفشل)
+useFareCalculation ← routeDuration (end-to-end)
+    ↓ calculate-fare Edge Function ← duration_minutes
+    ↓ sanity check: speed = distKm / (dur/60) ∈ [5, 100] km/h
+```
 
-### الإشعارات
-- `useDriverNotifications` — إشعارات السائق (28KB)
-- `useNotificationRouter` — محرك الإشعارات الذكي
-- `useBroadcastChannel` — تواصل بين التبويبات
-
-### المساعدات
-- `addressFormatting.ts` — تنسيق العناوين العراقية (مع اختبارات)
-- `riderBooking.ts` — تحقق الحجز: حدود العراق + مسافة + timeout + retry (مع اختبارات)
-- `logger.ts` — logger مركزي (debug مخفي في production)
-
----
-
-## الخدمات (Services)
-
-| الخدمة | الملف | الوظيفة |
-|--------|-------|---------| 
-| backgroundLocationService | `src/services/backgroundLocationService.ts` | GPS في الخلفية |
-| driverNotificationService | `src/services/driverNotificationService.ts` | إشعارات السائق |
-| nativeLocationService | `src/services/nativeLocationService.ts` | GPS الأصلي |
-| lastKnownLocationService | `src/services/lastKnownLocationService.ts` | آخر موقع معروف |
-| locationDB | `src/services/locationDB.ts` | IndexedDB للمواقع |
-| rememberMeService | `src/services/rememberMeService.ts` | تذكر المستخدم |
-
----
-
-## جداول قاعدة البيانات الأساسية
-
-- `profiles` — ملفات المستخدمين
-- `drivers` — بيانات السائقين
-- `rides` — الرحلات (+ Realtime enabled)
-- `driver_live_locations` — مواقع السائقين الحية
-- `vehicle_types` — أنواع المركبات
-- `regions` — مناطق الخدمة
-- `fares` — أسعار التعرفة
-- `driver_wallet_transactions` — معاملات المحفظة
-- `push_subscriptions` — اشتراكات الإشعارات
-- `bot_customers` — عملاء البوت
-- `visual_workflows` — سير عمل مرئي
-- `messenger_accounts` — حسابات المراسلة
-- `fraud_alerts` — تنبيهات الاحتيال
-- `ride_complaints` — الشكاوى
-- `emergency_events` — أحداث الطوارئ
-- `driver_matching_stats` — إحصائيات المطابقة (Dispatch v2)
-- `directions_cache` — كاش المسارات
-- `rate_limits` — حدود المعدل
-- `analytics_events` — أحداث التحليلات
-- `audit_logs` — سجلات المراجعة
-
----
-
-## Edge Functions (54 وظيفة)
-
-| الفئة | الوظائف |
-|-------|---------| 
-| **المصادقة** | `admin-login`, `rider-signup`, `driver-signup`, `reset-password` |
-| **الرحلات** | `match-ride`, `complete-ride`, `detect-dual-stop`, `cleanup-stale-rides` |
-| **الإشعارات** | `send-push-notification`, `notification-analytics`, `notify-admin-critical` |
-| **الدفع** | `zaincash-init`, `zaincash-callback`, `nass-init-payment`, `nass-check-status`, `process-wallet-topup` |
-| **البوت** | `telegram-ai-booking`, `sms-booking`, `whatsapp-webhook`, `messenger-webhook` |
-| **الخرائط** | `google-maps-proxy`, `mapbox-proxy`, `search-places` |
-| **الذكاء الاصطناعي** | `ai-assistant`, `voice-booking-ai`, `captain-support-bot` |
-| **الصيانة** | `session-cleanup`, `cleanup-old-otps`, `cleanup-draft-rides`, `cron-cancel-stale-rides` |
-
----
-
-## نقاط القوة (مؤكدة من فحص الكود — مايو 2026)
-
-1. **TypeScript صارم** — types.d.ts شامل لـ Google Maps + Supabase types مُولَّدة
-2. **Error Boundaries** — في كل route و component
-3. **Lazy Loading** — كل الصفحات محمّلة عند الطلب
-4. **Prefetch ذكي** — يحمّل الصفحات الأكثر زيارة بعد 3 ثوانٍ
-5. **Rate Limiting** — من طرف السيرفر + الـ frontend
-6. **Sentry** — مراقبة الأخطاء في الإنتاج
-7. **62 Unit Test** ناجح (adapters + booking + formatting)
-8. **Logger مركزي** — debug مخفي تلقائياً في production
-9. **Request Cancellation** — GPS race conditions مُعالجة
-10. **Geofence chokepoint** — policy واحد لكل مسارات اختيار الموقع
-11. **Instant Auth Role Load** — cache ثم background verification
-12. **Supabase Client محسّن** — heartbeat 15s + exponential backoff reconnect
-
----
-
-## 🗺️ آليات الخرائط المتقدمة (تحديث 25 مايو 2026)
-
-### 1. آلية جذب الدبوس للشوارع (Geocoding Snap)
-- **الملف:** `src/hooks/useLocationPicker.ts`
-- **الهدف:** منع تحديد مواقع غير قابلة للقيادة وتسهيل الحساب الدقيق للمسارات.
-- **طريقة العمل:** 
-  - عند استدعاء `reverseGeocode` بعد انتهاء سحب الخريطة، يتم استرجاع تفاصيل الموقع الأول من نتائج Google Geocoder.
-  - يتم حساب المسافة بـ Haversine بين المركز الفعلي ونقطة العنوان الجغرافي (`geometry.location`).
-  - إذا كانت المسافة بين `2` و `120` متر، يتم تفعيل علم `skipNextReverseGeocodeRef.current = true` لمنع الاستعلام التكراري، ويتم نقل مركز الخريطة والدبوس تلقائياً (`panTo`) إلى إحداثيات العنوان الفعلي على أقرب شارع.
-
-### 2. مؤشر سيارة السائق المخصص والالتفاف الحقيقي
-- **الملفات:** `DriverMap.tsx` و `LiveRideTracker.tsx` و `Map.tsx`
-- **الهدف:** رسم اتجاه حركة المركبة الفعلي بصرياً وبصورة فائقة الدقة.
-- **طريقة العمل:**
-  - يتم تخزين ملف صورة السيارة المخصصة `car.png` في صيغة Base64 Data URI ضمن `src/assets/carBase64.ts` لضمان سرعة الاستدعاء.
-  - يتم لف الصورة داخل عنصر SVG `<image>` بمقاس **`80x80` بكسل** لضمان حضور بصري ممتاز.
-  - نظراً لأن واجهة السيارة في الصورة الأصلية تتجه لليسار، يتم عمل تدوير أساسي داخل الـ SVG بمقدار **90 درجة باتجاه عقارب الساعة** لتوجيهها للشمال افتراضياً، ثم تدوير الحاوية بالكامل بزاوية اتجاه السير الحقيقية (`currentHeading`).
-  - يشتمل الـ SVG على ظل مائل ومخاريط إضاءة أمامية متحركة تواكب الدوران الفعلي للمركبة.
-
-### 3. معالجة قيود الخريطة وتحسينات تجربة المستخدم (تحديث 26 مايو 2026)
-- **رسم المسار المباشر (Direct Route Drawing):** تم تعديل دالة الحجز في `useBookingFlow.ts` لتخطي الاعتماد على حدث الـ `idle` الخاص بخرائط جوجل (والذي قد يتعطل في حال كانت هناك مشاكل بالفوترة `BillingNotEnabledMapError`) ورسم المسار مباشرة باستخدام محرك OSRM بمجرد استخلاص نقاط البداية والنهاية.
-- **التوجيه العائم لزر المفضلة (Floating Heart Button):** نقل موقع زر المفضلة إلى موقع عائم مباشر فوق زر تحديد الموقع الجغرافي في `GoPage.tsx` وتعديل شرط عرضه ليرتبط بوجود الإحداثيات (`centerLat && centerLng`) فقط دون انتظار انتهاء عملية الاستعلام عن العنوان الجغرافي.
-- **تنظيف وتطهير العناوين من اللغات المختلطة (cleanArabicAddress):** دمج دالة التصفية في واجهات السائق والراكب لضمان تجربة مستخدم عربية خالصة، وإزالة المكونات الإنجليزية المشتتة مثل أسماء النواحي الإدارية الفرعية.
+## أسئلة معلقة
+- هل PostGIS مفعّل فعلياً على Supabase المستضاف؟ (يوجد migration `20260527400000_drivers_postgis_spatial.sql`)
+- ما هو عدد الجداول الفعلي الحالي بعد 236 migration؟ (بعض migrations تحذف جداول)

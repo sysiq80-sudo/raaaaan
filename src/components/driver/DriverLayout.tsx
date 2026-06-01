@@ -3,22 +3,38 @@
  * flex flex-col h-[100dvh] — No-Overlap Architecture
  * الشريط السفلي shrink-0 يدفع المحتوى للأعلى طبيعياً بدون fixed/padding hacks
  * مطابق لمعمارية RiderLayout
+ *
+ * الانتقالات:
+ * • صفحات الـ Bottom Tabs → fade خفيف
+ * • الصفحات الداخلية (profile, settings, etc.) → slide RTL مثل iOS
  */
 
 import React, { useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import MaintenanceScreen from "@/components/MaintenanceScreen";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import useCarMode from "@/hooks/useCarMode";
 import RootLayout from "@/components/layout/RootLayout";
+import { useDriverBackgroundGeolocation } from "@/hooks/useDriverBackgroundGeolocation";
 
+/** صفحات الـ Bottom Tabs للسائق → fade (لا slide) */
+const DRIVER_TAB_ROUTES = new Set([
+  "/driver",
+  "/driver/rides",
+  "/driver/finance",
+  "/driver/statistics",
+  "/driver/profile",
+]);
 
 interface DriverLayoutProps {
   children: React.ReactNode;
 }
 
 const DriverLayout: React.FC<DriverLayoutProps> = ({ children }) => {
+  useDriverBackgroundGeolocation();
   const { isMaintenanceMode } = useMaintenanceMode();
   const isCarMode = useCarMode();
+  const { pathname } = useLocation();
 
   useEffect(() => {
     document.body.classList.toggle("car-mode", isCarMode);
@@ -32,11 +48,15 @@ const DriverLayout: React.FC<DriverLayoutProps> = ({ children }) => {
     return <MaintenanceScreen />;
   }
 
+  const isTabRoute = DRIVER_TAB_ROUTES.has(pathname);
+
   return (
     <RootLayout
       className={`driver-luxury driver-page-shell ${isCarMode ? "car-mode-layout" : ""}`}
-      mainClassName="pb-[env(safe-area-inset-bottom)]"
+      mainStyle={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)' }}
       dir="rtl"
+      animationKey={pathname}
+      animationMode={isTabRoute ? "tab" : "slide"}
     >
       <div data-driver-theme="dark-luxury-geometric" className="h-full">
         {children}

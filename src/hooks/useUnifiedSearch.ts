@@ -292,6 +292,15 @@ export const useUnifiedSearch = (
         const distM = userLocation
           ? calculateDistanceMeters(userLocation, lm.location)
           : undefined;
+
+        // فلترة المعالم البعيدة جداً (أكثر من 80 كم) لتجنب ظهور معالم مدن أخرى
+        if (distM != null && distM > 80000) {
+          const queryContainsCity = q.includes('رمادي') || q.includes('أنبار') || q.includes('فلوجة') || q.includes('هيت') || q.includes('حديثة') || q.includes('قائم');
+          if (!queryContainsCity) {
+            continue; // تخطي المعلم البعيد
+          }
+        }
+
         // تعزيز درجة الأماكن القريبة
         const proximityBonus = distM != null && distM < 3000 ? 10 : 0;
         results.push({
@@ -446,18 +455,26 @@ export const useUnifiedSearch = (
   // ─── أقرب المعالم (للـ Zero-State) ───
   const getNearbyLandmarks = useCallback((limit = 3): UnifiedSearchResult[] => {
     if (!userLocation || landmarks.length === 0) return [];
-    
+
+    // فحص شامل للنصوص غير القابلة للعرض:
+    // 1. نص فارغ أو قصير جداً
+    // 2. يحتوي "?" — نص مخزّن بشكل تالف (encoding corruption)
+    const isUnreadable = (text: string): boolean => {
+      if (!text || text.trim().length < 2) return true;
+      if (text.includes('?')) return true;
+      return false;
+    };
+
     const withDistance = landmarks
-      .filter(lm => lm.location)
+      .filter(lm => lm.location && !isUnreadable(lm.name_ar)) // فقط الأسماء القابلة للعرض
       .map(lm => {
         const distM = calculateDistanceMeters(userLocation, lm.location!);
         return { lm, distM };
       })
       .filter(({ distM }) => distM < 20000) // ضمن 20 كم
-      .sort((a, b) => a.distM - b.distM)
-      .slice(0, limit);
+      .sort((a, b) => a.distM - b.distM);
 
-    return withDistance.map(({ lm, distM }) => ({
+    return withDistance.slice(0, limit).map(({ lm, distM }) => ({
       id: `landmark_${lm.id}`,
       source: 'landmark' as const,
       main_text: lm.name_ar,

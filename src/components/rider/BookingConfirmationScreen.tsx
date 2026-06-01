@@ -29,6 +29,8 @@ interface LocationType {
   lat: number;
   lng: number;
   address: string;
+  snappedLat?: number;
+  snappedLng?: number;
 }
 
 type VehicleType = "economy" | "comfort" | "premium" | "women_only";
@@ -156,7 +158,7 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
       <span>احجز الآن</span>
       {fareBreakdown?.total_fare && (
         <span className="bg-black/25 px-2.5 py-0.5 rounded-lg text-sm font-semibold">
-          {roundFare(fareBreakdown.total_fare).toLocaleString()} د.ع
+          {roundFare(fareBreakdown.total_fare).toLocaleString('en-US')} د.ع
         </span>
       )}
     </button>
@@ -304,7 +306,7 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
             <div className="bg-primary/8 rounded-xl p-2.5 border border-primary/15 flex flex-col items-center">
               <span className="text-[9px] text-muted-foreground font-medium uppercase mb-0.5">الأجرة</span>
               <p className="text-base font-bold text-primary">
-                {fareBreakdown ? roundFare(fareBreakdown.total_fare).toLocaleString() : '---'}
+                {fareBreakdown ? roundFare(fareBreakdown.total_fare).toLocaleString('en-US') : '---'}
               </p>
             </div>
           </div>
@@ -368,7 +370,6 @@ const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps> = ({
 
       {/* القائمة الجانبية */}
       <RiderSideMenu
-        user={user}
         isOpen={menuOpen}
         onClose={() => onMenuChange(false)}
         onLogout={async () => {

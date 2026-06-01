@@ -8,7 +8,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
 // قائمة المفاتيح المطلوب ترحيلها — بنفس أسماء الصفوف في system_configs
 const KEYS_TO_MIGRATE = [
   "WHATSAPP_ACCESS_TOKEN",
@@ -41,6 +41,7 @@ const KEYS_TO_MIGRATE = [
 ];
 
 serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

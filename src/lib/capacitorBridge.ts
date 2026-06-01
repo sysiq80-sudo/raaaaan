@@ -404,7 +404,10 @@ export const initCapacitorPlugins = async (): Promise<void> => {
   // إخفاء شاشة البداية بعد اكتمال التهيئة
   setTimeout(() => hideSplashScreen(), 500);
 
-  console.log('✅ جميع إضافات Capacitor مُهيأة بنجاح');
+  // قفل الشاشة عمودياً (يمنع الدوران أثناء القيادة/استخدام الخريطة)
+  lockScreenPortrait();
+
+  console.log('✅ جميع إضافات Capacitor مُهيأة بنجاح (18 إضافة)');
 };
 
 /**
@@ -816,3 +819,97 @@ export const hideSplashScreen = async (): Promise<void> => {
     // صامت
   }
 };
+
+// ═══ قفل اتجاه الشاشة (Screen Orientation) ═══
+
+/**
+ * قفل الشاشة على الوضع العمودي — يمنع الدوران أثناء استخدام الخريطة
+ */
+export const lockScreenPortrait = async (): Promise<void> => {
+  if (!isNativePlatform) return;
+
+  try {
+    const { ScreenOrientation } = await import('@capacitor/screen-orientation');
+    await ScreenOrientation.lock({ orientation: 'portrait' });
+  } catch {
+    // صامت — لن يعمل على الويب
+  }
+};
+
+// ═══ رسائل Toast أصلية ═══
+
+/**
+ * عرض رسالة Toast أصلية — أسرع وأنعم من JS toasts
+ * @param text النص المعروض
+ * @param duration 'short' (2s) أو 'long' (3.5s)
+ * @param position 'top' | 'center' | 'bottom'
+ */
+export const showNativeToast = async (
+  text: string,
+  duration: 'short' | 'long' = 'short',
+  position: 'top' | 'center' | 'bottom' = 'bottom'
+): Promise<void> => {
+  if (!isNativePlatform) {
+    // Fallback: console + لا شيء (يُستخدم toast من shadcn/ui بدلاً)
+    console.log(`[Toast] ${text}`);
+    return;
+  }
+
+  try {
+    const { Toast } = await import('@capacitor/toast');
+    await Toast.show({ text, duration, position });
+  } catch {
+    console.warn('[capacitorBridge] Toast plugin not available');
+  }
+};
+
+// ═══ نوافذ حوار أصلية (Dialog) ═══
+
+/**
+ * عرض نافذة تأكيد أصلية — تعود true إذا ضغط "موافق"
+ */
+export const showNativeConfirm = async (
+  title: string,
+  message: string,
+  okButtonTitle: string = 'موافق',
+  cancelButtonTitle: string = 'إلغاء'
+): Promise<boolean> => {
+  if (!isNativePlatform) {
+    return window.confirm(`${title}\n${message}`);
+  }
+
+  try {
+    const { Dialog } = await import('@capacitor/dialog');
+    const { value } = await Dialog.confirm({
+      title,
+      message,
+      okButtonTitle,
+      cancelButtonTitle,
+    });
+    return value;
+  } catch {
+    return window.confirm(`${title}\n${message}`);
+  }
+};
+
+/**
+ * عرض رسالة تنبيه أصلية
+ */
+export const showNativeAlert = async (
+  title: string,
+  message: string,
+  buttonTitle: string = 'حسناً'
+): Promise<void> => {
+  if (!isNativePlatform) {
+    window.alert(`${title}\n${message}`);
+    return;
+  }
+
+  try {
+    const { Dialog } = await import('@capacitor/dialog');
+    await Dialog.alert({ title, message, buttonTitle });
+  } catch {
+    window.alert(`${title}\n${message}`);
+  }
+};
+

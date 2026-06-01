@@ -75,7 +75,7 @@ const VehicleOptionCard: React.FC<VehicleOptionCardProps> = ({
       <div className="flex items-center gap-2 shrink-0">
         {fare && !isUnavailable ? (
           <span className={`text-sm font-bold ${isSelected ? "text-ring" : "text-foreground"}`}>
-            {roundFare(fare).toLocaleString()}
+            {roundFare(fare).toLocaleString('en-US')}
             <span className="text-[10px] font-medium text-muted-foreground mr-0.5">د.ع</span>
           </span>
         ) : isUnavailable ? (

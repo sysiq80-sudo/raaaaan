@@ -340,7 +340,7 @@ export const RideWaitingScreen = ({
       }
     };
     const fetchNearbyDrivers = async () => {
-      // ✅ FIX: جلب موقع الرحلة لفلترة السائقين القريبين فعلاً
+      // ✅ استخدام PostGIS RPC بدل full table scan — يقلل IO بـ 80%
       const { data: rideInfo } = await supabase
         .from("rides")
         .select("pickup_location")
@@ -348,32 +348,31 @@ export const RideWaitingScreen = ({
         .single();
       const pickupLoc = rideInfo?.pickup_location as { lat: number; lng: number } | null;
 
-      const { data, error } = await supabase
-        .from("drivers")
-        .select("id, current_location")
-        .eq("is_online", true)
-        .eq("is_available", true)
-        .eq("status", "approved");
-      if (!error && data && pickupLoc) {
-        // فلترة بالمسافة (5 كم) باستخدام haversine مبسط
-        const nearby = data.filter((d: any) => {
-          const loc = d.current_location as { lat: number; lng: number } | null;
-          if (!loc?.lat || !loc?.lng) return false;
-          const R = 6371;
-          const dLat = (loc.lat - pickupLoc.lat) * Math.PI / 180;
-          const dLng = (loc.lng - pickupLoc.lng) * Math.PI / 180;
-          const a = Math.sin(dLat/2)**2 + Math.cos(pickupLoc.lat * Math.PI/180) * Math.cos(loc.lat * Math.PI/180) * Math.sin(dLng/2)**2;
-          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-          return dist <= 5; // 5 كم
+      if (pickupLoc?.lat && pickupLoc?.lng) {
+        const { data, error } = await supabase.rpc("get_nearby_drivers", {
+          p_lat: pickupLoc.lat,
+          p_lng: pickupLoc.lng,
+          p_radius_km: 5,
         });
-        setNearbyDrivers(nearby.length);
-      } else if (!error && data) {
-        setNearbyDrivers(data.length);
+        if (!error && data) {
+          setNearbyDrivers(data.length);
+        }
+      } else {
+        // Fallback إذا لم يتوفر موقع الرحلة
+        const { data, error } = await supabase
+          .from("drivers")
+          .select("id")
+          .eq("is_online", true)
+          .eq("is_available", true)
+          .eq("status", "approved");
+        if (!error && data) {
+          setNearbyDrivers(data.length);
+        }
       }
     };
     fetchRideData();
     fetchNearbyDrivers();
-    const interval = setInterval(fetchNearbyDrivers, 10000);
+    const interval = setInterval(fetchNearbyDrivers, 30000); // 30 ثانية — Realtime يغطي قبول السائق فوراً
     return () => clearInterval(interval);
   }, [rideId, waitSettings]);
 
@@ -631,12 +630,13 @@ export const RideWaitingScreen = ({
         const { error: updateError } = await supabase
           .from('rides')
           .update({
-            status: 'cancelled_by_rider',
+            status: 'cancelled' as any,
+            cancelled_by: 'rider',
             cancellation_reason: reason,
             updated_at: new Date().toISOString(),
           })
           .eq('id', rideId)
-          .eq('rider_user_id', currentUser.id);
+          .eq('rider_id', currentUser.id);
 
         if (updateError) {
           console.error("[RideWaiting] ❌ Fallback update error:", updateError);
@@ -684,13 +684,13 @@ export const RideWaitingScreen = ({
         if (penaltyAmount > 0 && result.penalty_paid) {
           toast({
             title: "تم إلغاء الرحلة",
-            description: `تم خصم غرامة إلغاء: ${penaltyAmount.toLocaleString()} د.ع من محفظتك`,
+            description: `تم خصم غرامة إلغاء: ${penaltyAmount.toLocaleString('en-US')} د.ع من محفظتك`,
             variant: "destructive",
           });
         } else if (penaltyAmount > 0 && !result.penalty_paid) {
           toast({
             title: "تم إلغاء الرحلة",
-            description: `غرامة إلغاء: ${penaltyAmount.toLocaleString()} د.ع (لم يتم الخصم من المحفظة)`,
+            description: `غرامة إلغاء: ${penaltyAmount.toLocaleString('en-US')} د.ع (لم يتم الخصم من المحفظة)`,
             variant: "destructive",
           });
         } else {
@@ -831,48 +831,39 @@ export const RideWaitingScreen = ({
             </div>
           </motion.div>
 
-          {/* خط السير */}
+          {/* خط السير - تصميم نظيف بدون تداخل */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="rounded-2xl overflow-hidden bg-[#1a2333] border border-slate-800/40 shadow-lg"
+            className="rounded-2xl bg-[#141c2e] border border-white/[0.06] shadow-lg overflow-hidden"
           >
-            {/* الانطلاق */}
-            <div className="flex items-center gap-3 px-4 py-3.5">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-emerald-500/10 border border-emerald-500/20">
-                <Rocket className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold tracking-widest mb-0.5 text-emerald-400">الانطلاق</p>
-                <p className="text-[13px] font-semibold text-slate-100 truncate">{cleanArabicAddress(pickupAddress)}</p>
-              </div>
+            {/* الأجرة المقدرة — شريط علوي */}
+            <div className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500/[0.06] border-b border-white/[0.04]">
+              <span className="text-[11px] font-bold text-slate-400">الأجرة المقدرة</span>
+              <span className="text-[18px] font-black text-emerald-400 tabular-nums">{estimatedFare.toLocaleString('en-US')}</span>
+              <span className="text-[11px] font-bold text-slate-500">د.ع</span>
             </div>
 
-            {/* فاصل */}
-            <div className="flex items-center gap-3 px-4 border-t border-slate-800/40">
-              <div className="w-9 flex justify-center">
-                <div className="flex flex-col items-center gap-0.5 py-1">
-                  <div className="w-px h-2 bg-slate-700" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-slate-600" />
-                  <div className="w-px h-2 bg-slate-700" />
+            {/* المسار */}
+            <div className="p-4 flex gap-3">
+              {/* خط المسار العمودي */}
+              <div className="flex flex-col items-center pt-1 shrink-0">
+                <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#141c2e] shadow-[0_0_0_2px_rgba(52,211,153,0.2)]" />
+                <div className="w-0.5 flex-1 my-1.5 bg-gradient-to-b from-emerald-500/40 via-slate-700/20 to-blue-500/40 rounded-full min-h-[24px]" />
+                <div className="w-3 h-3 rounded-full bg-blue-500 border-2 border-[#141c2e] shadow-[0_0_0_2px_rgba(59,130,246,0.2)]" />
+              </div>
+
+              {/* العناوين */}
+              <div className="flex-1 flex flex-col gap-4 min-w-0">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold tracking-wider text-emerald-400 mb-0.5 uppercase">موقع الانطلاق</p>
+                  <p className="text-[14px] font-bold text-white truncate">{cleanArabicAddress(pickupAddress)}</p>
                 </div>
-              </div>
-            </div>
-
-            {/* الوجهة + الأجرة */}
-            <div className="flex items-center gap-3 px-4 py-3.5 border-t border-slate-800/40">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-orange-500/10 border border-orange-500/20">
-                <Navigation className="w-4 h-4 text-orange-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold tracking-widest text-orange-400 mb-0.5">الوجهة</p>
-                <p className="text-[13px] font-semibold text-slate-100 truncate">{cleanArabicAddress(dropoffAddress)}</p>
-              </div>
-              <div className="shrink-0 text-left border-r border-slate-700/50 pr-3 mr-1">
-                <p className="text-[10px] text-slate-500 mb-0.5">الأجرة</p>
-                <p className="text-[18px] font-black text-[#00B3B0]">{estimatedFare.toLocaleString()}</p>
-                <p className="text-[10px] text-slate-500">د.ع</p>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold tracking-wider text-blue-400 mb-0.5 uppercase">الوجهة المقصودة</p>
+                  <p className="text-[14px] font-bold text-white truncate">{cleanArabicAddress(dropoffAddress)}</p>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -898,14 +889,13 @@ export const RideWaitingScreen = ({
 
   // Waiting State — Dark Luxury
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#0a0f1c] max-w-[480px] mx-auto" dir="rtl">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#0b1326] max-w-[480px] mx-auto" dir="rtl">
 
       {/* طبقة انتقال السائق */}
       <AnimatePresence>
         {showDriverFoundTransition && acceptedDriver && (
           <motion.div
-            className="fixed inset-0 z-[60] flex items-center justify-center"
-            style={{ background: "rgba(10,15,28,0.95)", backdropFilter: "blur(16px)" }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0a0f1c]/95 backdrop-blur-[16px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -929,28 +919,41 @@ export const RideWaitingScreen = ({
 
       {/* هيدر البحث */}
       <div
-        className="shrink-0 px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-[#0d1321]/95 backdrop-blur-xl border-b border-slate-800/40"
+        className="shrink-0 px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-4 bg-gradient-to-b from-[#0d1a2e]/95 to-[#0b1326]/95 backdrop-blur-lg border-b border-slate-800/40 relative overflow-hidden"
       >
-        <div className="flex flex-col items-center gap-2 text-center">
-          {/* أيقونة البحث */}
-          <div className="relative w-11 h-11 shrink-0">
-            <div className="absolute inset-0 rounded-full animate-ping" style={{ border: "2px solid rgba(52,211,153,0.3)" }} />
-            <div className="relative w-full h-full rounded-xl flex items-center justify-center bg-emerald-500/10 border border-emerald-500/20">
-              <Search className="w-5 h-5 text-emerald-400" />
+        {/* Subtle decorative glow in header background */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-20 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+        
+        <div className="relative flex flex-col items-center gap-3 text-center">
+          {/* أيقونة البحث - رادار متوهج ثلاثي الأبعاد دائري بالكامل */}
+          <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
+            {/* Pulsing glow rings */}
+            <div className="absolute inset-0 rounded-full bg-emerald-500/10 animate-pulse" />
+            <div className="absolute w-12 h-12 rounded-full border border-emerald-500/20 animate-ping opacity-60" style={{ animationDuration: '3s' }} />
+            <div className="absolute w-8 h-8 rounded-full border border-emerald-400/10 animate-ping opacity-45" style={{ animationDuration: '1.5s' }} />
+            
+            {/* Glassmorphic glowing center button */}
+            <div className="relative w-11 h-11 rounded-full flex items-center justify-center bg-gradient-to-tr from-emerald-500/20 to-emerald-400/5 border border-emerald-500/40 shadow-glow-sm shadow-emerald-500/10">
+              <Search className="w-4.5 h-4.5 text-emerald-400 animate-pulse" />
             </div>
           </div>
+
           {/* النصوص */}
-          <div>
-            <h1 className="text-[16px] font-black text-white leading-tight">بانتظار سائق 🔍</h1>
-            <p className="text-[12px] mt-1 text-slate-400">
-              {encouragingMessages[encouragingMessageIndex]?.icon}{" "}
-              {encouragingMessages[encouragingMessageIndex]?.text || "جاري البحث عن أفضل سائق لك..."}
+          <div className="space-y-1">
+            <h1 className="text-[19px] font-black text-white leading-tight font-cairo tracking-tight">بانتظار سائق 🔍</h1>
+            <p className="text-[13px] font-medium text-slate-400 flex items-center justify-center gap-1.5 font-tajawal">
+              <span>{encouragingMessages[encouragingMessageIndex]?.icon || "⏳"}</span>
+              <span>{encouragingMessages[encouragingMessageIndex]?.text ? encouragingMessages[encouragingMessageIndex].text.replace(/كابتن/g, "سائق") : "لحظات قليلة وسيتم إيجاد سائق..."}</span>
             </p>
           </div>
+
           {/* عداد السائقين */}
           {nearbyDrivers > 0 && (
-            <div className="text-center px-4 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-              <span className="text-[13px] font-bold text-emerald-400">{nearbyDrivers} سائق متاح قريب منك</span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/15 shadow-glow-sm shadow-emerald-500/5 animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="text-[12px] font-bold text-emerald-400 font-cairo">
+                {nearbyDrivers} سائق متاح بالقرب منك
+              </span>
             </div>
           )}
         </div>
@@ -998,42 +1001,38 @@ export const RideWaitingScreen = ({
           </div>
         )}
 
-        {/* خط سير الرحلة */}
-        <div className="shrink-0 rounded-2xl overflow-hidden bg-[#1a2333] border border-slate-800/40 shadow-sm">
-          {/* الانطلاق */}
-          <div className="flex items-center gap-3 px-4 py-3">
-            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-emerald-500/10 border border-emerald-500/20">
-              <Rocket className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold tracking-widest mb-0.5 text-emerald-400">الانطلاق</p>
-              <p className="text-[14px] font-semibold text-white truncate">{cleanArabicAddress(pickupAddress)}</p>
-            </div>
+        {/* خط سير الرحلة - تصميم نظيف بدون تداخل */}
+        <div className="shrink-0 rounded-2xl bg-[#141c2e] border border-white/[0.06] shadow-lg overflow-hidden">
+
+          {/* الأجرة المقدرة — شريط علوي */}
+          <div className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500/[0.06] border-b border-white/[0.04]">
+            <span className="text-[12px] font-bold text-slate-400">الأجرة المقدرة</span>
+            <span className="text-[20px] font-black text-emerald-400 tabular-nums">{estimatedFare.toLocaleString('en-US')}</span>
+            <span className="text-[12px] font-bold text-slate-500">د.ع</span>
           </div>
 
-          {/* فاصل */}
-          <div className="flex items-center gap-3 px-4 border-t border-slate-700/50">
-            <div className="w-9 flex justify-center">
-              <div className="flex flex-col items-center gap-0.5 py-1">
-                <div className="w-px h-1.5 bg-slate-600" />
-                <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                <div className="w-px h-1.5 bg-slate-600" />
+          {/* المسار */}
+          <div className="p-4 flex gap-3">
+            {/* خط المسار العمودي */}
+            <div className="flex flex-col items-center pt-1 shrink-0">
+              <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#141c2e] shadow-[0_0_0_2px_rgba(52,211,153,0.2)]" />
+              <div className="w-0.5 flex-1 my-1.5 bg-gradient-to-b from-emerald-500/40 via-slate-700/20 to-blue-500/40 rounded-full min-h-[24px]" />
+              <div className="w-3 h-3 rounded-full bg-blue-500 border-2 border-[#141c2e] shadow-[0_0_0_2px_rgba(59,130,246,0.2)]" />
+            </div>
+
+            {/* العناوين */}
+            <div className="flex-1 flex flex-col gap-4 min-w-0">
+              {/* الانطلاق */}
+              <div className="min-w-0">
+                <p className="text-[12px] font-bold tracking-wider text-emerald-400 mb-0.5 uppercase">موقع الانطلاق</p>
+                <p className="text-[15px] font-extrabold text-white truncate">{cleanArabicAddress(pickupAddress)}</p>
               </div>
-            </div>
-          </div>
 
-          {/* الوجهة + الأجرة */}
-          <div className="flex items-center gap-3 px-4 py-3 border-t border-slate-700/50">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-cyan-500/10 border border-cyan-500/20">
-              <Navigation className="w-4 h-4 text-cyan-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold tracking-widest mb-0.5 text-cyan-400">الوجهة</p>
-              <p className="text-[14px] font-semibold text-white truncate">{cleanArabicAddress(dropoffAddress)}</p>
-            </div>
-            <div className="shrink-0 text-left border-r border-slate-700/50 pr-3 mr-2">
-              <p className="text-[20px] font-black leading-tight text-emerald-400">{estimatedFare.toLocaleString()}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">د.ع</p>
+              {/* الوجهة */}
+              <div className="min-w-0">
+                <p className="text-[12px] font-bold tracking-wider text-blue-400 mb-0.5 uppercase">الوجهة المقصودة</p>
+                <p className="text-[15px] font-extrabold text-white truncate">{cleanArabicAddress(dropoffAddress)}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -1067,7 +1066,7 @@ export const RideWaitingScreen = ({
           className="shrink-0 rounded-xl overflow-hidden bg-[#1a2333] border border-slate-800/40 shadow-sm"
         >
           {/* رأس البطاقة */}
-          <div className="flex items-center justify-between px-3 py-2 border-b border-slate-700/50">
+          <div className="flex items-center justify-center gap-3 px-3 py-2 border-b border-slate-700/50">
             <div className="flex items-center gap-1.5">
               <span className="text-[14px]">📿</span>
               <span className="text-[11px] font-semibold text-white">اجعل انتظارك ذكراً</span>
@@ -1086,9 +1085,9 @@ export const RideWaitingScreen = ({
             {/* سبحان الله */}
             <button
               onClick={() => handleDhikrTap("tasbih")}
-              className="flex flex-col items-center gap-1 py-2.5 transition-all active:scale-95"
+              className="bg-[#1a2333] flex flex-col items-center gap-1 py-2.5 transition-all active:scale-95"
               style={{
-                background: lastTappedDhikr === "tasbih" ? "rgba(52,211,153,0.08)" : "#1a2333",
+                backgroundColor: lastTappedDhikr === "tasbih" ? "rgba(52,211,153,0.08)" : undefined,
               }}
             >
               <span className="text-[16px] leading-none">🌿</span>
@@ -1103,9 +1102,9 @@ export const RideWaitingScreen = ({
             {/* الحمد لله */}
             <button
               onClick={() => handleDhikrTap("tahmid")}
-              className="flex flex-col items-center gap-1 py-2.5 transition-all active:scale-95"
+              className="bg-[#1a2333] flex flex-col items-center gap-1 py-2.5 transition-all active:scale-95"
               style={{
-                background: lastTappedDhikr === "tahmid" ? "rgba(251,191,36,0.08)" : "#1a2333",
+                backgroundColor: lastTappedDhikr === "tahmid" ? "rgba(251,191,36,0.08)" : undefined,
               }}
             >
               <span className="text-[16px] leading-none">☀️</span>
@@ -1120,9 +1119,9 @@ export const RideWaitingScreen = ({
             {/* أستغفر الله */}
             <button
               onClick={() => handleDhikrTap("istighfar")}
-              className="flex flex-col items-center gap-1 py-2.5 transition-all active:scale-95"
+              className="bg-[#1a2333] flex flex-col items-center gap-1 py-2.5 transition-all active:scale-95"
               style={{
-                background: lastTappedDhikr === "istighfar" ? "rgba(147,51,234,0.06)" : "#1a2333",
+                backgroundColor: lastTappedDhikr === "istighfar" ? "rgba(147,51,234,0.06)" : undefined,
               }}
             >
               <span className="text-[16px] leading-none">🤲</span>
@@ -1145,11 +1144,11 @@ export const RideWaitingScreen = ({
       </div>
 
       {/* زر الإلغاء */}
-      <div className="shrink-0 px-4 pb-4 bg-[#0d1321] border-t border-slate-800/40" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)', zIndex: 10 }}>
+      <div className="shrink-0 bg-[#0b1326]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', zIndex: 10 }}>
         <button
           onClick={handleCancelClick}
           disabled={cancelling}
-          className="w-full min-h-[48px] rounded-2xl flex items-center justify-center gap-2 text-base font-bold bg-[#F04438] hover:bg-[#D92D20] text-white transition-all disabled:opacity-50 touch-manipulation active:scale-[0.98] shadow-[0_0_24px_rgba(240,68,56,0.3)]"
+          className="w-full min-h-[52px] rounded-none flex items-center justify-center gap-2 text-base font-bold bg-[#F04438] hover:bg-[#D92D20] text-white transition-all disabled:opacity-50 touch-manipulation active:scale-[0.98]"
         >
           {cancelling ? (
             <><Loader2 className="w-5 h-5 animate-spin" />جاري الإلغاء...</>

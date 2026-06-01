@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -954,6 +955,11 @@ export const RideRequestCard = ({
   };
 
   const handleAcceptClick = () => {
+    // 🛡️ حماية من الضغط المزدوج — فحص متزامن (synchronous) قبل الـ async handleAccept
+    if (loading || actionInProgressRef.current) {
+      console.log("[RideRequestCard] 🛡️ Double-tap blocked");
+      return;
+    }
     try {
       stopRideAlert();
     } catch (error) {
@@ -1035,7 +1041,7 @@ export const RideRequestCard = ({
                     <span className="text-sm text-[#5bdda6]/70 font-semibold">د.ع</span>
                   </div>
                   {pendingRide.surge_multiplier && pendingRide.surge_multiplier > 1 && (
-                    <span className="absolute top-2 right-2 bg-amber-500 text-[#0b1326] text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                    <span className="absolute top-2 right-2 bg-amber-500 text-amber-950 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
                       <Zap className="w-2.5 h-2.5" />
                       x{pendingRide.surge_multiplier.toFixed(1)}
                     </span>
@@ -1132,7 +1138,7 @@ export const RideRequestCard = ({
               className="flex-auto rounded-none"
             >
               <Button
-                className="relative overflow-hidden w-full min-h-[52px] text-base font-bold text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
+                className="relative overflow-hidden w-full min-h-[52px] text-base font-bold text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
                 onClick={handleAcceptClick}
                 disabled={loading}
                 style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}
@@ -1160,9 +1166,9 @@ export const RideRequestCard = ({
                 {/* 3. المحتوى والنصوص */}
                 <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
                   {loading && actionType === "accept" ? (
-                    <Loader2 className="w-6 h-6 animate-spin text-[#0b1326]" />
+                    <Loader2 className="w-6 h-6 animate-spin text-emerald-950" />
                   ) : (
-                    <div className="flex items-center justify-center gap-2 shadow-black/20 text-[#0b1326]">
+                    <div className="flex items-center justify-center gap-2 shadow-black/20 text-emerald-950">
                       <span>قبول الرحلة</span>
                       <Check className="w-6 h-6 stroke-[3]" />
                     </div>

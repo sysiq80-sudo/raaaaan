@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { notifyAdminCritical } from "@/lib/notifyAdmin";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -111,7 +112,7 @@ export const DriverWalletDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [showWithdrawalDialog, setShowWithdrawalDialog] = useState(false);
   const [withdrawalAmount, setWithdrawalAmount] = useState("");
-  const [withdrawalMethod, setWithdrawalMethod] = useState("bank_transfer");
+  const [withdrawalMethod, setWithdrawalMethod] = useState("manual");
   const [accountDetails, setAccountDetails] = useState("");
   const [accountHolderName, setAccountHolderName] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -200,7 +201,7 @@ export const DriverWalletDashboard = () => {
     if (amount > wallet.balance) {
       toast({
         title: "رصيد غير كافٍ",
-        description: `رصيدك الحالي: ${wallet.balance.toLocaleString()}د`,
+        description: `رصيدك الحالي: ${wallet.balance.toLocaleString('en-US')}د`,
         variant: "destructive",
       });
       return;
@@ -300,7 +301,7 @@ export const DriverWalletDashboard = () => {
             <div>
               <p className="text-sm opacity-90 mb-1">الرصيد المتاح</p>
               <h2 className="text-4xl font-bold">
-                {wallet.balance.toLocaleString()}
+                {wallet.balance.toLocaleString('en-US')}
                 <span className="text-xl mr-2">د.ع</span>
               </h2>
             </div>
@@ -311,19 +312,19 @@ export const DriverWalletDashboard = () => {
             <div>
               <p className="text-xs opacity-75">قيد الانتظار</p>
               <p className="text-lg font-semibold">
-                {wallet.pending_balance.toLocaleString()}د
+                {wallet.pending_balance.toLocaleString('en-US')}د
               </p>
             </div>
             <div>
               <p className="text-xs opacity-75">إجمالي الأرباح</p>
               <p className="text-lg font-semibold">
-                {wallet.lifetime_earnings.toLocaleString()}د
+                {wallet.lifetime_earnings.toLocaleString('en-US')}د
               </p>
             </div>
             <div>
               <p className="text-xs opacity-75">تم السحب</p>
               <p className="text-lg font-semibold">
-                {wallet.total_withdrawn.toLocaleString()}د
+                {wallet.total_withdrawn.toLocaleString('en-US')}د
               </p>
             </div>
           </div>
@@ -371,18 +372,18 @@ export const DriverWalletDashboard = () => {
                     p_code: voucherCode.trim().toUpperCase(),
                     p_driver_id: driverId,
                   });
-                  if (error) { toast({ title: "خطأ", description: "فشل في معالجة الكارت", variant: "destructive" }); return; }
+                  if (error) { notifyAdminCritical("payment_failed", "فشل استرداد كارت سائق", { driver_id: driverId, voucher_code: voucherCode, error: error.message }); toast({ title: "خطأ", description: "فشل في معالجة الكارت", variant: "destructive" }); return; }
                   const r = data as any;
                   if (r?.success) {
                     setRedeemSuccess({ amount: r.amount });
                     setVoucherCode("");
-                    toast({ title: "✅ تم الشحن!", description: `+${Number(r.amount).toLocaleString()} د.ع` });
+                    toast({ title: "✅ تم الشحن!", description: `+${Number(r.amount).toLocaleString('en-US')} د.ع` });
                     fetchWalletData();
                     setTimeout(() => setRedeemSuccess(null), 5000);
                   } else {
                     toast({ title: "خطأ", description: r?.error || "رمز غير صالح", variant: "destructive" });
                   }
-                } catch { toast({ title: "خطأ", description: "حدث خطأ", variant: "destructive" }); } finally { setRedeeming(false); }
+                } catch { notifyAdminCritical("payment_failed", "خطأ غير متوقع في استرداد كارت سائق", { driver_id: driverId }); toast({ title: "خطأ", description: "حدث خطأ", variant: "destructive" }); } finally { setRedeeming(false); }
               }}
             >
               {redeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
@@ -392,7 +393,7 @@ export const DriverWalletDashboard = () => {
             <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 text-sm">
               <Sparkles className="w-4 h-4 text-emerald-500" />
               <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                تم شحن {redeemSuccess.amount.toLocaleString()} د.ع ✨
+                تم شحن {redeemSuccess.amount.toLocaleString('en-US')} د.ع ✨
               </span>
             </div>
           )}
@@ -412,7 +413,7 @@ export const DriverWalletDashboard = () => {
           <CardContent className="pt-6 text-center">
             <TrendingDown className="w-8 h-8 mx-auto mb-2 text-amber-500" />
             <p className="text-2xl font-bold">
-              {wallet.commission_paid.toLocaleString()}د
+              {wallet.commission_paid.toLocaleString('en-US')}د
             </p>
             <p className="text-xs text-muted-foreground">عمولة مدفوعة</p>
           </CardContent>
@@ -421,7 +422,7 @@ export const DriverWalletDashboard = () => {
           <CardContent className="pt-6 text-center">
             <Gift className="w-8 h-8 mx-auto mb-2 text-purple-500" />
             <p className="text-2xl font-bold">
-              {wallet.tips_received.toLocaleString()}د
+              {wallet.tips_received.toLocaleString('en-US')}د
             </p>
             <p className="text-xs text-muted-foreground">بقشيش</p>
           </CardContent>
@@ -479,10 +480,10 @@ export const DriverWalletDashboard = () => {
                         }`}
                       >
                         {tx.amount > 0 && "+"}
-                        {tx.amount.toLocaleString()}د
+                        {tx.amount.toLocaleString('en-US')}د
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {tx.balance_after.toLocaleString()}د
+                        {tx.balance_after.toLocaleString('en-US')}د
                       </p>
                     </div>
                   </div>
@@ -515,7 +516,7 @@ export const DriverWalletDashboard = () => {
                 >
                   <div>
                     <p className="font-semibold">
-                      {withdrawal.amount.toLocaleString()}د
+                      {withdrawal.amount.toLocaleString('en-US')}د
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {formatDistanceToNow(new Date(withdrawal.created_at), {
@@ -553,7 +554,7 @@ export const DriverWalletDashboard = () => {
           <DialogHeader>
             <DialogTitle>طلب سحب أرباح</DialogTitle>
             <DialogDescription>
-              الرصيد المتاح: <span className="font-bold">{wallet.balance.toLocaleString()}د</span>
+              الرصيد المتاح: <span className="font-bold">{wallet.balance.toLocaleString('en-US')}د</span>
             </DialogDescription>
           </DialogHeader>
 
@@ -579,11 +580,7 @@ export const DriverWalletDashboard = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bank_transfer">تحويل بنكي</SelectItem>
-                  <SelectItem value="zain_cash">زين كاش</SelectItem>
-                  <SelectItem value="super_key">سوبر كي</SelectItem>
-                  <SelectItem value="nas_wallet">نس والت</SelectItem>
-                  <SelectItem value="manual">صرف يدوي</SelectItem>
+                  <SelectItem value="manual">صرف يدوي من الإدارة</SelectItem>
                 </SelectContent>
               </Select>
             </div>

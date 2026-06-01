@@ -13,7 +13,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
 import { parseReceiptImage, notifyAdminGroup } from "../_shared/receipt-vision.ts";
 import { classifyLocally, extractDirectDestination, extractPickupAndDropoff } from "../_shared/local-classifier.ts";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
 
 // ════════════════════════════════════════
 // المتغيرات — تُحمّل ديناميكياً من system_configs
@@ -987,6 +987,7 @@ async function createPickupSession(
 // Handler الرئيسي
 // ════════════════════════════════════════
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   // تحميل الإعدادات الديناميكية من system_configs
   await loadDynamicConfig();
 
@@ -1378,60 +1379,17 @@ serve(async (req) => {
     // ═══════════════════════════════════
     if (cbData === "action_add_balance" && cbChatId) {
       await answerCallbackQuery(cbQuery.id, "➕");
-      await sendInlineKeyboard(cbChatId,
-        `اختر طريقة الدفع المناسبة لك لشحن محفظتك:`,
-        [
-          [{ text: "🟣 زين كاش", callback_data: "topup_zaincash" }],
-          [{ text: "🟡 سوبر كي", callback_data: "topup_superqi" }],
-          [{ text: "💳 كيو كارد", callback_data: "topup_qicard" }],
-        ]
+      await directSend(cbChatId,
+        `الشحن متاح حالياً عبر كروت RAAN الداخلية فقط. افتح التطبيق ثم المحفظة وأدخل رمز كارت الشحن.`
       );
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
-    // ═══════════════════════════════════
-    // 🟣 تحويل عبر زين كاش
-    // ═══════════════════════════════════
-    if (cbData === "topup_zaincash" && cbChatId) {
-      await answerCallbackQuery(cbQuery.id, "🟣");
-      // حفظ اختيار طريقة الدفع في last_intent
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      await supabase.from("bot_customers").update({ last_intent: "awaiting_receipt:zaincash" })
-        .eq("platform", "telegram").eq("platform_id", String(cbQuery.from?.id || cbChatId));
+    if (["topup_zaincash", "topup_superqi", "topup_qicard"].includes(cbData || "") && cbChatId) {
+      await answerCallbackQuery(cbQuery.id, "⏸️");
       await directSend(cbChatId,
-        `لإضافة رصيد عبر 🟣 زين كاش، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`
+        `طرق الشحن الخارجية معطلة حالياً. استخدم كرت شحن RAAN من داخل التطبيق.`
       );
-      await directSend(cbChatId, `07844446633`);
-      return new Response("OK", { status: 200, headers: corsHeaders });
-    }
-
-    // ═══════════════════════════════════
-    // 🟡 تحويل عبر سوبر كي
-    // ═══════════════════════════════════
-    if (cbData === "topup_superqi" && cbChatId) {
-      await answerCallbackQuery(cbQuery.id, "🟡");
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      await supabase.from("bot_customers").update({ last_intent: "awaiting_receipt:superqi" })
-        .eq("platform", "telegram").eq("platform_id", String(cbQuery.from?.id || cbChatId));
-      await directSend(cbChatId,
-        `لإضافة رصيد عبر 🟡 سوبر كي، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`
-      );
-      await directSend(cbChatId, `07844446633`);
-      return new Response("OK", { status: 200, headers: corsHeaders });
-    }
-
-    // ═══════════════════════════════════
-    // 💳 تحويل عبر كيو كارد
-    // ═══════════════════════════════════
-    if (cbData === "topup_qicard" && cbChatId) {
-      await answerCallbackQuery(cbQuery.id, "💳");
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      await supabase.from("bot_customers").update({ last_intent: "awaiting_receipt:qicard" })
-        .eq("platform", "telegram").eq("platform_id", String(cbQuery.from?.id || cbChatId));
-      await directSend(cbChatId,
-        `لإضافة رصيد عبر 💳 كيو كارد، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`
-      );
-      await directSend(cbChatId, `7117309554`);
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
@@ -1884,6 +1842,14 @@ serve(async (req) => {
     if (hasPhoto) {
       console.log(`[telegram] 🧾 Photo received — processing as receipt`);
       const tgName = telegramUser?.first_name || "عزيزي";
+
+      const externalGatewaysEnabled = Deno.env.get("ENABLE_EXTERNAL_PAYMENT_GATEWAYS") === "true";
+      if (!externalGatewaysEnabled) {
+        await directSend(chatId,
+          `أستاذ ${tgName}، شحن الإيصالات والتحويلات الخارجية معطل حالياً. الشحن متاح فقط عبر كروت RAAN من داخل التطبيق.`
+        );
+        return new Response("OK", { status: 200, headers: corsHeaders });
+      }
 
       try {
         // تليجرام يرسل الصورة بأحجام متعددة — نأخذ الأكبر

@@ -32,6 +32,10 @@ verify_jwt = false
 [functions.nass-payment-callback]
 verify_jwt = false
 
+[functions.sms-webhook]
+# Inbound SMS webhook from Infobip; guarded inside by INFOBIP_WEBHOOK_SECRET (HMAC or bearer).
+verify_jwt = false
+
 # ZainCash callback — يستقبل redirect من ZainCash بدون مصادقة
 [functions.zaincash-callback]
 verify_jwt = false
@@ -61,12 +65,31 @@ verify_jwt = false
 [functions.calculate-fare]
 verify_jwt = false
 
+# Webhooks خارجية — بدون JWT (محمية بتحقق داخلي)
+[functions.admin-telegram-webhook]
+# Telegram webhook is temporarily paused in code (returns 200 with no side effects).
+# Re-enable later with X-Telegram-Bot-Api-Secret-Token validation.
+verify_jwt = false
+
+# Cron/Internal — بدون JWT (محمية بـ x-internal-secret)
+[functions.detect-fraud-patterns]
+# Internal cron fraud scan; guarded inside by requireInternalSecret.
+verify_jwt = false
+
+# send-push-notification — يستقبل من DB triggers و cron و Edge Functions أخرى، فلا JWT متاح
+# (محمي بتحقق مصدر الطلب داخلياً)
+[functions.send-push-notification]
+verify_jwt = false
+
+# financial-watchdog — مراقب مالي دوري (pg_cron كل ساعة)
+# يفحص: wallet mismatch, negative balances, ledger gaps, stuck tx/withdrawals
+# محمي بـ requireInternalSecret (x-internal-secret header)
+[functions.financial-watchdog]
+verify_jwt = false
+
 # ════════════════════════════════════════════════════════════
 # PROTECTED — تحتاج مصادقة JWT (دوال حساسة)
 # ════════════════════════════════════════════════════════════
-
-[functions.send-push-notification]
-verify_jwt = false
 
 [functions.reset-password]
 verify_jwt = true
@@ -108,7 +131,8 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.captain-guardian-alerts]
-verify_jwt = true
+# Internal DB/cron caller; guarded inside the function by x-internal-secret.
+verify_jwt = false
 
 [functions.delete-user-account]
 verify_jwt = true

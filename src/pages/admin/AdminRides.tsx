@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { adminRpc } from "@/lib/adminRpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -186,8 +187,9 @@ const AdminRides = () => {
     setDeleting(true);
 
     try {
-      // Use RPC function to delete ride with all related data
-      const { data, error } = await supabase.rpc("delete_ride_cascade", {
+      // ✅ SECURITY: استدعاء عبر proxy بدل .rpc() مباشرة
+      // delete_ride_cascade محمية بـ service_role فقط
+      const { data, error } = await adminRpc("delete_ride_cascade", {
         ride_id_param: rideToDelete.id,
       });
 
@@ -370,9 +372,9 @@ const AdminRides = () => {
                   </TableCell>
                   <TableCell>
                     {ride.final_fare
-                      ? `${ride.final_fare.toLocaleString()} د.ع`
+                      ? `${ride.final_fare.toLocaleString('en-US')} د.ع`
                       : ride.estimated_fare
-                        ? `~${ride.estimated_fare.toLocaleString()} د.ع`
+                        ? `~${ride.estimated_fare.toLocaleString('en-US')} د.ع`
                         : "-"}
                   </TableCell>
                   <TableCell>
@@ -500,7 +502,7 @@ const AdminRides = () => {
                     الأجرة المقدرة
                   </p>
                   <p className="text-xl font-bold">
-                    {selectedRide.estimated_fare?.toLocaleString() || "-"}{" "}
+                    {selectedRide.estimated_fare?.toLocaleString('en-US') || "-"}{" "}
                     <span className="text-sm">د.ع</span>
                   </p>
                 </div>
@@ -509,7 +511,7 @@ const AdminRides = () => {
                     الأجرة النهائية
                   </p>
                   <p className="text-xl font-bold text-primary">
-                    {selectedRide.final_fare?.toLocaleString() || "-"}{" "}
+                    {selectedRide.final_fare?.toLocaleString('en-US') || "-"}{" "}
                     <span className="text-sm">د.ع</span>
                   </p>
                 </div>
@@ -659,8 +661,8 @@ const AdminRides = () => {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">الأجرة:</span>
                   <span>
-                    {rideToDelete.final_fare?.toLocaleString() ||
-                      rideToDelete.estimated_fare?.toLocaleString() ||
+                    {rideToDelete.final_fare?.toLocaleString('en-US') ||
+                      rideToDelete.estimated_fare?.toLocaleString('en-US') ||
                       "-"}{" "}
                     د.ع
                   </span>

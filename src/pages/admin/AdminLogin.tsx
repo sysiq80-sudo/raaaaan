@@ -117,21 +117,31 @@ const AdminLogin = () => {
         return;
       }
 
-      // 2. حفظ بيانات المشرف من controller
+      // 2. حفظ بيانات المشرف من controller (cache عرض فقط)
       setControllerAdmin(fnData.admin);
 
-      // 3. تسجيل الدخول في Supabase Auth (للوصول للبيانات عبر RLS)
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      // 3. تسجيل الدخول في Supabase Auth (مطلوب — بدونه لا تعمل الصلاحيات)
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (signInError) {
-        console.error("Supabase Auth signIn error (after controller verify):", signInError);
-        // حتى لو فشل signIn — المشرف موثق من controller
-        // نحاول الدخول بدونه
+      if (signInError || !signInData?.session) {
+        console.error("Supabase Auth signIn error:", signInError);
+        // فشل Supabase Auth — يعني كلمة المرور في auth.users مختلفة
+        // أو المستخدم غير موجود في auth.users
+        // نحذف controller data لأنها بدون فائدة بدون session
+        clearControllerAdmin();
+        toast({
+          title: "خطأ في المصادقة",
+          description: "فشل تسجيل الدخول — تواصل مع المدير التقني لمزامنة الحساب",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
       }
 
+      // 4. انتظار AuthContext ليكتشف الدور (user_roles يُنشأ من admin-login Edge Function)
       toast({
         title: "مرحباً بك!",
         description: "تم تسجيل الدخول بنجاح",
@@ -186,6 +196,7 @@ const AdminLogin = () => {
                     className={`pr-10 ${errors.email ? 'border-destructive' : ''}`}
                     required
                     dir="ltr"
+                    autoComplete="email"
                   />
                 </div>
                 {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
@@ -203,6 +214,7 @@ const AdminLogin = () => {
                     className={`pr-10 ${errors.password ? 'border-destructive' : ''}`}
                     required
                     dir="ltr"
+                    autoComplete="current-password"
                   />
                 </div>
                 {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}

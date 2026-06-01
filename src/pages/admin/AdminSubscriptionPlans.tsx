@@ -397,7 +397,7 @@ const AdminSubscriptionPlans = () => {
                       </TableCell>
                       <TableCell>{formatDuration(plan.duration_days)}</TableCell>
                       <TableCell>
-                        <span className="font-medium">{plan.price.toLocaleString()}</span>
+                        <span className="font-medium">{plan.price.toLocaleString('en-US')}</span>
                         <span className="text-muted-foreground text-sm"> د.ع</span>
                       </TableCell>
                       <TableCell>

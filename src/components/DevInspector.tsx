@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import '@/styles/dev-inspector.css';
 import * as Sentry from "@sentry/react";
+import { isNativePlatform } from '@/lib/capacitorBridge';
 
 interface ElementInfo {
   element: HTMLElement;
@@ -726,9 +727,11 @@ function DevInspectorInner() {
   );
 }
 
-/** يظهر فقط في بيئة التطوير المحلية — لا يُشغَّل في الإنتاج */
+/** يظهر فقط في بيئة التطوير المحلية على الويب — لا يُشغَّل في الإنتاج أو الجوال */
 export function DevInspector() {
   if (!import.meta.env.DEV) return null;
+  // إخفاء على الجوال — لا يعمل بالماوس ويسبب مربع أسود على الشاشة
+  if (isNativePlatform) return null;
   return <DevInspectorInner />;
 }
 

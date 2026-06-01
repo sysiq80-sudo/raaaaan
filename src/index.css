@@ -99,43 +99,96 @@ html.marketing-site, html.marketing-site body {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   تحسينات أداء الجوال — تجربة مثل التطبيق الأصلي (Native)
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 1. تسريع GPU للعناصر التفاعلية ── */
+html.app-shell button,
+html.app-shell a,
+html.app-shell [role="button"],
+html.app-shell input,
+html.app-shell textarea,
+html.app-shell select {
+  will-change: transform;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* ── 2. منع تحديد النص في وضع التطبيق ── */
+html.app-shell {
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* السماح بالتحديد فقط في حقول الإدخال */
+html.app-shell input,
+html.app-shell textarea,
+html.app-shell [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ── 3. تمرير ناعم مثل iOS (momentum scrolling) ── */
+html.app-shell .overflow-y-auto,
+html.app-shell .overflow-y-scroll,
+html.app-shell .overflow-auto,
+html.app-shell [data-scroll] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* ── 4. منع السحب المطاطي (rubber band) ── */
+html.app-shell body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── 5. تحسين أداء الانتقالات ── */
+html.app-shell .transition-all,
+html.app-shell .transition-transform,
+html.app-shell .transition-opacity {
+  will-change: transform, opacity;
+}
+
+/* ═══════════════════════════════════════════════════════════
    RAAN Light Mode — Overrides شاملة لألوان Tailwind الداكنة
    تؤثر على كل الصفحات (الراكب + السائق) تلقائياً
    ═══════════════════════════════════════════════════════════ */
 
 /* ── 1. خلفيات داكنة ثابتة → فاتحة ── */
-html.light-rider .bg-\[\#0b1326\]  { background-color: #f0f4ff !important; }
-html.light-rider .bg-\[\#0a0f1c\]  { background-color: #f0f4ff !important; }
-html.light-rider .bg-\[\#0a0e1a\]  { background-color: #f0f4ff !important; }
-html.light-rider .bg-\[\#0d1a2e\]  { background-color: #e8eef8 !important; }
-html.light-rider .bg-\[\#0f1726\]  { background-color: #f1f5f9 !important; }
-html.light-rider .bg-\[\#0f1f14\]  { background-color: #f0fbf6 !important; }
-html.light-rider .bg-\[\#111d2c\]  { background-color: #f0f4ff !important; }
-html.light-rider .bg-\[\#111827\]  { background-color: #f1f5f9 !important; }
-html.light-rider .bg-\[\#151f30\]  { background-color: #f0f4ff !important; }
+html.light-rider .bg-\[\#0b1326\]  { background-color: #ffffff !important; }
+html.light-rider .bg-\[\#0a0f1c\]  { background-color: #ffffff !important; }
+html.light-rider .bg-\[\#0a0e1a\]  { background-color: #ffffff !important; }
+html.light-rider .bg-\[\#0d1a2e\]  { background-color: #f5f5f5 !important; }
+html.light-rider .bg-\[\#0f1726\]  { background-color: #f5f5f5 !important; }
+html.light-rider .bg-\[\#0f1f14\]  { background-color: #f0fff4 !important; }
+html.light-rider .bg-\[\#111d2c\]  { background-color: #ffffff !important; }
+html.light-rider .bg-\[\#111827\]  { background-color: #f5f5f5 !important; }
+html.light-rider .bg-\[\#151f30\]  { background-color: #ffffff !important; }
 html.light-rider .bg-\[\#171f33\]  { background-color: #ffffff !important; }
-html.light-rider .bg-\[\#1a2333\]  { background-color: #f1f5f9 !important; }
-html.light-rider .bg-\[\#1a2536\]  { background-color: #f8fafc !important; }
+html.light-rider .bg-\[\#1a2333\]  { background-color: #f5f5f5 !important; }
+html.light-rider .bg-\[\#1a2536\]  { background-color: #ffffff !important; }
 /* دفعة 2: ألوان داكنة إضافية */
-html.light-rider .bg-\[\#0c1220\]  { background-color: #eef2ff !important; }
-html.light-rider .bg-\[\#0e1528\]  { background-color: #eef2ff !important; }
-html.light-rider .bg-\[\#0d1321\]  { background-color: #e8eef8 !important; }
-html.light-rider .bg-\[\#101421\]  { background-color: #eef2ff !important; }
-html.light-rider .bg-\[\#111b30\]  { background-color: #f0f4ff !important; }
-html.light-rider .bg-\[\#131b2c\]  { background-color: #f1f5f9 !important; }
-html.light-rider .bg-\[\#131b2e\]  { background-color: #f1f5f9 !important; }
-html.light-rider .bg-\[\#151c2b\]  { background-color: #f0f4ff !important; }
-html.light-rider .bg-\[\#1d2740\]  { background-color: #e2e8f0 !important; }
-html.light-rider .bg-\[\#1e293b\]  { background-color: #e2e8f0 !important; }
-html.light-rider .bg-\[\#1a243b\]  { background-color: #f1f5f9 !important; }
-html.light-rider .bg-\[\#1a253c\]  { background-color: #f1f5f9 !important; }
-html.light-rider .bg-\[\#1f2d44\]  { background-color: #e2e8f0 !important; }
-html.light-rider .bg-\[\#212d42\]  { background-color: #e2e8f0 !important; }
-html.light-rider .bg-\[\#222a3d\]  { background-color: #e2e8f0 !important; }
-html.light-rider .bg-\[\#283a52\]  { background-color: #cbd5e1 !important; }
-html.light-rider .bg-\[\#2d3449\]  { background-color: #cbd5e1 !important; }
-html.light-rider .bg-\[\#3d4a5d\]  { background-color: #94a3b8 !important; }
-html.light-rider .bg-\[\#3e495d\]  { background-color: #94a3b8 !important; }
+html.light-rider .bg-\[\#0c1220\]  { background-color: #ffffff !important; }
+html.light-rider .bg-\[\#0e1528\]  { background-color: #ffffff !important; }
+html.light-rider .bg-\[\#0d1321\]  { background-color: #f5f5f5 !important; }
+html.light-rider .bg-\[\#101421\]  { background-color: #ffffff !important; }
+html.light-rider .bg-\[\#111b30\]  { background-color: #ffffff !important; }
+html.light-rider .bg-\[\#131b2c\]  { background-color: #f5f5f5 !important; }
+html.light-rider .bg-\[\#131b2e\]  { background-color: #f5f5f5 !important; }
+html.light-rider .bg-\[\#151c2b\]  { background-color: #ffffff !important; }
+html.light-rider .bg-\[\#1d2740\]  { background-color: #ebebeb !important; }
+html.light-rider .bg-\[\#1e293b\]  { background-color: #ebebeb !important; }
+html.light-rider .bg-\[\#1a243b\]  { background-color: #f5f5f5 !important; }
+html.light-rider .bg-\[\#1a253c\]  { background-color: #f5f5f5 !important; }
+html.light-rider .bg-\[\#1f2d44\]  { background-color: #ebebeb !important; }
+html.light-rider .bg-\[\#212d42\]  { background-color: #ebebeb !important; }
+html.light-rider .bg-\[\#222a3d\]  { background-color: #ebebeb !important; }
+html.light-rider .bg-\[\#283a52\]  { background-color: #e0e0e0 !important; }
+html.light-rider .bg-\[\#2d3449\]  { background-color: #e0e0e0 !important; }
+html.light-rider .bg-\[\#3d4a5d\]  { background-color: #9e9e9e !important; }
+html.light-rider .bg-\[\#3e495d\]  { background-color: #9e9e9e !important; }
 html.light-rider .bg-\[\#060e20\]  { background-color: rgba(0,0,0,0.5) !important; }
 /* ألوان داكنة خضراء / حمراء */
 html.light-rider .bg-\[\#0f2922\]  { background-color: #dcfce7 !important; }
@@ -143,18 +196,46 @@ html.light-rider .bg-\[\#0c261e\]  { background-color: #dcfce7 !important; }
 html.light-rider .bg-\[\#163d30\]  { background-color: #bbf7d0 !important; }
 html.light-rider .bg-\[\#2a1e1d\]  { background-color: #fee2e2 !important; }
 
+/* ─── Audit Fixes: ألوان غير مُغطاة تسبب تباين ضعيف في النهاري ─── */
+/* #00B3B0 teal — RideWaitingScreen (Avatar + أيقونة السيارة + زر اتصال) */
+html.light-rider .text-\[\#00B3B0\]       { color: #0e7490 !important; } /* cyan-700: 5:1 على أبيض */
+html.light-rider .bg-\[\#00B3B0\]         { background-color: #0e7490 !important; }
+html.light-rider .bg-\[\#00B3B0\]\/10     { background-color: rgba(14,116,144,0.08) !important; }
+html.light-rider .border-\[\#00B3B0\]\/30 { border-color: rgba(14,116,144,0.25) !important; }
+/* #141c2e dark navy — RideWaitingScreen (بطاقة خط السير + borders النقاط) */
+html.light-rider .bg-\[\#141c2e\]         { background-color: #ffffff !important; }
+html.light-rider .border-\[\#141c2e\]     { border-color: #ffffff !important; }
+/* text-blue-400 — عناوين الوجهة في RideRequestCard + RideWaitingScreen */
+html.light-rider .text-blue-400           { color: #1d4ed8 !important; } /* blue-700: 6.1:1 على أبيض */
+/* text-[#60a5fa] — نفس اللون كـ blue-400 مكتوباً كـ hex */
+html.light-rider .text-\[\#60a5fa\]        { color: #1d4ed8 !important; }
+
+/* ─── شاشة اكتمال الرحلة (RideCompletedScreen) ─── */
+html.light-rider .bg-\[\#070b13\]          { background-color: #ffffff !important; } /* الخلفية الكاملة */
+html.light-rider .bg-\[\#0d1a2a\]          { background-color: #ffffff !important; } /* بطاقات التقييم */
+/* أزرار معطلة في GoPage + BookingConfirmation */
+html.light-rider .bg-\[\#0a111c\]          { background-color: #f5f5f5 !important; }
+
 /* Tailwind bg-slate / bg-gray utilities */
-html.light-rider .bg-slate-700  { background-color: #e2e8f0 !important; }
-html.light-rider .bg-slate-800  { background-color: #f1f5f9 !important; }
-html.light-rider .bg-slate-900  { background-color: #f0f4ff !important; }
-html.light-rider .bg-gray-800   { background-color: #f1f5f9 !important; }
-html.light-rider .bg-gray-900   { background-color: #f0f4ff !important; }
+html.light-rider .bg-slate-700  { background-color: #e5e5e5 !important; }
+html.light-rider .bg-slate-800  { background-color: #f5f5f5 !important; }
+html.light-rider .bg-slate-900  { background-color: #ffffff !important; }
+html.light-rider .bg-gray-800   { background-color: #f5f5f5 !important; }
+html.light-rider .bg-gray-900   { background-color: #ffffff !important; }
 
 /* خلفيات داكنة بشفافية */
-html.light-rider .bg-\[\#0a0f1c\]\/80  { background-color: rgba(240,244,255,0.85) !important; }
-html.light-rider .bg-\[\#0b1326\]\/80  { background-color: rgba(240,244,255,0.85) !important; }
-html.light-rider .bg-\[\#0b1326\]\/90  { background-color: rgba(240,244,255,0.92) !important; }
+html.light-rider .bg-\[\#0a0f1c\]\/80  { background-color: rgba(255,255,255,0.85) !important; }
+html.light-rider .bg-\[\#0b1326\]\/60  { background-color: rgba(255,255,255,0.80) !important; }
+html.light-rider .bg-\[\#0b1326\]\/80  { background-color: rgba(255,255,255,0.85) !important; }
+html.light-rider .bg-\[\#0b1326\]\/90  { background-color: rgba(255,255,255,0.92) !important; }
+html.light-rider .bg-\[\#0b1326\]\/98  { background-color: rgba(255,255,255,0.98) !important; }
 html.light-rider .bg-black\/25         { background-color: rgba(255,255,255,0.20) !important; }
+
+/* ─── AIVoiceHome (شاشة "وين تحب تروح") ─── */
+html.light-rider .ai-voice-home-root   { background: #ffffff !important; }
+/* أيقونات الأماكن المحفوظة */
+html.light-rider .bg-\[\#131d35\]      { background-color: #f5f5f5 !important; }
+html.light-rider .bg-\[\#1a2a3e\]      { background-color: #e5e5e5 !important; }
 html.light-rider .bg-black\/40         { background-color: rgba(255,255,255,0.30) !important; }
 html.light-rider .bg-black\/50         { background-color: rgba(0,0,0,0.04) !important; }
 html.light-rider .bg-white\/10         { background-color: rgba(0,0,0,0.05) !important; }
@@ -220,28 +301,28 @@ html.light-rider .border-white\/20      { border-color: rgba(0,0,0,0.08) !import
 html.light-rider .divide-slate-800 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(0,0,0,0.06) !important; }
 
 /* ── 5. تدرجات لونية (Gradients) → فاتحة ── */
-html.light-rider .from-slate-800  { --tw-gradient-from: #f1f5f9 !important; }
-html.light-rider .from-slate-900  { --tw-gradient-from: #f0f4ff !important; }
-html.light-rider .from-gray-900   { --tw-gradient-from: #f0f4ff !important; }
-html.light-rider .from-gray-800   { --tw-gradient-from: #f1f5f9 !important; }
-html.light-rider .to-slate-700    { --tw-gradient-to: #e2e8f0 !important; }
-html.light-rider .to-slate-800    { --tw-gradient-to: #f1f5f9 !important; }
-html.light-rider .to-slate-900    { --tw-gradient-to: #f0f4ff !important; }
-html.light-rider .to-gray-800     { --tw-gradient-to: #f1f5f9 !important; }
-html.light-rider .to-gray-900     { --tw-gradient-to: #f0f4ff !important; }
-html.light-rider .to-black        { --tw-gradient-to: #e2e8f0 !important; }
-html.light-rider .via-slate-800   { --tw-gradient-via: #f1f5f9 !important; }
+html.light-rider .from-slate-800  { --tw-gradient-from: #f5f5f5 !important; }
+html.light-rider .from-slate-900  { --tw-gradient-from: #ffffff !important; }
+html.light-rider .from-gray-900   { --tw-gradient-from: #ffffff !important; }
+html.light-rider .from-gray-800   { --tw-gradient-from: #f5f5f5 !important; }
+html.light-rider .to-slate-700    { --tw-gradient-to: #e5e5e5 !important; }
+html.light-rider .to-slate-800    { --tw-gradient-to: #f5f5f5 !important; }
+html.light-rider .to-slate-900    { --tw-gradient-to: #ffffff !important; }
+html.light-rider .to-gray-800     { --tw-gradient-to: #f5f5f5 !important; }
+html.light-rider .to-gray-900     { --tw-gradient-to: #ffffff !important; }
+html.light-rider .to-black        { --tw-gradient-to: #e5e5e5 !important; }
+html.light-rider .via-slate-800   { --tw-gradient-via: #f5f5f5 !important; }
 html.light-rider .via-\[\#0a1f1c\]  { --tw-gradient-via: #ecfdf5 !important; }
 html.light-rider .via-\[\#0a1f0d\]  { --tw-gradient-via: #ecfdf5 !important; }
 html.light-rider .to-\[\#0a1f0d\]   { --tw-gradient-to: #ecfdf5 !important; }
 
 /* تدرجات مع hex مباشر */
-html.light-rider .from-\[\#0b1326\]  { --tw-gradient-from: #f0f4ff !important; }
-html.light-rider .to-\[\#0b1326\]    { --tw-gradient-to: #f0f4ff !important; }
-html.light-rider .from-\[\#0d1321\]  { --tw-gradient-from: #eef2ff !important; }
-html.light-rider .to-\[\#0d1321\]    { --tw-gradient-to: #eef2ff !important; }
-html.light-rider .from-\[\#131b2c\]  { --tw-gradient-from: #f1f5f9 !important; }
-html.light-rider .to-\[\#131b2c\]    { --tw-gradient-to: #f1f5f9 !important; }
+html.light-rider .from-\[\#0b1326\]  { --tw-gradient-from: #ffffff !important; }
+html.light-rider .to-\[\#0b1326\]    { --tw-gradient-to: #ffffff !important; }
+html.light-rider .from-\[\#0d1321\]  { --tw-gradient-from: #f5f5f5 !important; }
+html.light-rider .to-\[\#0d1321\]    { --tw-gradient-to: #f5f5f5 !important; }
+html.light-rider .from-\[\#131b2c\]  { --tw-gradient-from: #f5f5f5 !important; }
+html.light-rider .to-\[\#131b2c\]    { --tw-gradient-to: #f5f5f5 !important; }
 html.light-rider .from-\[\#171f33\]  { --tw-gradient-from: #ffffff !important; }
 html.light-rider .to-\[\#171f33\]    { --tw-gradient-to: #ffffff !important; }
 /* تدرجات خضراء نيون → أخضر أعمق للتباين */
@@ -281,7 +362,7 @@ html.light-rider .focus\:ring-emerald-500\/20:focus   { --tw-ring-color: rgba(5,
 /* ── 8. عناصر خاصة ── */
 
 /* شريط التنقل السفلي */
-html.light-rider .bg-\[\#0b1326\]\/95  { background-color: rgba(240,244,255,0.95) !important; }
+html.light-rider .bg-\[\#0b1326\]\/95  { background-color: rgba(255,255,255,0.95) !important; }
 
 /* مؤشر النشاط في التبويبات */
 html.light-rider .bg-emerald-500\/10   { background-color: rgba(5,150,105,0.08) !important; }
@@ -297,28 +378,40 @@ html.light-rider .hover\:bg-white\/20:hover { background-color: rgba(0,0,0,0.06)
 html.light-rider .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.04) !important; }
 html.light-rider .hover\:text-white:hover    { color: #0f172a !important; }
 /* hover states — ألوان داكنة إضافية */
-html.light-rider .hover\:bg-\[\#1d2740\]:hover  { background-color: #e2e8f0 !important; }
-html.light-rider .hover\:bg-\[\#1e293b\]:hover  { background-color: #e2e8f0 !important; }
-html.light-rider .hover\:bg-\[\#1f2d44\]:hover  { background-color: #e2e8f0 !important; }
-html.light-rider .hover\:bg-\[\#111b30\]:hover  { background-color: #f0f4ff !important; }
-html.light-rider .hover\:bg-\[\#1a253c\]:hover  { background-color: #f1f5f9 !important; }
-html.light-rider .hover\:bg-\[\#212d42\]:hover  { background-color: #e2e8f0 !important; }
-html.light-rider .hover\:bg-\[\#222a3d\]:hover  { background-color: #e2e8f0 !important; }
-html.light-rider .hover\:bg-\[\#283a52\]:hover  { background-color: #cbd5e1 !important; }
-html.light-rider .hover\:bg-\[\#3d4a5d\]:hover  { background-color: #94a3b8 !important; }
+html.light-rider .hover\:bg-\[\#1d2740\]:hover  { background-color: #ebebeb !important; }
+html.light-rider .hover\:bg-\[\#1e293b\]:hover  { background-color: #ebebeb !important; }
+html.light-rider .hover\:bg-\[\#1f2d44\]:hover  { background-color: #ebebeb !important; }
+html.light-rider .hover\:bg-\[\#111b30\]:hover  { background-color: #f5f5f5 !important; }
+html.light-rider .hover\:bg-\[\#1a253c\]:hover  { background-color: #f5f5f5 !important; }
+html.light-rider .hover\:bg-\[\#212d42\]:hover  { background-color: #ebebeb !important; }
+html.light-rider .hover\:bg-\[\#222a3d\]:hover  { background-color: #ebebeb !important; }
+html.light-rider .hover\:bg-\[\#283a52\]:hover  { background-color: #e0e0e0 !important; }
+html.light-rider .hover\:bg-\[\#3d4a5d\]:hover  { background-color: #9e9e9e !important; }
 html.light-rider .hover\:bg-\[\#163d30\]:hover  { background-color: #a7f3d0 !important; }
-html.light-rider .hover\:bg-\[\#131b2c\]:hover  { background-color: #e2e8f0 !important; }
+html.light-rider .hover\:bg-\[\#131b2c\]:hover  { background-color: #ebebeb !important; }
 
 /* نص الأزرار الخضراء — يبقى فاتح على الأخضر الداكن */
 html.light-rider .bg-\[\#5bdda6\] .text-\[\#0b1326\],
 html.light-rider .text-\[\#0b1326\] { color: #ffffff !important; }
 html.light-rider .bg-\[\#5bdda6\] > .text-\[\#064e3b\] { color: #ffffff !important; }
 
-/* انتقال سلس عند التبديل */
-html.light-rider * {
-  transition-property: background-color, border-color, color, box-shadow;
-  transition-duration: 0.3s;
-  transition-timing-function: ease;
+/* انتقال سلس لتبديل الثيم — فقط على html (لا على كل عنصر في الصفحة) */
+html.light-rider {
+  transition: background-color 0.25s ease;
+}
+
+/* ── تحسينات native-feel للـ BottomNav وعناصر التنقل ── */
+html.app-shell [role="navigation"] a,
+html.app-shell [role="navigation"] button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── منع overscroll في المحتوى الداخلي للصفحات ── */
+html.app-shell main > * {
+  overscroll-behavior-y: contain;
 }
 
 /* ── 9. مكونات السائق في الوضع النهاري ── */
@@ -668,6 +761,7 @@ html.light-rider .dots-pattern {
     line-height: 1.5; /* Better line height for readability */
     touch-action: pan-y;
     /* user-select: auto — السماح بالتحديد والنسخ بشكل طبيعي في الويب */
+    -webkit-user-select: auto;
     user-select: auto;
   }
 
@@ -1442,6 +1536,7 @@ html::-webkit-scrollbar {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -1457,6 +1552,7 @@ body:not(.driver-mode):not(.car-mode) h2,
 body:not(.driver-mode):not(.car-mode) h3,
 body:not(.driver-mode):not(.car-mode) code,
 body:not(.driver-mode):not(.car-mode) pre {
+  -webkit-user-select: text;
   user-select: text;
 }
 
@@ -1528,8 +1624,8 @@ body:not(.driver-mode):not(.car-mode) pre {
     rgba(var(--card-rgb), 0.8) 50%,
     rgba(var(--card-rgb), 0.9) 100%
   ) !important;
-  backdrop-filter: blur(30px) saturate(150%);
   -webkit-backdrop-filter: blur(30px) saturate(150%);
+  backdrop-filter: blur(30px) saturate(150%);
 }
 
 /* تأثير الضوء على الأيقونات النشطة */
@@ -1608,8 +1704,8 @@ body.driver-mode {
   inset: 0;
   width: 100%;
   height: 100%;
-  user-select: none; /* منع التحديد في تطبيق السائق */
   -webkit-user-select: none;
+  user-select: none; /* منع التحديد في تطبيق السائق */
   /* safe-area: منع تراكب المحتوى مع شريط التصفح السفلي */
   padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   padding-top: env(safe-area-inset-top, 0px) !important;

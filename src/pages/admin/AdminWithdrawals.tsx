@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { adminRpc } from "@/lib/adminRpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -129,7 +130,8 @@ export default function AdminWithdrawals() {
   const actionMutation = useMutation({
     mutationFn: async ({ request, type, notes, ref }: { request: WithdrawalRequest; type: "approve" | "reject" | "complete"; notes: string; ref: string }) => {
       if (type === "complete") {
-        const { data: rpcResult, error: rpcError } = await supabase.rpc(
+        // ✅ SECURITY: استدعاء عبر proxy بدل .rpc() مباشرة
+        const { data: rpcResult, error: rpcError } = await adminRpc<{ success: boolean; error?: string }>(
           "admin_complete_withdrawal",
           {
             p_request_id: request.id,
@@ -169,7 +171,7 @@ export default function AdminWithdrawals() {
       toast({
         title: result.type === "approve" ? "✅ تمت الموافقة" :
                result.type === "reject" ? "❌ تم الرفض" : "✅ تم التحويل",
-        description: `طلب ${result.name} — ${Number(result.amount).toLocaleString()} د.ع`,
+        description: `طلب ${result.name} — ${Number(result.amount).toLocaleString('en-US')} د.ع`,
       });
       setSelectedRequest(null);
       setActionType(null);
@@ -265,7 +267,7 @@ export default function AdminWithdrawals() {
               <Clock className="w-6 h-6 mx-auto mb-1 text-yellow-600" />
               <p className="text-2xl font-bold">{stats.pending}</p>
               <p className="text-xs text-muted-foreground">قيد المراجعة</p>
-              <p className="text-sm font-medium text-yellow-700">{stats.totalPending.toLocaleString()} د.ع</p>
+              <p className="text-sm font-medium text-yellow-700">{stats.totalPending.toLocaleString('en-US')} د.ع</p>
             </CardContent>
           </Card>
           <Card className="border-blue-200 bg-blue-50/50">
@@ -345,7 +347,7 @@ export default function AdminWithdrawals() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 text-sm">
                         <div>
                           <span className="text-muted-foreground">المبلغ:</span>
-                          <p className="font-bold text-lg">{Number(req.amount).toLocaleString()} د.ع</p>
+                          <p className="font-bold text-lg">{Number(req.amount).toLocaleString('en-US')} د.ع</p>
                         </div>
                         <div>
                           <span className="text-muted-foreground">الطريقة:</span>
@@ -426,7 +428,7 @@ export default function AdminWithdrawals() {
                 </div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>المبلغ:</span>
-                  <span className="font-bold text-lg">{Number(selectedRequest.amount).toLocaleString()} د.ع</span>
+                  <span className="font-bold text-lg">{Number(selectedRequest.amount).toLocaleString('en-US')} د.ع</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>الطريقة:</span>
@@ -454,7 +456,7 @@ export default function AdminWithdrawals() {
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex gap-2">
                   <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
                   <p className="text-sm text-yellow-800">
-                    سيتم خصم {Number(selectedRequest.amount).toLocaleString()} د.ع من محفظة السائق وتسجيل عملية السحب.
+                    سيتم خصم {Number(selectedRequest.amount).toLocaleString('en-US')} د.ع من محفظة السائق وتسجيل عملية السحب.
                   </p>
                 </div>
               )}

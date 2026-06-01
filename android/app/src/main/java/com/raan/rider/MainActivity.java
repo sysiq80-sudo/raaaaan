@@ -1,6 +1,7 @@
 package com.raan.rider;
 
 import android.os.Bundle;
+import android.view.View;
 import android.webkit.WebView;
 import android.webkit.WebSettings;
 import com.getcapacitor.BridgeActivity;
@@ -16,9 +17,11 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * ✅ توحيد حجم النص والعرض بين المتصفح و APK
-     * Android WebView يأخذ حجم الخط من إعدادات النظام (إعدادات > العرض > حجم الخط)
-     * هذا يسبب تضخم الأزرار والنصوص. نُجبره على 100% دائماً.
+     * ✅ تحسينات أداء WebView لتجربة مثل التطبيق الأصلي
+     * - حجم النص ثابت 100% بغض النظر عن إعدادات النظام
+     * - تفعيل كاش DOM و AppCache لتسريع التحميل
+     * - تسريع الرسم بالـ GPU (Hardware Layer)
+     * - تسريع التمرير والتفاعل باللمس
      */
     @Override
     public void onStart() {
@@ -27,12 +30,23 @@ public class MainActivity extends BridgeActivity {
             WebView webView = getBridge().getWebView();
             if (webView != null) {
                 WebSettings settings = webView.getSettings();
-                // ✅ إجبار حجم النص على 100% بغض النظر عن إعدادات النظام
+
+                // ═══ حجم النص والتكبير ═══
                 settings.setTextZoom(100);
-                // ✅ منع المستخدم من تكبير/تصغير الصفحة بالقرص
                 settings.setSupportZoom(false);
                 settings.setBuiltInZoomControls(false);
                 settings.setDisplayZoomControls(false);
+
+                // ═══ الكاش والتخزين — تسريع التحميل ═══
+                settings.setDomStorageEnabled(true);
+                settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+                settings.setDatabaseEnabled(true);
+
+                // ═══ تحسينات الرسم والتمرير ═══
+                webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+                webView.setVerticalScrollBarEnabled(false);
+                webView.setHorizontalScrollBarEnabled(false);
             }
         } catch (Exception e) {
             // تجاهل — لا يؤثر على عمل التطبيق

@@ -234,11 +234,11 @@ const SimplifiedBookingPanel = ({
               className="bg-[#171f33] rounded-2xl p-4 space-y-3 border border-white/5 overflow-hidden"
             >
               <div className="flex justify-between text-sm">
-                <span className="text-white font-semibold">{fareBreakdown.base_fare.toLocaleString()} د.ع</span>
+                <span className="text-white font-semibold">{fareBreakdown.base_fare.toLocaleString('en-US')} د.ع</span>
                 <span className="text-white/50">سعر البداية</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-white font-semibold">{fareBreakdown.distance_fare.toLocaleString()} د.ع</span>
+                <span className="text-white font-semibold">{fareBreakdown.distance_fare.toLocaleString('en-US')} د.ع</span>
                 <span className="text-white/50">المسافة ({fareBreakdown.distance_km} كم)</span>
               </div>
               {fareBreakdown.vehicle_multiplier > 1 && (
@@ -248,7 +248,7 @@ const SimplifiedBookingPanel = ({
                 </div>
               )}
               <div className="flex justify-between text-sm">
-                <span className="text-white font-semibold">{fareBreakdown.service_fee.toLocaleString()} د.ع</span>
+                <span className="text-white font-semibold">{fareBreakdown.service_fee.toLocaleString('en-US')} د.ع</span>
                 <span className="text-white/50">رسوم الخدمة</span>
               </div>
             </motion.div>
@@ -282,7 +282,7 @@ const SimplifiedBookingPanel = ({
                   <span className="tracking-tight">تأكيد رحلة {getVehicleName(selectedVehicle)}</span>
                   {fareBreakdown && (
                     <span className="bg-[#003825]/20 px-2 py-0.5 rounded-lg text-sm mr-1">
-                      {fareBreakdown.total_fare.toLocaleString()} د.ع
+                      {fareBreakdown.total_fare.toLocaleString('en-US')} د.ع
                     </span>
                   )}
                 </>

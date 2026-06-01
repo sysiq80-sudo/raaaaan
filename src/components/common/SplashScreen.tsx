@@ -20,7 +20,7 @@ const SplashScreen = () => {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-[#0a1f1c] to-black overflow-hidden dir-rtl">
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background overflow-hidden dir-rtl">
       
       {/* 1. Artistic Background Elements */}
       <div className="absolute inset-0 opacity-10 pointer-events-none">
@@ -48,11 +48,11 @@ const SplashScreen = () => {
         {/* Simulating the green curve under the RAAN logo */}
         <div className="relative w-32 h-12 flex items-center justify-center">
           <svg width="120" height="40" viewBox="0 0 120 40" className="overflow-visible">
-            {/* Gray Background Path */}
+            {/* Gray Background Path — خفيف في النهاري */}
             <path
               d="M 10 10 Q 60 50 110 10"
               fill="transparent"
-              stroke="#374151" 
+              stroke="#e5e7eb" 
               strokeWidth="6"
               strokeLinecap="round"
             />
@@ -86,9 +86,7 @@ const SplashScreen = () => {
           transition={{ delay: 0.5, duration: 1 }}
           className="text-center space-y-2"
         >
-          <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-200 via-white to-emerald-200 tracking-wide font-kufi">
-            ران RAAN
-          </h2>
+          
           
           <div className="flex items-center justify-center gap-2 px-4 py-1 border border-white/10 rounded-full bg-white/5 backdrop-blur-sm">
             <span className="text-xs text-emerald-400 font-medium tracking-wider">

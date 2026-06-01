@@ -23,11 +23,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['"Graphik Arabic"', '"IBM Plex Sans Arabic"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        cairo: ['"Graphik Arabic"', '"IBM Plex Sans Arabic"', 'sans-serif'],
-        kufi: ['"Graphik Arabic"', '"IBM Plex Sans Arabic"', 'sans-serif'],
-        inter: ['Inter', 'sans-serif'],
-        'plus-jakarta': ['"Plus Jakarta Sans"', 'sans-serif'],
+        sans: ['"Cairo"', '"Tajawal"', '"Graphik Arabic"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        cairo: ['"Cairo"', '"Tajawal"', '"Graphik Arabic"', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",

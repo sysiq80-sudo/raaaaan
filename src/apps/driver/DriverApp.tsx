@@ -8,7 +8,7 @@ import { lazy, Suspense, useState, useEffect } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { RaanThemeProvider } from "@/contexts/RaanThemeContext";
@@ -19,6 +19,7 @@ import { isNativePlatform } from "@/lib/capacitorBridge";
 import { capacitorStorageSync } from "@/lib/capacitorStorage";
 import { useForceUpdate } from "@/hooks/useForceUpdate";
 import { ForceUpdateScreen } from "@/components/ForceUpdateScreen";
+import PageSkeleton from "@/components/layout/PageSkeleton";
 
 // صفحات أساسية
 import NotFound from "@/pages/NotFound";
@@ -60,6 +61,16 @@ const queryClient = new QueryClient({
 });
 
 const LoadingFallback = () => <SplashScreen />;
+
+const DriverProtectedLayout = () => (
+  <ErrorBoundary>
+    <ProtectedRoute requiredRole="driver" redirectTo="/driver/auth">
+      <DriverLayout>
+        <Outlet />
+      </DriverLayout>
+    </ProtectedRoute>
+  </ErrorBoundary>
+);
 
 const DriverApp = () => {
   return (
@@ -110,11 +121,18 @@ const DriverRoutes = () => {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    // ⚡ الموجة الأولى (800ms): أهم صفحتين يزورهما السائق يومياً
+    const t1 = setTimeout(() => {
       import("@/pages/driver/DriverRides");
+      import("@/pages/driver/DriverFinance");
+    }, 800);
+    // ⚡ الموجة الثانية (2500ms): بقية الصفحات — بعد استقرار الـ UI
+    const t2 = setTimeout(() => {
       import("@/pages/driver/DriverProfile");
-    }, 3000);
-    return () => clearTimeout(timer);
+      import("@/pages/driver/DriverStatistics");
+      import("@/pages/driver/DriverSettings");
+    }, 2500);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
   if (isLoading || !minSplashDone) return <LoadingFallback />;
@@ -165,21 +183,25 @@ const DriverRoutes = () => {
       <Route path="/contact" element={<HelpAndContact />} />
       <Route path="/payment/result" element={<ErrorBoundary><PaymentResult /></ErrorBoundary>} />
 
-      <Route path="/driver" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverHome /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
       <Route path="/driver/register" element={<ErrorBoundary><DriverRegister /></ErrorBoundary>} />
       <Route path="/driver/complete-registration" element={<ErrorBoundary><DriverCompleteRegistration /></ErrorBoundary>} />
       <Route path="/driver/application-status" element={<ErrorBoundary><DriverApplicationStatus /></ErrorBoundary>} />
-      <Route path="/driver/rides" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverRides /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/driver/finance" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverFinance /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/driver/wallet" element={<Navigate to="/driver/finance" replace />} />
-      <Route path="/driver/payments" element={<Navigate to="/driver/finance" replace />} />
-      <Route path="/driver/statistics" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverStatistics /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/driver/profile" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverProfile /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/driver/settings" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverSettings /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/driver/incentives" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverIncentives /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/driver/subscription" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverSubscription /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/driver/guide" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverGuide /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
-      <Route path="/driver/dashboard-v2" element={<ErrorBoundary><ProtectedRoute requiredRole="driver" redirectTo="/driver/auth"><DriverLayout><DriverDashboardMigrated /></DriverLayout></ProtectedRoute></ErrorBoundary>} />
+      <Route path="/driver" element={<DriverProtectedLayout />}>
+        {/* DriverHome محمّل مباشرة — أول شاشة يراها السائق، لا lazy */}
+        <Route index element={<DriverHome />} />
+        {/* صفحات lazy — كل منها Suspense خاص بها لمنع SplashScreen عند التنقل */}
+        <Route path="rides" element={<Suspense fallback={<PageSkeleton rows={4} />}><DriverRides /></Suspense>} />
+        <Route path="finance" element={<Suspense fallback={<PageSkeleton rows={3} />}><DriverFinance /></Suspense>} />
+        <Route path="wallet" element={<Navigate to="/driver/finance" replace />} />
+        <Route path="payments" element={<Navigate to="/driver/finance" replace />} />
+        <Route path="statistics" element={<Suspense fallback={<PageSkeleton rows={4} />}><DriverStatistics /></Suspense>} />
+        <Route path="profile" element={<Suspense fallback={<PageSkeleton rows={3} />}><DriverProfile /></Suspense>} />
+        <Route path="settings" element={<Suspense fallback={<PageSkeleton rows={3} />}><DriverSettings /></Suspense>} />
+        <Route path="incentives" element={<Suspense fallback={<PageSkeleton rows={2} />}><DriverIncentives /></Suspense>} />
+        <Route path="subscription" element={<Suspense fallback={<PageSkeleton rows={2} />}><DriverSubscription /></Suspense>} />
+        <Route path="guide" element={<Suspense fallback={<PageSkeleton rows={3} />}><DriverGuide /></Suspense>} />
+        <Route path="dashboard-v2" element={<Suspense fallback={<PageSkeleton rows={4} />}><DriverDashboardMigrated /></Suspense>} />
+      </Route>
 
       <Route path="*" element={<NotFound />} />
     </Routes>

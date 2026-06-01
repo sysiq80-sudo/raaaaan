@@ -8,12 +8,13 @@ import { useCallback, useEffect, useRef, useState, useMemo, type SetStateAction 
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { useToast } from "./use-toast";
 import { getMapStyle, watchThemeChanges } from "@/utils/mapStyles";
-import { getGeocoder, getOrCreateSharedMap } from "@/lib/googleMapService";
+import { getGeocoder, getOrCreateSharedMap, resetSharedMapCache } from "@/lib/googleMapService";
 import { saveLastKnownLocation, getLastKnownLocation } from "@/services/lastKnownLocationService";
 import { useMapContext } from "@/contexts/MapContext";
 import type { IGeocodingAdapter } from "@/lib/adapters";
 import { NominatimGeocodingAdapter } from "@/lib/adapters/NominatimGeocodingAdapter";
 import { logger } from "@/lib/logger";
+import { isUselessAddress as isAddressUseless } from "@/utils/buildHumanAddress";
 
 interface LocationType {
   lat: number;
@@ -43,11 +44,23 @@ export const useLocationPicker = (
   userLocation: { lat: number; lng: number } | null,
   reloadKey?: number,
   currentMode?: "pickup" | "dropoff" | "booking" | "stop",
+  userAccuracy?: number,
 ) => {
   const { toast } = useToast();
   const { googleMapsApiKey, isGoogleConfigured } = useMapContext();
 
-  const mapContainer = useRef<HTMLDivElement>(null);
+  const mapContainer = useRef<HTMLDivElement | null>(null);
+
+  // ✅ إصلاح الخريطة البيضاء: callback ref يُطلق إعادة تشغيل الـ effect عند mount الـ div
+  // useRef وحده لا يُطلق re-run عند تغيّر .current — هذا هو سبب البياض
+  const [containerMountKey, setContainerMountKey] = useState(0);
+  const mapContainerCallback = useCallback((node: HTMLDivElement | null) => {
+    mapContainer.current = node;
+    if (node) {
+      // div صار جاهزاً → أطلق إعادة تشغيل useEffect لتهيئة الخريطة
+      setContainerMountKey((k) => k + 1);
+    }
+  }, []);
   const map = useRef<google.maps.Map | null>(null);
   const googleListenersRef = useRef<google.maps.MapsEventListener[]>([]);
   const userMarkerRef = useRef<google.maps.Marker | null>(null);
@@ -66,7 +79,10 @@ export const useLocationPicker = (
   const geocodingAdaptersRef = useRef<IGeocodingAdapter[]>([]);
   const reverseGeocodeRef = useRef<((lat: number, lng: number) => Promise<void>) | null>(null);
 
-  const [isLoading, setIsLoading] = useState(true);
+  // ⚡ إذا Google Maps محمّل مسبقاً (من AIVoiceHome) نبدأ بـ false لتجنب شاشة التحميل
+  const [isLoading, setIsLoading] = useState(
+    !(typeof window !== 'undefined' && window.google?.maps?.Map)
+  );
   const [isDragging, setIsDragging] = useState(false);
   const [centerAddress, setCenterAddress] = useState<string>("");
   const [centerLat, setCenterLat] = useState<number | null>(null);
@@ -184,19 +200,37 @@ export const useLocationPicker = (
     }
   }, []);
 
-  // ✨ حساب المسافة بين نقطتين (بالمتر) لمنع تكرار geocoding
+  /**
+   * @see https://en.wikipedia.org/wiki/Haversine_formula
+   */
   const haversineDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
     const R = 6371000;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLng = ((lng2 - lng1) * Math.PI) / 180;
     const a =
       Math.sin(dLat / 2) ** 2 +
-      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat1 * Math.PI) / 180) *
         Math.cos((lat2 * Math.PI) / 180) *
         Math.sin(dLng / 2) ** 2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   };
 
+  // 💰 Cache محلي للعناوين — يمنع إعادة طلب Geocoding لنفس المنطقة
+  const GEOCODE_CACHE_KEY_PRECISION = 4; // ~11 متر دقة
+  const GEOCODE_CACHE_MAX = 100;
+  const geocodeCacheRef = useRef<Map<string, string>>(new Map());
+  const getGeocodeFromCache = (lat: number, lng: number): string | null => {
+    const key = `${lat.toFixed(GEOCODE_CACHE_KEY_PRECISION)},${lng.toFixed(GEOCODE_CACHE_KEY_PRECISION)}`;
+    return geocodeCacheRef.current.get(key) || null;
+  };
+  const setGeocodeCache = (lat: number, lng: number, address: string) => {
+    const key = `${lat.toFixed(GEOCODE_CACHE_KEY_PRECISION)},${lng.toFixed(GEOCODE_CACHE_KEY_PRECISION)}`;
+    if (geocodeCacheRef.current.size >= GEOCODE_CACHE_MAX) {
+      const firstKey = geocodeCacheRef.current.keys().next().value;
+      if (firstKey) geocodeCacheRef.current.delete(firstKey);
+    }
+    geocodeCacheRef.current.set(key, address);
+  };
   /**
    * 🏛️ Reverse Geocoding — POI-First with Robust Fallbacks
    *
@@ -207,15 +241,35 @@ export const useLocationPicker = (
    */
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
-      // ✨ تخطي إذا الإحداثيات لم تتغير (أقل من 5 متر)
+      // 💰 تخطي إذا الإحداثيات لم تتغير (أقل من 30 متر) — توفير ~80% من طلبات Geocoding
       const last = lastGeocodedLatLngRef.current;
       if (
         last &&
         !isAddressResolving(centerAddressRef.current) &&
-        haversineDistance(lat, lng, last.lat, last.lng) < 5
+        haversineDistance(lat, lng, last.lat, last.lng) < 30
       ) {
-        logger.debug("useLocationPicker", "Skipping reverseGeocode for same location");
+        logger.debug("useLocationPicker", "Skipping reverseGeocode — moved less than 30m");
         return;
+      }
+
+      // 💰 فحص الـ cache أولاً — إذا الموقع مخزّن مسبقاً لا نطلب من Google
+      const cachedAddress = getGeocodeFromCache(lat, lng);
+      // ✅ نرفض العنوان المخزن إذا كان رديئاً (قد حُفظ قبل تطبيق الفلاتر)
+      if (cachedAddress && !isAddressResolving(cachedAddress) && !isAddressUseless(cachedAddress)) {
+        logger.debug("useLocationPicker", "Using cached geocode result", { cachedAddress });
+        centerAddressRef.current = cachedAddress;
+        setCenterAddress(cachedAddress);
+        setCenterLat(lat);
+        setCenterLng(lng);
+        lastGeocodedLatLngRef.current = { lat, lng };
+        checkServiceArea(lat, lng);
+        return;
+      }
+
+      // إذا وصلنا هنا، إما لا يوجد cache أو كان العنوان رديئاً — نحذفه ونُعيد الطلب
+      if (cachedAddress && isAddressUseless(cachedAddress)) {
+        logger.debug("useLocationPicker", "Discarding useless cached address, re-geocoding", { cachedAddress });
+        // لا نحتاج حذفه يدوياً — setGeocodeCache سيستبدله عند النجاح
       }
 
       // ✨ لا نرمي آخر نقطة أثناء السحب: نخزنها لتعمل فور انتهاء الطلب الحالي.
@@ -232,10 +286,16 @@ export const useLocationPicker = (
 
       const hasNewerPendingGeocode = () => {
         const pending = pendingGeocodeRef.current;
-        return Boolean(pending && haversineDistance(lat, lng, pending.lat, pending.lng) >= 5);
+        return Boolean(pending && haversineDistance(lat, lng, pending.lat, pending.lng) >= 30);
       };
 
-      const commitResolvedLocation = (address: string, resolvedLat = lat, resolvedLng = lng) => {
+      const commitResolvedLocation = (
+        address: string,
+        resolvedLat = lat,
+        resolvedLng = lng,
+        // ✅ Fix 2: إذا مُرِرت نتيجة checkServiceArea مسبقاً لا نستدعيها مرة ثانية
+        preloadedServiceArea?: Awaited<ReturnType<typeof checkServiceArea>> | null
+      ) => {
         if (!address.trim() || hasNewerPendingGeocode()) return false;
 
         centerAddressRef.current = address;
@@ -243,11 +303,57 @@ export const useLocationPicker = (
         setCenterLat(resolvedLat);
         setCenterLng(resolvedLng);
         lastGeocodedLatLngRef.current = { lat: resolvedLat, lng: resolvedLng };
-        checkServiceArea(resolvedLat, resolvedLng);
+
+        if (preloadedServiceArea !== undefined) {
+          // ✅ نتيجة جاهزة — نحدّث الله state فقط بدون HTTP call
+          setServiceAreaStatus(preloadedServiceArea);
+        } else {
+          // مسار Adapter أو غير متوفر — نطلبه
+          checkServiceArea(resolvedLat, resolvedLng);
+        }
+
+        // 💰 حفظ في الـ cache — فقط إذا العنوان مفيد (لا نحفظ عناوين رديئة لتتكرر من الـ cache)
+        if (!isAddressUseless(address)) {
+          setGeocodeCache(resolvedLat, resolvedLng, address);
+        }
         return true;
       };
 
       try {
+        // ✅ checkServiceArea يبدأ مبكراً — يُشارَك بين مسار Adapter ومسار Google
+        // نفس الـ Promise لا يُنشئ طلبَي HTTP مهما أُعيد await عليه
+        const sharedServiceAreaPromise = checkServiceArea(lat, lng);
+
+        // 🏛️ تحميل landmarks مبكراً بالتوازي — مرة واحدة فقط طوال عمر التطبيق
+        const { loadLandmarksCache, findNearestLandmark } = await import('@/utils/landmarksCache');
+        const sharedLandmarksPromise = loadLandmarksCache(); // يُشارَك — لا يُنشئ HTTP ثانياً
+
+        // 🆓 Nominatim POI يبدأ مبكراً بالتوازي — مجاني ويُعيد أسماء المعالم
+        // يُشارَك بين مسار Adapter ومسار Google
+        const { extractNominatimComponents: _extractNom } = await import('@/utils/buildHumanAddress');
+        const sharedNominatimPOIPromise = (async (): Promise<string | null> => {
+          try {
+            const nominatimUrl = new URL('https://nominatim.openstreetmap.org/reverse');
+            nominatimUrl.searchParams.append('lat', lat.toString());
+            nominatimUrl.searchParams.append('lon', lng.toString());
+            nominatimUrl.searchParams.append('format', 'json');
+            nominatimUrl.searchParams.append('accept-language', 'ar');
+            nominatimUrl.searchParams.append('zoom', '18');
+            nominatimUrl.searchParams.append('addressdetails', '1');
+
+            const resp = await Promise.race([
+              fetch(nominatimUrl.toString()),
+              new Promise<never>((_, rej) => setTimeout(() => rej(new Error('Nominatim POI timeout')), 4000)),
+            ]);
+            const data = await resp.json();
+            if (!data?.address) return null;
+            const comps = _extractNom(data.name || null, data.address);
+            return comps.poiName;
+          } catch {
+            return null; // Nominatim فشل — لا بأس، Google سيحاول
+          }
+        })();
+
         // 1) محاولة عبر geocoding adapters (مجاني/أرخص) أولاً
         const adapters = geocodingAdaptersRef.current;
         for (const adapter of adapters) {
@@ -257,7 +363,9 @@ export const useLocationPicker = (
               continue;
             }
 
-            const committed = commitResolvedLocation(adapterAddress);
+            // ✅ نمرر نتيجة الـ serviceArea الجاهزة — await على نفس الـ Promise (لا HTTP ثانٍ)
+            const preloadedArea = await sharedServiceAreaPromise;
+            const committed = commitResolvedLocation(adapterAddress, lat, lng, preloadedArea);
 
             // إذا Google غير متوفر، نكتفي بعنوان الـ adapter
             if (!window.google?.maps) {
@@ -336,12 +444,17 @@ export const useLocationPicker = (
         });
 
         // 🚫 SearchNearby معطّل — تكلفة $32/1000 طلب
-        // POI يُستخرج من نتائج Geocoding بدلاً ($5/1000 طلب)
         const nearbySearch50m = Promise.resolve({ places: [] as any[] });
 
-        const [geocodeResult, nearbyResult50] = await Promise.all([
+        // ✅ sharedServiceAreaPromise بدأ قبل الـ adapter — await هنا لا يُنشئ HTTP جديد
+        // ✅ sharedNominatimPOIPromise بدأ مبكراً — await هنا لا يُنشئ HTTP جديد
+        // ✅ sharedLandmarksPromise بدأ مبكراً — يضمن أن الكاش جاهز قبل findNearestLandmark
+        const [geocodeResult, nearbyResult50, serviceAreaResult, nominatimPOI] = await Promise.all([
           geocodePromise,
           nearbySearch50m,
+          sharedServiceAreaPromise,
+          sharedNominatimPOIPromise,
+          sharedLandmarksPromise, // 5th — يضمن اكتمال الكاش قبل Step 3
         ]);
 
         // ═══════════════════ Step 2: مسح جميع نتائج Geocoding ═══════════════════
@@ -358,18 +471,33 @@ export const useLocationPicker = (
           const get = (type: string) =>
             comps.find((c) => c.types.includes(type))?.long_name;
 
-          // POI من نتائج Geocoding
+          // POI من نتائج Geocoding — استخراج من formatted_address
+          // (Geocoder لا يحتوي .name — هذه خاصية Places API فقط)
+          // 🔑 إذا النتيجة تحمل اسم منطقة/حي/مؤسسة كأسبقية أعلى من الطريق
           if (
             !geoPOIName &&
-            (result.types.includes("point_of_interest") ||
+            (
+              result.types.includes("point_of_interest") ||
               result.types.includes("establishment") ||
-              result.types.includes("premise")) &&
-            result.name &&
+              result.types.includes("premise") ||
+              result.types.includes("neighborhood") ||
+              result.types.includes("sublocality") ||
+              result.types.includes("sublocality_level_1") ||
+              result.types.includes("administrative_area_level_4") ||
+              result.types.includes("administrative_area_level_3")
+            ) &&
             !result.types.includes("country") &&
             !result.types.includes("administrative_area_level_1") &&
-            !result.types.includes("locality")
+            !result.types.includes("locality") &&
+            !result.types.includes("route") &&
+            result.formatted_address
           ) {
-            geoPOIName = result.name;
+            const faParts = result.formatted_address.split(/[،,]/);
+            const candidate = faParts[0]?.trim();
+            const plusCodeRe = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
+            if (candidate && !plusCodeRe.test(candidate) && candidate.length > 2) {
+              geoPOIName = candidate;
+            }
           }
 
           if (!bestStreet) {
@@ -390,6 +518,7 @@ export const useLocationPicker = (
             bestCity =
               get("locality") ||
               get("administrative_area_level_2") ||
+              get("administrative_area_level_1") ||  // محافظة كاربيل وكركوك
               "";
           }
         }
@@ -402,78 +531,84 @@ export const useLocationPicker = (
           totalResults: geoResults.length,
         });
 
-        // ═══════════════════ Step 3: POI — Places API → 150م → Geocoding ═══════════════════
+        // ═══════════════════ Step 3: POI — Landmarks → Places API → Geocoding → Nominatim ═══════════════════
         let poiName = pickBestPOI(nearbyResult50?.places || []);
 
-        // 🚫 SearchNearby 150م معطّل — تكلفة عالية
-        // POI يُستخرج من Geocoding results بدلاً (Step 2 أعلاه)
+        // 🏛️ أولوية 1: Landmarks من قاعدة البيانات (أسرع + أدق + مجاني)
+        const landmarkPOI = findNearestLandmark(lat, lng, 200);
+        if (!poiName && landmarkPOI) {
+          poiName = landmarkPOI;
+          logger.debug("useLocationPicker", "POI from local landmarks DB", { poiName });
+        }
 
-        // POI من نتائج Geocoding
+        // أولوية 2: Google Geocoding POI
         if (!poiName && geoPOIName) {
           poiName = geoPOIName;
           logger.debug("useLocationPicker", "POI from geocoding", { poiName });
+        }
+
+        // 🆓 أولوية 3: Nominatim (مجاني) — يُعيد أسماء مبانٍ/جامعات/مساجد من OpenStreetMap
+        if (!poiName && nominatimPOI) {
+          poiName = nominatimPOI;
+          logger.debug("useLocationPicker", "POI from Nominatim", { poiName });
         }
 
         logger.debug("useLocationPicker", "Best POI selected", {
           poiName: poiName || null,
         });
 
-        // ═══════════════════ Step 4: بناء العنوان ═══════════════════
-        let finalAddress = "";
 
-        if (poiName) {
-          // ✅ الأولوية 1: معلم + سياق
-          const context = bestStreet || bestNeighborhood || bestCity;
-          if (context && context !== poiName) {
-            finalAddress = `${poiName}، ${context}`;
-          } else {
-            finalAddress = poiName;
-          }
-          logger.debug("useLocationPicker", "POI address selected", { finalAddress });
+        // ═══════════════════ Step 4: بناء العنوان — buildHumanAddress() المركزية ═══════════════════
+        // الأولوية: POI > حي/منطقة > شارع حقيقي > منطقة الخدمة (DB) > مدينة > formatted > إحداثيات
+        const { buildHumanAddress: _buildAddr } = await import('@/utils/buildHumanAddress');
 
-        } else if (bestStreet) {
-          // ✅ الأولوية 2: شارع + حي/مدينة
-          const parts = [bestStreet, bestNeighborhood, bestCity].filter(Boolean);
-          const unique = parts.filter((p, i) => parts.indexOf(p) === i);
-          finalAddress = unique.slice(0, 3).join("، ");
-          logger.debug("useLocationPicker", "Street address selected", { finalAddress });
+        // ✅ Fix 2: serviceRegionName من نتيجة الفحص المتوازي (إحداثيات الدبوس الحالية تحديداً)
+        const serviceRegionName = (serviceAreaResult as any)?.region?.name_ar || null;
 
-        } else if (bestNeighborhood) {
-          // ✅ الأولوية 3: حي + مدينة
-          finalAddress =
-            bestCity && bestCity !== bestNeighborhood
-              ? `${bestNeighborhood}، ${bestCity}`
-              : bestNeighborhood;
-          logger.debug("useLocationPicker", "Neighborhood address selected", { finalAddress });
+        // اختر أفضل formatted_address من نتيجة ذات مستوى مناسب
+        // geoResults[0] قد يكون country أو route — نُفضّل locality/neighborhood
+        const bestFormattedAddr = (
+          geoResults.find(r =>
+            r.types.includes('neighborhood') ||
+            r.types.includes('sublocality') ||
+            r.types.includes('sublocality_level_1') ||
+            r.types.includes('administrative_area_level_3') ||
+            r.types.includes('administrative_area_level_4')
+          ) ||
+          geoResults.find(r =>
+            r.types.includes('locality') ||
+            r.types.includes('administrative_area_level_2')
+          ) ||
+          geoResults[0]
+        )?.formatted_address || null;
 
-        } else if (geoResults[0]?.formatted_address) {
-          // ✅ الأولوية 4: formatted_address — تنظيف خفيف فقط (Plus Code + "العراق")
-          const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
-          const faParts = geoResults[0].formatted_address
-            .split(/[،,]/)
-            .map((p: string) => p.trim())
-            .filter(
-              (p: string) =>
-                p.length > 0 &&
-                !plusCodeRegex.test(p) &&
-                p !== "العراق" &&
-                p !== "Iraq",
-            );
+        const finalAddress = _buildAddr({
+          poiName:           poiName,
+          neighborhood:      bestNeighborhood,
+          street:            bestStreet,
+          city:              bestCity,
+          serviceRegionName: serviceRegionName,
+          lat,
+          lng,
+          formattedAddress:  bestFormattedAddr,
+        });
 
-          finalAddress =
-            faParts.slice(0, 3).join("، ") ||
-            bestCity ||
-            `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-          logger.debug("useLocationPicker", "Formatted address selected", { finalAddress });
+        logger.debug("useLocationPicker", "buildHumanAddress INPUTS", {
+          city: bestCity,
+          neighborhood: bestNeighborhood,
+          street: bestStreet,
+          poi: poiName,
+          serviceRegionName,
+          formattedAddress: bestFormattedAddr,
+        });
 
-        } else {
-          finalAddress = bestCity || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-          logger.debug("useLocationPicker", "Fallback address selected", { finalAddress });
-        }
+        logger.debug("useLocationPicker", "buildHumanAddress result", {
+          finalAddress, poiName, bestNeighborhood, bestStreet, bestCity, serviceRegionName,
+        });
 
-        // لا نحرّك الخريطة تلقائياً إلى نتيجة Geocoder. الدبوس الثابت يجب أن يبقى مربوطاً
-        // بالمركز المرئي الحقيقي، أما Geocoder فيُستخدم لتسمية الطريق/المعلم فقط.
-        commitResolvedLocation(finalAddress);
+        // ✅ Fix 2: تمرير serviceAreaResult الجاهز — يمنع HTTP call مكرر
+        commitResolvedLocation(finalAddress, lat, lng, serviceAreaResult);
+
 
         } catch (googleError: any) {
           // Google enrichment failed — keep the adapter (Nominatim) result if we have one
@@ -645,35 +780,14 @@ export const useLocationPicker = (
       map.current = null;
     }
 
-    // Prevent duplicate initialization
-    if (map.current) {
-      logger.debug("useLocationPicker", "Map already initialized");
-      return;
-    }
+    // ⚡ Helper: إنشاء الخريطة فعلياً
+    const isGoogleReady = () =>
+      typeof window !== "undefined" &&
+      window.google?.maps &&
+      window.google.maps.MapTypeId &&
+      window.google.maps.Map;
 
-    // Wait for Google Maps API to be available
-    let checkAttempts = 0;
-    const maxAttempts = 50; // 5 seconds maximum (50 * 100ms)
-
-    const checkGoogleMaps = setInterval(() => {
-      checkAttempts++;
-
-      // ⚡ Timeout بعد 5 ثوانٍ
-      if (checkAttempts > maxAttempts) {
-        clearInterval(checkGoogleMaps);
-        logger.error("useLocationPicker", "Google Maps API failed to load after timeout");
-        initOsmFallbackMap("google_init_timeout");
-        return;
-      }
-
-      // Check for complete Google Maps API with all required properties
-      if (
-        typeof window !== "undefined" &&
-        window.google?.maps &&
-        window.google.maps.MapTypeId &&
-        window.google.maps.Map
-      ) {
-        clearInterval(checkGoogleMaps);
+    const createMap = () => {
 
         if (map.current) return; // Already initialized
         if (!mapContainer.current) return;
@@ -689,14 +803,14 @@ export const useLocationPicker = (
         try {
           logger.debug("useLocationPicker", "Creating Google Maps instance");
 
-          // 🌙 استخدام أنماط الخريطة الذكية (تتكيف مع Dark/Light تلقائياً)
-          const mapStyle = getMapStyle();
+          // ✅ مسح الـ cache لضمان إنشاء خريطة جديدة دائماً
+          resetSharedMapCache();
 
           map.current = getOrCreateSharedMap(mapContainer.current, {
             center: initialCenter,
             zoom: 15,
             mapTypeId: window.google.maps.MapTypeId.ROADMAP,
-            styles: mapStyle, // 🎨 نمط ذكي يتكيف مع الثيم
+            // ✅ بدون styles مخصصة — المظهر الافتراضي لـ Google يُظهر أسماء الأماكن
             disableDefaultUI: true,
             zoomControl: false,
             mapTypeControl: false,
@@ -704,12 +818,12 @@ export const useLocationPicker = (
             streetViewControl: false,
             rotateControl: false,
             fullscreenControl: false,
-            clickableIcons: true, // ✨ Enable clicking on POI markers
-            gestureHandling: "greedy", // ✨ اللمس الفوري - يعمل بدون مفتاح modifier
-            draggable: true, // ✨ تفعيل السحب
+            clickableIcons: true,
+            gestureHandling: "greedy",
+            draggable: true,
           });
 
-          logger.debug("useLocationPicker", "Map loaded with adaptive theme styles");
+          logger.debug("useLocationPicker", "Map initialized with default styles");
           setMapProvider("google");
           setIsLoading(false);
 
@@ -732,7 +846,13 @@ export const useLocationPicker = (
           googleListenersRef.current.forEach((l) => window.google.maps.event.removeListener(l));
           googleListenersRef.current = [];
 
-          let idleGeocodeTimer: ReturnType<typeof window.setTimeout> | null = null;
+          // ✅ إصلاح Double-Geocoding:
+          // dragend يستدعي reverseGeocode فوراً ويُظهر الاسم الصحيح.
+          // idle يأتي بعده بـ ~800ms ويُعيد الكتابة بنتيجة مختلفة.
+          // الحل: بعد dragend نمنع أول idle تلقائياً.
+          let blockIdleAfterDrag = false;
+
+          let idleGeocodeTimer: number | null = null;
           const requestCenterReverseGeocode = (source: string) => {
             if (skipNextReverseGeocodeRef.current) {
               logger.debug("useLocationPicker", `Skipping reverseGeocode after manual address set (${source})`);
@@ -761,6 +881,7 @@ export const useLocationPicker = (
             map.current.addListener("dragend", () => {
               setIsDragging(false);
               isDraggingRef.current = false; // ✨ Ref sync
+              blockIdleAfterDrag = true; // ✅ الطلب الأول من dragend سيكون كافياً
               requestCenterReverseGeocode("dragend");
             })
           );
@@ -768,11 +889,18 @@ export const useLocationPicker = (
           googleListenersRef.current.push(
             map.current.addListener("idle", () => {
               if (currentMode === "booking" || isDraggingRef.current) return;
+
+              // ✅ منع idle من إعادة كتابة نتيجة dragend الجيدة
+              if (blockIdleAfterDrag) {
+                blockIdleAfterDrag = false;
+                return;
+              }
+
               if (idleGeocodeTimer) window.clearTimeout(idleGeocodeTimer);
 
               idleGeocodeTimer = window.setTimeout(() => {
                 requestCenterReverseGeocode("idle");
-              }, 350);
+              }, 800);
             })
           );
 
@@ -823,13 +951,39 @@ export const useLocationPicker = (
           initOsmFallbackMap("google_map_init_exception");
           return;
         }
+    };
+
+    // ⚡ Fast path: إذا Google Maps محمّل مسبقاً (من AIVoiceHome) → إنشاء فوري بدون انتظار
+    if (isGoogleReady()) {
+      logger.debug("useLocationPicker", "Google Maps already loaded — instant init");
+      createMap();
+      return;
+    }
+
+    // Slow path: انتظار تحميل SDK
+    let checkAttempts = 0;
+    const maxAttempts = 50; // 5 seconds maximum (50 * 100ms)
+
+    const checkGoogleMaps = setInterval(() => {
+      checkAttempts++;
+
+      if (checkAttempts > maxAttempts) {
+        clearInterval(checkGoogleMaps);
+        logger.error("useLocationPicker", "Google Maps API failed to load after timeout");
+        initOsmFallbackMap("google_init_timeout");
+        return;
+      }
+
+      if (isGoogleReady()) {
+        clearInterval(checkGoogleMaps);
+        createMap();
       }
     }, 100); // Check every 100ms if Google Maps is available
 
     return () => clearInterval(checkGoogleMaps);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleMapsApiKey, initOsmFallbackMap, isGoogleConfigured, reloadKey]); // Re-run when API key or reload key changes
+  }, [googleMapsApiKey, initOsmFallbackMap, isGoogleConfigured, reloadKey, containerMountKey]); // Re-run when API key, reload key, OR container div مounts/remounts
 
   // ✅ إصلاح الخريطة البيضاء: trigger resize بعد كل تغيير في reloadKey
   useEffect(() => {
@@ -934,9 +1088,10 @@ export const useLocationPicker = (
 
         if (osmAccuracyCircleRef.current) {
           osmAccuracyCircleRef.current.setLatLng([userLocation.lat, userLocation.lng]);
+          osmAccuracyCircleRef.current.setRadius(Math.max(10, Math.min(userAccuracy ?? 50, 200)));
         } else {
           osmAccuracyCircleRef.current = L.circle([userLocation.lat, userLocation.lng], {
-            radius: 25,
+            radius: Math.max(10, Math.min(userAccuracy ?? 50, 200)),
             color: "#5bdda6",
             weight: 1,
             fillColor: "#5bdda6",
@@ -964,31 +1119,60 @@ export const useLocationPicker = (
       logger.debug("useLocationPicker", "Map panned to user location", userLocation);
     }
 
-    // 🟢 نقطة خضراء مشعة للموقع الفعلي بدلاً من الصورة
+    // 🟢 نقطة خضراء ديناميكية مع نبض مشع — تمثل الموقع الجغرافي الحقيقي (مثل النقطة الزرقاء في جوجل ماب)
+    // إضافة CSS للنبض إلى الصفحة مرة واحدة فقط
+    if (!document.getElementById('raan-user-dot-pulse-style')) {
+      const style = document.createElement('style');
+      style.id = 'raan-user-dot-pulse-style';
+      style.textContent = `
+        @keyframes raan-pulse-ring {
+          0%   { r: 8;  opacity: 0.6; }
+          70%  { r: 15; opacity: 0; }
+          100% { r: 15; opacity: 0; }
+        }
+        .raan-pulse-ring {
+          animation: raan-pulse-ring 2s ease-out infinite;
+          transform-origin: center;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
     const glowingGreenDotSvg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+      <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
         <defs>
           <radialGradient id="userGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#10b981" stop-opacity="1" />
-            <stop offset="35%" stop-color="#10b981" stop-opacity="0.6" />
+            <stop offset="0%" stop-color="#10b981" stop-opacity="0.35" />
             <stop offset="100%" stop-color="#10b981" stop-opacity="0" />
           </radialGradient>
+          <style>
+            @keyframes pulse-ring {
+              0%   { r: 8;  opacity: 0.6; }
+              70%  { r: 18; opacity: 0; }
+              100% { r: 18; opacity: 0; }
+            }
+            .pulse { animation: pulse-ring 2s ease-out infinite; }
+          </style>
         </defs>
-        <!-- Glowing outer aura -->
-        <circle cx="16" cy="16" r="14" fill="url(#userGlow)" />
-        <!-- Small green core with sharp white border -->
-        <circle cx="16" cy="16" r="6.5" fill="#10b981" stroke="#ffffff" stroke-width="2.5" />
+        <!-- Soft ambient glow -->
+        <circle cx="22" cy="22" r="20" fill="url(#userGlow)" />
+        <!-- Pulsing ring — expanding outward -->
+        <circle class="pulse" cx="22" cy="22" r="8" fill="none" stroke="#10b981" stroke-width="2" opacity="0.6" />
+        <!-- Core dot — solid green with crisp white border -->
+        <circle cx="22" cy="22" r="7" fill="#10b981" stroke="#ffffff" stroke-width="2.5" />
+        <!-- Specular highlight for 3D look -->
+        <circle cx="20" cy="20" r="2.5" fill="white" opacity="0.3" />
       </svg>
     `;
 
     const userPinMarkerIcon = {
       url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(glowingGreenDotSvg),
-      scaledSize: new google.maps.Size(32, 32),
-      anchor: new google.maps.Point(16, 16),
+      scaledSize: new google.maps.Size(44, 44),
+      anchor: new google.maps.Point(22, 22),
     };
 
     if (userMarkerRef.current) {
-      // تحديث الموضع والخريطة
+      // تحديث الموضع والخريطة — التحريك السلس يتم تلقائياً من Google Maps
       userMarkerRef.current.setPosition({ lat: userLocation.lat, lng: userLocation.lng });
       userMarkerRef.current.setIcon(userPinMarkerIcon);
       userMarkerRef.current.setMap(map.current);
@@ -1001,31 +1185,34 @@ export const useLocationPicker = (
         title: 'موقعي الحالي',
         zIndex: 5,
         clickable: false,
-        optimized: false,
+        optimized: false, // مطلوب لتشغيل CSS animations داخل الـ SVG
       });
     }
 
-    // 🟢 دائرة دقة الموقع (نصف قطر صغير شفاف)
+    // 🟢 دائرة دقة الموقع — نصف القطر يعكس دقة GPS الحقيقية
+    const accuracyRadius = Math.max(10, Math.min(userAccuracy ?? 50, 200)); // clamp 10–200 متر
     if (userAccuracyCircleRef.current) {
       userAccuracyCircleRef.current.setCenter({ lat: userLocation.lat, lng: userLocation.lng });
+      userAccuracyCircleRef.current.setRadius(accuracyRadius);
       userAccuracyCircleRef.current.setMap(map.current);
     } else {
       userAccuracyCircleRef.current = new google.maps.Circle({
         strokeColor: '#5bdda6',
-        strokeOpacity: 0.3,
+        strokeOpacity: 0.25,
         strokeWeight: 1,
         fillColor: '#5bdda6',
-        fillOpacity: 0.08,
+        fillOpacity: 0.06,
         map: map.current,
         center: { lat: userLocation.lat, lng: userLocation.lng },
-        radius: 25, // 25 متر
+        radius: accuracyRadius,
         clickable: false,
         zIndex: 4,
       });
     }
-  }, [userLocation, isLoading, mapProvider]);
+  }, [userLocation, userAccuracy, isLoading, mapProvider]);
 
   // ✨ دالة لتعيين العنوان يدوياً (من البحث) مع منع reverseGeocode التلقائي
+  const skipResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setManualAddress = useCallback((address: string, coords?: { lat: number; lng: number }) => {
     logger.debug("useLocationPicker", "Setting manual address", { address, coords });
     centerAddressRef.current = address;
@@ -1037,9 +1224,11 @@ export const useLocationPicker = (
     }
     skipNextReverseGeocodeRef.current = true;
 
-    // إعادة الـ flag بعد 2 ثانية لتجنب منع reverseGeocode المستقبلي
-    setTimeout(() => {
+    // إعادة الـ flag بعد 2 ثانية — مع إلغاء أي timer سابق لتجنب memory leak
+    if (skipResetTimerRef.current) clearTimeout(skipResetTimerRef.current);
+    skipResetTimerRef.current = setTimeout(() => {
       skipNextReverseGeocodeRef.current = false;
+      skipResetTimerRef.current = null;
       logger.debug("useLocationPicker", "Skip flag reset; reverseGeocode re-enabled");
     }, 2000);
   }, []);
@@ -1048,7 +1237,9 @@ export const useLocationPicker = (
   useEffect(() => {
     return () => {
       // Remove all Google Maps listeners to prevent callback leaks
-      googleListenersRef.current.forEach((l) => window.google.maps.event.removeListener(l));
+      if (window.google?.maps?.event) {
+        googleListenersRef.current.forEach((l) => window.google.maps.event.removeListener(l));
+      }
       googleListenersRef.current = [];
 
       if (osmMapRef.current) {
@@ -1072,7 +1263,8 @@ export const useLocationPicker = (
   }, []);
 
   return {
-    mapContainer,
+    mapContainer: mapContainerCallback,
+    mapContainerRef: mapContainer,  // للوصول إلى .current عند الحاجة
     map,
     isLoading,
     isDragging,

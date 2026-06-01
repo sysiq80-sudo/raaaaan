@@ -39,6 +39,9 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8081,
+    hmr: {
+      overlay: false, // منع ظهور overlay الأخطاء على شاشة الجوال
+    },
   },
   optimizeDeps: {
     include: ["react-day-picker"],

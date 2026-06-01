@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
+import { arabicIncludes } from "@/utils/normalizeArabic";
 import { supabase } from "@/integrations/supabase/client";
+import { adminRpc } from "@/lib/adminRpc";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -287,7 +289,8 @@ const AdminLandmarks = () => {
       return;
     }
 
-    const { data: rpcResult, error } = await supabase.rpc(
+    // ✅ SECURITY: استدعاء عبر proxy بدل .rpc() مباشرة
+    const { data: rpcResult, error } = await adminRpc<{ success: boolean; deleted?: number; error?: string }>(
       "admin_delete_landmarks_by_governorate",
       { governorate_id_param: governorateFilter }
     );
@@ -309,11 +312,12 @@ const AdminLandmarks = () => {
     }
   };
 
-  // Filter landmarks
+  // Filter landmarks — البحث مرن (أ=ا، ة=ه، ى=ي، تجاهل التشكيل)
   const filteredLandmarks = landmarks.filter((landmark) => {
     const matchesSearch =
-      landmark.name_ar.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      landmark.name_en?.toLowerCase().includes(searchQuery.toLowerCase());
+      !searchQuery ||
+      arabicIncludes(landmark.name_ar, searchQuery) ||
+      (landmark.name_en?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
 
     const matchesCategory =
       categoryFilter === "all" || landmark.category === categoryFilter;

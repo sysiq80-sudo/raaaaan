@@ -83,7 +83,9 @@ export const SERVICE_URLS = {
   GOOGLE_DIRECTIONS_API: 'https://maps.googleapis.com/maps/api/directions/json',
   GOOGLE_GEOCODING_API: 'https://maps.googleapis.com/maps/api/geocode/json',
 
-  // Static tile layers
+  // Tile layers — CartoDB Voyager (أجمل وأنعم من OSM الافتراضي)
+  CARTODB_VOYAGER: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  CARTODB_DARK: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
   OPENSTREETMAP_TILES: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   OPENSTREETMAP_DE_TILES: 'https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png',
   MAPBOX_STATIC: readEnv('VITE_MAPBOX_STATIC_URL', 'REACT_APP_MAPBOX_STATIC_URL') || 'https://api.mapbox.com/styles/v1/mapbox/streets-v11/static',
@@ -132,8 +134,8 @@ export const ADAPTER_CONFIG: AdapterFactoryConfig = {
   },
 
   routing: {
-    primary: 'google' as RoutingProvider,
-    fallback: ['osrm', 'haversine'] as RoutingProvider[],
+    primary: 'osrm' as RoutingProvider,
+    fallback: ['haversine'] as RoutingProvider[],
     timeout: 8000, // 8 seconds
   },
 

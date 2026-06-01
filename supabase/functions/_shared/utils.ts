@@ -26,7 +26,12 @@ function getAllowedOrigin(requestOrigin?: string | null): string {
   }
 
   const envOrigins = Deno.env.get("ALLOWED_ORIGINS");
-  if (!envOrigins) return "*";
+  if (!envOrigins) {
+    // ⚠️ SECURITY WARNING: ALLOWED_ORIGINS غير مضبوط — كل الأصول مسموحة
+    // يجب ضبطه في Supabase Dashboard → Edge Functions → Secrets
+    console.warn("⚠️ ALLOWED_ORIGINS not set — CORS is open to all origins (*)");
+    return "*";
+  }
   const allowed = envOrigins.split(",").map((o) => o.trim());
   if (requestOrigin && allowed.includes(requestOrigin)) return requestOrigin;
   return allowed[0];
@@ -39,6 +44,7 @@ export function getCorsHeaders(request?: Request): Record<string, string> {
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
     "Access-Control-Allow-Headers":
       "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
   };
 }
 
@@ -48,6 +54,7 @@ export const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+  "Vary": "Origin",
 };
 
 // ════════════════════════════════════════════════════════════
@@ -165,7 +172,8 @@ export async function getAuthUser(req: Request): Promise<{ id: string; email?: s
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseAnonKey) return null;
 
     const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -184,17 +192,43 @@ export async function getAuthUser(req: Request): Promise<{ id: string; email?: s
 // Response Helpers — مساعدات إنشاء الاستجابات
 // ════════════════════════════════════════════════════════════
 
-export function jsonResponse(data: unknown, status = 200): Response {
+export function jsonResponse(
+  data: unknown,
+  status = 200,
+  headers: Record<string, string> = corsHeaders,
+): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...headers, "Content-Type": "application/json" },
   });
 }
 
-export function errorResponse(error: string, status = 400): Response {
-  return jsonResponse({ error }, status);
+export function errorResponse(
+  error: string,
+  status = 400,
+  headers: Record<string, string> = corsHeaders,
+): Response {
+  return jsonResponse({ error }, status, headers);
 }
 
-export function corsPreflightResponse(): Response {
-  return new Response(null, { headers: corsHeaders });
+export function corsPreflightResponse(headers: Record<string, string> = corsHeaders): Response {
+  return new Response(null, { headers });
+}
+
+export function isInternalRequest(req: Request): boolean {
+  const expectedSecret = Deno.env.get("INTERNAL_EDGE_SECRET");
+  const providedSecret = req.headers.get("x-internal-secret");
+  return !!expectedSecret && !!providedSecret && providedSecret === expectedSecret;
+}
+
+export function requireInternalSecret(
+  req: Request,
+  headers: Record<string, string> = getCorsHeaders(req),
+): Response | null {
+  if (isInternalRequest(req)) return null;
+  return jsonResponse(
+    { success: false, error: "FORBIDDEN_INTERNAL_ONLY" },
+    403,
+    headers,
+  );
 }

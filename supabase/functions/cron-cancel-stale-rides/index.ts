@@ -7,6 +7,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
+import { getCorsHeaders, requireInternalSecret } from "../_shared/utils.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -124,7 +125,15 @@ async function sendTelegramMessage(chatId: string, text: string) {
 // ════════════════════════════════════════
 // Handler الرئيسي
 // ════════════════════════════════════════
-serve(async (_req) => {
+serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const internalDenied = requireInternalSecret(req, corsHeaders);
+  if (internalDenied) return internalDenied;
+
   await loadDynamicConfig();
   const startTime = Date.now();
   console.log("[cron] ===== STALE RIDES CHECK =====");
@@ -139,7 +148,7 @@ serve(async (_req) => {
       console.log("[cron] Auto-cancel is DISABLED in rider_wait_settings. Skipping.");
       return new Response(JSON.stringify({ cancelled: 0, reason: "auto_cancel_disabled", elapsed_ms: Date.now() - startTime }), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -161,7 +170,7 @@ serve(async (_req) => {
       console.error("[cron] Error fetching stale rides:", fetchError);
       return new Response(JSON.stringify({ error: fetchError.message }), {
         status: 500,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -169,7 +178,7 @@ serve(async (_req) => {
       console.log("[cron] No stale rides found.");
       return new Response(JSON.stringify({ cancelled: 0, elapsed_ms: Date.now() - startTime }), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -269,7 +278,7 @@ serve(async (_req) => {
 
     return new Response(JSON.stringify(summary), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error: unknown) {
@@ -277,7 +286,7 @@ serve(async (_req) => {
     console.error("[cron] CRITICAL ERROR:", errMsg);
     return new Response(JSON.stringify({ error: errMsg }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

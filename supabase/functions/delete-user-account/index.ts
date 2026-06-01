@@ -3,8 +3,9 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -86,17 +87,27 @@ serve(async (req) => {
 
     } else if (userType === "rider") {
       // حذف بيانات الراكب
+      const { data: riderProfile } = await supabaseClient
+        .from("profiles")
+        .select("id")
+        .eq("user_id", userId)
+        .maybeSingle();
 
       // صورة Avatar
-      const { data: avatarFiles } = await supabaseClient.storage
-        .from("avatars")
-        .list(`riders/${userId}`);
-      
-      if (avatarFiles && avatarFiles.length > 0) {
-        const avatarPaths = avatarFiles.map(file => `riders/${userId}/${file.name}`);
-        await supabaseClient.storage
+      const riderAvatarFolders = Array.from(
+        new Set([userId, riderProfile?.id].filter((folder): folder is string => Boolean(folder)))
+      );
+      for (const folder of riderAvatarFolders) {
+        const { data: avatarFiles } = await supabaseClient.storage
           .from("avatars")
-          .remove(avatarPaths);
+          .list(`riders/${folder}`);
+        
+        if (avatarFiles && avatarFiles.length > 0) {
+          const avatarPaths = avatarFiles.map(file => `riders/${folder}/${file.name}`);
+          await supabaseClient.storage
+            .from("avatars")
+            .remove(avatarPaths);
+        }
       }
 
       // حذف الأماكن المحفوظة
@@ -121,7 +132,7 @@ serve(async (req) => {
     await supabaseClient.from("ride_share_links").delete().eq("created_by", userId);
     
     // حذف الملف الشخصي
-    await supabaseClient.from("profiles").delete().eq("id", userId);
+    await supabaseClient.from("profiles").delete().eq("user_id", userId);
 
     // 3. تسجيل الحذف في سجل النظام
     await supabaseClient.from("account_deletions").insert({

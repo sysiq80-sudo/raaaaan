@@ -3,6 +3,7 @@
  * يحتوي فقط على صفحات ومسارات الإدارة (ويب فقط)
  */
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
 import { lazy, Suspense } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
@@ -66,6 +67,13 @@ const AdminNotifications = lazy(() => import("@/pages/admin/AdminNotifications")
 const AdminNotificationGroups = lazy(() => import("@/pages/admin/AdminNotificationGroups"));
 const AdminControllerUsers = lazy(() => import("@/pages/admin/AdminControllerUsers"));
 const AdminRoutingComparison = lazy(() => import("@/pages/admin/AdminRoutingComparison"));
+const AdminCostControls = lazy(() => import("@/pages/admin/AdminCostControls"));
+const AdminReferralCodes = lazy(() => import("@/pages/admin/AdminReferralCodes"));
+const AdminFraudAlerts = lazy(() => import("@/pages/admin/AdminFraudAlerts"));
+const AdminDevelopmentTasks = lazy(() => import("@/pages/admin/AdminDevelopmentTasks"));
+const AdminAuditLogs = lazy(() => import("@/pages/admin/AdminAuditLogs"));
+const AdminSystemCapacity = lazy(() => import("@/pages/admin/AdminSystemCapacity"));
+const AdminMapCompare = lazy(() => import("@/pages/admin/AdminMapCompare"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,6 +102,7 @@ const AdminApp = () => {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <Sonner />
+            <Toaster />
             <ConnectionStatus />
             <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <Suspense fallback={<LoadingFallback />}>
@@ -111,14 +120,6 @@ const AdminApp = () => {
 const AdminRoutes = () => {
   const { user, userRole, isLoading } = useAuth();
 
-  // تحقق من وجود بيانات controller محفوظة
-  const hasControllerSession = (() => {
-    try {
-      const raw = localStorage.getItem("raan_admin_controller");
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  })();
-
   // ✅ الأدمن لا يحتاج شاشة ترحيبية — تحميل مباشر
   if (isLoading) return <LoadingFallback />;
 
@@ -126,8 +127,11 @@ const AdminRoutes = () => {
     return <LoadingFallback />;
   }
 
-  // المشرف يجب أن يكون لديه بيانات controller + جلسة Supabase
-  const isAuthenticated = (user && userRole === "admin") || hasControllerSession;
+  // ✅ SECURITY FIX: المصادقة تعتمد فقط على:
+  // 1. جلسة Supabase صالحة (user !== null)
+  // 2. دور admin مؤكد من قاعدة البيانات (user_roles table)
+  // لا نعتمد أبداً على localStorage — يمكن تزويره من console
+  const isAuthenticated = user && userRole === "admin";
 
   if (!isAuthenticated) {
     return (
@@ -199,6 +203,13 @@ const AdminRoutes = () => {
       <Route path="/admin/notification-groups" element={<AR><AdminNotificationGroups /></AR>} />
       <Route path="/admin/controller-users" element={<AR><AdminControllerUsers /></AR>} />
       <Route path="/admin/routing-comparison" element={<AR><AdminRoutingComparison /></AR>} />
+      <Route path="/admin/cost-controls" element={<AR><AdminCostControls /></AR>} />
+      <Route path="/admin/referral-codes" element={<AR><AdminReferralCodes /></AR>} />
+      <Route path="/admin/fraud-alerts" element={<AR><AdminFraudAlerts /></AR>} />
+      <Route path="/admin/development-tasks" element={<AR><AdminDevelopmentTasks /></AR>} />
+      <Route path="/admin/audit-logs" element={<AR><AdminAuditLogs /></AR>} />
+      <Route path="/admin/system-capacity" element={<AR><AdminSystemCapacity /></AR>} />
+      <Route path="/admin/map-compare" element={<AR><AdminMapCompare /></AR>} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
   );

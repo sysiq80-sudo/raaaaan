@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { arabicIncludes } from "@/utils/normalizeArabic";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -141,14 +142,13 @@ const AdminDrivers = () => {
   const filterDrivers = () => {
     let result = [...drivers];
 
-    // Search filter
+    // Search filter — بحث مرن (أ=ا، ة=ه، تجاهل التشكيل)
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
       result = result.filter(
         (d) =>
-          d.full_name.toLowerCase().includes(query) ||
-          d.phone.includes(query) ||
-          d.vehicle_plate?.toLowerCase().includes(query)
+          arabicIncludes(d.full_name, searchQuery) ||
+          d.phone.includes(searchQuery) ||
+          d.vehicle_plate?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -391,7 +391,7 @@ const AdminDrivers = () => {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">إجمالي الأرباح</p>
-                <p className="text-lg font-bold">{totalEarnings.toLocaleString()} د.ع</p>
+                <p className="text-lg font-bold">{totalEarnings.toLocaleString('en-US')} د.ع</p>
               </div>
             </div>
           </CardContent>

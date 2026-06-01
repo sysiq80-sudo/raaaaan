@@ -142,7 +142,7 @@ export default function AdminWalletRequests() {
       toast({
         title: result.type === "approve" ? "تمت الموافقة" : "تم الرفض",
         description: result.type === "approve"
-          ? `تم إضافة ${result.amount.toLocaleString()} د.ع للمستخدم`
+          ? `تم إضافة ${result.amount.toLocaleString('en-US')} د.ع للمستخدم`
           : "تم رفض الطلب"
       });
       setSelectedRequest(null);
@@ -305,7 +305,7 @@ export default function AdminWalletRequests() {
                         ? "bg-green-50 dark:bg-green-900/20"
                         : "bg-red-50 dark:bg-red-900/20"
                     }`}>
-                      <p className="text-2xl font-bold">{request.amount.toLocaleString()}</p>
+                      <p className="text-2xl font-bold">{request.amount.toLocaleString('en-US')}</p>
                       <p className="text-sm text-muted-foreground">د.ع</p>
                     </div>
 
@@ -408,7 +408,7 @@ export default function AdminWalletRequests() {
               </DialogTitle>
               <DialogDescription>
                 {actionType === "approve"
-                  ? `سيتم إضافة ${selectedRequest?.amount.toLocaleString()} د.ع لحساب ${selectedRequest?.user_name}`
+                  ? `سيتم إضافة ${selectedRequest?.amount.toLocaleString('en-US')} د.ع لحساب ${selectedRequest?.user_name}`
                   : `سيتم رفض طلب ${selectedRequest?.user_name}`
                 }
               </DialogDescription>
@@ -419,7 +419,7 @@ export default function AdminWalletRequests() {
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <p className="text-muted-foreground">المبلغ:</p>
-                    <p className="font-bold">{selectedRequest?.amount.toLocaleString()} د.ع</p>
+                    <p className="font-bold">{selectedRequest?.amount.toLocaleString('en-US')} د.ع</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">رقم العملية:</p>

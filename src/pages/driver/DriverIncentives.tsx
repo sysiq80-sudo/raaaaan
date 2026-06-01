@@ -134,7 +134,7 @@ const DriverIncentives = () => {
                   <p className="text-slate-500 text-xs font-medium mb-1">إجمالي المكافآت المكتسبة</p>
                   <div className="flex items-baseline gap-1.5 justify-end">
                     <p className="text-4xl font-black text-white tracking-tight tabular-nums">
-                      {totalEarned.toLocaleString()}
+                      {totalEarned.toLocaleString('en-US')}
                     </p>
                     <p className="text-amber-400 text-sm font-semibold">د.ع</p>
                   </div>
@@ -171,7 +171,7 @@ const DriverIncentives = () => {
                     <div className="flex items-start justify-between mb-4">
                       {/* القيمة + الوحدة */}
                       <div className="text-left">
-                        <span className="text-xl font-black text-white tabular-nums">{incentive.bonus_amount.toLocaleString()}</span>
+                        <span className="text-xl font-black text-white tabular-nums">{incentive.bonus_amount.toLocaleString('en-US')}</span>
                         <span className="text-slate-500 text-xs font-medium mr-1">د.ع</span>
                       </div>
 

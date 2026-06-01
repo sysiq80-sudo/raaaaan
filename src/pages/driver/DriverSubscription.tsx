@@ -132,7 +132,7 @@ export default function DriverSubscription() {
         if (msg.includes("رصيد غير كافٍ") || msg.includes("INSUFFICIENT_BALANCE")) {
           toast({
             title: "رصيد غير كافٍ",
-            description: `تحتاج ${plan.price.toLocaleString()} د.ع للاشتراك. أضف رصيداً أولاً.`,
+            description: `تحتاج ${plan.price.toLocaleString('en-US')} د.ع للاشتراك. أضف رصيداً أولاً.`,
             variant: "destructive",
           });
           setSubscribing(null);
@@ -157,7 +157,7 @@ export default function DriverSubscription() {
 
       toast({
         title: "✅ تم الاشتراك بنجاح!",
-        description: `تم تفعيل خطة ${plan.name_ar}${expiresDate ? ` حتى ${expiresDate}` : ""} وخصم ${plan.price.toLocaleString()} د.ع من محفظتك`,
+        description: `تم تفعيل خطة ${plan.name_ar}${expiresDate ? ` حتى ${expiresDate}` : ""} وخصم ${plan.price.toLocaleString('en-US')} د.ع من محفظتك`,
       });
 
       if (driverId) fetchData();
@@ -298,7 +298,7 @@ export default function DriverSubscription() {
                       <h3 className="text-lg font-bold">{plan.name_ar}</h3>
                       <div className="text-left">
                         <span className="text-2xl font-bold">
-                          {plan.price.toLocaleString()}
+                          {plan.price.toLocaleString('en-US')}
                         </span>
                         <span className="text-xs mr-1">د.ع</span>
                       </div>
@@ -326,7 +326,7 @@ export default function DriverSubscription() {
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Clock className="w-4 h-4 flex-shrink-0" />
                         <span>
-                          {Math.round(plan.price / plan.duration_days).toLocaleString()} د.ع / يوم
+                          {Math.round(plan.price / plan.duration_days).toLocaleString('en-US')} د.ع / يوم
                         </span>
                       </div>
                     </div>

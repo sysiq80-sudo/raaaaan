@@ -49,9 +49,11 @@ export const useRiderWebPushSetup = (userId: string | null) => {
           }
         }
 
-        const vapidPublicKey =
-          import.meta.env.VITE_VAPID_PUBLIC_KEY ||
-          "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U";
+        const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+        if (!vapidPublicKey) {
+          console.warn('[RiderWebPush] VITE_VAPID_PUBLIC_KEY is not defined in environment variables. Web Push subscription aborted.');
+          return;
+        }
 
         const subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
@@ -67,29 +69,80 @@ export const useRiderWebPushSetup = (userId: string | null) => {
           return;
         }
 
-        const { error } = await supabase.functions.invoke(
-          "send-push-notification",
-          {
-            body: {
-              action: "subscribe",
-              subscription: {
+        let error = null;
+        try {
+          const res = await supabase.functions.invoke(
+            "send-push-notification",
+            {
+              body: {
+                action: "subscribe",
+                subscription: {
+                  user_id: userId,
+                  endpoint: json.endpoint,
+                  p256dh_key: json.keys?.p256dh || "",
+                  auth_key: json.keys?.auth || "",
+                },
+              },
+            }
+          );
+          error = res.error;
+        } catch (invokeErr) {
+          error = invokeErr;
+        }
+
+        if (error) {
+          console.log("[RiderWebPush] Edge Function subscription failed, executing database fallback");
+          
+          try {
+            // 1. Delete any existing subscription with same endpoint to avoid duplicates
+            await supabase
+              .from('push_subscriptions')
+              .delete()
+              .eq('endpoint', json.endpoint);
+
+            // 2. Extract fcm_token if it is an FCM web endpoint
+            let fcmToken: string | null = null;
+            if (json.endpoint.includes('fcm.googleapis.com/fcm/send/')) {
+              fcmToken = json.endpoint.split('/fcm/send/')[1] || null;
+            }
+
+            // 3. Keep a single active web subscription per rider
+            if (json.endpoint.includes('fcm.googleapis.com/fcm/send/')) {
+              await supabase
+                .from('push_subscriptions')
+                .delete()
+                .eq('user_id', userId)
+                .or('platform.eq.web,endpoint.like.https://fcm.googleapis.com/fcm/send/%');
+            }
+
+            // 4. Insert the new subscription
+            const { error: dbError } = await supabase
+              .from('push_subscriptions')
+              .insert({
                 user_id: userId,
                 endpoint: json.endpoint,
                 p256dh_key: json.keys?.p256dh || "",
                 auth_key: json.keys?.auth || "",
-              },
-            },
-          }
-        );
+                platform: 'web',
+                fcm_token: fcmToken,
+                updated_at: new Date().toISOString()
+              });
 
-        if (error) {
-          console.error("[RiderWebPush] Error saving subscription:", error);
+            if (dbError) {
+              console.error("[RiderWebPush] Database fallback failed:", dbError.message);
+            } else {
+              registered.current = true;
+              console.log("✅ Rider Web Push registered via database fallback for user:", userId);
+            }
+          } catch (fallbackErr) {
+            console.error("[RiderWebPush] Database fallback exception:", fallbackErr);
+          }
         } else {
           registered.current = true;
-          console.log("✅ Rider Web Push registered for user:", userId);
+          console.log("✅ Rider Web Push registered via Edge Function for user:", userId);
         }
       } catch (err) {
-        console.error("[RiderWebPush] Setup error:", err);
+        console.debug("[RiderWebPush] Setup skipped:", (err as Error).message);
       }
     };
 

@@ -177,7 +177,7 @@ export const RecentRides = ({ driverId }: RecentRidesProps) => {
               </div>
               <div className="text-left">
                 <p className={`text-sm font-bold ${ride.status === 'cancelled' ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
-                  {fare.toLocaleString()} د.ع
+                  {fare.toLocaleString('en-US')} د.ع
                 </p>
                 <p className={`text-xs ${config.color}`}>
                   {config.label}

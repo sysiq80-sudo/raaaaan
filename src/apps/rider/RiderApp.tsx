@@ -21,6 +21,7 @@ import { isNativePlatform } from "@/lib/capacitorBridge";
 import { capacitorStorageSync } from "@/lib/capacitorStorage";
 import { useForceUpdate } from "@/hooks/useForceUpdate";
 import { ForceUpdateScreen } from "@/components/ForceUpdateScreen";
+import PageSkeleton from "@/components/layout/PageSkeleton";
 
 // صفحات أساسية
 import Auth from "@/pages/Auth";
@@ -122,11 +123,15 @@ const RiderRoutes = () => {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    // ⚡ Pre-load GoPage first (most likely next navigation from AIVoiceHome)
+    const t1 = setTimeout(() => import("@/pages/rider/GoPage"), 500);
+    const t2 = setTimeout(() => {
       import("@/pages/rider/RiderRidesPage");
+      import("@/pages/rider/RiderPaymentsPage");
       import("@/pages/rider/RiderSettingsPage");
-    }, 3000);
-    return () => clearTimeout(timer);
+      import("@/pages/rider/RiderSavedPlacesPage");
+    }, 1500);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
   if (isLoading || !minSplashDone) return <LoadingFallback />;
@@ -175,16 +180,18 @@ const RiderRoutes = () => {
       <Route path="/payment/result" element={<ErrorBoundary><PaymentResult /></ErrorBoundary>} />
 
       <Route path="/rider" element={<RiderProtectedLayout />}>
-        <Route index element={<AIVoiceHome />} />
-        <Route path="go" element={<GoPage />} />
-        <Route path="schedule" element={<GoPage scheduleMode={true} />} />
-        <Route path="rides" element={<RiderRidesPage />} />
-        <Route path="payments" element={<RiderPaymentsPage />} />
-        <Route path="wallet-topup" element={<WalletTopupPage />} />
-        <Route path="saved-places" element={<RiderSavedPlacesPage />} />
-        <Route path="settings" element={<RiderSettingsPage />} />
-        <Route path="profile-v2" element={<RiderProfileMigratedPage />} />
-        <Route path="go-v2" element={<RiderGoMigrated />} />
+        {/* AIVoiceHome محمّلة لازي لكنها الشاشة الأولى — prefetch يضمن جاهزيتها */}
+        <Route index element={<Suspense fallback={<PageSkeleton rows={2} showHeader={false} />}><AIVoiceHome /></Suspense>} />
+        {/* صفحات lazy — كل منها Suspense خاص */}
+        <Route path="go" element={<Suspense fallback={<PageSkeleton rows={2} showHeader={false} />}><GoPage /></Suspense>} />
+        <Route path="schedule" element={<Suspense fallback={<PageSkeleton rows={2} showHeader={false} />}><GoPage scheduleMode={true} /></Suspense>} />
+        <Route path="rides" element={<Suspense fallback={<PageSkeleton rows={4} />}><RiderRidesPage /></Suspense>} />
+        <Route path="payments" element={<Suspense fallback={<PageSkeleton rows={3} />}><RiderPaymentsPage /></Suspense>} />
+        <Route path="wallet-topup" element={<Suspense fallback={<PageSkeleton rows={2} />}><WalletTopupPage /></Suspense>} />
+        <Route path="saved-places" element={<Suspense fallback={<PageSkeleton rows={3} />}><RiderSavedPlacesPage /></Suspense>} />
+        <Route path="settings" element={<Suspense fallback={<PageSkeleton rows={3} />}><RiderSettingsPage /></Suspense>} />
+        <Route path="profile-v2" element={<Suspense fallback={<PageSkeleton rows={3} />}><RiderProfileMigratedPage /></Suspense>} />
+        <Route path="go-v2" element={<Suspense fallback={<PageSkeleton rows={2} showHeader={false} />}><RiderGoMigrated /></Suspense>} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

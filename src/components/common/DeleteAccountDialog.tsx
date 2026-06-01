@@ -89,7 +89,7 @@ export const DeleteAccountDialog = ({
         if (walletData) {
           const totalBalance = (walletData.balance || 0) + (walletData.pending_balance || 0);
           if (totalBalance > 0) {
-            reasons.push(`لديك مستحقات مالية (${totalBalance.toLocaleString()} د.ع) - يجب سحبها أولاً`);
+            reasons.push(`لديك مستحقات مالية (${totalBalance.toLocaleString('en-US')} د.ع) - يجب سحبها أولاً`);
           }
         }
       } else {

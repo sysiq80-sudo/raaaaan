@@ -67,6 +67,8 @@ export interface BookingConfirmationViewProps {
   // Status
   isOnline: boolean;
   bottomNavEnabled: boolean;
+  /** رسالة خطأ من حساب الأجرة (مثل: نقطة الوصول قريبة جداً) */
+  fareError?: string | null;
   // UI Helpers
   buildDescriptiveAddress: (address: string) => string;
   availableDriversByType: Record<string, number>;
@@ -115,6 +117,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
   onScheduled,
   isOnline,
   bottomNavEnabled,
+  fareError,
   buildDescriptiveAddress,
   availableDriversByType,
   user,
@@ -128,14 +131,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
   const [bookingMode, setBookingMode] = useState<"now" | "schedule">("now");
   const { toast } = useToast();
 
-  // Reactive distance check — is pickup ≈ dropoff?
-  const isTooClose = React.useMemo(() => {
-    const distanceM = calculateDistanceMeters(
-      { lat: pickupLocation.lat, lng: pickupLocation.lng },
-      { lat: dropoffLocation.lat, lng: dropoffLocation.lng }
-    );
-    return distanceM < 100;
-  }, [pickupLocation.lat, pickupLocation.lng, dropoffLocation.lat, dropoffLocation.lng]);
+
 
   // Force selected vehicle to 'economy' temporarily as per user request (one type for all)
   useEffect(() => {
@@ -158,8 +154,6 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
       return;
     }
 
-    // Distance check now handled reactively via isTooClose — button shows inline warning
-    if (isTooClose) return;
 
     if (fareLoading) {
       toast({
@@ -172,7 +166,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
     if (!fareBreakdown) {
       toast({
         title: "عذراً، تعذر الحجز 😔",
-        description: "النقطة المحددة خارج التغطية",
+        description: fareError || "تعذر حساب الأجرة، يرجى المحاولة مجدداً",
         variant: "destructive",
       });
       return;
@@ -323,56 +317,51 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
 
         {/* CTA Button — always visible at bottom */}
         <div
-          className="shrink-0 w-full pointer-events-auto flex bg-card border-t border-border/30 relative z-[10]"
-          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0px)' }}
+          className="shrink-0 w-full pointer-events-auto bg-card border-t border-white/[0.06] relative z-[10]"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
-          <motion.button
-            type="button"
-            onClick={handlePrimaryBookAction}
-            disabled={isBooking}
-            whileTap={isBooking ? {} : { scale: 0.98 }}
-            style={{ fontFamily: "Cairo, sans-serif" }}
-            className={`flex-auto min-h-[52px] rounded-none flex items-center justify-center gap-2 text-base font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
-              isBooking
-                ? "border-border/30 text-muted-foreground bg-muted cursor-not-allowed"
-                : isTooClose
-                ? "border-red-700/30 text-white bg-gradient-to-r from-red-700 via-red-600 to-red-700"
-                : fareLoading
-                ? "border-emerald-700/30 text-white bg-emerald-800/70 cursor-wait"
-                : "border-emerald-700/30 text-white bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-800 hover:from-emerald-700 hover:via-emerald-600 hover:to-emerald-700"
-            }`}
-          >
-            {isBooking ? (
-              <>
-                <Loader2 className="w-6 h-6 animate-spin" />
-                <span>جاري إنشاء الحجز...</span>
-              </>
-            ) : isTooClose ? (
-              <>
-                <AlertTriangle className="w-5 h-5 animate-pulse" />
-                <span className="text-base">الوجهة قريبة جداً — ١٠٠م على الأقل</span>
-              </>
-            ) : fareLoading ? (
-              <>
-                <Loader2 className="w-6 h-6 animate-spin" />
-                <span>جاري حساب المسار...</span>
-              </>
-            ) : (
-              <>
-                {bookingMode === "schedule" ? (
-                  <Clock className="w-5 h-5" />
-                ) : (
-                  <Navigation className="w-5 h-5" />
-                )}
-                <span>{bookingMode === "schedule" ? "جدولة الرحلة" : "اطلب الآن"}</span>
-                {totalFare && (
-                  <span className="bg-gray-700 px-3 py-1 rounded-xl text-sm font-bold">
-                    {totalFare.toLocaleString('en-US')} د.ع
-                  </span>
-                )}
-              </>
-            )}
-          </motion.button>
+          <div className="flex items-stretch h-[58px]">
+            <motion.button
+              type="button"
+              onClick={handlePrimaryBookAction}
+              disabled={isBooking}
+              whileTap={isBooking ? {} : { scale: 0.98 }}
+              style={{ fontFamily: "Cairo, sans-serif" }}
+              className={`flex-1 h-full flex items-center justify-center gap-2 text-[15px] font-black touch-manipulation transition-all ${
+                isBooking
+                  ? "text-white/40 bg-[#0a111c] border-t border-white/[0.07] cursor-not-allowed"
+                  : fareLoading
+                  ? "text-white/60 bg-[#0a111c] border-t border-white/[0.07] cursor-wait"
+                  : "text-[#070b13] bg-[#5bdda6] shadow-[0_-4px_20px_rgba(91,221,166,0.2)] hover:bg-[#4ecf99] active:bg-[#34d399] border-t border-[#5bdda6]"
+              }`}
+            >
+              {isBooking ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>جاري إنشاء الحجز...</span>
+                </>
+              ) : fareLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>جاري حساب المسار...</span>
+                </>
+              ) : (
+                <>
+                  {bookingMode === "schedule" ? (
+                    <Clock className="w-5 h-5" />
+                  ) : (
+                    <Navigation className="w-5 h-5" />
+                  )}
+                  <span>{bookingMode === "schedule" ? "جدولة الرحلة" : "اطلب الآن"}</span>
+                  {totalFare && (
+                    <span className="bg-[#070b13]/20 px-3 py-1 rounded-xl text-sm font-bold">
+                      {totalFare.toLocaleString('en-US')} د.ع
+                    </span>
+                  )}
+                </>
+              )}
+            </motion.button>
+          </div>
         </div>
       </RiderBottomSheet>
 

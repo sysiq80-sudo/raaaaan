@@ -32,8 +32,8 @@ export type DbPaymentMethod =
 
 /**
  * تحويل طريقة الدفع من الواجهة إلى قاعدة البيانات
- * wallet → nas_wallet (رصيد المحفظة الداخلية عبر نظام ناس)
- * card → nass (الدفع بالبطاقة عبر بوابة ناس)
+ * wallet → nas_wallet (رصيد المحفظة الداخلية)
+ * card → cash (البطاقات البنكية وبوابات الدفع معطلة حالياً)
  * cash → cash (نقدي)
  */
 export const mapPaymentToDb = (method: PaymentMethod): DbPaymentMethod => {
@@ -41,7 +41,7 @@ export const mapPaymentToDb = (method: PaymentMethod): DbPaymentMethod => {
     case "wallet":
       return "nas_wallet";
     case "card":
-      return "nass";
+      return "cash";
     case "cash":
     default:
       return "cash";
@@ -55,10 +55,9 @@ export const mapDbToPayment = (dbMethod: DbPaymentMethod | string | null): Payme
   switch (dbMethod) {
     case "nas_wallet":
       return "wallet";
+    case "cash":
     case "nass":
     case "qi_card":
-      return "card";
-    case "cash":
     case "zain_cash":
     case "asia_hawala":
     default:

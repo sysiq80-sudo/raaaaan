@@ -56,7 +56,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
       <g filter="url(#ds)">
         <path d="M 22 5 C 12.6 5 5 12.6 5 22 C 5 31.4 12.6 39 22 39 L 58 39 L 70 52 L 82 39 L 118 39 C 127.4 39 135 31.4 135 22 C 135 12.6 127.4 5 118 5 Z" fill="url(#pg)" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
       </g>
-      <text x="62" y="24" font-family="system-ui, sans-serif" font-size="15" font-weight="900" fill="#ffffff" text-anchor="middle" dominant-baseline="central">موقع العميل</text>
+      <text x="62" y="24" font-family="Cairo, system-ui, sans-serif" font-size="15" font-weight="900" fill="#ffffff" text-anchor="middle" dominant-baseline="central">موقع العميل</text>
       <circle cx="114" cy="22" r="10" fill="#ffffff" opacity="0.25"/>
       <circle cx="114" cy="19" r="3.5" fill="#ffffff"/>
       <path d="M 108 28 C 108 24 111 22 114 22 S 120 24 120 28" fill="#ffffff" opacity="0.95"/>

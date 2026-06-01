@@ -1,5 +1,6 @@
 import React from "react";
 import { motion, useDragControls } from "framer-motion";
+import { useKeyboardHeight } from "@/hooks/useKeyboardHeight";
 
 interface RiderBottomSheetProps {
   children: React.ReactNode;
@@ -23,6 +24,7 @@ const RiderBottomSheet = React.forwardRef<HTMLDivElement, RiderBottomSheetProps>
   onExpand,
 }, ref) => {
   const dragControls = useDragControls();
+  const keyboardHeight = useKeyboardHeight();
 
   return (
     <motion.div
@@ -44,26 +46,30 @@ const RiderBottomSheet = React.forwardRef<HTMLDivElement, RiderBottomSheetProps>
           if (onExpand) onExpand();
         }
       }}
-      className={`absolute left-0 right-0 bottom-0 z-[60] flex flex-col rounded-t-[2rem] bg-card/95 backdrop-blur-xl border-t border-border/30 shadow-xl text-foreground pointer-events-auto ${
-        isFullScreen ? "top-0 rounded-t-none" : ""
+      className={`absolute left-0 right-0 bottom-0 z-[60] flex flex-col pointer-events-auto ${
+        isFullScreen ? "top-0" : ""
       } ${className}`}
       style={{
         maxHeight: isFullScreen ? "100dvh" : "75dvh",
         transition: "max-height 0.35s cubic-bezier(0.4,0,0.2,1), top 0.35s cubic-bezier(0.4,0,0.2,1)",
+        paddingBottom: (!isFullScreen && keyboardHeight) ? `${keyboardHeight}px` : undefined,
       }}
     >
-      {/* Drag handle */}
-      <div
-        className="flex justify-center pt-3 pb-1 shrink-0 cursor-grab active:cursor-grabbing"
-        onPointerDown={(e) => dragControls.start(e)}
-        style={{ touchAction: "none" }}
-      >
-        <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
-      </div>
+      {/* Inner card — single container with rounded corners + overflow clip */}
+      <div className={`flex-1 flex flex-col min-h-0 ${isFullScreen ? '' : 'rounded-t-[2rem]'} bg-card/95 backdrop-blur-xl border-t border-border/30 shadow-xl text-foreground overflow-hidden`}>
+        {/* Drag handle */}
+        <div
+          className="flex justify-center pt-3 pb-1 shrink-0 cursor-grab active:cursor-grabbing"
+          onPointerDown={(e) => dragControls.start(e)}
+          style={{ touchAction: "none" }}
+        >
+          <div className="w-10 h-1 rounded-full bg-white" />
+        </div>
 
-      {/* Content — NO overflow-hidden so CTA button stays clickable */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {children}
+        {/* Content */}
+        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+          {children}
+        </div>
       </div>
     </motion.div>
   );

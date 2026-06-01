@@ -24,31 +24,36 @@ const RiderMapHeader: React.FC<RiderMapHeaderProps> = ({
 }) => {
   const navigate = useNavigate();
 
+  // Shared classes to ensure all header buttons and icons have equal and consistent sizes and styles
+  const buttonClassName = "w-10 h-10 flex items-center justify-center rounded-xl bg-emerald-500 hover:bg-emerald-600 active:scale-95 transition-all text-white shadow-[0_0_12px_rgba(16,185,129,0.5)] hover:shadow-[0_0_18px_rgba(16,185,129,0.75)] border border-emerald-400/30";
+  const iconClassName = "w-5 h-5 text-white";
+
   return (
     <header
-      className="absolute top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top)] bg-transparent border-none shadow-none text-foreground"
+      className="absolute top-0 left-0 right-0 z-50 bg-transparent border-none shadow-none text-foreground"
+      style={{ paddingTop: 'max(8px, env(safe-area-inset-top, 8px))' }}
       dir="rtl"
     >
-      <div className="relative flex items-center justify-between h-14 px-4">
+      <div className="relative flex items-center justify-between h-12 px-4">
         {/* Left side actions (in RTL: right side of the screen) */}
         <div className="flex items-center gap-2">
           {showHome && (
             <button
               onClick={() => navigate("/rider")}
-              className="w-10 h-10 flex items-center justify-center rounded-xl bg-secondary hover:bg-secondary/80 active:scale-95 transition-all text-foreground shadow-md"
+              className={buttonClassName}
               aria-label="الرئيسية"
             >
-              <Home className="w-5 h-5 text-foreground" />
+              <Home className={iconClassName} />
             </button>
           )}
 
           {onGoBack && (
             <button
               onClick={onGoBack}
-              className="w-10 h-10 flex items-center justify-center rounded-xl bg-secondary hover:bg-secondary/80 active:scale-95 transition-all text-foreground shadow-md"
+              className={buttonClassName}
               aria-label="رجوع"
             >
-              <ArrowRight className="w-5 h-5 text-foreground" />
+              <ArrowRight className={iconClassName} />
             </button>
           )}
         </div>
@@ -58,9 +63,12 @@ const RiderMapHeader: React.FC<RiderMapHeaderProps> = ({
           <img
             src={logo}
             alt="RAAN"
-            className="w-8 h-8 rounded-xl shadow-sm"
+            className="w-10 h-10 rounded-xl shadow-sm"
           />
-          <span className="text-sm font-bold text-foreground tracking-tight">
+          <span
+            className="text-sm font-black text-white tracking-tight"
+            style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 2px rgba(0,0,0,0.5)' }}
+          >
             {stepLabel || "ران"}
           </span>
         </div>
@@ -68,10 +76,10 @@ const RiderMapHeader: React.FC<RiderMapHeaderProps> = ({
         {/* Right side actions (in RTL: left side of the screen) */}
         <button
           onClick={onMenuOpen}
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-secondary hover:bg-secondary/80 active:scale-95 transition-all text-foreground shadow-md"
+          className={buttonClassName}
           aria-label="القائمة الرئيسية"
         >
-          <Menu className="w-5 h-5 text-foreground" />
+          <Menu className={iconClassName} />
         </button>
       </div>
     </header>

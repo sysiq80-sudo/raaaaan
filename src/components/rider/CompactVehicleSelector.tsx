@@ -102,7 +102,7 @@ const CompactVehicleSelector = ({
                 "font-bold text-base mt-auto",
                 isSelected ? "text-[#5bdda6]" : "text-white"
               )}>
-                {roundFare(fare).toLocaleString()} <span className="text-[10px] font-normal">د.ع</span>
+                {roundFare(fare).toLocaleString('en-US')} <span className="text-[10px] font-normal">د.ع</span>
               </p>
             ) : isUnavailable ? (
               <p className="text-[9px] text-red-400 mt-auto">غير متاح</p>

@@ -236,3 +236,47 @@ console.log(supabase.getChannels());
 3. **تواصل مع الفريق**:
    - افتح Issue في GitHub
    - أرفق معلومات التشخيص
+
+---
+
+## 🗺️ مشكلة: الخريطة لا تظهر في صفحة تتبع الرحلة
+
+### الأعراض
+- شاشة تتبع الرحلة (`LiveRideTracker`) تظهر فارغة بدون خريطة
+- رسالة "Google Maps غير متاح" أو لا شيء يظهر
+
+### الحل
+منذ 2026-05-31، يوجد Leaflet fallback تلقائي:
+- إذا فشل تحميل Google Maps SDK خلال 5 ثوانٍ (`MAX_ATTEMPTS=50 × 100ms`) → يُفعَّل LeafletMap تلقائياً
+- يتطلب: `VITE_GOOGLE_MAPS_API_KEY` مضبوط — إذا لم يكن مضبوطاً يبدأ Leaflet مباشرة
+
+**للتحقق:**
+```typescript
+// في src/components/rider/LiveRideTracker.tsx
+// ابحث عن: mapLoadFailed
+// true = Leaflet نشط، false = Google Maps نشط
+```
+
+---
+
+## ⏱️ مشكلة: ETA الوصول لا يتحدث أثناء الرحلة
+
+### الأعراض
+- وقت الوصول المتوقع يبقى ثابتاً أثناء الرحلة
+- لا يتغير حتى مع حركة السائق
+
+### السبب
+OSRM throttle مقصود: `30 ثانية أو 300 متر` بين كل طلب.
+
+### للتحقق من أن ETA يعمل:
+```bash
+# فتح Network tab في DevTools
+# ابحث عن: router.project-osrm.org
+# يجب أن يظهر طلب كل 30 ثانية أو عند تحريك 300م
+```
+
+### إذا توقف ETA تماماً:
+- التحقق من الاتصال بالإنترنت
+- `lastETAFetchRef` يُحدَّث عند الفشل أيضاً (cooldown 30s حتى بعد الفشل — هذا مقصود لمنع retry storm)
+
+---

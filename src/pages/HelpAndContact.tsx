@@ -25,6 +25,8 @@ import {
     AlertCircle,
     ChevronDown,
     ArrowRight,
+    Wallet,
+    Star,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,7 +68,10 @@ const HelpAndContact = () => {
     const faqs = [
         { icon: HelpCircle,    title: "كيف أحجز رحلة؟",                     answer: "افتح التطبيق، أدخل موقعك الحالي والوجهة، اختر نوع المركبة، وأكد الحجز. سيظهر السائق المتاح قريباً." },
         { icon: Clock,         title: "كم المتوسط لانتظار السائق؟",          answer: "عادة ما يصل السائق خلال 3-7 دقائق حسب توفر السائقين في منطقتك والطلب الحالي." },
+        { icon: Star,          title: "كيف أستفيد من الأماكن المحفوظة لتسريع الحجز؟", answer: "من صفحة 'الأماكن المحفوظة'، يمكنك إضافة المنزل، العمل، أو أي مكان مخصص. عند الضغط على زر 'اذهب' بجانب أي مكان محفوظ، سيتم تعيينه تلقائياً كوجهة مقصودة وفتح خريطة تأكيد الحجز فوراً لتحديد موقع انطلاقك فحسب." },
         { icon: Mail,          title: "كيف أتواصل بالمشاكل التقنية؟",       answer: "استخدم قسم التواصل معنا أو أرسل بريد إلى support@raan.app مع وصف المشكلة." },
+        { icon: HelpCircle,    title: "كيف أعيد حجز رحلة سابقة؟",            answer: "يمكنك الذهاب لصفحة 'رحلاتي' وتصفح تاريخ رحلاتك (المقسمة لسهولة العرض بمعدل 5 رحلات لكل صفحة)، ثم الضغط على زر 'إعادة الحجز' لأي رحلة مكتملة، وسيقوم النظام فوراً بنسخ مواقع الانطلاق والوصول وبدء الحجز مباشرة." },
+        { icon: Wallet,        title: "كيف أتابع سجل معاملاتي المالية في المحفظة؟", answer: "من خلال صفحة 'المحفظة والمدفوعات' يمكنك متابعة رصيدك وسجل حركاتك المالية بالكامل (المقسمة بمعدل 5 معاملات بالصفحة) لمعرفة تفاصيل شحن الرصيد واقتطاع دفعات الرحلات بكل شفافية." },
         { icon: AlertTriangle, title: "ماذا لو لم أجد سائق؟",              answer: "جرب مرة أخرى خلال لحظات، أو غير نوع المركبة، أو تحقق من اتصالك بالإنترنت." },
         { icon: Phone,         title: "هل يمكن الاتصال بالسائق قبل الوصول؟", answer: "نعم، يمكنك الاتصال به مباشرة عند قبوله للرحلة. رقمه سيظهر في تطبيقك." },
         { icon: Mail,          title: "كيف أسترجع أموالي؟",               answer: "في حالة الإلغاء قبل وصول السائق، يتم استرجاع المبلغ كاملاً. للمزيد، تواصل معنا." },
@@ -210,14 +215,14 @@ const HelpAndContact = () => {
                                             <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
                                                 <faq.icon className="w-4 h-4 text-amber-400" />
                                             </div>
-                                            <p className="font-bold text-white text-sm flex-1 text-right">{faq.title}</p>
+                                            <p className={`font-bold text-white text-sm flex-1 ${faq.title === "كيف أعيد حجز رحلة سابقة؟" ? "text-left" : "text-right"}`}>{faq.title}</p>
                                             <motion.div animate={{ rotate: expandedFAQ === index ? 180 : 0 }} transition={{ duration: 0.2 }}>
                                                 <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
                                             </motion.div>
                                         </div>
                                         {expandedFAQ === index && (
                                             <div className="px-4 pb-4 border-t border-slate-700/30 pt-3">
-                                                <p className="text-sm text-slate-400 text-right leading-relaxed">{faq.answer}</p>
+                                                <p className={`text-sm text-slate-400 leading-relaxed ${faq.title === "كيف أعيد حجز رحلة سابقة؟" ? "text-left" : "text-right"}`}>{faq.answer}</p>
                                             </div>
                                         )}
                                     </div>
@@ -288,85 +293,6 @@ const HelpAndContact = () => {
                                 </div>
                             </div>
 
-                            {/* نموذج الاتصال */}
-                            <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 overflow-hidden">
-                                <div className="h-1 bg-gradient-to-r from-transparent via-[#5bdda6]/50 to-transparent" />
-                                <div className="p-5">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <Send className="w-4 h-4 text-[#5bdda6]" />
-                                        <h3 className="font-bold text-white text-sm">أرسل لنا رسالة</h3>
-                                    </div>
-
-                                    {isSubmitted ? (
-                                        <div className="py-8 text-center">
-                                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#5bdda6]/10 border border-[#5bdda6]/20 flex items-center justify-center">
-                                                <CheckCircle2 className="w-8 h-8 text-[#5bdda6]" />
-                                            </div>
-                                            <h4 className="text-lg font-bold text-white mb-2">تم إرسال رسالتك!</h4>
-                                            <p className="text-slate-500 text-sm">سنتواصل معك في أقرب وقت ممكن</p>
-                                        </div>
-                                    ) : (
-                                        <form onSubmit={handleSubmit} className="space-y-3">
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-1.5">
-                                                    <Label className="text-xs text-slate-400">الاسم *</Label>
-                                                    <Input
-                                                        value={formData.name}
-                                                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                                                        placeholder="اسمك الكريم"
-                                                        className="bg-[#0b1326] border-slate-700/50 text-white placeholder:text-slate-600 text-sm"
-                                                        required
-                                                    />
-                                                </div>
-                                                <div className="space-y-1.5">
-                                                    <Label className="text-xs text-slate-400">رقم الهاتف *</Label>
-                                                    <Input
-                                                        type="tel"
-                                                        dir="ltr"
-                                                        value={formData.phone}
-                                                        onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                                                        placeholder="07XXXXXXXX"
-                                                        className="bg-[#0b1326] border-slate-700/50 text-white placeholder:text-slate-600 text-sm"
-                                                        required
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <Label className="text-xs text-slate-400">الموضوع</Label>
-                                                <Input
-                                                    value={formData.subject}
-                                                    onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
-                                                    placeholder="استفسار عن..."
-                                                    className="bg-[#0b1326] border-slate-700/50 text-white placeholder:text-slate-600 text-sm"
-                                                />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <Label className="text-xs text-slate-400">الرسالة *</Label>
-                                                <Textarea
-                                                    value={formData.message}
-                                                    onChange={(e) => setFormData(prev => ({ ...prev, message: e.target.value }))}
-                                                    placeholder="اكتب رسالتك هنا..."
-                                                    rows={4}
-                                                    className="bg-[#0b1326] border-slate-700/50 text-white placeholder:text-slate-600 text-sm resize-none"
-                                                    required
-                                                />
-                                            </div>
-                                            <button
-                                                type="submit"
-                                                disabled={isSubmitting}
-                                                className="w-full py-3 rounded-xl bg-[#5bdda6] text-[#0b1326] font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#4dc99a] active:scale-[0.97] transition-all disabled:opacity-60"
-                                            >
-                                                {isSubmitting ? (
-                                                    <><Loader2 className="w-4 h-4 animate-spin" /> جاري الإرسال...</>
-                                                ) : (
-                                                    <><Send className="w-4 h-4" /> إرسال الرسالة</>
-                                                )}
-                                            </button>
-                                        </form>
-                                    )}
-                                </div>
-                            </div>
-
                             {/* سوشيال ميديا */}
                             <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 p-5">
                                 <p className="font-bold text-white text-sm text-center mb-4">تابعنا على</p>
@@ -405,7 +331,6 @@ const HelpAndContact = () => {
                             <img src={logo} alt="RAAN" className="w-5 h-5 rounded" />
                             <span className="font-bold text-slate-500">ران RAAN</span>
                         </div>
-                        <p>نسعى دائماً لخدمتكم بأفضل طريقة 💚</p>
                     </div>
 
                 </div>

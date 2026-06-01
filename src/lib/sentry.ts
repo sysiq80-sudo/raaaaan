@@ -16,7 +16,8 @@ export function initSentry() {
     dsn: SENTRY_DSN,
     environment: import.meta.env.MODE,
     release: `raan@${import.meta.env.VITE_APP_VERSION || "0.0.0"}`,
-    tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+    // ⚡ تقليل حمل Tracing — أخف على WebView
+    tracesSampleRate: import.meta.env.PROD ? 0.05 : 0.5,
     enabled: !!SENTRY_DSN,
     ignoreErrors: [
       "Network request failed",
@@ -27,7 +28,6 @@ export function initSentry() {
       "Non-Error promise rejection",
     ],
     beforeSend(event) {
-      // إرسال الأخطاء في كل البيئات بما فيها localhost للتطوير
       return event;
     },
   });

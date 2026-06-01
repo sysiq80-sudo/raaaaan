@@ -566,7 +566,7 @@ const WelcomeLocationScreen = ({
               }
             }}
             whileTap={{ scale: 0.98 }}
-            style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+            style={{ fontFamily: "Cairo, sans-serif" }}
             className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors border-t border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]"
           >
             <MapPinned className="w-5 h-5" />

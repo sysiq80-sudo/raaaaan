@@ -236,11 +236,11 @@ export const EmergencyTriangleButton: React.FC<EmergencyTriangleButtonProps> = (
       <Button
         variant="ghost"
         size="sm"
-        className="relative p-2 h-10 w-10 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all"
+        className="relative p-2 h-10 w-10 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all rounded-xl border border-red-500/20 bg-red-500/5 flex items-center justify-center"
         onClick={() => setShowDialog(true)}
       >
         <div className="relative">
-          <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-500 animate-pulse drop-shadow-lg" />
+          <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-500 animate-pulse drop-shadow-lg" />
           <span className="absolute inset-0 rounded-full bg-red-950/50 animate-ping" />
         </div>
       </Button>

@@ -62,27 +62,26 @@ export const lightMapStyle: google.maps.MapTypeStyle[] = [
     elementType: "labels.text.fill",
     stylers: [{ color: "#3a7d44" }],
   },
-  // إخفاء POI غير المهمة
+  // ✅ عرض POI (مجمعات، مطاعم، مستشفيات، محلات) — مرئية بشكل كامل
   {
-    featureType: "poi.business",
+    featureType: "poi",
+    elementType: "labels.text",
+    stylers: [{ visibility: "on" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "labels.icon",
     stylers: [{ visibility: "off" }],
   },
-  // تبسيط النصوص
   {
-    featureType: "all",
-    elementType: "labels.text.stroke",
-    stylers: [{ color: "#ffffff" }, { weight: 3 }],
-  },
-  {
-    featureType: "all",
+    featureType: "poi",
     elementType: "labels.text.fill",
-    stylers: [{ color: "#333333" }],
+    stylers: [{ color: "#444444" }],
   },
-  // المباني
   {
-    featureType: "landscape.man_made",
-    elementType: "geometry",
-    stylers: [{ color: "#f0ede8" }],
+    featureType: "poi",
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#ffffff" }, { weight: 2 }],
   },
   // العبور
   {
@@ -183,14 +182,26 @@ export const darkMapStyle: google.maps.MapTypeStyle[] = [
     elementType: "labels.text.fill",
     stylers: [{ color: "#48bb78" }],
   },
-  // إخفاء POI غير المهمة
+  // ✅ عرض POI في الوضع الليلي — مرئية بشكل كامل
   {
-    featureType: "poi.business",
+    featureType: "poi",
+    elementType: "labels.text",
+    stylers: [{ visibility: "on" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "labels.icon",
     stylers: [{ visibility: "off" }],
   },
   {
-    featureType: "poi.government",
-    stylers: [{ visibility: "off" }],
+    featureType: "poi",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#8fa5c7" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#1a1a2e" }, { weight: 2 }],
   },
   // العبور
   {

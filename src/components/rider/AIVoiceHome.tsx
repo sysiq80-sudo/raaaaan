@@ -34,6 +34,8 @@ import { GooglePlacesGeocodingAdapter } from "@/lib/adapters/GooglePlacesGeocodi
 import { NominatimGeocodingAdapter } from "@/lib/adapters/NominatimGeocodingAdapter";
 import type { PlacePrediction } from "@/lib/adapters/types";
 import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { loadLandmarksCache, searchLandmarksByName } from "@/utils/landmarksCache";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
 
 const nominatimAdapter = new NominatimGeocodingAdapter();
@@ -508,6 +510,18 @@ const AIVoiceHome: React.FC = () => {
   
   const { apiKey: googleMapsApiKey } = useGoogleMapsApiKey();
 
+  // ⚡ Pre-load Google Maps SDK, GoPage bundle, and Landmarks cache
+  // so navigating to the map page is instant and local search works immediately
+  useEffect(() => {
+    if (googleMapsApiKey) {
+      loadGoogleMaps(googleMapsApiKey).catch(() => {});
+    }
+    // Also pre-load the GoPage component bundle
+    import("@/pages/rider/GoPage").catch(() => {});
+    // ⚡ تحميل كاش المعالم المحلية — يجعل البحث فورياً عند الكتابة
+    loadLandmarksCache().catch(() => {});
+  }, [googleMapsApiKey]);
+
   const isMicAvailable =
     typeof navigator !== "undefined" &&
     !!navigator.mediaDevices &&
@@ -584,7 +598,8 @@ const AIVoiceHome: React.FC = () => {
     if (voiceState === "success" && result) setShowConfirmation(true);
   }, [voiceState, result]);
 
-  // ── بحث حي أثناء الكتابة (Live Search — Nominatim بدون CORS) ──
+  // ── بحث حي أثناء الكتابة ──
+  // الأولوية: 1️⃣ المعالم المحلية ← 2️⃣ Nominatim إضافي
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     const trimmed = textInput.trim();
@@ -597,8 +612,41 @@ const AIVoiceHome: React.FC = () => {
     searchTimerRef.current = setTimeout(async () => {
       try {
         const center = pickupCoords ?? { lat: 33.4233, lng: 43.2974 };
-        const results = await nominatimAdapter.searchPlaces(trimmed, center);
-        setSearchResults(results.slice(0, 6) as PlacePrediction[]);
+
+        const isArabicQuery = /[\u0600-\u06FF]/.test(trimmed);
+
+        // ضمان تحميل الكاش للعربية (فوري إذا محمّل — ينتظر مرة واحدة فقط)
+        if (isArabicQuery) await loadLandmarksCache();
+
+        // 1️⃣ المعالم المحلية — فورية ومرنة (قلعه → قلعة أربيل)
+        const localMatches = searchLandmarksByName(trimmed, 5);
+
+        // استعلام عربي + نتائج محلية → تجاوز Nominatim كلياً
+        // (Nominatim يُترجم "قلعة" → "castle" ويُرجع أماكن خاطئة)
+        if (isArabicQuery && localMatches.length > 0) {
+          setSearchResults(localMatches.slice(0, 6) as PlacePrediction[]);
+          return;
+        }
+
+        // 2️⃣ Nominatim — للاستعلامات الإنجليزية أو العربية بدون نتائج محلية
+        let nominatimResults: PlacePrediction[] = [];
+        if (localMatches.length < 3) {
+          try {
+            const raw = await nominatimAdapter.searchPlaces(trimmed, center);
+            nominatimResults = raw.slice(0, 4) as PlacePrediction[];
+          } catch {
+            // Nominatim محجوب — تجاهل الخطأ
+          }
+        }
+
+        // دمج: المحلي أولاً مع إزالة التكرار
+        const localIds = new Set(localMatches.map((l) => l.place_id));
+        const combined = [
+          ...localMatches,
+          ...nominatimResults.filter((n) => !localIds.has(n.place_id)),
+        ].slice(0, 6) as PlacePrediction[];
+
+        setSearchResults(combined);
       } catch {
         setSearchResults([]);
       } finally {
@@ -640,7 +688,34 @@ const AIVoiceHome: React.FC = () => {
     const trimmed = textInput.trim();
     if (!trimmed || trimmed.length < 2 || isSubmittingText) return;
 
-    // اختصار: إذا النتائج الحية موجودة → اختر الأولى مباشرة (inline لتجنب circular deps)
+    const isArabicQuery = /[\u0600-\u06FF]/.test(trimmed);
+
+    // ── عربي: ابحث في المعالم المحلية أولاً (قبل أي اختصار) ──
+    // يمنع اختيار نتائج قديمة من استعلام سابق عند ضغط Enter السريع
+    if (isArabicQuery) {
+      await loadLandmarksCache();
+      const localMatches = searchLandmarksByName(trimmed, 5);
+      if (localMatches.length > 0) {
+        console.log(`[AIVoiceHome] ✅ عربي — معالم محلية: ${localMatches.length} نتيجة`);
+        if (localMatches.length === 1) {
+          const place = localMatches[0];
+          const savedDropoff = { lat: place.lat, lng: place.lng, address: place.main_text };
+          setDropoffLocation(savedDropoff);
+          setPickupLocation(null);
+          setVehicle("economy");
+          navigate("/rider/go", { state: { fromVoice: true, fromSavedPlace: true, preferredMode: "pickup", savedDropoff, savedPickup: null } });
+        } else {
+          setSearchResults(localMatches as PlacePrediction[]);
+          setTextResult({ transcript: trimmed, origin: null, destination: null, vehicleType: "economy" });
+          setShowConfirmation(true);
+        }
+        return;
+      }
+      // لا نتائج محلية → تابع للاختصار أو Nominatim
+    }
+
+    // اختصار: إذا النتائج الحية موجودة → اختر الأولى مباشرة
+    // (للاستعلامات غير العربية، أو العربية بدون نتائج محلية)
     if (searchResults.length > 0) {
       const first = searchResults[0];
       const savedDropoff = { lat: first.lat ?? 0, lng: first.lng ?? 0, address: first.description || first.main_text };
@@ -655,7 +730,7 @@ const AIVoiceHome: React.FC = () => {
 
     setIsSubmittingText(true);
     try {
-      // البحث عبر Nominatim (بدون CORS — يعمل في المتصفح والجهاز)
+      // ── Nominatim — للاستعلامات غير العربية أو العربية بدون نتائج محلية ──
       const center = pickupCoords ?? { lat: 33.4233, lng: 43.2974 };
       const results = await nominatimAdapter.searchPlaces(trimmed, center);
       
@@ -672,7 +747,6 @@ const AIVoiceHome: React.FC = () => {
       }
       
       if (results.length === 1) {
-        // نتيجة واحدة فقط → اختيارها مباشرة والذهاب لصفحة GoPage
         console.log(`[AIVoiceHome] ✅ نتيجة واحدة - اختيار مباشر: ${results[0].main_text}`);
         const place = results[0];
         const savedDropoff = { 
@@ -680,21 +754,12 @@ const AIVoiceHome: React.FC = () => {
           lng: place.lng, 
           address: place.description || place.main_text 
         };
-        
         setDropoffLocation(savedDropoff);
-        setPickupLocation(null); // يختار المستخدم موقع الانطلاق على الخريطة
+        setPickupLocation(null);
         setVehicle("economy");
-        
         navigate("/rider/go", {
-          state: {
-            fromVoice: true,
-            fromSavedPlace: true,
-            preferredMode: "pickup", // يحدد موقع الانطلاق
-            savedDropoff,
-            savedPickup: null,
-          },
+          state: { fromVoice: true, fromSavedPlace: true, preferredMode: "pickup", savedDropoff, savedPickup: null },
         });
-        
         setIsSubmittingText(false);
         return;
       }
@@ -702,22 +767,13 @@ const AIVoiceHome: React.FC = () => {
       // نتائج متعددة → عرض قائمة للاختيار
       console.log(`[AIVoiceHome] 📋 عدة نتائج (${results.length}) - عرض القائمة`);
       setSearchResults(results as PlacePrediction[]);
-      setTextResult({
-        transcript: trimmed,
-        origin: null,
-        destination: null,
-        vehicleType: "economy"
-      });
+      setTextResult({ transcript: trimmed, origin: null, destination: null, vehicleType: "economy" });
       setShowConfirmation(true);
       
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "حاول مرة أخرى";
       console.error("[AIVoiceHome] خطأ في البحث:", err);
-      toast({ 
-        title: "خطأ في البحث", 
-        description: message,
-        variant: "destructive" 
-      });
+      toast({ title: "خطأ في البحث", description: message, variant: "destructive" });
     } finally { 
       setIsSubmittingText(false); 
     }
@@ -1014,14 +1070,18 @@ const AIVoiceHome: React.FC = () => {
 
               {/* ── حقل الوجهة فقط ── */}
               <div className="w-full max-w-sm flex items-center rounded-2xl overflow-hidden border border-white/[0.08] bg-[#0f1a2e]/80 backdrop-blur-md shadow-xl" dir="rtl">
-                <motion.button
-                  onClick={handleTextSubmit}
-                  disabled={!textInput.trim() || textInput.trim().length < 2 || isSubmittingText}
-                  className="flex-shrink-0 mr-3 ml-1 w-9 h-9 min-w-[2.25rem] rounded-xl bg-[#5bdda6] flex items-center justify-center shadow-[0_0_16px_rgba(91,221,166,0.4)] hover:bg-[#4ecf99] active:bg-[#3dbe88] disabled:opacity-40 transition-all duration-200"
-                  whileTap={{ scale: 0.92 }}
-                >
-                  <Send className="w-4 h-4 text-[#0b1326]" />
-                </motion.button>
+                {textInput.length > 0 && (
+                  <motion.button
+                    onClick={() => { setTextInput(''); textInputRef.current?.focus(); }}
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.5 }}
+                    className="flex-shrink-0 mr-3 ml-1 w-9 h-9 min-w-[2.25rem] rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center hover:bg-red-500/30 active:bg-red-500/40 transition-all duration-200"
+                    whileTap={{ scale: 0.92 }}
+                  >
+                    <X className="w-4 h-4 text-red-400" />
+                  </motion.button>
+                )}
                 <input
                   ref={textInputRef}
                   type="text"
@@ -1029,8 +1089,8 @@ const AIVoiceHome: React.FC = () => {
                   onChange={(e) => setTextInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleTextSubmit(); }}
                   placeholder="إلى أين؟"
-                  className="flex-1 min-w-0 bg-transparent text-white text-[15px] font-medium pl-4 pr-1 py-4 placeholder:text-white/25 outline-none text-right overflow-hidden text-ellipsis"
-                  dir="rtl"
+                  className={`flex-1 min-w-0 bg-transparent text-white text-[15px] font-medium py-4 placeholder:text-white/25 outline-none text-left overflow-hidden text-ellipsis ${textInput.length > 0 ? 'pl-4 pr-1' : 'px-4'}`}
+                  dir="ltr"
                   autoFocus
                   disabled={isSubmittingText}
                 />

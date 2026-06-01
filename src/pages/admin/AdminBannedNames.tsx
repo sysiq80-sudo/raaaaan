@@ -4,6 +4,7 @@
  */
 
 import { useState } from "react";
+import { arabicIncludes } from "@/utils/normalizeArabic";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAdminAuth } from "@/hooks/useAdminAuth";
@@ -161,10 +162,10 @@ const AdminBannedNames = () => {
         toggleMutation.mutate({ id, currentStatus });
     };
 
-    // Filter names based on search
+    // بحث مرن — يتجاهل الفروق بين أ/ا و ة/ه والتشكيل
     const filteredNames = bannedNames.filter(item =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.reason && item.reason.toLowerCase().includes(searchQuery.toLowerCase()))
+      arabicIncludes(item.name, searchQuery) ||
+      (item.reason && arabicIncludes(item.reason, searchQuery))
     );
 
     // Stats

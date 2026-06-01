@@ -465,7 +465,7 @@ const AdminComplaints = () => {
                       <div>
                         <span className="font-medium">المبلغ:</span>
                         <p className="text-muted-foreground">
-                          {selectedComplaint.rides.final_fare?.toLocaleString()} د.ع
+                          {selectedComplaint.rides.final_fare?.toLocaleString('en-US')} د.ع
                         </p>
                       </div>
                     </div>

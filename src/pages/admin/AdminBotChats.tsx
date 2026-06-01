@@ -4,6 +4,7 @@
  */
 
 import { useState, useMemo, useRef, useEffect } from "react";
+import { arabicIncludes } from "@/utils/normalizeArabic";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
@@ -170,7 +171,8 @@ const AdminBotChats = () => {
   const filteredCustomers = useMemo(() => {
     return customers.filter((customer) => {
       const matchesSearch =
-        customer.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        !searchQuery ||
+        arabicIncludes(customer.display_name || '', searchQuery) ||
         customer.phone_number?.includes(searchQuery) ||
         customer.platform_id.includes(searchQuery);
 

@@ -29,7 +29,7 @@ interface UseOptimizedNearbyDriversOptions {
 const DEFAULT_OPTIONS: UseOptimizedNearbyDriversOptions = {
   debounceMs: 1000, // Increased from 500ms for better performance
   maxRadiusKm: 10,
-  enableRealtime: true,
+  enableRealtime: false, // ⚡ مُعطّل — drivers أُزيل من supabase_realtime لتقليل WAL IO بـ 40%
   throttleMs: 2000, // Increased from 1000ms to reduce re-renders
 };
 
@@ -127,35 +127,24 @@ export const useOptimizedNearbyDrivers = (
 
       // Fetch real drivers only if enabled
       if (showRealDrivers) {
-        // Try both available_drivers_safe and drivers table
+        // ✅ FIX: استخدام PostGIS RPC بدل تحميل كل السائقين + فلتر JS
+        // كان: available_drivers_safe → كل السائقين → JS haversine
+        // الآن: get_nearby_drivers → PostGIS ST_DWithin على السيرفر
         let { data: drivers, error } = await supabase
-          .from("available_drivers_safe")
-          .select(
-            "id, vehicle_type, vehicle_model, vehicle_color, rating, current_location, is_online, is_available"
-          )
-          .eq("is_online", true)
-          .eq("is_available", true)
-          .not("current_location", "is", null);
+          .rpc('get_nearby_drivers', {
+            p_lat: pickupCoords.lat,
+            p_lng: pickupCoords.lng,
+            p_radius_km: opts.maxRadiusKm || 10,
+          });
 
-        // If available_drivers_safe doesn't work, try drivers table directly
+        // Fallback: إذا فشل RPC أو لم يُرجع نتائج — جرّب available_drivers_safe
         if (error || !drivers || drivers.length === 0) {
-          console.log("Trying drivers table directly...");
+          if (error) console.warn('get_nearby_drivers RPC failed, falling back:', error.message);
           const response = await supabase
-            .from("drivers")
+            .from("available_drivers_safe")
             .select(
-              `
-              id, 
-              vehicle_type, 
-              vehicle_model, 
-              vehicle_color, 
-              rating, 
-              current_location,
-              is_online,
-              is_available,
-              status
-            `
+              "id, vehicle_type, vehicle_model, vehicle_color, rating, current_location, is_online, is_available"
             )
-            .eq("status", "approved")
             .eq("is_online", true)
             .eq("is_available", true)
             .not("current_location", "is", null);
@@ -167,21 +156,20 @@ export const useOptimizedNearbyDrivers = (
         if (error) throw error;
 
         if (drivers) {
-          drivers.forEach((driver) => {
+          drivers.forEach((driver: any) => {
             const type = driver.vehicle_type as VehicleType;
             if (type && countsByType[type] !== undefined) {
               countsByType[type]++;
             }
 
-            const loc = driver.current_location as {
-              lat: number;
-              lng: number;
-            } | null;
-            if (loc?.lat && loc?.lng) {
+            // RPC يُرجع lat/lng مباشرة، available_drivers_safe يُرجع current_location
+            const lat = driver.lat ?? (driver.current_location as any)?.lat;
+            const lng = driver.lng ?? (driver.current_location as any)?.lng;
+            if (lat && lng) {
               const driverData: DriverLocation = {
                 id: driver.id,
-                lat: loc.lat,
-                lng: loc.lng,
+                lat,
+                lng,
                 vehicle_type: type,
                 vehicle_model: driver.vehicle_model || undefined,
                 vehicle_color: driver.vehicle_color || undefined,

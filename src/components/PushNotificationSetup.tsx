@@ -95,7 +95,12 @@ export const PushNotificationSetup = ({ userId, userType }: PushNotificationSetu
       
       if (!subscription) {
         // إنشاء subscription جديد
-        const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+        const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+        if (!vapidPublicKey) {
+          console.warn('VITE_VAPID_PUBLIC_KEY is not defined in environment variables. Web Push subscription aborted.');
+          setLoading(false);
+          return;
+        }
         
         subscription = await (registration as any).pushManager.subscribe({
           userVisibleOnly: true,
@@ -104,19 +109,74 @@ export const PushNotificationSetup = ({ userId, userType }: PushNotificationSetu
       }
 
       // حفظ الـ subscription في قاعدة البيانات
-      const { error } = await supabase.functions.invoke('send-push-notification', {
-        body: {
-          action: 'subscribe',
-          subscription: {
-            [`${userType}_id`]: userId,
+      let error = null;
+      try {
+        const res = await supabase.functions.invoke('send-push-notification', {
+          body: {
+            action: 'subscribe',
+            subscription: {
+              [`${userType}_id`]: userId,
+              endpoint: subscription.endpoint,
+              p256dh_key: arrayBufferToBase64(subscription.getKey('p256dh')),
+              auth_key: arrayBufferToBase64(subscription.getKey('auth'))
+            }
+          }
+        });
+        error = res.error;
+      } catch (invokeErr) {
+        error = invokeErr;
+      }
+
+      if (error) {
+        console.log('Could not subscribe via Edge Function, trying database fallback...');
+        
+        try {
+          // 1. Delete any existing subscription with same endpoint to avoid duplicates
+          await supabase
+            .from('push_subscriptions')
+            .delete()
+            .eq('endpoint', subscription.endpoint);
+
+          // 2. Extract fcm_token if it is an FCM web endpoint
+          let fcmToken: string | null = null;
+          if (subscription.endpoint.includes('fcm.googleapis.com/fcm/send/')) {
+            fcmToken = subscription.endpoint.split('/fcm/send/')[1] || null;
+          }
+
+          // 3. Keep a single active web subscription per user
+          if (userType === 'rider' && subscription.endpoint.includes('fcm.googleapis.com/fcm/send/')) {
+            await supabase
+              .from('push_subscriptions')
+              .delete()
+              .eq('user_id', userId)
+              .or('platform.eq.web,endpoint.like.https://fcm.googleapis.com/fcm/send/%');
+          }
+
+          const dbPayload: any = {
             endpoint: subscription.endpoint,
             p256dh_key: arrayBufferToBase64(subscription.getKey('p256dh')),
-            auth_key: arrayBufferToBase64(subscription.getKey('auth'))
+            auth_key: arrayBufferToBase64(subscription.getKey('auth')),
+            platform: 'web',
+            fcm_token: fcmToken,
+            updated_at: new Date().toISOString()
+          };
+          
+          if (userType === 'driver') {
+            dbPayload.driver_id = userId;
+          } else {
+            dbPayload.user_id = userId;
           }
-        }
-      });
 
-      if (error) throw error;
+          const { error: dbError } = await supabase
+            .from('push_subscriptions')
+            .insert(dbPayload);
+
+          if (dbError) throw dbError;
+        } catch (fallbackErr) {
+          console.error('Database fallback failed:', fallbackErr);
+          throw fallbackErr;
+        }
+      }
 
       setIsSubscribed(true);
       toast({
@@ -146,7 +206,7 @@ export const PushNotificationSetup = ({ userId, userType }: PushNotificationSetu
         await subscription.unsubscribe();
         
         // حذف من قاعدة البيانات
-        await supabase.functions.invoke('send-push-notification', {
+        const { error: unsubscribeError } = await supabase.functions.invoke('send-push-notification', {
           body: {
             action: 'unsubscribe',
             subscription: {
@@ -155,6 +215,20 @@ export const PushNotificationSetup = ({ userId, userType }: PushNotificationSetu
             }
           }
         });
+
+        if (unsubscribeError) {
+          console.warn('Could not unsubscribe via Edge Function, trying database fallback:', unsubscribeError);
+          const query = supabase
+            .from('push_subscriptions')
+            .delete()
+            .eq('endpoint', subscription.endpoint);
+            
+          if (userType === 'driver') {
+            await query.eq('driver_id', userId);
+          } else {
+            await query.eq('user_id', userId);
+          }
+        }
       }
 
       setIsSubscribed(false);

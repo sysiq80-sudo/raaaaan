@@ -116,10 +116,14 @@ export const VehiclePhotoUpload = () => {
       const fileExt = file.name.split(".").pop();
       const filePath = `${driverData.id}/${photoType}_${Date.now()}.${fileExt}`;
 
+      // ✅ ضغط الصورة قبل الرفع
+      const { compressImage } = await import('@/utils/compressImage');
+      const compressed = await compressImage(file, { maxDimension: 1280, quality: 0.8 });
+
       const { error: uploadError } = await supabase.storage
         .from("vehicle-photos")
-        .upload(filePath, file, {
-          cacheControl: "3600",
+        .upload(filePath, compressed, {
+          cacheControl: "604800", // كاش أسبوع
           upsert: false,
         });
 

@@ -133,6 +133,13 @@ const DriverHome = () => {
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
   const lastRideRequestNotifiedAtRef = useRef<number>(0);
 
+  // على النيتيف: مزامنة الموقع من BGGeo hook (عبر store) إلى الحالة المحلية لعرض الخريطة
+  const storeLocation = useDriverStore(state => state.currentLocation);
+  useEffect(() => {
+    if (!isNativePlatform || !storeLocation) return;
+    setCurrentLocation(storeLocation);
+  }, [storeLocation]);
+
   const { routeNotification } = useNotificationRouter({
     nodeId: "driver",
   });
@@ -477,8 +484,9 @@ const DriverHome = () => {
     [driverId, isOnline, hasActiveRide]
   );
 
-  // Start location tracking with fixed closure
+  // Start location tracking (web only — على النيتيف يتولى useDriverBackgroundGeolocation في DriverLayout)
   const startLocationTracking = useCallback(() => {
+    if (isNativePlatform) return;
     if (!navigator.geolocation) {
       toast({
         title: "تحديد الموقع غير متاح",
@@ -530,7 +538,7 @@ const DriverHome = () => {
     // Watch position changes with throttle
     let lastUpdateTime = 0;
     let lastUiUpdateTime = 0;
-    const MIN_UPDATE_INTERVAL = 15000; // 15 ثانية (كان 10) — لتقليل Disk IO
+    const MIN_UPDATE_INTERVAL = 30000; // 30 ثانية — كل كتابة تولّد 3 IO (UPDATE + WAL + replication)
     const UI_UPDATE_INTERVAL = 5000; // تحديث الواجهة كل 5 ثوانٍ كحد أقصى — مع شرط التحرك > 10 متر
 
     const watchId = navigator.geolocation.watchPosition(
@@ -567,7 +575,7 @@ const DriverHome = () => {
 
     watchIdRef.current = watchId;
 
-    // Fallback: تحديث كل 20 ثانية للحالات التي لا يتحرك فيها GPS (كان 15)
+    // Fallback: تحديث كل 45 ثانية للحالات التي لا يتحرك فيها GPS — يتزامن مع heartbeat
     const intervalId = setInterval(() => {
       if (latestLocationRef.current) {
         updateDriverLocation(
@@ -576,14 +584,15 @@ const DriverHome = () => {
           (latestLocationRef.current as any).heading
         );
       }
-    }, 20000);
+    }, 45000);
 
     locationUpdateIntervalRef.current = intervalId;
     setLocationTracking(true);
   }, [updateDriverLocation, toast]);
 
-  // Stop location tracking
+  // Stop location tracking (web only — على النيتيف يتولى useDriverBackgroundGeolocation في DriverLayout)
   const stopLocationTracking = useCallback(() => {
+    if (isNativePlatform) return;
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
@@ -626,8 +635,9 @@ const DriverHome = () => {
     };
   }, [stopLocationTracking]);
 
-  // Start/stop tracking based on online status
+  // Start/stop tracking based on online status (web only — على النيتيف يتولى useDriverBackgroundGeolocation)
   useEffect(() => {
+    if (isNativePlatform) return;
     if ((isOnline || hasActiveRide) && driverId) {
       startLocationTracking();
     } else {
@@ -635,7 +645,8 @@ const DriverHome = () => {
     }
   }, [isOnline, hasActiveRide, driverId, startLocationTracking, stopLocationTracking]);
 
-  // 💓 Heartbeat — نبض كل 30 ثانية لمنع الجلسات الشبحية
+  // 💓 Heartbeat — نبض كل 90 ثانية لمنع الجلسات الشبحية
+  // تحديث الموقع (كل 30 ثانية) يُحدّث updated_at ضمنياً — الـ heartbeat احتياطي فقط
   useEffect(() => {
     if (!isOnline || !driverId) {
       if (heartbeatRef.current) {
@@ -659,7 +670,7 @@ const DriverHome = () => {
     // نبضة فورية عند الاتصال
     sendHeartbeat();
 
-    heartbeatRef.current = setInterval(sendHeartbeat, 30000);
+    heartbeatRef.current = setInterval(sendHeartbeat, 90000);
 
     return () => {
       if (heartbeatRef.current) {

@@ -132,10 +132,14 @@ export const ComplaintDialog = ({
         // رفع إلى storage
         const fileExt = file.name.split('.').pop();
         const fileName = `${rideId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+        // ✅ ضغط الصورة قبل الرفع
+        const { compressImage } = await import('@/utils/compressImage');
+        const compressed = await compressImage(file, { maxDimension: 1024, quality: 0.8 });
         
         const { data, error } = await supabase.storage
           .from('complaint-evidence')
-          .upload(fileName, file);
+          .upload(fileName, compressed);
 
         if (error) {
           console.error('Upload error:', error);

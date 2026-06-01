@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getDriverDocumentUrl } from "@/utils/driverDocumentUrl";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +84,8 @@ export const DriverDocumentsViewer = ({
   const [rejectingDoc, setRejectingDoc] = useState<DocType | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [reviewLoading, setReviewLoading] = useState<DocType | null>(null);
+  // Signed URLs للوثائق (bucket أصبح private)
+  const [signedUrls, setSignedUrls] = useState<Record<string, string | null>>({});
 
   // جلب حالات المراجعة
   const fetchReviews = useCallback(async () => {
@@ -101,53 +104,72 @@ export const DriverDocumentsViewer = ({
     }
   }, [driver]);
 
+  // تحميل signed URLs عند فتح الـ dialog
+  const resolveSignedUrls = useCallback(async () => {
+    if (!driver) return;
+    const urlFields = [
+      'profile_image_url', 'id_image_url', 'id_image_back_url',
+      'license_image_url', 'license_image_back_url', 'vehicle_image_url',
+      'residency_image_url', 'guarantor_image_url',
+    ] as const;
+    const resolved: Record<string, string | null> = {};
+    await Promise.all(
+      urlFields.map(async (field) => {
+        const raw = (driver as any)?.[field];
+        resolved[field] = await getDriverDocumentUrl(raw, 3600);
+      }),
+    );
+    setSignedUrls(resolved);
+  }, [driver]);
+
   useEffect(() => {
     if (open && driver) {
       fetchReviews();
+      resolveSignedUrls();
     }
-  }, [open, driver, fetchReviews]);
+  }, [open, driver, fetchReviews, resolveSignedUrls]);
 
   const documents: DocumentItem[] = [
     {
       key: "profile_image_url",
       docType: "profile_image",
       label: "الصورة الشخصية",
-      url: driver?.profile_image_url || null,
+      url: signedUrls["profile_image_url"] || null,
       icon: <User className="w-4 h-4" />
     },
     {
       key: "id_image_url",
       docType: "id_front",
       label: "البطاقة الموحدة (أمام)",
-      url: driver?.id_image_url || null,
+      url: signedUrls["id_image_url"] || null,
       icon: <CreditCard className="w-4 h-4" />
     },
     {
       key: "id_image_back_url",
       docType: "id_back",
       label: "البطاقة الموحدة (خلف)",
-      url: driver?.id_image_back_url || null,
+      url: signedUrls["id_image_back_url"] || null,
       icon: <CreditCard className="w-4 h-4" />
     },
     {
       key: "license_image_url",
       docType: "license_front",
       label: "إجازة السوق (أمام)",
-      url: driver?.license_image_url || null,
+      url: signedUrls["license_image_url"] || null,
       icon: <FileText className="w-4 h-4" />
     },
     {
       key: "license_image_back_url",
       docType: "license_back",
       label: "إجازة السوق (خلف)",
-      url: driver?.license_image_back_url || null,
+      url: signedUrls["license_image_back_url"] || null,
       icon: <FileText className="w-4 h-4" />
     },
     {
       key: "vehicle_image_url",
       docType: "vehicle_image",
       label: "صورة السيارة",
-      url: driver?.vehicle_image_url || null,
+      url: signedUrls["vehicle_image_url"] || null,
       icon: <Car className="w-4 h-4" />
     },
   ];
@@ -230,22 +252,24 @@ export const DriverDocumentsViewer = ({
       const fileExt = file.name.split(".").pop();
       const fileName = `${driver.user_id}/${key.replace('_url', '')}.${fileExt}`;
 
+      // ✅ ضغط الصورة قبل الرفع
+      const { compressImage } = await import('@/utils/compressImage');
+      const compressed = await compressImage(file, { maxDimension: 1024, quality: 0.8 });
+
       // Upload file
       const { error: uploadError } = await supabase.storage
         .from("driver-documents")
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, compressed, { upsert: true, cacheControl: '604800' });
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data } = supabase.storage
-        .from("driver-documents")
-        .getPublicUrl(fileName);
+      // نُخزّن المسار فقط — bucket أصبح private
+      const storagePath = fileName;
 
       // Update driver record
       const { error: updateError } = await supabase
         .from("drivers")
-        .update({ [key]: data.publicUrl })
+        .update({ [key]: storagePath })
         .eq("id", driver.id);
 
       if (updateError) throw updateError;

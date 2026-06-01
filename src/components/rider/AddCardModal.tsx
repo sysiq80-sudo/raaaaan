@@ -1,7 +1,7 @@
 /**
  * ران - نافذة إضافة بطاقة جديدة
- * يفتح بوابة NasWallet لترميز البطاقة (tokenization)
- * ثم يحفظ الرمز في saved_cards
+ * البطاقات البنكية معطلة حالياً.
+ * الشحن المالي يتم فقط عبر كروت الشحن الداخلية.
  */
 
 import React, { useState, useCallback } from "react";
@@ -9,9 +9,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { CreditCard, X, Loader2, Shield, CheckCircle2, AlertCircle } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { useAddCard } from "@/hooks/useSavedCards";
 import { useToast } from "@/hooks/use-toast";
 
 interface AddCardModalProps {
@@ -27,9 +24,7 @@ const AddCardModal: React.FC<AddCardModalProps> = ({
   onOpenChange,
   onCardAdded,
 }) => {
-  const { user } = useAuth();
   const { toast } = useToast();
-  const addCard = useAddCard();
   const [step, setStep] = useState<ModalStep>("intro");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -40,68 +35,16 @@ const AddCardModal: React.FC<AddCardModalProps> = ({
   }, [onOpenChange]);
 
   /**
-   * بدء عملية إضافة البطاقة
-   * يتم إنشاء معاملة تحقق ($0) عبر بوابة ناس
-   * ثم يتم فتح صفحة الدفع لإدخال بيانات البطاقة
+   * البطاقات البنكية وبوابات الدفع الخارجية معطلة في وضع التشغيل الحالي.
    */
   const handleAddCard = async () => {
-    if (!user?.id) {
-      toast({
-        title: "خطأ",
-        description: "يرجى تسجيل الدخول أولاً",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setStep("loading");
-
-    try {
-      // استدعاء Edge Function لإنشاء معاملة تحقق
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-
-      if (!token) {
-        throw new Error("لا يوجد رمز مصادقة");
-      }
-
-      const { data, error } = await supabase.functions.invoke("nass-init-payment", {
-        body: {
-          amount: 250, // الحد الأدنى لعملية التحقق (250 د.ع)
-          orderDesc: "RAAN Card Verification - تحقق البطاقة",
-          backRef: `${window.location.origin}/rider/payments?card_added=true`,
-        },
-      });
-
-      if (error || !data?.success) {
-        throw new Error(data?.error || error?.message || "فشل الاتصال ببوابة الدفع");
-      }
-
-      const paymentUrl = data.data?.paymentUrl;
-      if (!paymentUrl) {
-        throw new Error("لم يتم استلام رابط الدفع");
-      }
-
-      setStep("redirect");
-
-      // حفظ معلومات المعاملة مؤقتاً في localStorage
-      localStorage.setItem(
-        "raan_pending_card",
-        JSON.stringify({
-          orderId: data.data.orderId,
-          timestamp: Date.now(),
-        })
-      );
-
-      // فتح صفحة الدفع في نافذة جديدة أو إعادة توجيه
-      setTimeout(() => {
-        window.location.href = paymentUrl;
-      }, 1500);
-    } catch (err: any) {
-      console.error("❌ Card add error:", err);
-      setErrorMessage(err.message || "حدث خطأ غير متوقع");
-      setStep("error");
-    }
+    toast({
+      title: "البطاقات البنكية معطلة",
+      description: "الشحن متاح حالياً عبر كروت الشحن الداخلية فقط",
+      variant: "destructive",
+    });
+    setErrorMessage("الشحن متاح حالياً عبر كروت الشحن الداخلية فقط");
+    setStep("error");
   };
 
   /**

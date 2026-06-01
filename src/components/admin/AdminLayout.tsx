@@ -50,6 +50,7 @@ import {
   Menu,
   Bell,
   ClipboardList,
+  Server,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdminNotificationsBell } from "./AdminNotificationsBell";
@@ -190,6 +191,7 @@ const AdminLayout = ({
         { icon: CircleStop, label: "الرحلات المتوقفة", href: "/admin/stopped-rides" },
         { icon: Map, label: "الخريطة الحية", href: "/admin/map" },
         { icon: Map, label: "ظهور السائقين", href: "/admin/driver-visibility" },
+        { icon: Layers, label: "مقارنة الخرائط", href: "/admin/map-compare" },
       ],
     },
     {
@@ -247,7 +249,7 @@ const AdminLayout = ({
         { icon: Ban, label: "الأسماء المحظورة", href: "/admin/banned-names" },
         { icon: Megaphone, label: "العروض الترويجية", href: "/admin/promo-banners" },
         { icon: Layers, label: "صفحات الراكب", href: "/admin/rider-pages" },
-        { icon: BookOpen, label: "دليل عائلة ران", href: "/driver/guide" },
+        { icon: BookOpen, label: "دليل عائلة ران", href: "/admin/documentation" },
       ],
     },
     {
@@ -284,6 +286,7 @@ const AdminLayout = ({
         { icon: Code, label: "ران المطور", href: "/admin/developer-settings" },
         { icon: Code, label: "خريطة المكونات", href: "/admin/dev-inspector" },
         { icon: Settings, label: "الإعدادات", href: "/admin/settings" },
+        { icon: Server, label: "قدرة النظام", href: "/admin/system-capacity" },
       ],
     },
   ];
@@ -308,7 +311,7 @@ const AdminLayout = ({
   const mainMargin = collapsed ? "mr-[72px]" : "mr-64";
 
   return (
-    <div className="min-h-screen bg-background flex" dir="rtl">
+    <div className="admin-layout min-h-screen bg-background flex" dir="rtl">
       {/* Sidebar */}
       <aside
         className={cn(

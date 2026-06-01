@@ -612,19 +612,19 @@ const AdminRegions = () => {
                     <div className="grid grid-cols-6 gap-2 mb-4">
                       <div className="text-center p-2 bg-muted/50 rounded-lg">
                         <p className="text-xs text-muted-foreground mb-1">البداية</p>
-                        <p className="font-bold text-sm">{region.base_fare.toLocaleString()}</p>
+                        <p className="font-bold text-sm">{region.base_fare.toLocaleString('en-US')}</p>
                       </div>
                       <div className="text-center p-2 bg-muted/50 rounded-lg">
                         <p className="text-xs text-muted-foreground mb-1">الكيلومتر</p>
-                        <p className="font-bold text-sm">{region.per_km_fare.toLocaleString()}</p>
+                        <p className="font-bold text-sm">{region.per_km_fare.toLocaleString('en-US')}</p>
                       </div>
                       <div className="text-center p-2 bg-muted/50 rounded-lg">
                         <p className="text-xs text-muted-foreground mb-1">الدقيقة</p>
-                        <p className="font-bold text-sm">{(region.per_minute_fare || 0).toLocaleString()}</p>
+                        <p className="font-bold text-sm">{(region.per_minute_fare || 0).toLocaleString('en-US')}</p>
                       </div>
                       <div className="text-center p-2 bg-muted/50 rounded-lg">
                         <p className="text-xs text-muted-foreground mb-1">الانتظار</p>
-                        <p className="font-bold text-sm">{region.waiting_fare_per_min.toLocaleString()}</p>
+                        <p className="font-bold text-sm">{region.waiting_fare_per_min.toLocaleString('en-US')}</p>
                       </div>
                       <div className="text-center p-2 bg-primary/10 rounded-lg">
                         <p className="text-xs text-muted-foreground mb-1">الإلغاء</p>

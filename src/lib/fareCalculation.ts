@@ -94,11 +94,8 @@ export function calculateFare(params: FareParams): FareResult {
  * التحقق من صحة المسافة
  */
 export function validateDistance(distanceKm: number): { valid: boolean; error?: string } {
-  if (!isFinite(distanceKm) || isNaN(distanceKm)) {
+  if (!isFinite(distanceKm) || isNaN(distanceKm) || distanceKm < 0) {
     return { valid: false, error: 'المسافة غير صحيحة' };
-  }
-  if (distanceKm < 0.1) {
-    return { valid: false, error: 'المسافة قصيرة جداً' };
   }
   if (distanceKm > 500) {
     return { valid: false, error: 'المسافة غير صحيحة' };

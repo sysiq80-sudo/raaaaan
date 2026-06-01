@@ -202,7 +202,7 @@ const AdminApiStats = () => {
               <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full">إجمالي</span>
             </div>
             <p className="text-2xl font-bold text-foreground">
-              {statsLoading ? "..." : stats.totalRequests.toLocaleString()}
+              {statsLoading ? "..." : stats.totalRequests.toLocaleString('en-US')}
             </p>
             <p className="text-sm text-muted-foreground">طلبات API</p>
           </CardContent>
@@ -232,7 +232,7 @@ const AdminApiStats = () => {
               <span className="text-xs bg-blue-500/20 text-blue-600 px-2 py-1 rounded-full">اليوم</span>
             </div>
             <p className="text-2xl font-bold text-foreground">
-              {statsLoading ? "..." : stats.todayRequests.toLocaleString()}
+              {statsLoading ? "..." : stats.todayRequests.toLocaleString('en-US')}
             </p>
             <p className="text-sm text-muted-foreground">طلبات اليوم</p>
           </CardContent>
@@ -247,7 +247,7 @@ const AdminApiStats = () => {
               <span className="text-xs bg-orange-500/20 text-orange-600 px-2 py-1 rounded-full">معدل</span>
             </div>
             <p className="text-2xl font-bold text-foreground">
-              {statsLoading ? "..." : Math.round(stats.totalRequests / parseInt(dateRange)).toLocaleString()}
+              {statsLoading ? "..." : Math.round(stats.totalRequests / parseInt(dateRange)).toLocaleString('en-US')}
             </p>
             <p className="text-sm text-muted-foreground">طلب/يوم</p>
           </CardContent>
@@ -341,7 +341,7 @@ const AdminApiStats = () => {
                     </Pie>
                     <Tooltip 
                       formatter={(value: number, name: string, props: any) => [
-                        `${value.toLocaleString()} طلب ($${props.payload.cost.toFixed(2)})`,
+                        `${value.toLocaleString('en-US')} طلب ($${props.payload.cost.toFixed(2)})`,
                         name
                       ]}
                     />
@@ -393,7 +393,7 @@ const AdminApiStats = () => {
                   <div className="space-y-1">
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">الطلبات</span>
-                      <span className="font-medium">{data.requests.toLocaleString()}</span>
+                      <span className="font-medium">{data.requests.toLocaleString('en-US')}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">التكلفة</span>

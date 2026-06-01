@@ -13,14 +13,17 @@ describe("riderBooking helpers", () => {
     expect(isCoordinateInIraq({ lat: 25.2048, lng: 55.2708 })).toBe(false);
   });
 
-  it("rejects missing and too-close booking locations", () => {
+  it("rejects missing booking locations", () => {
     expect(validateRideLocations(null, { lat: 33.4, lng: 43.3 }).ok).toBe(false);
+  });
+
+  it("accepts nearby pickup and dropoff locations (no minimum distance)", () => {
     expect(
       validateRideLocations(
         { lat: 33.4233, lng: 43.2974 },
         { lat: 33.42331, lng: 43.29741 },
       ),
-    ).toMatchObject({ ok: false, reason: "pickup_dropoff_too_close" });
+    ).toMatchObject({ ok: true });
   });
 
   it("accepts valid pickup and dropoff locations", () => {

@@ -27,8 +27,24 @@ export const useRecentSearches = () => {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const searches = JSON.parse(stored) as RecentSearch[];
+
+        // تصفية النصوص المتلفة (تحتوي ?? أو نصوص قصيرة جداً أو فارغة)
+        const isGarbled = (text: string) =>
+          !text || text.includes('??') || /^\?+$/.test(text.trim());
+
+        const cleaned = searches.filter(
+          (s) => s.mainText && !isGarbled(s.mainText)
+        );
+
+        // إذا وُجد تلف → احفظ القائمة النظيفة فوراً
+        if (cleaned.length !== searches.length) {
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
+          } catch { /* ignore */ }
+        }
+
         // فرز حسب الأحدث
-        setRecentSearches(searches.sort((a, b) => b.timestamp - a.timestamp));
+        setRecentSearches(cleaned.sort((a, b) => b.timestamp - a.timestamp));
       }
     } catch (error) {
       console.error('Error loading recent searches:', error);
@@ -38,6 +54,11 @@ export const useRecentSearches = () => {
   // إضافة بحث جديد
   const addRecentSearch = useCallback((search: Omit<RecentSearch, 'id' | 'timestamp'>) => {
     try {
+      // رفض النصوص المتلفة قبل الحفظ
+      if (!search.mainText || search.mainText.includes('??') || /^\?+$/.test(search.mainText.trim())) {
+        return;
+      }
+
       setRecentSearches((prev) => {
         // تجنب التكرار - احذف النتيجة القديمة إذا كانت موجودة
         const filtered = prev.filter(

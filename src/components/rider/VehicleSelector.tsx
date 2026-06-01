@@ -118,7 +118,7 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
             {estimatedFare && !isUnavailable && (
               <div className="text-left">
                 <p className={`font-bold text-lg ${isSelected ? 'text-primary' : 'text-foreground'}`}>
-                  {estimatedFare.toLocaleString()}
+                  {estimatedFare.toLocaleString('en-US')}
                 </p>
                 <p className="text-xs text-muted-foreground">د.ع</p>
               </div>

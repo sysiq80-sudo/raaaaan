@@ -16,7 +16,35 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
+
+// Temporary production switch: admin Telegram workflow is paused by business decision.
+// Keep function deployed to acknowledge webhook calls while preventing any side effects.
+const ADMIN_TELEGRAM_WEBHOOK_DISABLED = true;
+
+// ════════════════════════════════════════
+// Telegram secret_token validation (constant-time)
+// ════════════════════════════════════════
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+function isValidTelegramRequest(req: Request): boolean {
+  const expectedToken = Deno.env.get("ADMIN_TELEGRAM_WEBHOOK_SECRET") ||
+                        Deno.env.get("TELEGRAM_WEBHOOK_SECRET") || "";
+  if (!expectedToken) {
+    // Secret not configured — log warning but permit (avoids breaking existing deployment)
+    console.warn("[admin-bot] ADMIN_TELEGRAM_WEBHOOK_SECRET not configured; telegram origin is unverified");
+    return true;
+  }
+  const provided = req.headers.get("x-telegram-bot-api-secret-token") || "";
+  return !!provided && constantTimeEqual(provided, expectedToken);
+}
 
 // ════════════════════════════════════════
 // المتغيرات
@@ -159,16 +187,32 @@ async function notifyCustomer(
 // Handler الرئيسي
 // ════════════════════════════════════════
 serve(async (req) => {
-  await loadDynamicConfig();
+  const corsHeaders = getCorsHeaders(req);
 
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (ADMIN_TELEGRAM_WEBHOOK_DISABLED) {
+    console.warn("[admin-bot] admin-telegram-webhook is temporarily disabled");
+    return new Response("OK", { status: 200, headers: corsHeaders });
   }
 
   // GET = Webhook verification (if needed)
   if (req.method === "GET") {
     return new Response("Admin Bot Active ✅", { status: 200 });
   }
+
+  // ════════════════════════════════════════
+  // Telegram origin validation — must precede any DB/config work
+  // ════════════════════════════════════════
+  if (!isValidTelegramRequest(req)) {
+    console.warn("[admin-bot] Rejected: invalid or missing X-Telegram-Bot-Api-Secret-Token");
+    // Always return 200 to Telegram so it does not retry
+    return new Response("OK", { status: 200 });
+  }
+
+  await loadDynamicConfig();
 
   try {
     const body = await req.json();
@@ -269,11 +313,13 @@ serve(async (req) => {
             await supabase.from("rider_wallet_transactions").insert({
               user_id: txn.user_id,
               amount: amount,
-              type: "deposit",
+              type: "topup",
               status: "completed",
               payment_method: txn.provider || "receipt",
               reference_id: txnId,
               description: `شحن رصيد — إيصال ${txn.transaction_reference || txnId.substring(0, 8)}`,
+              balance_before: currentBalance,
+              balance_after: newBalance,
             }).then(() => {}, (e: unknown) => console.warn("[admin-bot] wallet_transactions insert:", e));
           }
         }

@@ -331,7 +331,7 @@ const AdminIncentives = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">إجمالي المكافآت</p>
-                  <p className="text-xl font-bold">{stats.totalBonusesPaid.toLocaleString()} د.ع</p>
+                  <p className="text-xl font-bold">{stats.totalBonusesPaid.toLocaleString('en-US')} د.ع</p>
                 </div>
               </div>
             </CardContent>
@@ -418,7 +418,7 @@ const AdminIncentives = () => {
                         </TableCell>
                         <TableCell>{incentive.rides_required} رحلة</TableCell>
                         <TableCell className="font-medium text-green-600">
-                          {incentive.bonus_amount.toLocaleString()} د.ع
+                          {incentive.bonus_amount.toLocaleString('en-US')} د.ع
                         </TableCell>
                         <TableCell>
                           <Switch
@@ -490,7 +490,7 @@ const AdminIncentives = () => {
                           </TableCell>
                           <TableCell>{claim.rides_completed} رحلة</TableCell>
                           <TableCell className="font-medium text-green-600">
-                            {claim.bonus_earned.toLocaleString()} د.ع
+                            {claim.bonus_earned.toLocaleString('en-US')} د.ع
                           </TableCell>
                           <TableCell>
                             {new Date(claim.claimed_at).toLocaleDateString("ar-IQ")}

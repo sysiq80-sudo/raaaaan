@@ -1,9 +1,9 @@
 /* ران RAAN - Arabic Typography */
-/* Primary font: Graphik Arabic (with IBM Plex Sans Arabic fallback) */
+/* Primary font: Cairo (unified across entire app) */
 
 /* Body typography */
 body {
-  font-family: "Graphik Arabic", "IBM Plex Sans Arabic", sans-serif;
+  font-family: "Cairo", "Tajawal", "Graphik Arabic", sans-serif;
   font-size: 16px;
   line-height: 1.6;
   letter-spacing: 0.3px;
@@ -16,7 +16,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: "Graphik Arabic", "IBM Plex Sans Arabic", sans-serif;
+  font-family: "Cairo", "Tajawal", "Graphik Arabic", sans-serif;
   font-weight: 700;
   line-height: 1.4;
   margin-bottom: 1rem;
@@ -80,17 +80,17 @@ p {
 }
 
 .text-arabic {
-  font-family: "Graphik Arabic", "IBM Plex Sans Arabic", sans-serif;
+  font-family: "Cairo", "Tajawal", "Graphik Arabic", sans-serif;
   line-height: 1.8;
 }
 
 .text-english {
-  font-family: "Graphik Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
+  font-family: "Cairo", "Tajawal", "Graphik Arabic", "Segoe UI", sans-serif;
   line-height: 1.6;
 }
 
 .text-kurdi {
-  font-family: "Graphik Arabic", "IBM Plex Sans Arabic", sans-serif;
+  font-family: "Cairo", "Tajawal", "Graphik Arabic", sans-serif;
   line-height: 1.8;
 }
 
@@ -346,11 +346,7 @@ small,
   }
 }
 
-/* Accessibility: Focus states */
-:focus {
-  outline: 2px solid #007bff;
-  outline-offset: 2px;
-}
+/* Accessibility: Focus states — managed in index.css */
 
 /* High contrast mode support */
 @media (prefers-contrast: more) {

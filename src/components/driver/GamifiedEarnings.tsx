@@ -80,9 +80,9 @@ const GamifiedEarnings = ({
               <span className="text-xs text-muted-foreground font-medium">هدف اليوم</span>
             </div>
             <p className="text-lg font-bold text-foreground leading-tight">
-              {todayEarnings.toLocaleString()}
+              {todayEarnings.toLocaleString('en-US')}
               <span className="text-xs text-muted-foreground font-normal mr-1">
-                / {dailyGoal.toLocaleString()} د.ع
+                / {dailyGoal.toLocaleString('en-US')} د.ع
               </span>
             </p>
           </div>
@@ -224,7 +224,7 @@ const GamifiedEarnings = ({
             className="flex items-center justify-between text-[11px] text-muted-foreground"
           >
             <span>
-              متبقي: <span className="font-semibold text-foreground">{remaining.toLocaleString()}</span> د.ع
+              متبقي: <span className="font-semibold text-foreground">{remaining.toLocaleString('en-US')}</span> د.ع
             </span>
             <span className="flex items-center gap-1">
               <nextMilestone.icon className={cn("w-3 h-3", nextMilestone.color)} />

@@ -3,10 +3,14 @@ import DriverApp from "./DriverApp";
 import "@/index.css";
 import { initCapacitorPlugins } from "@/lib/capacitorBridge";
 import { initUserGestureTracking } from "@/lib/userGestureTracker";
-import { initSentry } from "@/lib/sentry";
 
-// تهيئة Sentry
-try { initSentry(); } catch (e) { console.error('[Sentry] فشل:', e); }
+// ⚡ Sentry يُحمّل بعد العرض الأول — لا يُبطئ البداية
+const deferredInit = typeof requestIdleCallback === 'function' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 2000);
+deferredInit(() => {
+  import("@/lib/sentry").then(({ initSentry }) => {
+    try { initSentry(); } catch (e) { console.error("[Sentry] فشل:", e); }
+  });
+});
 
 // تهيئة Capacitor
 initCapacitorPlugins();

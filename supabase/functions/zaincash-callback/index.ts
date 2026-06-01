@@ -74,6 +74,14 @@ interface ZainCashResult {
 serve(async (req) => {
   await loadDynamicConfig();
 
+  const externalGatewaysEnabled = Deno.env.get("ENABLE_EXTERNAL_PAYMENT_GATEWAYS") === "true";
+  if (!externalGatewaysEnabled) {
+    return Response.redirect(
+      `${siteUrl}/payment/result?status=error&error_message=payment_gateways_disabled`,
+      302
+    );
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

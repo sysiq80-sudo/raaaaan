@@ -60,18 +60,19 @@ export const AddDriverDialog = ({
   const uploadDocument = async (file: File, driverId: string, type: "id" | "license") => {
     const fileExt = file.name.split(".").pop();
     const fileName = `${driverId}/${type}.${fileExt}`;
+
+    // ✅ ضغط الصورة قبل الرفع
+    const { compressImage } = await import('@/utils/compressImage');
+    const compressed = await compressImage(file, { maxDimension: 1024, quality: 0.8 });
     
     const { error } = await supabase.storage
       .from("driver-documents")
-      .upload(fileName, file, { upsert: true });
+      .upload(fileName, compressed, { upsert: true, cacheControl: '604800' });
 
     if (error) throw error;
 
-    const { data } = supabase.storage
-      .from("driver-documents")
-      .getPublicUrl(fileName);
-
-    return data.publicUrl;
+    // نُرجع المسار فقط — bucket أصبح private
+    return fileName;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -3,26 +3,68 @@
  * يدير بيانات المستخدم والـ Mapbox token والموقع
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "./use-toast";
 import { saveLastKnownLocation, getLastKnownLocation } from "@/services/lastKnownLocationService";
 
 import type { User } from "@supabase/supabase-js";
 
+/** الحد الأدنى للمسافة (بالمتر) لتحديث الموقع — يمنع jitter */
+const MIN_MOVE_THRESHOLD_M = 3;
+
+/** Haversine distance بين نقطتين (بالمتر) */
+const haversineM = (
+  lat1: number, lng1: number,
+  lat2: number, lng2: number,
+): number => {
+  const R = 6_371_000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
 export const useRiderData = () => {
   const { toast } = useToast();
 
   const [userId, setUserId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [mapToken, setMapToken] = useState<string | null>(null);
+  const [mapToken, setMapToken] = useState<string | null>("google-maps"); // ⚡ قيمة ثابتة — لا حاجة لبدء بـ null
   // ✅ تهيئة من آخر موقع مخزن — الخريطة تبدأ من الموقع الحقيقي فوراً
   const cachedLoc = getLastKnownLocation();
   const [userLocation, setUserLocation] = useState<{
     lat: number;
     lng: number;
   } | null>(cachedLoc ? { lat: cachedLoc.lat, lng: cachedLoc.lng } : null);
+  const [userAccuracy, setUserAccuracy] = useState<number>(50); // دقة GPS بالمتر
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Ref لآخر موقع مُبلّغ عنه — لتجنب setState عند حركات أقل من العتبة
+  const lastReportedRef = useRef<{ lat: number; lng: number } | null>(
+    cachedLoc ? { lat: cachedLoc.lat, lng: cachedLoc.lng } : null,
+  );
+
+  /** تحديث الموقع فقط إذا تحرك المستخدم بما يكفي */
+  const updateIfMoved = useCallback(
+    (lat: number, lng: number, accuracy?: number) => {
+      const last = lastReportedRef.current;
+      if (last && haversineM(last.lat, last.lng, lat, lng) < MIN_MOVE_THRESHOLD_M) {
+        // لم يتحرك بما يكفي — تحديث الدقة فقط
+        if (accuracy !== undefined) setUserAccuracy(accuracy);
+        return;
+      }
+      lastReportedRef.current = { lat, lng };
+      setUserLocation({ lat, lng });
+      if (accuracy !== undefined) setUserAccuracy(accuracy);
+      saveLastKnownLocation(lat, lng);
+    },
+    [],
+  );
 
   // Fetch user ID and basic info + listen for auth changes
   useEffect(() => {
@@ -81,73 +123,126 @@ export const useRiderData = () => {
     };
   }, []);
 
-  // Get user location - only after authentication
-  // ✅ Lazy Loading: آخر موقع مخزن متاح فوراً، GPS يحدّثه عند الجاهزية
+  // ✅ GPS: موقع أولي سريع + مراقبة مستمرة (مثل النقطة الزرقاء في جوجل ماب)
+  // يستخدم Capacitor Geolocation (native) أولاً ثم navigator.geolocation كبديل
   useEffect(() => {
-    if (!userId) return;
-
     let mounted = true;
+    let webWatchId: number | null = null;
+    let capWatchId: string | null = null;
 
-    if (navigator.geolocation) {
-      // Try high accuracy first (15 seconds timeout)
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          if (mounted) {
-            const loc = {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-            };
-            setUserLocation(loc);
-            // ✅ حفظ الموقع للاستخدام عند فقدان النت أو فتح التطبيق لاحقاً
-            saveLastKnownLocation(loc.lat, loc.lng);
-          }
-        },
-        (error) => {
-          console.warn(
-            "⚠️ High-accuracy geolocation failed:",
-            error.code,
-            error.message,
-          );
+    const startTracking = async () => {
+      try {
+        // ═══ Capacitor Native ═══
+        const { Geolocation } = await import('@capacitor/geolocation');
+        
+        // 1️⃣ طلب سريع بدقة منخفضة — يظهر النقطة فوراً
+        const quickPos = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: false,
+          timeout: 5000,
+        });
+        
+        if (!mounted) return;
+        updateIfMoved(
+          quickPos.coords.latitude,
+          quickPos.coords.longitude,
+          quickPos.coords.accuracy ?? 50,
+        );
 
-          // Fallback: Try with lower accuracy (coarse - WiFi/Cell)
-          if (mounted) {
-            navigator.geolocation.getCurrentPosition(
-              (position) => {
-                if (mounted) {
-                  const loc = {
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                  };
-                  setUserLocation(loc);
-                  saveLastKnownLocation(loc.lat, loc.lng);
-                }
-              },
-              (fallbackError) => {
-                console.warn(
-                  "⚠️ Coarse geolocation also failed:",
-                  fallbackError.message,
-                );
-              },
-              { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+        // 2️⃣ طلب ثانٍ بدقة عالية لتحسين الموقع الأولي
+        try {
+          const refinePos = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 15000,
+          });
+          if (!mounted) return;
+          if (refinePos.coords.accuracy < quickPos.coords.accuracy) {
+            updateIfMoved(
+              refinePos.coords.latitude,
+              refinePos.coords.longitude,
+              refinePos.coords.accuracy ?? 30,
             );
           }
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
-      );
-    }
+        } catch {
+          /* دقة عالية فشلت، نحتفظ بالدقة المنخفضة */
+        }
+
+        // 3️⃣ مراقبة مستمرة — تحديث النقطة الخضراء في الوقت الحقيقي
+        capWatchId = await Geolocation.watchPosition(
+          { enableHighAccuracy: true },
+          (pos, err) => {
+            if (!mounted || err || !pos) return;
+            updateIfMoved(
+              pos.coords.latitude,
+              pos.coords.longitude,
+              pos.coords.accuracy ?? 30,
+            );
+          },
+        );
+      } catch (capError) {
+        // ═══ Capacitor غير متوفر (Web) — navigator.geolocation ═══
+        console.warn("⚠️ Capacitor Geolocation unavailable, falling back to navigator:", capError);
+        if (!navigator.geolocation) return;
+
+        // طلب أولي سريع
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            if (!mounted) return;
+            updateIfMoved(
+              position.coords.latitude,
+              position.coords.longitude,
+              position.coords.accuracy ?? 50,
+            );
+          },
+          (error) => {
+            console.warn("⚠️ Navigator geolocation initial fix failed:", error.code, error.message);
+          },
+          { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
+        );
+
+        // مراقبة مستمرة عبر Web API
+        webWatchId = navigator.geolocation.watchPosition(
+          (position) => {
+            if (!mounted) return;
+            updateIfMoved(
+              position.coords.latitude,
+              position.coords.longitude,
+              position.coords.accuracy ?? 30,
+            );
+          },
+          (error) => {
+            console.warn("⚠️ Navigator watchPosition error:", error.code, error.message);
+          },
+          { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 },
+        );
+      }
+    };
+
+    startTracking();
 
     return () => {
       mounted = false;
+      // تنظيف Web watch
+      if (webWatchId !== null) {
+        navigator.geolocation.clearWatch(webWatchId);
+      }
+      // تنظيف Capacitor watch
+      if (capWatchId !== null) {
+        import('@capacitor/geolocation').then(({ Geolocation }) => {
+          Geolocation.clearWatch({ id: capWatchId! });
+        }).catch(() => { /* ignore */ });
+      }
     };
-  }, [userId, toast]);
+  }, [updateIfMoved]);
 
   return {
     userId,
     user,
     mapToken,
     userLocation,
+    userAccuracy,
     menuOpen,
     setMenuOpen,
     setUser,
   };
 };
+

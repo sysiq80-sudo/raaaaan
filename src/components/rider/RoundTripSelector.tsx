@@ -155,24 +155,24 @@ const RoundTripSelector: React.FC<RoundTripSelectorProps> = ({
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">سعر الذهاب</span>
-                    <span>{oneWayFare.toLocaleString()} {currency}</span>
+                    <span>{oneWayFare.toLocaleString('en-US')} {currency}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">سعر العودة</span>
-                    <span>{oneWayFare.toLocaleString()} {currency}</span>
+                    <span>{oneWayFare.toLocaleString('en-US')} {currency}</span>
                   </div>
                   <div className="flex justify-between text-sm text-emerald-600">
                     <span className="flex items-center gap-1">
                       <Percent className="w-3 h-3" />
                       خصم ذهاب وعودة ({roundTripDiscount}%)
                     </span>
-                    <span>-{discountAmount.toLocaleString()} {currency}</span>
+                    <span>-{discountAmount.toLocaleString('en-US')} {currency}</span>
                   </div>
                   <div className="h-px bg-border my-1" />
                   <div className="flex justify-between font-semibold">
                     <span>الإجمالي</span>
                     <span className="text-primary text-lg">
-                      {finalRoundTripFare.toLocaleString()} {currency}
+                      {finalRoundTripFare.toLocaleString('en-US')} {currency}
                     </span>
                   </div>
                 </div>
@@ -182,7 +182,7 @@ const RoundTripSelector: React.FC<RoundTripSelectorProps> = ({
               <div className="flex items-center justify-center gap-2 text-emerald-600 bg-emerald-500/10 rounded-full py-2 px-4">
                 <Percent className="w-4 h-4" />
                 <span className="text-sm font-medium">
-                  توفر {discountAmount.toLocaleString()} {currency} مع رحلة الذهاب والعودة!
+                  توفر {discountAmount.toLocaleString('en-US')} {currency} مع رحلة الذهاب والعودة!
                 </span>
               </div>
             </div>
@@ -196,7 +196,7 @@ const RoundTripSelector: React.FC<RoundTripSelectorProps> = ({
           <div className="bg-muted/30 rounded-lg p-3 flex items-center justify-between">
             <span className="text-sm text-muted-foreground">سعر الرحلة</span>
             <span className="font-semibold text-lg">
-              {oneWayFare.toLocaleString()} {currency}
+              {oneWayFare.toLocaleString('en-US')} {currency}
             </span>
           </div>
         </div>

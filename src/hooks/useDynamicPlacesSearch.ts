@@ -18,9 +18,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useGoogleMapsApiKey } from "./useGoogleMapsApiKey";
 import { useToast } from "./use-toast";
 import { NominatimGeocodingAdapter } from "@/lib/adapters/NominatimGeocodingAdapter";
+import { searchLandmarksByName, loadLandmarksCache } from "@/utils/landmarksCache";
 
 // Nominatim fallback singleton (بدون Google Places API)
 const nominatimAdapter = new NominatimGeocodingAdapter();
+
+// تحميل كاش المعالم فوراً عند أول import
+loadLandmarksCache().catch(() => {});
 
 export interface PlacePrediction {
   place_id: string;
@@ -153,7 +157,7 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
     return () => clearTimeout(timer);
   }, [googleMapsApiKey]);
 
-  // البحث عبر Nominatim (مجاني) مع cache + cancellation
+  // البحث: 1️⃣ معالم محلية ← 2️⃣ Nominatim إضافي
   const performSearch = useCallback(
     async (query: string) => {
       if (!query || query.trim().length < 2) {
@@ -163,13 +167,59 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
 
       const currentSearchId = ++searchIdRef.current;
 
-      // فحص الكاش أولاً
+      // كشف نوع الاستعلام — Nominatim يُترجم العربي إلى فئة OSM (قلعة→castle)
+      const isArabicQuery = /[\u0600-\u06FF]/.test(query);
+
+      // ضمان تحميل الكاش للاستعلامات العربية
+      // (فوري إذا محمّل بالفعل — ينتظر مرة واحدة فقط عند أول استخدام)
+      if (isArabicQuery) {
+        await loadLandmarksCache();
+      }
+
+      // 1️⃣ المعالم المحلية — مرنة (قلعه → قلعة أربيل)
+      const localMatches = searchLandmarksByName(query, 5).map((l) => ({
+        place_id: l.place_id,
+        main_text: l.main_text,
+        secondary_text: l.secondary_text,
+        description: l.description,
+        lat: l.lat,
+        lng: l.lng,
+      } as PlacePrediction));
+
+      // ── العربي + محلي: يُوقف كل شيء آخر (قبل الكاش) ──
+      // الكاش قد يحمل نتائج Nominatim قديمة → نتجاهله تماماً لاستعلامات عربية
+      if (isArabicQuery && localMatches.length > 0) {
+        if (currentSearchId === searchIdRef.current) {
+          setPredictions(localMatches.slice(0, 6));
+        }
+        return;
+      }
+
+      // ── فحص الكاش (فقط للاستعلامات غير العربية أو العربية بدون نتائج محلية) ──
       const cached = searchCache.get(query, userLocation?.lat, userLocation?.lng);
       if (cached && !cached.isStale) {
         if (currentSearchId === searchIdRef.current) {
-          setPredictions(cached.data);
+          const localIds = new Set(localMatches.map((l) => l.place_id));
+          const merged = [
+            ...localMatches,
+            ...cached.data.filter((c) => !localIds.has(c.place_id)),
+          ].slice(0, 6);
+          setPredictions(merged);
         }
         return;
+      }
+
+      // إذا كانت المعالم المحلية كافية (≥3) — تجاوز Nominatim كلياً
+      if (localMatches.length >= 3) {
+        if (currentSearchId === searchIdRef.current) {
+          setPredictions(localMatches.slice(0, 6));
+        }
+        return;
+      }
+
+      // إظهار المحلي فوراً بينما Nominatim يعمل
+      if (localMatches.length > 0 && currentSearchId === searchIdRef.current) {
+        setPredictions(localMatches);
       }
 
       setIsSearching(true);
@@ -180,10 +230,9 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
 
         const results = await nominatimAdapter.searchPlaces(query, center);
 
-        // تجاهل النتائج إذا جاء بحث أحدث أثناء التنفيذ
         if (currentSearchId !== searchIdRef.current) return;
 
-        const predictions: PlacePrediction[] = results.map((r) => ({
+        const nominatimPredictions: PlacePrediction[] = results.map((r) => ({
           place_id: r.place_id,
           main_text: r.main_text,
           secondary_text: r.secondary_text,
@@ -194,12 +243,20 @@ export const useDynamicPlacesSearch = (userLocation?: { lat: number; lng: number
           distance_text: r.distance_meters ? formatDistance(r.distance_meters) : undefined,
         }));
 
-        searchCache.set(query, predictions, userLocation?.lat, userLocation?.lng);
-        setPredictions(predictions);
+        // دمج: المحلي أولاً، ثم Nominatim (بدون تكرار)
+        const localIds = new Set(localMatches.map((l) => l.place_id));
+        const merged = [
+          ...localMatches,
+          ...nominatimPredictions.filter((n) => !localIds.has(n.place_id)),
+        ].slice(0, 6);
+
+        searchCache.set(query, nominatimPredictions, userLocation?.lat, userLocation?.lng);
+        setPredictions(merged);
       } catch (err) {
         console.error('❌ Nominatim search failed:', err);
         if (currentSearchId === searchIdRef.current) {
-          setPredictions([]);
+          // إذا فشل Nominatim — أبق المحلي فقط
+          setPredictions(localMatches);
         }
       } finally {
         if (currentSearchId === searchIdRef.current) {

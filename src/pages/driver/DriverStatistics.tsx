@@ -239,8 +239,7 @@ const DriverStatistics = () => {
 
     const paymentData: PaymentData[] = [
       { name: "نقدي", value: (paymentMap["cash"] || 0) + (paymentMap["zain_cash"] || 0) + (paymentMap["asia_hawala"] || 0), color: COLORS[0] },
-      { name: "المحفظة", value: (paymentMap["nas_wallet"] || 0), color: COLORS[1] },
-      { name: "البطاقة", value: (paymentMap["nass"] || 0) + (paymentMap["qi_card"] || 0), color: COLORS[2] },
+      { name: "المحفظة", value: (paymentMap["wallet"] || 0) + (paymentMap["nas_wallet"] || 0), color: COLORS[1] },
     ].filter(p => p.value > 0);
 
     // Update state
@@ -365,7 +364,7 @@ const DriverStatistics = () => {
                 الأرباح اليومية
               </CardTitle>
               <CardDescription>
-                إجمالي: {stats.totalEarnings.toLocaleString()} د.ع
+                إجمالي: {stats.totalEarnings.toLocaleString('en-US')} د.ع
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -388,7 +387,7 @@ const DriverStatistics = () => {
                         borderRadius: "8px",
                         direction: "rtl"
                       }}
-                      formatter={(value: number) => [`${value.toLocaleString()} د.ع`, "الأرباح"]}
+                      formatter={(value: number) => [`${value.toLocaleString('en-US')} د.ع`, "الأرباح"]}
                     />
                     <Area 
                       type="monotone" 
@@ -477,7 +476,7 @@ const DriverStatistics = () => {
                           border: "1px solid hsl(var(--border))",
                           borderRadius: "8px"
                         }}
-                        formatter={(value: number) => [`${value.toLocaleString()} د.ع`]}
+                        formatter={(value: number) => [`${value.toLocaleString('en-US')} د.ع`]}
                       />
                     </PieChart>
                   </ResponsiveContainer>
@@ -488,7 +487,7 @@ const DriverStatistics = () => {
                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
                           <span className="text-muted-foreground">{item.name}</span>
                         </div>
-                        <span className="font-medium text-foreground">{item.value.toLocaleString()}</span>
+                        <span className="font-medium text-foreground">{item.value.toLocaleString('en-US')}</span>
                       </div>
                     ))}
                   </div>
@@ -516,7 +515,7 @@ const DriverStatistics = () => {
                   <span>متوسط الأجرة</span>
                 </div>
                 <span className="font-semibold text-foreground">
-                  {stats.averageFare.toLocaleString()} د.ع
+                  {stats.averageFare.toLocaleString('en-US')} د.ع
                 </span>
               </div>
               <div className="flex items-center justify-between">

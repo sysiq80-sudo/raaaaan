@@ -105,7 +105,7 @@ const PromoCodeSheet: React.FC<PromoCodeSheetProps> = ({
         discount_type: (result.discount_type as "percentage" | "fixed") || "percentage",
         discount_value: result.discount_value || 0,
         max_discount: result.max_discount,
-        message: `خصم ${result.discount_type === "percentage" ? `${result.discount_value}%` : `${(result.discount_value || 0).toLocaleString()} د.ع`}`,
+        message: `خصم ${result.discount_type === "percentage" ? `${result.discount_value}%` : `${(result.discount_value || 0).toLocaleString('en-US')} د.ع`}`,
       };
 
       setValidationResult(promoResult);

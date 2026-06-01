@@ -72,6 +72,7 @@ const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
 const AdminRiders = lazy(() => import("./pages/admin/AdminRiders"));
 const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 const AdminApiStats = lazy(() => import("./pages/admin/AdminApiStats"));
+const AdminSystemCapacity = lazy(() => import("./pages/admin/AdminSystemCapacity"));
 const AdminMap = lazy(() => import("./pages/admin/AdminMap"));
 const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
 const AdminLandmarks = lazy(() => import("./pages/admin/AdminLandmarks"));
@@ -1195,6 +1196,16 @@ const AppRoutes = () => {
                 <ErrorBoundary>
                   <ProtectedRoute requiredRole="admin">
                     <AdminRoutingComparison />
+                  </ProtectedRoute>
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/admin/system-capacity"
+              element={
+                <ErrorBoundary>
+                  <ProtectedRoute requiredRole="admin">
+                    <AdminSystemCapacity />
                   </ProtectedRoute>
                 </ErrorBoundary>
               }

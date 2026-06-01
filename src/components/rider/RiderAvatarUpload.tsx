@@ -93,10 +93,14 @@ export const RiderAvatarUpload = ({
       const fileName = `${Date.now()}.${fileExt}`;
       const filePath = `riders/${riderId}/${fileName}`;
 
+      // ✅ ضغط الصورة قبل الرفع
+      const { compressImage } = await import('@/utils/compressImage');
+      const compressed = await compressImage(selectedFile, { maxDimension: 512, quality: 0.8 });
+
       const { error: uploadError } = await supabase.storage
         .from("avatars")
-        .upload(filePath, selectedFile, {
-          cacheControl: "3600",
+        .upload(filePath, compressed, {
+          cacheControl: "604800",
           upsert: false,
         });
 

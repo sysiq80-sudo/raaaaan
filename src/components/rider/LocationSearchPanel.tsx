@@ -45,6 +45,7 @@ interface LocationSearchPanelProps {
   onSelectSmart: (suggestion: SmartSuggestion) => void | Promise<void>;
   onSelectSavedPlace: (place: SearchSavedPlace) => void | Promise<void>;
   onRemoveRecent: (id: string) => void;
+  onClearRecent?: () => void;
   onClose: () => void;
 }
 
@@ -84,6 +85,7 @@ const LocationSearchPanel = ({
   onSelectSmart,
   onSelectSavedPlace,
   onRemoveRecent,
+  onClearRecent,
   onClose,
 }: LocationSearchPanelProps) => (
   <>
@@ -146,6 +148,7 @@ const LocationSearchPanel = ({
           onSelectSmart={onSelectSmart}
           onSelectSavedPlace={onSelectSavedPlace}
           onRemoveRecent={onRemoveRecent}
+          onClearRecent={onClearRecent}
           maxResults={6}
           maxRecentResults={3}
           onClose={onClose}

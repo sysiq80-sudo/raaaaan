@@ -160,9 +160,9 @@ export const RideShareButton = ({ rideId }: RideShareButtonProps) => {
         variant="outline"
         size="sm"
         onClick={handleNativeShare}
-        className="gap-2"
+        className="gap-1.5 px-3 py-2 h-10 rounded-xl text-[12px] font-bold transition-all active:scale-95 bg-slate-800/60 text-slate-200 border border-slate-700/50 hover:bg-slate-700 hover:text-white"
       >
-        <Share2 className="h-4 w-4" />
+        <Share2 className="h-3.5 w-3.5" />
         مشاركة الرحلة
       </Button>
 

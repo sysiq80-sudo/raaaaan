@@ -211,7 +211,7 @@ const AdminReferralCodes = () => {
                 <Wallet className="w-5 h-5 text-green-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats.totalRewards.toLocaleString()}</p>
+                <p className="text-2xl font-bold">{stats.totalRewards.toLocaleString('en-US')}</p>
                 <p className="text-xs text-muted-foreground">د.ع مكافآت</p>
               </div>
             </CardContent>
@@ -280,7 +280,7 @@ const AdminReferralCodes = () => {
                           </code>
                         </TableCell>
                         <TableCell>{code.total_referrals}</TableCell>
-                        <TableCell>{code.total_earned.toLocaleString()} د.ع</TableCell>
+                        <TableCell>{code.total_earned.toLocaleString('en-US')} د.ع</TableCell>
                         <TableCell>
                           <Badge variant={code.is_active ? "default" : "destructive"}>
                             {code.is_active ? "فعّال" : "معطّل"}
@@ -327,7 +327,7 @@ const AdminReferralCodes = () => {
                         <TableCell>
                           <code className="text-xs">{ref.referral_code}</code>
                         </TableCell>
-                        <TableCell>{((ref.referrer_reward || 0) + (ref.referred_reward || 0)).toLocaleString()} د.ع</TableCell>
+                        <TableCell>{((ref.referrer_reward || 0) + (ref.referred_reward || 0)).toLocaleString('en-US')} د.ع</TableCell>
                         <TableCell>
                           <Badge
                             variant={

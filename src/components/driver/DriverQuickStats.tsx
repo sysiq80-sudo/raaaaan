@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ران — بطاقات إحصائيات سريعة عائمة
  * Floating mini stats cards for driver home map overlay
  * Matches the Dark Luxury reference design
@@ -84,7 +84,7 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
               <div className="flex flex-col min-w-0">
                 <p className="text-[9px] text-slate-500 font-bold tracking-widest uppercase leading-none mb-0.5">الأرباح</p>
                 <div className="flex items-baseline gap-0.5">
-                  <span className="text-sm font-black text-white leading-none" style={{ fontFamily: "Inter, sans-serif" }}>
+                  <span className="text-sm font-black text-white leading-none" style={{ fontFamily: "Cairo, sans-serif" }}>
                     {todayEarnings.toLocaleString('en-US')}
                   </span>
                   <span className="text-[10px] font-bold text-[#5bdda6]/70">د.ع</span>
@@ -99,7 +99,7 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
               </div>
               <div className="flex flex-col min-w-0">
                 <p className="text-[9px] text-slate-500 font-bold tracking-widest uppercase leading-none mb-0.5">الرحلات</p>
-                <span className="text-sm font-black text-white leading-none" style={{ fontFamily: "Inter, sans-serif" }}>
+                <span className="text-sm font-black text-white leading-none" style={{ fontFamily: "Cairo, sans-serif" }}>
                   {todayRides.toLocaleString('en-US')}
                 </span>
               </div>

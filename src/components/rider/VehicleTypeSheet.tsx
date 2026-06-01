@@ -77,7 +77,7 @@ const VehicleTypeSheet: React.FC<VehicleTypeSheetProps> = ({
                 <div className="flex items-center gap-3">
                   {fare && !isUnavailable && (
                     <span className={`text-sm font-bold ${isSelected ? "text-primary" : "text-muted-foreground"}`}>
-                      {roundFare(fare).toLocaleString()} د.ع
+                      {roundFare(fare).toLocaleString('en-US')} د.ع
                     </span>
                   )}
                   {isUnavailable && (

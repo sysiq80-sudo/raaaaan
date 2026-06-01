@@ -127,7 +127,7 @@ const PaymentResult: React.FC = () => {
               <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 mb-6 inline-block">
                 <p className="text-sm text-muted-foreground">المبلغ المضاف</p>
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {transactionDetails.amount.toLocaleString()} د.ع
+                  {transactionDetails.amount.toLocaleString('en-US')} د.ع
                 </p>
               </div>
             )}

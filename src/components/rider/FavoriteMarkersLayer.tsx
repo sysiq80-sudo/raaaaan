@@ -76,7 +76,7 @@ export default function FavoriteMarkersLayer({
 
       // Create custom marker with HTML
       const infoWindowContent = `
-        <div style="background: white; padding: 8px 12px; border-radius: 8px; max-width: 200px; text-align: center; font-family: Arial, sans-serif; direction: rtl;">
+        <div style="background: white; padding: 8px 12px; border-radius: 8px; max-width: 200px; text-align: center; font-family: Cairo, sans-serif; direction: rtl;">
           <div style="font-size: 24px; margin-bottom: 4px;">${getEmojiForIcon(favorite.icon)}</div>
           <div style="font-weight: bold; color: #1f2937; font-size: 14px; margin-bottom: 2px;">${favorite.name}</div>
           <div style="color: #6b7280; font-size: 12px;">${favorite.address}</div>

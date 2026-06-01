@@ -1,0 +1,39 @@
+name: CI Gate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  typecheck-and-build:
+    name: TypeScript + Build (all apps)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Build rider
+        run: npm run build:rider
+
+      - name: Build driver
+        run: npm run build:driver
+
+      - name: Build admin
+        run: npm run build:admin
+
+      - name: Build car
+        run: npm run build:car

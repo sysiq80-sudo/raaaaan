@@ -269,7 +269,7 @@ const DriverRegister = () => {
                   <CheckCircle2 className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="font-bold text-foreground">التفعيل: <span className="text-primary text-xl">{settings.promo_activation_fee.toLocaleString()} دينار</span></p>
+                  <p className="font-bold text-foreground">التفعيل: <span className="text-primary text-xl">{settings.promo_activation_fee.toLocaleString('en-US')} دينار</span></p>
                   <p className="text-sm text-muted-foreground">{settings.promo_activation_fee_text}</p>
                 </div>
               </div>
@@ -279,7 +279,7 @@ const DriverRegister = () => {
                   <Gift className="w-5 h-5 text-yellow-600" />
                 </div>
                 <div>
-                  <p className="font-bold text-foreground">الرصيد: <span className="text-yellow-600 text-xl">{settings.promo_bonus_amount.toLocaleString()} دينار</span> هدية!</p>
+                  <p className="font-bold text-foreground">الرصيد: <span className="text-yellow-600 text-xl">{settings.promo_bonus_amount.toLocaleString('en-US')} دينار</span> هدية!</p>
                   <p className="text-sm text-muted-foreground">{settings.promo_bonus_text}</p>
                 </div>
               </div>
@@ -346,7 +346,7 @@ const DriverRegister = () => {
         <div className="bg-[#1a2333]/80 rounded-[20px] px-5 py-4 flex items-center justify-between border border-slate-700/50 shadow-md relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full" />
           <p className="text-white text-[15px] font-medium z-10 font-bold order-2">
-            رسوم التفعيل: <span className="text-emerald-400 font-bold">{settings.paid_activation_fee.toLocaleString()} دينار</span>
+            رسوم التفعيل: <span className="text-emerald-400 font-bold">{settings.paid_activation_fee.toLocaleString('en-US')} دينار</span>
           </p>
           <div className="w-[42px] h-[42px] bg-[#0c261e] border border-emerald-500/20 rounded-xl flex items-center justify-center z-10 order-1">
              <Wallet className="w-[20px] h-[20px] text-emerald-500" />
@@ -546,7 +546,7 @@ const DriverRegister = () => {
       </div>
 
       {/* Fixed Bottom Nav */}
-      <div className="fixed bottom-0 right-0 left-0 max-w-md mx-auto px-5 pb-[env(safe-area-inset-bottom,12px)] pt-3 bg-[#0a0f1c]/80 backdrop-blur-md border-t border-slate-800/60 flex gap-3">
+      <div className="fixed bottom-0 right-0 left-0 max-w-md mx-auto px-5 pt-3 bg-[#0a0f1c]/80 backdrop-blur-md border-t border-slate-800/60 flex gap-3" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
         <button onClick={() => setCurrentStep(1)} className="flex-1 h-12 rounded-2xl border border-slate-700 text-slate-200 text-[15px] font-medium hover:bg-slate-800 transition-colors active:scale-95">
           السابق
         </button>
@@ -638,7 +638,7 @@ const DriverRegister = () => {
       </div>
 
       {/* Fixed Bottom Nav */}
-      <div className="fixed bottom-0 right-0 left-0 max-w-md mx-auto px-5 pb-[env(safe-area-inset-bottom,12px)] pt-3 bg-[#0a0f1c]/80 backdrop-blur-md border-t border-slate-800/60 flex gap-3">
+      <div className="fixed bottom-0 right-0 left-0 max-w-md mx-auto px-5 pt-3 bg-[#0a0f1c]/80 backdrop-blur-md border-t border-slate-800/60 flex gap-3" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
         <button onClick={() => setCurrentStep(3)} className="flex-1 h-12 rounded-2xl border border-slate-700 text-slate-200 text-[15px] font-medium hover:bg-slate-800 transition-colors active:scale-95">
           السابق
         </button>

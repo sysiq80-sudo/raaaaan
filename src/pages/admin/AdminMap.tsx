@@ -150,26 +150,11 @@ const AdminMap = () => {
     if (!isAdmin) return;
     fetchData();
     
-    // Set up realtime subscription for driver locations
-    const driversChannel = supabase
-      .channel('drivers-location')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'drivers' },
-        (payload) => {
-          const updatedDriver = payload.new as Driver;
-          setDrivers(prev => 
-            prev.map(d => d.id === updatedDriver.id ? {
-              ...d,
-              ...updatedDriver,
-              current_location: updatedDriver.current_location as { lat: number; lng: number } | null
-            } : d)
-          );
-        }
-      )
-      .subscribe();
+    // ⚡ drivers أُزيل من supabase_realtime لتقليل WAL IO
+    // polling كل 30 ثانية كبديل — مقبول لصفحة الأدمن
+    const driversPollingInterval = setInterval(fetchData, 30000);
 
-    // Set up realtime subscription for rides
+    // Set up realtime subscription for rides (لا يزال مفعّلاً)
     const ridesChannel = supabase
       .channel('rides-status')
       .on(
@@ -182,7 +167,7 @@ const AdminMap = () => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(driversChannel);
+      clearInterval(driversPollingInterval);
       supabase.removeChannel(ridesChannel);
     };
   }, [isAdmin]);

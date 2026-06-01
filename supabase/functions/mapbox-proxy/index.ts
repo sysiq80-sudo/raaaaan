@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
 
 let MAPBOX_TOKEN = "";
 let _configLoaded = false;
@@ -68,6 +68,7 @@ async function logApiUsage(apiType: string, endpoint?: string, metadata?: Record
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

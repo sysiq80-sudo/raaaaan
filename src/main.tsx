@@ -98,7 +98,7 @@ if (!root) throw new Error("Root element not found");
 // استعادة الجلسة من التخزين الأصلي قبل تهيئة التطبيق (مع مهلة 3 ثوانٍ)
 Promise.race([
   hydrateFromNativeStorage(),
-  new Promise((resolve) => setTimeout(resolve, 3000)),
+  new Promise((resolve) => setTimeout(resolve, 1000)), // ✅ FIX: كان 3000ms — 1s كافية للعلامة التجارية
 ]).finally(() => {
   createRoot(root).render(
     <React.StrictMode>

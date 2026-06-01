@@ -58,7 +58,7 @@ const VoucherCard: React.FC<{
   return (
     <div className="voucher-card" style={{
       width: "340px", height: "200px", borderRadius: "16px", overflow: "hidden",
-      position: "relative", fontFamily: "'Segoe UI', Tahoma, sans-serif",
+      position: "relative", fontFamily: "'Cairo', 'Tajawal', sans-serif",
       background: cfg.gradient, color: "white",
       boxShadow: "0 8px 32px rgba(0,0,0,0.3)", pageBreakInside: "avoid",
       display: "flex", flexDirection: "column",
@@ -83,7 +83,7 @@ const VoucherCard: React.FC<{
             background: `${cfg.accent}20`, border: `1px solid ${cfg.accent}50`,
             borderRadius: "8px", padding: "4px 12px", textAlign: "center",
           }}>
-            <div style={{ fontSize: "20px", fontWeight: "900", color: cfg.accent }}>{Number(amount).toLocaleString()}</div>
+            <div style={{ fontSize: "20px", fontWeight: "900", color: cfg.accent }}>{Number(amount).toLocaleString('en-US')}</div>
             <div style={{ fontSize: "8px", opacity: 0.7 }}>د.ع</div>
           </div>
         </div>
@@ -275,7 +275,7 @@ const AdminVouchers = () => {
             { v: stats.redeemed, l: "مستخدمة", c: "text-blue-600" },
             { v: stats.driverActive, l: "🚗 سائق", c: "text-blue-500" },
             { v: stats.riderActive, l: "👤 راكب", c: "text-emerald-500" },
-            { v: stats.totalValue.toLocaleString(), l: "قيمة الفعّالة", c: "text-amber-600" },
+            { v: stats.totalValue.toLocaleString('en-US'), l: "قيمة الفعّالة", c: "text-amber-600" },
           ].map((s, i) => (
             <Card key={i}>
               <CardContent className="pt-3 pb-2 text-center">
@@ -328,7 +328,7 @@ const AdminVouchers = () => {
                   <Button key={a} variant={amount === a ? "default" : "outline"} size="sm"
                     onClick={() => setAmount(a)} className="flex-1"
                   >
-                    {a.toLocaleString()}
+                    {a.toLocaleString('en-US')}
                   </Button>
                 ))}
               </div>
@@ -358,10 +358,10 @@ const AdminVouchers = () => {
                 className="gap-2" style={{ background: AUDIENCE_CONFIG[audience].color }}
               >
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
-                إصدار {count} كارت {AUDIENCE_CONFIG[audience].label} × {amount.toLocaleString()} د.ع
+                إصدار {count} كارت {AUDIENCE_CONFIG[audience].label} × {amount.toLocaleString('en-US')} د.ع
               </Button>
               <span className="text-sm text-muted-foreground">
-                = <strong>{(count * amount).toLocaleString()}</strong> د.ع
+                = <strong>{(count * amount).toLocaleString('en-US')}</strong> د.ع
               </span>
             </div>
 
@@ -456,7 +456,7 @@ const AdminVouchers = () => {
                           </button>
                         </td>
                         <td className="py-2">{audienceBadge(v.audience)}</td>
-                        <td className="py-2 font-bold">{Number(v.amount).toLocaleString()}</td>
+                        <td className="py-2 font-bold">{Number(v.amount).toLocaleString('en-US')}</td>
                         <td className="py-2">{statusBadge(v.status)}</td>
                         <td className="py-2 text-xs text-muted-foreground">{v.batch_name || "—"}</td>
                         <td className="py-2 text-xs text-muted-foreground">{new Date(v.created_at).toLocaleDateString("ar-IQ")}</td>

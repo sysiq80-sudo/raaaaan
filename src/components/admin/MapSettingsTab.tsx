@@ -106,12 +106,30 @@ const MapSettingsTab = ({ onSettingsChange }: MapSettingsTabProps) => {
           </div>
         </div>
 
-        {/* Refresh Button */}
-        <div className="flex justify-end">
+        {/* OSM Status */}
+        <div className="flex items-center justify-between p-4 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
+          <div className="flex items-center gap-3">
+            <Map className="w-6 h-6 text-emerald-600" />
+            <div>
+              <p className="font-medium">OpenStreetMap (CartoDB Voyager)</p>
+              <p className="text-sm text-muted-foreground">Nominatim · OSRM · Photon — مجاني بالكامل</p>
+            </div>
+          </div>
+          <Badge variant="default" className="gap-1 bg-emerald-500"><CheckCircle2 className="w-3 h-3" />جاهز</Badge>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 justify-end flex-wrap">
           <Button variant="outline" onClick={checkGoogleMaps} className="gap-2">
             <RefreshCw className="w-4 h-4" />
             إعادة الفحص
           </Button>
+          <a href="/admin/map-compare">
+            <Button variant="default" className="gap-2">
+              <Map className="w-4 h-4" />
+              مقارنة الخرائط جنب-جنب
+            </Button>
+          </a>
         </div>
 
         {/* Setup Instructions (shown when not configured) */}

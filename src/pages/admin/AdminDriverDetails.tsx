@@ -101,20 +101,21 @@ const AdminDriverDetails = () => {
     return () => clearTimeout(fallbackTimer);
   }, [isAdmin, driverId, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ✅ BUG-5: Real-time subscription لتحديث حالة السائق فوراً
+  // ⚡ drivers أُزيل من supabase_realtime — polling كل 30 ثانية بدلاً من Realtime
   useEffect(() => {
     if (!driverId || !isAdmin) return;
-    const channel = supabase
-      .channel(`admin-driver-rt-${driverId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "drivers", filter: `id=eq.${driverId}` },
-        (payload) => {
-          setDriver(prev => prev ? { ...prev, ...(payload.new as Driver) } : null);
-        }
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    const pollDriver = async () => {
+      const { data } = await supabase
+        .from("drivers")
+        .select("*")
+        .eq("id", driverId)
+        .single();
+      if (data) {
+        setDriver(prev => prev ? { ...prev, ...data } : null);
+      }
+    };
+    const interval = setInterval(pollDriver, 30000);
+    return () => { clearInterval(interval); };
   }, [driverId, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchDriverData = async () => {

@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -93,14 +94,27 @@ serve(async (req) => {
     if (!createError && newUser?.user) {
       authUserId = newUser.user.id;
     } else {
-      // المستخدم موجود — نبحث عنه
-      const { data: allUsers } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-      const found = allUsers?.users?.find(
-        (u) => u.email === adminEmail
+      // المستخدم موجود — نبحث عنه بالإيميل عبر RPC آمن
+      const { data: foundUserId } = await supabase.rpc(
+        "get_auth_user_id_by_email",
+        { p_email: adminEmail }
       );
-      if (found) {
-        authUserId = found.id;
-        // تزامن كلمة المرور
+
+      if (foundUserId) {
+        authUserId = foundUserId;
+      } else {
+        // Fallback: تسجيل دخول بالإيميل وكلمة المرور للحصول على user id
+        const { data: signInData } = await supabase.auth.signInWithPassword({
+          email: adminEmail,
+          password: adminPassword,
+        });
+        if (signInData?.user) {
+          authUserId = signInData.user.id;
+        }
+      }
+
+      // مزامنة كلمة المرور مع auth.users
+      if (authUserId) {
         await supabase.auth.admin.updateUserById(authUserId, {
           password: adminPassword,
         });

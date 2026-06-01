@@ -1,6 +1,7 @@
 import {
   Star,
   Car,
+  Phone,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import React, { useState } from "react";
@@ -28,6 +29,7 @@ interface DriverInfoCardProps {
   pickupAddress?: string;
   estimatedFare?: number;
   currentLocation?: { lat: number; lng: number };
+  driverPhone?: string;
   children?: React.ReactNode;
 }
 
@@ -38,14 +40,17 @@ const DriverInfoCard = ({
   pickupAddress,
   estimatedFare,
   currentLocation,
+  driverPhone,
   children,
 }: DriverInfoCardProps) => {
   const [showVerify, setShowVerify] = useState(false);
 
+
+
   // ── حالة التحميل ──
   if (!driver || rideStatus === "pending") {
     return (
-      <div className="p-4" dir="rtl" style={{ background: '#0f1729' }}>
+      <div className="p-4" dir="rtl" style={{ background: 'transparent' }}>
         <div className="flex items-center gap-3">
           <div
             className="w-12 h-12 rounded-full flex items-center justify-center animate-pulse"
@@ -54,8 +59,8 @@ const DriverInfoCard = ({
             <Car className="w-5 h-5" style={{ color: '#5bdda6' }} />
           </div>
           <div className="flex-1">
-            <p className="font-bold text-sm text-white">جاري تحميل بيانات السائق...</p>
-            <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <p className="font-bold text-[14px] text-white">جاري تحميل بيانات السائق...</p>
+            <p className="text-[12px] mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
               سيظهر اسم السائق ومعلومات السيارة خلال لحظات
             </p>
           </div>
@@ -70,104 +75,67 @@ const DriverInfoCard = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
       dir="rtl"
-      style={{ background: '#0f1729' }}
+      className="bg-transparent"
     >
-      {/* ── القسم العلوي: صورة + معلومات ── */}
-      <div className="p-3 pb-2">
-        <div className="flex items-start gap-3">
-          {/* معلومات السائق */}
-          <div className="flex-1 min-w-0">
-            {/* الاسم */}
-            <h3 className="font-bold text-[18px] text-white truncate mb-1">
-              {driver.full_name}
-            </h3>
-
-            {/* الأجرة + أزرار */}
-            <div className="flex items-center gap-2">
-              {estimatedFare && (
-                <div
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(91,221,166,0.12), rgba(59,130,246,0.08))',
-                    border: '1px solid rgba(91,221,166,0.2)',
-                    boxShadow: '0 2px 8px rgba(91,221,166,0.06)',
-                  }}
-                >
-                  <span className="text-[12px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                    الأجرة
-                  </span>
-                  <span className="text-[18px] font-black tracking-tight" style={{ color: '#5bdda6' }}>
-                    {estimatedFare.toLocaleString()}
-                  </span>
-                  <span className="text-[9px] font-bold" style={{ color: 'rgba(91,221,166,0.6)' }}>
-                    د.ع
-                  </span>
-                </div>
-              )}
-              <div className="flex-1" />
-              <RideShareButton rideId={rideId} />
-              <EmergencyTriangleButton rideId={rideId} currentLocation={currentLocation} />
-            </div>
-          </div>
-
-          {/* صورة السائق */}
-          <div className="relative shrink-0">
-            {/* حلقة متوهجة حول الصورة */}
-            <div
-              className="absolute -inset-1 rounded-2xl opacity-40"
-              style={{
-                background: 'linear-gradient(135deg, #5bdda6, #3b82f6)',
-                filter: 'blur(6px)',
-              }}
-            />
-            <div
-              className="relative rounded-2xl overflow-hidden"
-              style={{
-                border: '2.5px solid rgba(91,221,166,0.35)',
-                boxShadow: '0 4px 20px rgba(91,221,166,0.12), inset 0 0 0 1px rgba(255,255,255,0.05)',
-              }}
-            >
-              <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center overflow-hidden"
-                style={{ background: 'linear-gradient(145deg, #1a3a4a, #0f2433)' }}
-              >
+      {/* ── معلومات الكابتن والسيارة ── */}
+      <div className="p-4 pb-0 flex flex-col gap-3">
+        {/* صورة + اسم + سيارة */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-white/20 bg-slate-800">
                 {driver.profile_image_url ? (
-                  <img 
-                    src={driver.profile_image_url} 
-                    alt={driver.full_name || ""} 
-                    className="w-full h-full object-cover" 
-                  />
+                  <img src={driver.profile_image_url} alt={driver.full_name || ""} className="w-full h-full object-cover" />
                 ) : (
-                  <Car className="w-8 h-8" style={{ color: '#5bdda6' }} />
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Car className="w-6 h-6 text-slate-400" />
+                  </div>
                 )}
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 flex items-center gap-0.5 bg-slate-900 px-1.5 py-0.5 rounded-full border border-white/10">
+                <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />
+                <span className="text-[9px] font-bold text-white tabular-nums">{driver.rating?.toFixed(1) || "5.0"}</span>
               </div>
             </div>
 
-            {/* شارة متصل */}
-            <div
-              className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full"
-              style={{
-                background: '#22c55e',
-                border: '2.5px solid #0f1729',
-                boxShadow: '0 0 8px rgba(34,197,94,0.6), 0 0 16px rgba(34,197,94,0.2)',
-              }}
-            />
-
-            {/* شارة التقييم */}
-            <div
-              className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-2 py-0.5 rounded-full"
-              style={{
-                background: 'rgba(15,23,41,0.85)',
-                border: '1px solid rgba(251,191,36,0.35)',
-                backdropFilter: 'blur(12px)',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-              }}
-            >
-              <Star className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
-              <span className="text-[10px] font-black text-yellow-400">
-                {driver.rating?.toFixed(1) || "5.0"}
-              </span>
+            <div className="flex flex-col min-w-0">
+              <h3 className="font-bold text-[15px] text-white truncate max-w-[130px]">{driver.full_name}</h3>
+              <div className="flex items-center gap-1 mt-0.5">
+                <Car className="w-3 h-3 text-slate-400 shrink-0" />
+                <span className="text-[11px] text-slate-300 truncate">
+                  {[driver.vehicle_color, driver.vehicle_model].filter(Boolean).join(" ") || "مركبة"}
+                </span>
+              </div>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {driver.vehicle_plate && (
+              <div className="bg-white/10 backdrop-blur px-2.5 py-1 rounded-lg border border-white/10">
+                <span className="font-black text-[12px] tracking-wider text-white">{driver.vehicle_plate}</span>
+              </div>
+            )}
+            {driverPhone && (
+              <a href={`tel:${driverPhone}`} className="shrink-0 flex items-center justify-center h-10 w-10 rounded-full transition-all active:scale-95 bg-white/10 text-white border border-white/10">
+                <Phone className="h-4.5 w-4.5" />
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* الأجرة + أزرار */}
+        <div className="flex items-center justify-between pt-3 border-t border-white/[0.06]">
+          {estimatedFare ? (
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[11px] text-slate-500">الأجرة</span>
+              <span className="text-[20px] font-black text-white">{estimatedFare.toLocaleString('en-US')}</span>
+              <span className="text-[11px] font-bold text-slate-400">د.ع</span>
+            </div>
+          ) : <div className="flex-1" />}
+
+          <div className="flex items-center gap-2">
+            <RideShareButton rideId={rideId} />
+            <EmergencyTriangleButton rideId={rideId} currentLocation={currentLocation} />
           </div>
         </div>
       </div>
@@ -201,3 +169,4 @@ const DriverInfoCard = ({
 };
 
 export default DriverInfoCard;
+

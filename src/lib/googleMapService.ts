@@ -171,16 +171,23 @@ export const MARKER_STYLES = {
  */
 export const createSvgIcon = (
   svgString: string,
-  scale: number = 1
+  scale: number = 1,
+  width: number = 32,
+  height: number = 32,
+  anchorX?: number,
+  anchorY?: number
 ): google.maps.Icon => {
   const svg = new Blob([svgString], { type: "image/svg+xml" });
   const url = URL.createObjectURL(svg);
 
   return {
     url: url,
-    scaledSize: new google.maps.Size(32 * scale, 32 * scale),
+    scaledSize: new google.maps.Size(width * scale, height * scale),
     origin: new google.maps.Point(0, 0),
-    anchor: new google.maps.Point(16 * scale, 32 * scale),
+    anchor: new google.maps.Point(
+      (anchorX ?? width / 2) * scale,
+      (anchorY ?? height * 0.91) * scale
+    ),
   };
 };
 
@@ -589,3 +596,59 @@ export const getDarkMapStyle = (): google.maps.MapTypeStyle[] => {
     },
   ];
 };
+
+let cachedMap: any = null;
+let cachedMapDiv: HTMLDivElement | null = null;
+
+/** مسح الـ cache لإجبار إعادة إنشاء الخريطة (مثلاً بعد تغيير الـ styles) */
+export const resetSharedMapCache = (): void => {
+  if (cachedMap) {
+    try { cachedMap.unbindAll?.(); } catch {}
+    cachedMap = null;
+  }
+  if (cachedMapDiv && cachedMapDiv.parentNode) {
+    cachedMapDiv.parentNode.removeChild(cachedMapDiv);
+  }
+  cachedMapDiv = null;
+};
+
+export const getOrCreateSharedMap = (
+  container: HTMLDivElement,
+  options: any
+): any => {
+  if (typeof document === "undefined") return null;
+
+  if (!cachedMapDiv) {
+    cachedMapDiv = document.createElement("div");
+    cachedMapDiv.style.width = "100%";
+    cachedMapDiv.style.height = "100%";
+    cachedMapDiv.style.position = "absolute";
+    cachedMapDiv.style.top = "0";
+    cachedMapDiv.style.left = "0";
+  }
+
+  // Detach from previous parent if any
+  if (cachedMapDiv.parentNode) {
+    cachedMapDiv.parentNode.removeChild(cachedMapDiv);
+  }
+
+  // Clear new container and append cached map div
+  container.innerHTML = "";
+  container.appendChild(cachedMapDiv);
+
+  if (!cachedMap) {
+    cachedMap = new (window as any).google.maps.Map(cachedMapDiv, options);
+  } else {
+    // دائماً نطبّق الـ options الجديدة (بما فيها styles المحدّثة)
+    cachedMap.setOptions(options);
+  }
+
+  // Trigger resize event to ensure Map adjusts to new parent bounds
+  if ((window as any).google?.maps?.event) {
+    (window as any).google.maps.event.trigger(cachedMap, "resize");
+  }
+
+  return cachedMap;
+};
+
+

@@ -162,7 +162,7 @@ export const RideReceiptCard = ({
             {receipt.base_fare != null && receipt.base_fare !== receipt.final_fare && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">الأجرة المقدّرة</span>
-                <span>{receipt.base_fare.toLocaleString()} د.ع</span>
+                <span>{receipt.base_fare.toLocaleString('en-US')} د.ع</span>
               </div>
             )}
 
@@ -172,7 +172,7 @@ export const RideReceiptCard = ({
                   <Timer className="w-3 h-3" />
                   أجرة الانتظار
                 </span>
-                <span>+{receipt.waiting_fare.toLocaleString()} د.ع</span>
+                <span>+{receipt.waiting_fare.toLocaleString('en-US')} د.ع</span>
               </div>
             )}
 
@@ -188,7 +188,7 @@ export const RideReceiptCard = ({
             <div className="flex justify-between items-center">
               <span className="font-bold text-lg">الإجمالي</span>
               <span className="font-bold text-2xl text-primary">
-                {receipt.final_fare.toLocaleString()} د.ع
+                {receipt.final_fare.toLocaleString('en-US')} د.ع
               </span>
             </div>
 
@@ -209,7 +209,7 @@ export const RideReceiptCard = ({
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">أجرة الرحلة</span>
               <span className="font-medium">
-                {receipt.final_fare.toLocaleString()} د.ع
+                {receipt.final_fare.toLocaleString('en-US')} د.ع
               </span>
             </div>
 
@@ -219,7 +219,7 @@ export const RideReceiptCard = ({
                   <Timer className="w-3 h-3" />
                   أجرة انتظار مشمولة
                 </span>
-                <span>{receipt.waiting_fare.toLocaleString()} د.ع</span>
+                <span>{receipt.waiting_fare.toLocaleString('en-US')} د.ع</span>
               </div>
             )}
 
@@ -233,7 +233,7 @@ export const RideReceiptCard = ({
                   عمولة المنصة ({receipt.commission_rate_percent}%)
                 </span>
                 <span className="text-red-500">
-                  -{(receipt.commission_amount || 0).toLocaleString()} د.ع
+                  -{(receipt.commission_amount || 0).toLocaleString('en-US')} د.ع
                 </span>
               </div>
             )}
@@ -268,7 +268,7 @@ export const RideReceiptCard = ({
                 صافي ربحك
               </span>
               <span className="font-bold text-2xl text-green-600">
-                {(receipt.driver_earning || 0).toLocaleString()} د.ع
+                {(receipt.driver_earning || 0).toLocaleString('en-US')} د.ع
               </span>
             </div>
 

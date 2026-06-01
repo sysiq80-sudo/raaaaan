@@ -137,29 +137,26 @@ export default function DriverApplicationStatus() {
   useEffect(() => {
     fetchDriverStatus();
 
-    // Real-time subscription for status changes
-    const channel = supabase
-      .channel('driver-status-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'drivers'
-        },
-        (payload) => {
-          if (payload.new && driver?.id === payload.new.id) {
-            setDriver(payload.new as DriverData);
-            if (payload.new.status === 'approved') {
-              toast.success("🎉 تمت الموافقة على طلبك!");
-            }
-          }
+    // ⚡ drivers أُزيل من supabase_realtime — polling كل 30 ثانية بدلاً من Realtime
+    // هذه الصفحة تُزار مرة واحدة (أثناء انتظار الموافقة) — polling مقبول تماماً
+    const pollInterval = setInterval(async () => {
+      if (!driver?.id) return;
+      const { data } = await supabase
+        .from("drivers")
+        .select("*")
+        .eq("id", driver.id)
+        .single();
+      if (data) {
+        const prev = driver;
+        setDriver(data as DriverData);
+        if (data.status === 'approved' && prev?.status !== 'approved') {
+          toast.success("🎉 تمت الموافقة على طلبك!");
         }
-      )
-      .subscribe();
+      }
+    }, 30000);
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
   }, [navigate, driver?.id]);
 

@@ -14,7 +14,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
 
 const INFOBIP_API_URL = "https://rkgdry.api.infobip.com/sms/3/messages";
 // ════════════════════════════════════════════════════════════
@@ -96,6 +96,7 @@ async function sendInfobipSMS(
 // ════════════════════════════════════════════════════════════
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

@@ -16,6 +16,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
+import { getCorsHeaders } from "../_shared/utils.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -45,13 +46,14 @@ async function loadConfig() {
   }
 }
 
-// corsHeaders — يستخدم الأساس من المشترك مع إضافة x-internal-secret
-import { corsHeaders as baseCorsHeaders } from "../_shared/utils.ts";
-const corsHeaders = {
-  ...baseCorsHeaders,
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-internal-secret",
-};
+// CORS — يستخدم الأساس من المشترك مع إضافة x-internal-secret
+function getNotifyCorsHeaders(req: Request): Record<string, string> {
+  return {
+    ...getCorsHeaders(req),
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-internal-secret",
+  };
+}
 
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const RATE_MAX_PER_WINDOW = 40;
@@ -66,7 +68,7 @@ function rateLimitOk(key: string): boolean {
   return true;
 }
 
-async function authorizeNotifyAdmin(req: Request): Promise<Response | null> {
+async function authorizeNotifyAdmin(req: Request, corsHeaders: Record<string, string>): Promise<Response | null> {
   const internal = Deno.env.get("ADMIN_NOTIFY_INTERNAL_SECRET");
   const hdr =
     req.headers.get("x-internal-secret") ||
@@ -131,11 +133,12 @@ async function sendTelegram(chatId: string, text: string): Promise<boolean> {
 }
 
 serve(async (req) => {
+  const corsHeaders = getNotifyCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const denied = await authorizeNotifyAdmin(req);
+  const denied = await authorizeNotifyAdmin(req, corsHeaders);
   if (denied) return denied;
 
   await loadConfig();

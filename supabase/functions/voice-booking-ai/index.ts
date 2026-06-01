@@ -10,7 +10,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
 
 let OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 let _configLoaded = false;
@@ -221,6 +221,7 @@ You are an AI assistant for a ride-hailing app operating ONLY in Ramadi, Al Anba
 // Handler الرئيسي
 // ============================
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });

@@ -90,7 +90,7 @@ export const useRiderPreferences = () => {
     "raan_rider_preferences",
     {
       preferredVehicleType: "economy",
-      preferredPaymentMethod: "card",
+      preferredPaymentMethod: "cash",
       enableNotifications: true,
       enableLocationSharing: true,
       theme: "dark" as "light" | "dark",

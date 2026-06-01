@@ -274,7 +274,7 @@ export const ReferralCard: React.FC<ReferralCardProps> = ({
                             <div className="flex justify-center mb-1">
                                 <Wallet className="w-5 h-5 text-success" />
                             </div>
-                            <p className="text-lg font-bold text-foreground">{referralData.totalEarned.toLocaleString()}</p>
+                            <p className="text-lg font-bold text-foreground">{referralData.totalEarned.toLocaleString('en-US')}</p>
                             <p className="text-xs text-muted-foreground">د.ع مكتسب</p>
                         </div>
                     </div>
@@ -357,7 +357,7 @@ export const ReferralInput: React.FC<ReferralInputProps> = ({ userId, onSuccess 
             if (result?.success) {
                 toast({
                     title: "🎉 تم تطبيق الكود بنجاح!",
-                    description: `ستحصل على ${result.reward?.toLocaleString()} د.ع بعد أول رحلة`,
+                    description: `ستحصل على ${result.reward?.toLocaleString('en-US')} د.ع بعد أول رحلة`,
                 });
                 setIsApplied(true);
                 onSuccess?.();

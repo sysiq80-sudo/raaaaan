@@ -4,7 +4,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -52,6 +52,7 @@ const SYSTEM_PROMPT = `أنت مساعد ذكي لتطبيق "ران RAAN" - ت�
 أجب بلغة عربية واضحة ومختصرة. إذا أُعطيت بيانات، حللها وأعطِ توصيات.`;
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
     // Handle CORS
     if (req.method === "OPTIONS") {
         return new Response(null, { headers: corsHeaders });

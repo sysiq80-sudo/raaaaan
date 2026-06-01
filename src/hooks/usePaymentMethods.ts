@@ -17,6 +17,8 @@ export interface PaymentMethodDB {
   is_enabled: boolean;
 }
 
+const ENABLED_PAYMENT_METHOD_KEYS = new Set(['cash', 'wallet']);
+
 // Fallback في حالة عدم توفر قاعدة البيانات
 const FALLBACK_PAYMENT_METHODS: PaymentMethodDB[] = [
   {
@@ -37,15 +39,6 @@ const FALLBACK_PAYMENT_METHODS: PaymentMethodDB[] = [
     display_order: 2,
     is_enabled: true,
   },
-  {
-    id: 'fallback-card',
-    method_key: 'card',
-    name_ar: 'البطاقة',
-    name_en: 'Card',
-    icon_name: 'credit-card',
-    display_order: 3,
-    is_enabled: true,
-  },
 ];
 
 export function usePaymentMethods() {
@@ -63,7 +56,9 @@ export function usePaymentMethods() {
       // إذا لم تكن هناك بيانات، ارجع الافتراضي
       if (!data || data.length === 0) return FALLBACK_PAYMENT_METHODS;
       
-      return data as PaymentMethodDB[];
+      return (data as PaymentMethodDB[]).filter((method) =>
+        ENABLED_PAYMENT_METHOD_KEYS.has(method.method_key)
+      );
     },
     staleTime: 1000 * 60 * 30, // 30 دقيقة
     gcTime: 1000 * 60 * 60 * 24, // 24 ساعة

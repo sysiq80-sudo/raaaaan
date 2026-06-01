@@ -235,8 +235,8 @@ const DriverDashboardMigrated: React.FC = () => {
         setToggling(false);
         setErrorMsg(
           monetizationMode === "daily_subscription"
-            ? `لا يمكنك العمل. رصيدك الحالي (${currentBalance.toLocaleString()} د.ع) وصل لسقف الدين المسموح (${minBalance.toLocaleString()} د.ع). يرجى تسديد المبالغ المستحقة.`
-            : `لا يمكنك العمل. رصيدك الحالي (${currentBalance.toLocaleString()} د.ع) أقل من الحد المسموح للعمل (${minBalance.toLocaleString()} د.ع). يرجى شحن محفظتك أولاً.`
+            ? `لا يمكنك العمل. رصيدك الحالي (${currentBalance.toLocaleString('en-US')} د.ع) وصل لسقف الدين المسموح (${minBalance.toLocaleString('en-US')} د.ع). يرجى تسديد المبالغ المستحقة.`
+            : `لا يمكنك العمل. رصيدك الحالي (${currentBalance.toLocaleString('en-US')} د.ع) أقل من الحد المسموح للعمل (${minBalance.toLocaleString('en-US')} د.ع). يرجى شحن محفظتك أولاً.`
         );
         return;
       }
@@ -415,7 +415,7 @@ const DriverDashboardMigrated: React.FC = () => {
               <Card>
                 <CardContent className="pt-4 pb-3 text-center">
                   <Banknote className="h-5 w-5 mx-auto text-emerald-500 mb-1" />
-                  <p className="text-2xl font-bold">{todayStats.earnings > 0 ? roundFare(todayStats.earnings).toLocaleString() : "0"}</p>
+                  <p className="text-2xl font-bold">{todayStats.earnings > 0 ? roundFare(todayStats.earnings).toLocaleString('en-US') : "0"}</p>
                   <p className="text-xs text-muted-foreground">أرباح اليوم (د.ع)</p>
                 </CardContent>
               </Card>
@@ -471,7 +471,7 @@ const DriverDashboardMigrated: React.FC = () => {
                   {/* السعر والمسافة */}
                   <div className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
                     <span className="text-lg font-bold text-primary">
-                      {activeRide.estimated_fare ? `${roundFare(activeRide.estimated_fare).toLocaleString()} د.ع` : "—"}
+                      {activeRide.estimated_fare ? `${roundFare(activeRide.estimated_fare).toLocaleString('en-US')} د.ع` : "—"}
                     </span>
                     <span className="text-sm text-muted-foreground">
                       {activeRide.distance_km ? `${activeRide.distance_km.toFixed(1)} كم` : ""}
@@ -538,7 +538,7 @@ const DriverDashboardMigrated: React.FC = () => {
                         <div className="text-left">
                           <span className={`text-sm font-bold ${ride.status === "completed" ? "text-emerald-600" : "text-red-500"}`}>
                             {ride.status === "completed" && ride.final_fare
-                              ? `${roundFare(ride.final_fare).toLocaleString()} د.ع`
+                              ? `${roundFare(ride.final_fare).toLocaleString('en-US')} د.ع`
                               : ride.status === "cancelled" ? "ملغاة" : "—"}
                           </span>
                         </div>

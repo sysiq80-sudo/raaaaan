@@ -123,7 +123,7 @@ export function RewardsSidePanel({ isOpen, onClose, driverId }: RewardsSidePanel
             <div>
               <p className="text-xs text-muted-foreground">إجمالي المكافآت المكتسبة</p>
               <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                {loading ? '...' : `${totalEarned.toLocaleString()} د.ع`}
+                {loading ? '...' : `${totalEarned.toLocaleString('en-US')} د.ع`}
               </p>
             </div>
             <div className="p-3 rounded-full bg-amber-500/20">
@@ -173,7 +173,7 @@ export function RewardsSidePanel({ isOpen, onClose, driverId }: RewardsSidePanel
                       </div>
                       <div className="text-left flex-shrink-0">
                         <p className="text-sm font-bold text-green-600 dark:text-green-400">
-                          {incentive.bonus_amount.toLocaleString()}
+                          {incentive.bonus_amount.toLocaleString('en-US')}
                         </p>
                         <p className="text-[10px] text-muted-foreground">د.ع</p>
                       </div>

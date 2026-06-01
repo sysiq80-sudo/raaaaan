@@ -32,6 +32,24 @@ const RideRouteSummaryCard: React.FC<RideRouteSummaryCardProps> = ({
       transition={{ delay: 0.05 }}
       className="bg-card rounded-2xl border border-border/30 p-4 shadow-sm text-foreground"
     >
+      {/* Distance & Duration chips — فوق العناوين */}
+      {(distance || duration) && (
+        <div className="flex items-center justify-center gap-2 mb-2 pb-2 border-b border-border/20">
+          {distance && (
+            <div className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-500 px-3 py-1.5 rounded-full">
+              <Route className="w-3.5 h-3.5" />
+              <span className="text-xs font-bold">{distance.toFixed(1)} كم</span>
+            </div>
+          )}
+          {duration && (
+            <div className="flex items-center gap-1.5 bg-cyan-500/10 text-cyan-500 px-3 py-1.5 rounded-full">
+              <Clock className="w-3.5 h-3.5" />
+              <span className="text-xs font-bold">{Math.ceil(duration)} دقيقة</span>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex gap-3 items-stretch">
         {/* Vertical route line */}
         <div className="flex flex-col items-center pt-1 shrink-0">
@@ -45,12 +63,12 @@ const RideRouteSummaryCard: React.FC<RideRouteSummaryCardProps> = ({
           {/* Pickup */}
           <div className="flex items-center gap-2">
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold text-emerald-500 uppercase tracking-wider mb-0.5">الانطلاق</p>
-              <p className="text-sm font-semibold text-foreground line-clamp-1">{pickupAddress || "جاري التحديد..."}</p>
+              <p className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-0.5">الانطلاق</p>
+              <p className="text-[15px] font-extrabold text-foreground line-clamp-1">{pickupAddress || "جاري التحديد..."}</p>
             </div>
             <button
               onClick={onEditPickup}
-              className="text-[11px] font-semibold text-muted-foreground hover:text-foreground px-2.5 py-1 rounded-lg hover:bg-secondary transition-colors shrink-0"
+              className="text-xs font-bold text-emerald-400 bg-[#5bdda6]/15 hover:bg-[#5bdda6]/25 hover:text-emerald-300 px-2.5 py-1 rounded-lg transition-colors shrink-0"
             >
               تغيير
             </button>
@@ -59,12 +77,12 @@ const RideRouteSummaryCard: React.FC<RideRouteSummaryCardProps> = ({
           {/* Dropoff */}
           <div className="flex items-center gap-2">
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold text-cyan-500 uppercase tracking-wider mb-0.5">الوجهة</p>
-              <p className="text-sm font-semibold text-foreground line-clamp-1">{dropoffAddress || "جاري التحديد..."}</p>
+              <p className="text-xs font-bold text-cyan-500 uppercase tracking-wider mb-0.5">الوجهة</p>
+              <p className="text-[15px] font-extrabold text-foreground line-clamp-1">{dropoffAddress || "جاري التحديد..."}</p>
             </div>
             <button
               onClick={onEditDropoff}
-              className="text-[11px] font-semibold text-muted-foreground hover:text-foreground px-2.5 py-1 rounded-lg hover:bg-secondary transition-colors shrink-0"
+              className="text-xs font-bold text-emerald-400 bg-[#5bdda6]/15 hover:bg-[#5bdda6]/25 hover:text-emerald-300 px-2.5 py-1 rounded-lg transition-colors shrink-0"
             >
               تغيير
             </button>
@@ -82,24 +100,6 @@ const RideRouteSummaryCard: React.FC<RideRouteSummaryCardProps> = ({
           </button>
         </div>
       </div>
-
-      {/* Distance & Duration chips */}
-      {(distance || duration) && (
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/20">
-          {distance && (
-            <div className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-500 px-3 py-1.5 rounded-full">
-              <Route className="w-3.5 h-3.5" />
-              <span className="text-xs font-bold">{distance.toFixed(1)} كم</span>
-            </div>
-          )}
-          {duration && (
-            <div className="flex items-center gap-1.5 bg-cyan-500/10 text-cyan-500 px-3 py-1.5 rounded-full">
-              <Clock className="w-3.5 h-3.5" />
-              <span className="text-xs font-bold">{Math.ceil(duration)} دقيقة</span>
-            </div>
-          )}
-        </div>
-      )}
     </motion.div>
   );
 };

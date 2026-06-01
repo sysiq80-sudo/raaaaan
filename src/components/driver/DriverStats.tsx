@@ -234,7 +234,7 @@ export const DriverStats = ({ driverId }: DriverStatsProps) => {
                 <span className="text-sm font-medium text-muted-foreground">أرباح اليوم</span>
               </div>
               <p className="text-4xl font-bold text-foreground">
-                {stats.todayEarnings.toLocaleString()}
+                {stats.todayEarnings.toLocaleString('en-US')}
               </p>
               <p className="text-sm text-muted-foreground mt-1">دينار عراقي</p>
             </div>
@@ -254,7 +254,7 @@ export const DriverStats = ({ driverId }: DriverStatsProps) => {
               {stats.todayRides} رحلة اليوم
             </span>
             <span className="text-sm text-muted-foreground">
-              أمس: {stats.yesterdayEarnings.toLocaleString()} د.ع
+              أمس: {stats.yesterdayEarnings.toLocaleString('en-US')} د.ع
             </span>
           </div>
         </CardContent>
@@ -269,13 +269,13 @@ export const DriverStats = ({ driverId }: DriverStatsProps) => {
               <span className="text-sm font-medium">هدف اليوم</span>
             </div>
             <span className="text-xs text-muted-foreground">
-              {stats.todayEarnings.toLocaleString()} / {DAILY_GOAL.toLocaleString()} د.ع
+              {stats.todayEarnings.toLocaleString('en-US')} / {DAILY_GOAL.toLocaleString('en-US')} د.ع
             </span>
           </div>
           <Progress value={dailyProgress} className="h-3" />
           <div className="flex items-center justify-between mt-3 text-sm">
             <span className="text-muted-foreground">
-              متبقي {Math.max(0, DAILY_GOAL - stats.todayEarnings).toLocaleString()} د.ع
+              متبقي {Math.max(0, DAILY_GOAL - stats.todayEarnings).toLocaleString('en-US')} د.ع
             </span>
             <span className={dailyProgress >= 100 ? "text-emerald-500 font-medium" : "text-muted-foreground"}>
               {dailyProgress >= 100 ? "🎉 تم تحقيق الهدف!" : `${dailyProgress.toFixed(0)}%`}

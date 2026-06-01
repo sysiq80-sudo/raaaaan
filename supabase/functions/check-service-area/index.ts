@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
 // In-memory cache for regions (Edge Functions are short-lived, but helps within same instance)
 let cachedRegions: any[] = [];
 let cacheTimestamp: number = 0;
@@ -102,6 +102,7 @@ async function getRegions(supabase: any): Promise<any[]> {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

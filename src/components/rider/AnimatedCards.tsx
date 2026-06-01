@@ -142,7 +142,7 @@ export const AnimatedCards: React.FC<AnimatedCardsProps> = ({
     currentFare && {
       type: 'fare' as const,
       title: 'الأجرة المقدرة',
-      value: `${currentFare.toLocaleString()} د.ع`,
+      value: `${currentFare.toLocaleString('en-US')} د.ع`,
       gradient: 'bg-gradient-to-r from-purple-500 to-pink-600',
       onClick: () => onCardClick?.('fare')
     },

@@ -31,6 +31,11 @@ export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration
     const registration = await navigator.serviceWorker.register('/sw.js', {
       scope: '/'
     });
+
+    if (!registration) {
+      console.warn('Service Worker registration unavailable');
+      return null;
+    }
     
     console.log('Service Worker registered:', registration.scope);
 
@@ -98,13 +103,16 @@ export const subscribeToPushNotifications = async (
     
     if (!subscription) {
       // Create new subscription with VAPID key
-      const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+      const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      if (!vapidPublicKey) {
+        console.warn('VITE_VAPID_PUBLIC_KEY is not defined in environment variables. Web Push subscription aborted.');
+        return null;
+      }
       
       subscription = await (registration as any).pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: vapidPublicKey
       });
-
       console.log('Push subscription created');
     }
 

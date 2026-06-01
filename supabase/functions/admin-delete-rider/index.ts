@@ -1,11 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders as baseCorsHeaders } from "../_shared/utils.ts";
-
-const corsHeaders = {
-  ...baseCorsHeaders,
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { getCorsHeaders } from "../_shared/utils.ts";
 
 function normalizePhoneDigits(phone: string): string {
   let cleaned = (phone || "").replace(/\D/g, "");
@@ -22,6 +17,10 @@ function phoneVariants(phone: string): string[] {
 }
 
 serve(async (req) => {
+  const corsHeaders = {
+    ...getCorsHeaders(req),
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

@@ -32,10 +32,15 @@ export const useNearbyDrivers = (
       }
 
       try {
+        // ✅ FIX: استخدام PostGIS RPC بدل تحميل كل السائقين + فلتر JS
+        // كان: supabase.from('available_drivers_safe').select('*') → filter in JS
+        // الآن: get_nearby_drivers يُفلتر جغرافياً في PostgreSQL
         const { data: drivers, error } = await supabase
-          .from('available_drivers_safe')
-          .select('id, vehicle_type, current_location')
-          .not('current_location', 'is', null);
+          .rpc('get_nearby_drivers', {
+            p_lat: pickupCoords.lat,
+            p_lng: pickupCoords.lng,
+            p_radius_km: 15 // نطاق البحث 15 كم
+          });
 
         if (isCancelled) return;
 
@@ -61,15 +66,14 @@ export const useNearbyDrivers = (
           
           const locations: DriverLocation[] = [];
           
-          drivers.forEach(driver => {
+          drivers.forEach((driver: any) => {
             const type = driver.vehicle_type as VehicleType;
             if (type && countsByType[type] !== undefined) {
               countsByType[type]++;
             }
             
-            const loc = driver.current_location as { lat: number; lng: number } | null;
-            if (loc && loc.lat && loc.lng) {
-              locations.push({ id: driver.id, lat: loc.lat, lng: loc.lng });
+            if (driver.lat && driver.lng) {
+              locations.push({ id: driver.id, lat: driver.lat, lng: driver.lng });
             }
           });
           

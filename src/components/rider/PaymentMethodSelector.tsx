@@ -71,7 +71,7 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
 
   const getDescription = (option: PaymentOption): string => {
     if (option.type === "wallet" && walletBalance !== undefined) {
-      return `رصيدك: ${walletBalance.toLocaleString()} د.ع`;
+      return `رصيدك: ${walletBalance.toLocaleString('en-US')} د.ع`;
     }
     return option.description;
   };
@@ -151,7 +151,6 @@ const normalizePaymentMethod = (method: string): PaymentMethod => {
     case "card":
     case "nass":
     case "qi_card":
-      return "card";
     case "zain_cash":
     case "super_key":
     case "asia_hawala":

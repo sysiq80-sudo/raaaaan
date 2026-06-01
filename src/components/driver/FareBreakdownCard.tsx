@@ -57,7 +57,7 @@ export const FareBreakdownCard = ({
                 <Car className="w-4 h-4 text-muted-foreground" />
                 <span className="text-muted-foreground">سعر البداية</span>
               </div>
-              <span className="text-foreground">{baseFare.toLocaleString()} د.ع</span>
+              <span className="text-foreground">{baseFare.toLocaleString('en-US')} د.ع</span>
             </div>
 
             {/* Distance fare */}
@@ -65,10 +65,10 @@ export const FareBreakdownCard = ({
               <div className="flex items-center gap-2">
                 <Route className="w-4 h-4 text-muted-foreground" />
                 <span className="text-muted-foreground">
-                  المسافة ({distanceKm.toFixed(1)} كم × {perKmRate.toLocaleString()})
+                  المسافة ({distanceKm.toFixed(1)} كم × {perKmRate.toLocaleString('en-US')})
                 </span>
               </div>
-              <span className="text-foreground">{distanceFare.toLocaleString()} د.ع</span>
+              <span className="text-foreground">{distanceFare.toLocaleString('en-US')} د.ع</span>
             </div>
 
             {/* Waiting fare */}
@@ -77,10 +77,10 @@ export const FareBreakdownCard = ({
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-muted-foreground" />
                   <span className="text-muted-foreground">
-                    الانتظار ({waitingMinutes} د × {waitingRatePerMin.toLocaleString()})
+                    الانتظار ({waitingMinutes} د × {waitingRatePerMin.toLocaleString('en-US')})
                   </span>
                 </div>
-                <span className="text-foreground">{waitingFare.toLocaleString()} د.ع</span>
+                <span className="text-foreground">{waitingFare.toLocaleString('en-US')} د.ع</span>
               </div>
             )}
 
@@ -100,7 +100,7 @@ export const FareBreakdownCard = ({
                   <span className="font-bold text-foreground">الإجمالي</span>
                 </div>
                 <span className="text-xl font-bold text-primary">
-                  {finalFare.toLocaleString()} د.ع
+                  {finalFare.toLocaleString('en-US')} د.ع
                 </span>
               </div>
             </div>
@@ -112,7 +112,7 @@ export const FareBreakdownCard = ({
               {waitingMinutes > 0 && <span>{waitingMinutes} د انتظار</span>}
             </div>
             <span className="text-xl font-bold text-primary">
-              {finalFare.toLocaleString()} د.ع
+              {finalFare.toLocaleString('en-US')} د.ع
             </span>
           </div>
         )}

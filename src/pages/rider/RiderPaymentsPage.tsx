@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
@@ -32,6 +32,15 @@ const RiderPaymentsPage: React.FC = () => {
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // ── حساب الصفحات للمعاملات المالية (5 معاملات في الصفحة) ──
+  const paginatedTransactions = useMemo(() => {
+    const start = (currentPage - 1) * 5;
+    return transactions.slice(start, start + 5);
+  }, [transactions, currentPage]);
+
+  const totalPages = Math.max(1, Math.ceil(transactions.length / 5));
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -74,6 +83,7 @@ const RiderPaymentsPage: React.FC = () => {
 
     if (txns) {
       setTransactions(txns);
+      setCurrentPage(1);
     }
 
     setLoading(false);
@@ -92,10 +102,17 @@ const RiderPaymentsPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-full transition-colors duration-300" style={{ background: 'var(--raan-bg)' }} dir="rtl">
+    <div 
+      className="flex flex-col min-h-full transition-colors duration-300" 
+      style={{ 
+        background: 'var(--raan-bg)',
+        paddingTop: 'calc(4rem + env(safe-area-inset-top, 0px))'
+      }} 
+      dir="rtl"
+    >
       <RiderPageHeader title="المحفظة والمدفوعات" />
 
-      <div className="pt-16 p-4 pb-8 space-y-5">
+      <div className="p-4 pb-8 space-y-5">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <div className="relative w-16 h-16">
@@ -111,9 +128,9 @@ const RiderPaymentsPage: React.FC = () => {
           <>
             {/* ── بطاقة الرصيد ── */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
+              transition={{ duration: 0.2 }}
               className="relative overflow-hidden rounded-2xl"
               style={{
                 background: "linear-gradient(145deg, #064e3b 0%, #0a3d2f 40%, #0f2922 100%)",
@@ -124,16 +141,16 @@ const RiderPaymentsPage: React.FC = () => {
               <div className="absolute bottom-[-20px] right-[-20px] w-[80px] h-[80px] rounded-full bg-emerald-400/8 blur-[30px]" />
 
               <div className="relative p-6">
-                <div className="flex items-center gap-3 mb-5">
+                <div className="flex flex-col items-center gap-3 mb-5">
                   <div className="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
                     <Wallet className="w-6 h-6 text-emerald-400" />
                   </div>
-                  <div>
-                    <p className="text-[12px] text-emerald-300/60 font-medium">رصيد المحفظة</p>
+                  <div className="text-center">
                     <p className="text-3xl font-black text-white tracking-tight">
-                      {balance.toLocaleString()}
+                      {balance.toLocaleString('en-US')}
                       <span className="text-[14px] text-emerald-300/70 mr-1.5 font-semibold">د.ع</span>
                     </p>
+                    <p className="text-[12px] text-emerald-300/60 font-medium">رصيد المحفظة</p>
                   </div>
                 </div>
                 <button
@@ -148,13 +165,13 @@ const RiderPaymentsPage: React.FC = () => {
 
             {/* ── طرق الدفع ── */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1, duration: 0.4 }}
+              transition={{ delay: 0.05, duration: 0.2 }}
               className="bg-[#151f30] rounded-2xl border border-slate-700/50 overflow-hidden"
             >
               <div className="px-5 py-4 border-b border-slate-700/30">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-row-reverse items-center justify-end gap-2">
                   <CreditCard className="w-5 h-5 text-emerald-400" />
                   <h3 className="text-[15px] font-bold text-white">طرق الدفع</h3>
                 </div>
@@ -162,47 +179,50 @@ const RiderPaymentsPage: React.FC = () => {
               <div className="p-4 space-y-3">
                 {/* نقداً */}
                 <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#1a2536] border border-slate-700/30">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-                      <Banknote className="w-5 h-5 text-emerald-400" />
-                    </div>
-                    <div>
-                      <p className="text-[13px] font-semibold text-white">الدفع نقداً</p>
-                      <p className="text-[11px] text-slate-400">الدفع للسائق مباشرة</p>
-                    </div>
-                  </div>
                   <span className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
                     الافتراضي
                   </span>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-[13px] font-semibold text-white">الدفع نقداً</p>
+                      <p className="text-[11px] text-slate-400">الدفع للسائق مباشرة</p>
+                    </div>
+                    <div className="w-10 h-10 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                      <Banknote className="w-5 h-5 text-emerald-400" />
+                    </div>
+                  </div>
                 </div>
 
                 {/* المحفظة */}
                 <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#1a2536] border border-slate-700/30">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center">
-                      <Smartphone className="w-5 h-5 text-blue-400" />
-                    </div>
-                    <div>
-                      <p className="text-[13px] font-semibold text-white">المحفظة الإلكترونية</p>
-                      <p className="text-[11px] text-slate-400">رصيد: {balance.toLocaleString()} د.ع</p>
-                    </div>
-                  </div>
                   <span className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-600/30 border border-slate-600/30 text-slate-300">
                     متاح
                   </span>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-[13px] font-semibold text-white">المحفظة الإلكترونية</p>
+                      <p className="text-[11px] text-slate-400">رصيد: {balance.toLocaleString('en-US')} د.ع</p>
+                    </div>
+                    <div className="w-10 h-10 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center">
+                      <Smartphone className="w-5 h-5 text-blue-400" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
 
             {/* ── سجل المعاملات ── */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.4 }}
+              transition={{ delay: 0.1, duration: 0.2 }}
               className="bg-[#171f33] rounded-2xl border border-slate-700/40 overflow-hidden"
             >
               <div className="px-5 py-4 border-b border-slate-700/30">
-                <h3 className="text-[15px] font-bold text-white">سجل المعاملات</h3>
+                <div className="flex flex-row-reverse items-center justify-end gap-2">
+                  <Clock className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-[15px] font-bold text-white">سجل المعاملات</h3>
+                </div>
               </div>
               <div className="p-4">
                 {transactions.length === 0 ? (
@@ -214,21 +234,20 @@ const RiderPaymentsPage: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-2.5">
-                    {transactions.map((txn, idx) => (
+                    {paginatedTransactions.map((txn, idx) => (
                       <motion.div
                         key={txn.id}
-                        initial={{ opacity: 0, x: -10 }}
+                        initial={{ opacity: 0, x: -5 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.03 }}
+                        transition={{ delay: idx * 0.02 }}
                         className="flex items-center justify-between p-3.5 rounded-xl bg-[#1a2536]/60 border border-slate-700/20 hover:border-slate-700/40 transition-colors"
                       >
+                        <p className={`font-bold text-[14px] ${getTransactionColor(txn.type)}`}>
+                          {txn.type === "topup" ? "+" : "-"}
+                          {Math.abs(txn.amount).toLocaleString('en-US')} د.ع
+                        </p>
                         <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                            txn.type === "topup" ? "bg-emerald-500/15" : "bg-red-500/15"
-                          }`}>
-                            {getTransactionIcon(txn.type)}
-                          </div>
-                          <div>
+                          <div className="text-right">
                             <p className="text-[13px] font-medium text-white">
                               {txn.type === "topup" ? "شحن رصيد" : 
                                txn.type === "ride_payment" ? "دفع رحلة" : 
@@ -238,13 +257,37 @@ const RiderPaymentsPage: React.FC = () => {
                               {format(new Date(txn.created_at), "d MMM yyyy - h:mm a", { locale: ar })}
                             </p>
                           </div>
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                            txn.type === "topup" ? "bg-emerald-500/15" : "bg-red-500/15"
+                          }`}>
+                            {getTransactionIcon(txn.type)}
+                          </div>
                         </div>
-                        <p className={`font-bold text-[14px] ${getTransactionColor(txn.type)}`}>
-                          {txn.type === "topup" ? "+" : "-"}
-                          {Math.abs(txn.amount).toLocaleString()} د.ع
-                        </p>
                       </motion.div>
                     ))}
+
+                    {/* أدوات التحكم بالصفحات (Pagination Controls) */}
+                    {transactions.length > 5 && (
+                      <div className="flex items-center justify-center gap-2 pt-4">
+                        <button
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          className="w-9 h-9 rounded-xl bg-[#1a2536] border border-slate-700/30 flex items-center justify-center text-slate-400 disabled:opacity-30 hover:border-[#5bdda6]/40 transition-all text-sm font-bold"
+                        >
+                          ›
+                        </button>
+                        <span className="text-xs text-slate-400 min-w-[70px] text-center font-medium">
+                          الصفحة {currentPage} من {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                          className="w-9 h-9 rounded-xl bg-[#1a2536] border border-slate-700/30 flex items-center justify-center text-slate-400 disabled:opacity-30 hover:border-[#5bdda6]/40 transition-all text-sm font-bold"
+                        >
+                          ‹
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

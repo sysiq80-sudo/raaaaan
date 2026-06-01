@@ -619,55 +619,20 @@ serve(async (req) => {
 
       // ── إضافة رصيد (اختيار طريقة الدفع) ──
       if (buttonId === "action_add_balance") {
-        await sendInteractiveButtons(
+        await sendTextMessage(
           phoneNumber,
-          `اختر طريقة الدفع المناسبة لك لشحن محفظتك:`,
-          [
-            { id: "topup_zaincash", title: "🟣 زين كاش" },
-            { id: "topup_superqi", title: "🟡 سوبر كي" },
-            { id: "topup_qicard", title: "💳 كيو كارد" },
-          ]
+          `الشحن متاح حالياً عبر كروت RAAN الداخلية فقط. افتح التطبيق ثم المحفظة وأدخل رمز كارت الشحن.`,
+          botCustomerId || undefined
         );
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
-      // ── تحويل عبر زين كاش ──
-      if (buttonId === "topup_zaincash") {
-        // حفظ اختيار طريقة الدفع في last_intent
-        await supabase.from("bot_customers").update({ last_intent: "awaiting_receipt:zaincash" })
-          .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
+      if (["topup_zaincash", "topup_superqi", "topup_qicard"].includes(buttonId)) {
         await sendTextMessage(
           phoneNumber,
-          `لإضافة رصيد عبر 🟣 زين كاش، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`,
+          `طرق الشحن الخارجية معطلة حالياً. استخدم كرت شحن RAAN من داخل التطبيق.`,
           botCustomerId || undefined
         );
-        await sendTextMessage(phoneNumber, `07844446633`, botCustomerId || undefined);
-        return new Response("EVENT_RECEIVED", { status: 200 });
-      }
-
-      // ── تحويل عبر سوبر كي ──
-      if (buttonId === "topup_superqi") {
-        await supabase.from("bot_customers").update({ last_intent: "awaiting_receipt:superqi" })
-          .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
-        await sendTextMessage(
-          phoneNumber,
-          `لإضافة رصيد عبر 🟡 سوبر كي، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`,
-          botCustomerId || undefined
-        );
-        await sendTextMessage(phoneNumber, `07844446633`, botCustomerId || undefined);
-        return new Response("EVENT_RECEIVED", { status: 200 });
-      }
-
-      // ── تحويل عبر كيو كارد ──
-      if (buttonId === "topup_qicard") {
-        await supabase.from("bot_customers").update({ last_intent: "awaiting_receipt:qicard" })
-          .eq("platform", "whatsapp").eq("platform_id", phoneNumber);
-        await sendTextMessage(
-          phoneNumber,
-          `لإضافة رصيد عبر 💳 كيو كارد، يرجى تحويل المبلغ المطلوب إلى الرقم أدناه، ثم إرسال صورة وصل التحويل هنا في المحادثة:`,
-          botCustomerId || undefined
-        );
-        await sendTextMessage(phoneNumber, `7117309554`, botCustomerId || undefined);
         return new Response("EVENT_RECEIVED", { status: 200 });
       }
 
@@ -1032,6 +997,16 @@ serve(async (req) => {
     if (hasImage) {
       console.log(`[wa] 🧾 Image received from ${phoneNumber} — processing as receipt`);
       const userName = profileName || "عزيزي";
+
+      const externalGatewaysEnabled = Deno.env.get("ENABLE_EXTERNAL_PAYMENT_GATEWAYS") === "true";
+      if (!externalGatewaysEnabled) {
+        await sendTextMessage(
+          phoneNumber,
+          `أستاذ ${userName}، شحن الإيصالات والتحويلات الخارجية معطل حالياً. الشحن متاح فقط عبر كروت RAAN من داخل التطبيق.`,
+          botCustomerId || undefined
+        );
+        return new Response("EVENT_RECEIVED", { status: 200 });
+      }
 
       try {
         // تحميل الصورة

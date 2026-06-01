@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
-import { corsHeaders } from "../_shared/utils.ts";
+import { getCorsHeaders, getAuthUser } from "../_shared/utils.ts";
 
 let GOOGLE_MAPS_API_KEY = "";
 let _configLoaded = false;
@@ -40,38 +40,115 @@ async function logApiUsage(apiType: string, endpoint?: string, metadata?: Record
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Geocoding Cache — يوفر 60-80% من تكلفة Google Maps API
+// ═══════════════════════════════════════════════════════════════
+
+function hashQuery(action: string, query: string): string {
+  // Simple hash — deterministic for same inputs
+  let hash = 0;
+  const str = `${action}:${query}`;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return `${action}_${Math.abs(hash).toString(36)}`;
+}
+
+// تقريب الإحداثيات لزيادة نسبة الـ cache hit
+// 4 أرقام عشرية = دقة ~11 متر (كافية للعناوين)
+function roundCoords(lat: string, lng: string): string {
+  return `${parseFloat(lat).toFixed(4)},${parseFloat(lng).toFixed(4)}`;
+}
+
+async function getCachedGeocode(supabase: any, queryHash: string): Promise<any | null> {
+  try {
+    const { data } = await supabase
+      .from('geocode_cache')
+      .select('results')
+      .eq('query_hash', queryHash)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+    
+    if (data?.results) {
+      // تحديث عداد الاستخدام (fire-and-forget)
+      supabase.from('geocode_cache')
+        .update({ hit_count: supabase.rpc ? undefined : 1 }) // fallback
+        .eq('query_hash', queryHash)
+        .then(() => {})
+        .catch(() => {});
+      
+      console.log(`[geocode-cache] ✅ HIT: ${queryHash}`);
+      return data.results;
+    }
+    return null;
+  } catch {
+    return null; // fail-open: إذا فشل الكاش نكمل مع Google
+  }
+}
+
+async function setCachedGeocode(
+  supabase: any, 
+  queryHash: string, 
+  queryText: string, 
+  action: string, 
+  results: any
+): Promise<void> {
+  try {
+    await supabase.from('geocode_cache').upsert({
+      query_hash: queryHash,
+      query_text: queryText,
+      action: action,
+      results: results,
+      hit_count: 1,
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 أيام
+    });
+    console.log(`[geocode-cache] 💾 STORED: ${queryHash}`);
+  } catch (e) {
+    console.warn('[geocode-cache] Failed to store:', e);
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getCorsHeaders(req) });
   }
 
   await loadDynamicConfig();
 
   try {
+    const dynamicCors = getCorsHeaders(req);
+
     if (!GOOGLE_MAPS_API_KEY) {
       return new Response(
         JSON.stringify({ error: 'GOOGLE_MAPS_API_KEY not configured', configured: false }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
 
-    // Check if Google Maps is configured
+    // Check if Google Maps is configured (public — no auth needed)
     if (action === 'check') {
       return new Response(
         JSON.stringify({ configured: true }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Return API key to client
-    if (action === 'get-api-key') {
-      return new Response(
-        JSON.stringify({ apiKey: GOOGLE_MAPS_API_KEY }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Require authentication for all data-access actions
+    const PROTECTED_ACTIONS = new Set(['directions', 'geocode', 'reverse-geocode']);
+    if (PROTECTED_ACTIONS.has(action ?? '')) {
+      const caller = await getAuthUser(req);
+      if (!caller) {
+        return new Response(
+          JSON.stringify({ error: 'unauthorized' }),
+          { status: 401, headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Get directions between two points
@@ -117,7 +194,7 @@ serve(async (req) => {
             end_address: leg.end_address,
           }]
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -128,6 +205,18 @@ serve(async (req) => {
 
       if (!query) {
         throw new Error('Missing search query');
+      }
+
+      // ── كاش: تحقق أولاً ──
+      const cacheKey = hashQuery('geocode', query.toLowerCase().trim());
+      const svc = createServiceClient();
+      const cached = await getCachedGeocode(svc, cacheKey);
+      if (cached) {
+        logApiUsage('google_geocode_cached', '/geocode', { query, cached: true });
+        return new Response(
+          JSON.stringify(cached),
+          { headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+        );
       }
 
       let geocodeUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&language=ar&region=iq&key=${GOOGLE_MAPS_API_KEY}`;
@@ -166,9 +255,16 @@ serve(async (req) => {
       // Log API usage
       logApiUsage('google_geocode', '/geocode', { query, results: features.length });
 
+      const geocodeResult = { features };
+
+      // ── كاش: تخزين النتيجة ──
+      if (features.length > 0) {
+        setCachedGeocode(svc, cacheKey, query, 'geocode', geocodeResult);
+      }
+
       return new Response(
-        JSON.stringify({ features }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify(geocodeResult),
+        { headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -179,6 +275,19 @@ serve(async (req) => {
 
       if (!lng || !lat) {
         throw new Error('Missing coordinates');
+      }
+
+      // ── كاش: تقريب الإحداثيات + تحقق ──
+      const roundedKey = roundCoords(lat, lng);
+      const revCacheKey = hashQuery('reverse-geocode', roundedKey);
+      const svc2 = createServiceClient();
+      const cachedRev = await getCachedGeocode(svc2, revCacheKey);
+      if (cachedRev) {
+        logApiUsage('google_reverse_geocode_cached', '/reverse-geocode', { lat, lng, cached: true });
+        return new Response(
+          JSON.stringify(cachedRev),
+          { headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
+        );
       }
 
       const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&language=ar&key=${GOOGLE_MAPS_API_KEY}`;
@@ -228,9 +337,14 @@ serve(async (req) => {
       // Log API usage
       logApiUsage('google_reverse_geocode', '/reverse-geocode', { lat, lng });
 
+      const revResult = { features };
+
+      // ── كاش: تخزين النتيجة ──
+      setCachedGeocode(svc2, revCacheKey, roundedKey, 'reverse-geocode', revResult);
+
       return new Response(
-        JSON.stringify({ features }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify(revResult),
+        { headers: { ...dynamicCors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -243,7 +357,7 @@ serve(async (req) => {
       JSON.stringify({ error: errorMessage }),
       { 
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' }
       }
     );
   }

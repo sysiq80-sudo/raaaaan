@@ -14,7 +14,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { create } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
-import { corsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
 
 // ════════════════════════════════════════
 // إعدادات ديناميكية
@@ -70,8 +70,21 @@ async function createHmacKey(secret: string): Promise<CryptoKey> {
 // ════════════════════════════════════════
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  const externalGatewaysEnabled = Deno.env.get("ENABLE_EXTERNAL_PAYMENT_GATEWAYS") === "true";
+  if (!externalGatewaysEnabled) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        code: "PAYMENT_GATEWAYS_DISABLED",
+        error: "بوابات الدفع الخارجية معطلة حالياً. الشحن متاح عبر كروت RAAN الداخلية فقط.",
+      }),
+      { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 
   await loadDynamicConfig();

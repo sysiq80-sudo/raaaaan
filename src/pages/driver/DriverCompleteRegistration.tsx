@@ -118,17 +118,18 @@ const DriverCompleteRegistration = () => {
 
   const uploadFile = async (file: File, path: string): Promise<string | null> => {
     try {
+      // ✅ ضغط الصورة قبل الرفع — يوفر 70-90% من حجم التخزين
+      const { compressImage } = await import('@/utils/compressImage');
+      const compressed = await compressImage(file, { maxDimension: 1024, quality: 0.8 });
+
       const { error: uploadError } = await supabase.storage
         .from('driver-documents')
-        .upload(path, file, { upsert: true });
+        .upload(path, compressed, { upsert: true, cacheControl: '604800' }); // كاش أسبوع
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('driver-documents')
-        .getPublicUrl(path);
-
-      return publicUrl;
+      // نُخزّن المسار فقط (بدون URL عام) — bucket أصبح private
+      return path;
     } catch (error) {
       console.error('Upload error:', error);
       return null;

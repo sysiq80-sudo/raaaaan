@@ -7,7 +7,7 @@
  * المسار: /track/:token
  */
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { MapPin, Navigation, Car, Clock, User, Shield, Loader2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -80,8 +80,6 @@ export default function TrackRide() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const channelRef = useRef<any>(null);
-  const rideStatusChannelRef = useRef<any>(null);
 
   // ── جلب بيانات الرحلة ──
   const fetchRide = useCallback(async () => {
@@ -142,8 +140,6 @@ export default function TrackRide() {
       if (parsedRide.live_location?.location) {
         setDriverLiveLocation(parsedRide.live_location.location);
         setLastUpdate(parsedRide.live_location.updated_at);
-      } else if (parsedRide.driver?.current_location) {
-        setDriverLiveLocation(parsedRide.driver.current_location);
       }
 
       setLoading(false);
@@ -159,119 +155,54 @@ export default function TrackRide() {
     fetchRide();
   }, [fetchRide]);
 
-  // ── الاشتراك بتحديثات الموقع المباشر عبر Supabase Realtime ──
+  // ── تحديث دوري عبر RPCs آمنة (بديل عن Realtime المباشر) ──
+  // بعد إغلاق RLS على driver_live_locations، Realtime لن يعمل لزوار /track/:token
+  // لذلك نستخدم polling عبر RPCs كل 5 ثوانٍ — أكثر أماناً وأقل تعقيداً
   useEffect(() => {
-    if (!ride?.id) return;
+    if (!token || !ride?.id || ["completed", "cancelled"].includes(ride?.status || "")) return;
 
-    // فقط إذا الرحلة نشطة
-    if (["completed", "cancelled"].includes(ride.status)) return;
-
-    console.log("[TrackRide] Subscribing to live location for ride:", ride.id);
-
-    // 1. الاشتراك بتحديثات موقع السائق المباشرة
-    const locationChannel = supabase
-      .channel(`track-live-location-${ride.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "driver_live_locations",
-          filter: `ride_id=eq.${ride.id}`,
-        },
-        (payload) => {
-          const newData = payload.new as any;
-          if (newData?.location) {
-            const loc = typeof newData.location === "string"
-              ? JSON.parse(newData.location)
-              : newData.location;
-            
-            if (loc?.lat && loc?.lng) {
-              console.log("[TrackRide] Live location update:", loc);
-              setDriverLiveLocation({ lat: loc.lat, lng: loc.lng });
-              setLastUpdate(newData.updated_at || new Date().toISOString());
-            }
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log("[TrackRide] Location channel status:", status);
-        setIsConnected(status === "SUBSCRIBED");
-      });
-
-    channelRef.current = locationChannel;
-
-    // 2. الاشتراك بتحديثات حالة الرحلة
-    const rideChannel = supabase
-      .channel(`track-ride-status-${ride.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "rides",
-          filter: `id=eq.${ride.id}`,
-        },
-        (payload) => {
-          const newRide = payload.new as any;
-          if (newRide?.status) {
-            console.log("[TrackRide] Ride status update:", newRide.status);
-            setRide((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    status: newRide.status,
-                  }
-                : null
-            );
-          }
-        }
-      )
-      .subscribe();
-
-    rideStatusChannelRef.current = rideChannel;
-
-    // تنظيف
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-      if (rideStatusChannelRef.current) {
-        supabase.removeChannel(rideStatusChannelRef.current);
-        rideStatusChannelRef.current = null;
-      }
-    };
-  }, [ride?.id, ride?.status]);
-
-  // ── Fallback: تحديث دوري كل 10 ثوانٍ ──
-  useEffect(() => {
-    if (!ride?.id || ["completed", "cancelled"].includes(ride?.status || "")) return;
+    setIsConnected(true); // نعتبر الاتصال نشطاً طالما polling يعمل
 
     const interval = setInterval(async () => {
       try {
-        const { data } = await supabase
-          .from("driver_live_locations" as any)
-          .select("location, updated_at")
-          .eq("ride_id", ride.id)
-          .maybeSingle();
+        // 1. تحديث موقع السائق عبر RPC آمن
+        const { data: locData } = await supabase
+          .rpc("get_live_location_by_token", { p_token: token });
 
-        if ((data as any)?.location) {
-          const loc = typeof (data as any).location === "string"
-            ? JSON.parse((data as any).location)
-            : (data as any).location;
+        const locResult = locData as { success: boolean; location?: any; heading?: number; speed?: number; updated_at?: string };
+        if (locResult?.success && locResult?.location) {
+          const loc = typeof locResult.location === "string"
+            ? JSON.parse(locResult.location)
+            : locResult.location;
           if (loc?.lat && loc?.lng) {
             setDriverLiveLocation({ lat: loc.lat, lng: loc.lng });
-            setLastUpdate((data as any).updated_at);
+            setLastUpdate(locResult.updated_at || new Date().toISOString());
           }
         }
-      } catch {
-        // تجاهل أخطاء الـ fallback
-      }
-    }, 10000);
 
-    return () => clearInterval(interval);
-  }, [ride?.id, ride?.status]);
+        // 2. تحديث حالة الرحلة عبر RPC آمن
+        const { data: rideData } = await supabase
+          .rpc("get_ride_by_share_token", { p_token: token });
+
+        const rideResult = rideData as { success: boolean; ride?: any };
+        if (rideResult?.success && rideResult?.ride?.status) {
+          setRide((prev) =>
+            prev && prev.status !== rideResult.ride.status
+              ? { ...prev, status: rideResult.ride.status }
+              : prev
+          );
+        }
+      } catch {
+        // تجاهل أخطاء الـ polling الفردية
+      }
+    }, 15000); // ✅ FIX: كان 5000ms (حمل مضاعف) — 15s كافية لمتابعة الموقع
+
+    return () => {
+      clearInterval(interval);
+      setIsConnected(false);
+    };
+  }, [token, ride?.id, ride?.status]);
+
 
   // ── حساب وقت آخر تحديث ──
   const getTimeSinceUpdate = () => {
@@ -472,7 +403,7 @@ export default function TrackRide() {
                 {ride.estimated_fare && (
                   <div className="bg-muted/50 rounded-lg p-3 text-center">
                     <p className="text-xs text-muted-foreground">الأجرة المتوقعة</p>
-                    <p className="font-bold text-primary text-lg">{Math.round(ride.estimated_fare).toLocaleString()}</p>
+                    <p className="font-bold text-primary text-lg">{Math.round(ride.estimated_fare).toLocaleString('en-US')}</p>
                     <p className="text-[10px] text-muted-foreground">دينار عراقي</p>
                   </div>
                 )}

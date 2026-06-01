@@ -107,19 +107,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const authUser = userRef.current?.id === userId ? userRef.current : null;
 
-      // ✅ في وضع الأدمن: تحقق من وجود بيانات controller أولاً
-      const appMode = typeof __APP_MODE__ !== 'undefined' ? __APP_MODE__ : null;
-      if (appMode === 'admin') {
-        try {
-          const controllerRaw = capacitorStorageSync.getItem("raan_admin_controller");
-          if (controllerRaw) {
-            const controllerData = JSON.parse(controllerRaw);
-            if (controllerData?.role === 'admin') {
-              return "admin";
-            }
-          }
-        } catch {}
-      }
+      // ✅ SECURITY FIX: لا نعتمد على localStorage لتحديد الدور
+      // الكشف يعتمد فقط على جدول user_roles في قاعدة البيانات
+      // localStorage كان يسمح بتزوير الدور من console المتصفح
 
       // ✅ تشغيل الطلبات بالتوازي لتسريع الكشف
       const [
@@ -212,18 +202,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // sessionStorage لا تعمل بشكل موثوق في Capacitor WebView
         // و rememberMeService يحفظ في Preferences لكن هنا نقرأ من localStorage
         if (!isNativePlatform) {
-          const rememberMe = capacitorStorageSync.getItem("raan_remember_me");
-          const sessionAlive = sessionStorage.getItem("raan_session_alive");
-          
-          if (
-            rememberMe !== "true" && 
-            sessionAlive !== "1" &&
-            (source === "INITIAL_SESSION" || source === "getSession")
-          ) {
-            console.log("[AuthContext] Session expired (remember-me=false/null, browser/app restarted) — signing out");
-            await supabase.auth.signOut();
-            if (isMounted) setIsLoading(false);
-            return;
+          // ✅ الأدمن يبقى مسجلاً دائماً — لوحة التحكم تُستخدم من ويب
+          const isAdminPanel = window.location.pathname.startsWith("/admin");
+          const cachedRoleKey = `raan_role_${session.user.id}`;
+          const cachedRole = capacitorStorageSync.getItem(cachedRoleKey);
+          const isAdminUser = cachedRole === "admin";
+
+          if (!isAdminPanel && !isAdminUser) {
+            const rememberMe = capacitorStorageSync.getItem("raan_remember_me");
+            const sessionAlive = sessionStorage.getItem("raan_session_alive");
+
+            if (
+              rememberMe !== "true" &&
+              sessionAlive !== "1" &&
+              (source === "INITIAL_SESSION" || source === "getSession")
+            ) {
+              console.log("[AuthContext] Session expired (remember-me=false/null, browser/app restarted) — signing out");
+              await supabase.auth.signOut();
+              if (isMounted) setIsLoading(false);
+              return;
+            }
           }
         }
 

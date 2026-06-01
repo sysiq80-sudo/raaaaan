@@ -33,6 +33,7 @@ interface RideChatProps {
   rideStatus?: string;
   driverPhone?: string;
   pickupAddress?: string;
+  iconOnly?: boolean;
 }
 
 // رسائل سريعة سياقية حسب حالة الرحلة - عراقية أصلية
@@ -105,6 +106,7 @@ export const RideChat = ({
   rideStatus,
   driverPhone,
   pickupAddress,
+  iconOnly = false,
 }: RideChatProps) => {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -266,9 +268,13 @@ export const RideChat = ({
       const fileExt = file.name.split(".").pop();
       const fileName = `${rideId}/${Date.now()}.${fileExt}`;
 
+      // ✅ ضغط الصورة قبل الرفع
+      const { compressImage } = await import('@/utils/compressImage');
+      const compressed = await compressImage(file, { maxDimension: 800, quality: 0.7 });
+
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("ride-photos")
-        .upload(fileName, file);
+        .upload(fileName, compressed);
 
       if (uploadError) {
         // إذا لم يكن الـ bucket موجود، نرسل رسالة نصية بدلاً من الصورة
@@ -322,11 +328,13 @@ export const RideChat = ({
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <button
-          className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold transition-all active:scale-95"
+          className={`relative flex items-center justify-center rounded-xl text-[12px] font-bold transition-all active:scale-95 ${
+            iconOnly ? "h-10 w-10 shrink-0" : "gap-1.5 px-3 py-2"
+          }`}
           style={{ background: 'rgba(91,221,166,0.1)', color: '#5bdda6', border: '1px solid rgba(91,221,166,0.2)' }}
         >
-          <MessageCircle className="h-3.5 w-3.5" />
-          محادثة
+          <MessageCircle className="h-4 w-4" />
+          {!iconOnly && "محادثة"}
           {unreadCount > 0 && (
             <span className="absolute -top-1.5 -left-1.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: '#ef4444', boxShadow: '0 0 8px rgba(239,68,68,0.4)' }}>
               {unreadCount}

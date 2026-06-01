@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { haversineDistance, calculateETA, corsHeaders, getAuthUser, jsonResponse, errorResponse, corsPreflightResponse } from "../_shared/utils.ts";
+import { haversineDistance, calculateETA, corsHeaders, getAuthUser, jsonResponse, errorResponse, corsPreflightResponse, getCorsHeaders } from "../_shared/utils.ts";
 import { getBatchETA, type ETAResult } from "../_shared/eta.ts";
 import { getConfigBatch } from "../_shared/config.ts";
 
@@ -116,11 +116,12 @@ function isVehicleTypeCompatible(
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   const startTime = performance.now();
 
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return corsPreflightResponse();
+    return corsPreflightResponse(corsHeaders);
   }
 
   try {
@@ -129,9 +130,14 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // التحقق من المستخدم — مطلوب بعد تفعيل JWT
-    const caller = await getAuthUser(req);
-    if (!caller) {
-      return errorResponse("غير مصرّح: يجب تسجيل الدخول", 401);
+    // استثناء: استدعاء داخلي من cron-dispatch محمي بـ INTERNAL_EDGE_SECRET
+    const internalSecret = req.headers.get("x-internal-secret");
+    const validInternalSecret = Deno.env.get("INTERNAL_EDGE_SECRET");
+    const isInternalCall = !!(internalSecret && validInternalSecret && internalSecret === validInternalSecret);
+
+    const caller = isInternalCall ? null : await getAuthUser(req);
+    if (!isInternalCall && !caller) {
+      return errorResponse("غير مصرّح: يجب تسجيل الدخول", 401, corsHeaders);
     }
 
     const body = await req.json();
@@ -144,30 +150,39 @@ serve(async (req) => {
 
     // ═══════════════════════════════════
     // 🛡️ حد الرحلات النشطة — من إعدادات الأمان
+    // (لا ينطبق على الاستدعاء الداخلي من cron-dispatch)
     // ═══════════════════════════════════
-    try {
-      const { data: secConf } = await supabase
-        .from("app_settings")
-        .select("value")
-        .eq("key", "security_settings")
-        .maybeSingle();
+    if (!isInternalCall) {
+      try {
+        const { data: secConf } = await supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", "security_settings")
+          .maybeSingle();
 
-      const maxActive = (secConf?.value as any)?.max_active_rides_per_user ?? 3;
+        const maxActive = (secConf?.value as any)?.max_active_rides_per_user ?? 3;
 
-      const { count } = await supabase
-        .from("rides")
-        .select("id", { count: "exact", head: true })
-        .eq("rider_id", caller.id)
-        .in("status", ["pending", "accepted", "in_progress"]);
+        const { count } = await supabase
+          .from("rides")
+          .select("id", { count: "exact", head: true })
+          .eq("rider_id", caller!.id)
+          .in("status", ["pending", "accepted", "in_progress"]);
 
-      if (count !== null && count >= maxActive) {
+        if (count !== null && count >= maxActive) {
+          return errorResponse(
+            `لديك ${count} رحلات نشطة بالفعل — الحد الأقصى ${maxActive}`,
+            429,
+            corsHeaders,
+          );
+        }
+      } catch (e) {
+        console.error("[match-ride] ❌ Failed to check ride limit — blocking (fail-closed):", e);
         return errorResponse(
-          `لديك ${count} رحلات نشطة بالفعل — الحد الأقصى ${maxActive}`,
-          429
+          "خدمة مؤقتاً غير متاحة — يرجى المحاولة لاحقاً",
+          503,
+          corsHeaders,
         );
       }
-    } catch (e) {
-      console.warn("[match-ride] ⚠️ Failed to check ride limit, continuing:", e);
     }
 
     console.log("🔍 بدء مطابقة الرحلة:", rideId);
@@ -179,18 +194,18 @@ serve(async (req) => {
       throw new Error("الرحلة غير موجودة");
     }
 
-    // التحقق من أن المتصل هو صاحب الرحلة
-    if (ride.rider_id !== caller.id) {
+    // التحقق من أن المتصل هو صاحب الرحلة (لا ينطبق على الاستدعاء الداخلي)
+    if (!isInternalCall && ride.rider_id !== caller!.id) {
       // التحقق من أنه مدير (admin)
       const { data: adminRole } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", caller.id)
+        .eq("user_id", caller!.id)
         .eq("role", "admin")
         .maybeSingle();
       
       if (!adminRole) {
-        return errorResponse("غير مصرّح: لا يمكنك مطابقة رحلة ليست لك", 403);
+        return errorResponse("غير مصرّح: لا يمكنك مطابقة رحلة ليست لك", 403, corsHeaders);
       }
     }
 
@@ -219,21 +234,28 @@ serve(async (req) => {
     const matchConfig = await getMatchingConfig(supabase);
     console.log(`⚙️ Matching mode: ${matchConfig.matching_mode}, max notify: ${matchConfig.max_drivers_notify}`);
 
-    // 3. البحث عن السائقين المتاحين - Optimized query
-    const { data: drivers, error: driversError } = await supabase
-      .from("drivers")
-      .select(
-        "id, user_id, full_name, vehicle_type, current_location, rating, total_rides, max_pickup_radius",
-      )
-      .eq("is_online", true)
-      .eq("is_available", true)
-      .eq("status", "approved")
-      .not("current_location", "is", null);
+    // 3. البحث عن السائقين المتاحين - Phase 3B: PostGIS spatial pre-filter
+    // نستخدم ST_DWithin بدلاً من full-table-scan.
+    // outer radius = admin_default_radius + priority_bonus + radius_bonus + 10km buffer
+    // الفلترة الدقيقة per-driver لا تزال تجري في JS أدناه.
+    const pickupLocForQuery = ride.pickup_location as { lat: number; lng: number };
+    const radiusBonusEarly = (ride.metadata as any)?.radius_bonus_km ?? 0;
+    const outerRadiusKm = matchConfig.admin_default_radius
+      + (ride.high_priority ? 5 : 0)
+      + radiusBonusEarly
+      + 10; // conservative buffer — ensures per-driver radii are always inside
+
+    const { data: drivers, error: driversError } = await supabase.rpc(
+      "get_nearby_drivers",
+      { p_lat: pickupLocForQuery.lat, p_lng: pickupLocForQuery.lng, p_radius_km: outerRadiusKm },
+    );
 
     if (driversError) {
       console.error("❌ خطأ في جلب السائقين:", driversError);
       throw new Error("فشل في جلب السائقين");
     }
+
+    console.log(`📍 [PostGIS] outer_radius=${outerRadiusKm}km → ${(drivers || []).length} drivers in range`);
 
     // استبعاد السائق الذي هو نفسه الراكب (منع الحجز الذاتي)
     let availableDrivers = drivers || [];
@@ -259,26 +281,20 @@ serve(async (req) => {
       // ═══ جدولة إعادة محاولة حتى مع عدم وجود سائقين ═══
       // ربما يتصل سائقون جدد قريباً
       if (noDriverAttempt < matchConfig.max_retry_rounds) {
-        const retryEmpty = async () => {
-          await new Promise((resolve) => setTimeout(resolve, matchConfig.retry_delay_ms));
-          const { data: currentRide } = await supabase
-            .from("rides")
-            .select("status")
-            .eq("id", rideId)
-            .single();
-          if (currentRide?.status !== "pending") return;
-
-          console.log(`[match-ride] 🔄 Retry (no online drivers) round ${noDriverAttempt + 1}/${matchConfig.max_retry_rounds}`);
-          try {
-            await supabase.functions.invoke("match-ride", {
-              body: { rideId },
-              headers: { Authorization: req.headers.get("Authorization") || "" },
-            });
-          } catch (e) {
-            console.error("[match-ride] Retry invocation failed:", e);
-          }
-        };
-        retryEmpty().catch((e) => console.error("[match-ride] Retry error:", e));
+        const nextRetryAt = new Date(Date.now() + matchConfig.retry_delay_ms).toISOString();
+        await supabase.from("rides").update({
+          dispatch_next_retry_at: nextRetryAt,
+          dispatch_retry_round: noDriverAttempt,
+        }).eq("id", rideId);
+        console.log(`[match-ride] ⏱️ Retry scheduled at ${nextRetryAt} (round ${noDriverAttempt + 1}/${matchConfig.max_retry_rounds})`);
+      } else {
+        // ─── Phase 6B: ride abandoned — no drivers online after all rounds ───
+        await supabase.rpc("log_system_event", {
+          p_event_type: "ride_abandoned_no_drivers",
+          p_severity: "warn",
+          p_message: `Ride ${rideId} abandoned after ${noDriverAttempt} rounds — no drivers online`,
+          p_metadata: { ride_id: rideId, attempts: noDriverAttempt, pickup: ride.pickup_location },
+        }).catch(() => {});
       }
 
       return new Response(
@@ -537,36 +553,31 @@ serve(async (req) => {
       // ═══ جدولة إعادة محاولة حتى مع 0 سائقين جدد ═══
       // الرحلة تبقى pending — ربما يتصل سائقون جدد قريباً
       if (currentAttemptZero < matchConfig.max_retry_rounds) {
-        const retryNoDrivers = async () => {
-          await new Promise((resolve) => setTimeout(resolve, matchConfig.retry_delay_ms));
-          const { data: currentRide } = await supabase
-            .from("rides")
-            .select("status")
-            .eq("id", rideId)
-            .single();
-          if (currentRide?.status !== "pending") return;
-
-          console.log(`[match-ride] 🔄 Retry (no compatible drivers) round ${currentAttemptZero + 1}/${matchConfig.max_retry_rounds}`);
-          await supabase
-            .from("rides")
-            .update({
-              metadata: {
-                ...(ride.metadata || {}),
-                radius_bonus_km: matchConfig.radius_expansion_km * currentAttemptZero,
-              },
-            })
-            .eq("id", rideId);
-
-          try {
-            await supabase.functions.invoke("match-ride", {
-              body: { rideId },
-              headers: { Authorization: req.headers.get("Authorization") || "" },
-            });
-          } catch (e) {
-            console.error("[match-ride] Retry invocation failed:", e);
-          }
-        };
-        retryNoDrivers().catch((e) => console.error("[match-ride] Retry error:", e));
+        const expandedRadius = matchConfig.radius_expansion_km * currentAttemptZero;
+        const nextRetryAt = new Date(Date.now() + matchConfig.retry_delay_ms).toISOString();
+        await supabase.from("rides").update({
+          dispatch_next_retry_at: nextRetryAt,
+          dispatch_retry_round: currentAttemptZero,
+          metadata: {
+            ...(ride.metadata || {}),
+            radius_bonus_km: expandedRadius,
+          },
+        }).eq("id", rideId);
+        console.log(`[match-ride] ⏱️ Retry scheduled at ${nextRetryAt} (round ${currentAttemptZero + 1}/${matchConfig.max_retry_rounds}, +${expandedRadius}km)`);
+      } else {
+        // ─── Phase 6B: ride abandoned — no compatible drivers after all rounds ───
+        await supabase.rpc("log_system_event", {
+          p_event_type: "ride_abandoned_no_compatible",
+          p_severity: "warn",
+          p_message: `Ride ${rideId} abandoned after ${currentAttemptZero} rounds — no compatible drivers in range`,
+          p_metadata: {
+            ride_id: rideId,
+            attempts: currentAttemptZero,
+            vehicle_type: ride.vehicle_type,
+            radius_bonus_km: radiusBonus,
+            pickup: ride.pickup_location,
+          },
+        }).catch(() => {});
       }
 
       return new Response(
@@ -717,54 +728,64 @@ serve(async (req) => {
     const notificationResults = await Promise.all(notificationPromises);
     const successCount = notificationResults.filter((r) => r.success).length;
 
+    // ═══ Phase 3C: Realtime broadcast → candidate drivers only ═══
+    // يُكمّل FCM (الخلفية) بإشعار Realtime موجّه للمقدمة
+    // السائقون المرشحون فقط (topDrivers) يحصلون على الحدث عبر driver-notif-{id}
+    try {
+      const broadcastMessages = topDrivers.map((driver, index) => ({
+        topic: `driver-notif-${driver.id}`,
+        event: "new_ride_request",
+        payload: {
+          // الحقول التي يتوقعها handleNewRide مباشرةً
+          id: rideId,
+          status: "pending",
+          pickup_location: ride.pickup_location,
+          pickup_address: ride.pickup_address,
+          dropoff_address: ride.dropoff_address,
+          estimated_fare: ride.estimated_fare,
+          vehicle_type: ride.vehicle_type,
+          prefer_women_driver: (ride.prefer_women_driver as boolean) ?? false,
+          // بيانات إضافية للعرض
+          distance_km: driver.distance_km,
+          eta_minutes: driver.eta_minutes,
+          priority: index + 1,
+        },
+      }));
+      const broadcastRes = await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${supabaseKey}`,
+          "apikey": supabaseKey,
+        },
+        body: JSON.stringify({ messages: broadcastMessages }),
+      });
+      if (!broadcastRes.ok) {
+        console.warn("[match-ride] Phase 3C broadcast error:", await broadcastRes.text());
+      } else {
+        console.log(`📡 [Phase 3C] Realtime broadcast → ${topDrivers.length} candidate(s)`);
+      }
+    } catch (broadcastErr) {
+      console.warn("[match-ride] Phase 3C broadcast warn:", broadcastErr);
+    }
+
     // ═══ 8. Schedule progressive re-matching retry ═══
     // If we haven't exhausted all retry rounds and there might be more drivers
     const currentAttempt = (ride.matching_attempts || 0) + 1;
     let retryScheduled = false;
 
     if (currentAttempt < matchConfig.max_retry_rounds) {
-      // Schedule a delayed retry invocation to expand search
-      const retryFn = async () => {
-        await new Promise((resolve) => setTimeout(resolve, matchConfig.retry_delay_ms));
-
-        // Re-check ride is still pending
-        const { data: currentRide } = await supabase
-          .from("rides")
-          .select("status")
-          .eq("id", rideId)
-          .single();
-
-        if (currentRide?.status !== "pending") {
-          console.log(`[match-ride] ⏭️ Retry skipped — ride ${rideId} is now ${currentRide?.status}`);
-          return;
-        }
-
-        // Invoke self for next round (with expanded radius bonus)
-        console.log(`[match-ride] 🔄 Retry round ${currentAttempt + 1}/${matchConfig.max_retry_rounds} for ride ${rideId} (+${matchConfig.radius_expansion_km * currentAttempt}km radius)`);
-
-        // Update ride with radius expansion hint
-        await supabase
-          .from("rides")
-          .update({
-            metadata: {
-              ...(ride.metadata || {}),
-              radius_bonus_km: matchConfig.radius_expansion_km * currentAttempt,
-            },
-          })
-          .eq("id", rideId);
-
-        try {
-          await supabase.functions.invoke("match-ride", {
-            body: { rideId },
-            headers: { Authorization: req.headers.get("Authorization") || "" },
-          });
-        } catch (e) {
-          console.error(`[match-ride] Retry invocation failed:`, e);
-        }
-      };
-
-      // Fire and forget — don't block the response
-      retryFn().catch((e) => console.error("[match-ride] Retry error:", e));
+      const expandedRadius = matchConfig.radius_expansion_km * currentAttempt;
+      const nextRetryAt = new Date(Date.now() + matchConfig.retry_delay_ms).toISOString();
+      await supabase.from("rides").update({
+        dispatch_next_retry_at: nextRetryAt,
+        dispatch_retry_round: currentAttempt,
+        metadata: {
+          ...(ride.metadata || {}),
+          radius_bonus_km: expandedRadius,
+        },
+      }).eq("id", rideId);
+      console.log(`[match-ride] ⏱️ Progressive retry scheduled at ${nextRetryAt} (round ${currentAttempt + 1}/${matchConfig.max_retry_rounds}, +${expandedRadius}km)`);
       retryScheduled = true;
     }
 

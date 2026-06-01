@@ -6,11 +6,10 @@ import {
   ArrowRight,
   Navigation,
   Loader2,
-  MapPin,
-  Target,
   AlertTriangle,
   Check,
-  Sparkles,
+  Target,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast"; // added for toast notifications
@@ -141,29 +140,55 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
     }
   }, []);
 
-  // Reverse geocode
+  // Reverse geocode — يستخدم buildHumanAddress() للأولوية الصحيحة
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
       if (!window.google?.maps) return;
       try {
         const geocoder = await getGeocoder();
         if (!geocoder) return;
-        const result = await geocoder.geocode({
-          location: new google.maps.LatLng(lat, lng),
-          language: "ar",
-        });
+
+        // ✅ Fix 3: Geocoding + checkServiceArea بالتوازي + serviceRegionName
+        const [result, serviceAreaRes] = await Promise.all([
+          geocoder.geocode({
+            location: new google.maps.LatLng(lat, lng),
+            language: "ar",
+            region: "IQ",
+          }),
+          checkServiceArea(lat, lng),
+        ]);
+
         if (result.results && result.results[0]) {
-          setCenterAddress(result.results[0].formatted_address);
+          const { buildHumanAddress, extractGoogleComponents } = await import('@/utils/buildHumanAddress');
+          const components = result.results[0].address_components || [];
+
+          const poiResult = result.results.find(r =>
+            (r.types.includes('point_of_interest') || r.types.includes('establishment')) &&
+            r.name && !r.types.includes('route')
+          );
+
+          const comps = extractGoogleComponents(components, poiResult?.name || null);
+          const address = buildHumanAddress({
+            poiName:           comps.poiName,
+            neighborhood:      comps.neighborhood,
+            street:            comps.street,
+            city:              comps.city,
+            serviceRegionName: (serviceAreaRes as any)?.region?.name_ar || null,
+            lat,
+            lng,
+            formattedAddress:  result.results[0].formatted_address,
+          });
+          setCenterAddress(address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
         } else {
           setCenterAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
         }
-        checkServiceArea(lat, lng);
       } catch {
         setCenterAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
       }
     },
     [checkServiceArea]
   );
+
 
   // Initialize map
   useEffect(() => {
@@ -394,78 +419,59 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
             position: 'absolute',
             left: '50%',
             top: '50%',
-            transform: 'translate(-50%, calc(-100% + 8px))',
+            transform: 'translate(-50%, -100%)',
             zIndex: 1,
             pointerEvents: 'none',
           }}
         >
-          {/* Outer glow ring for visibility */}
+          {/* Pulsing glow dot */}
           <div
             style={{
               position: 'absolute',
               left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: '80px',
-              height: '80px',
+              bottom: '-4px',
+              transform: 'translateX(-50%)',
+              width: '16px',
+              height: '16px',
               borderRadius: '50%',
               background: isPickup 
-                ? 'radial-gradient(circle, rgba(34, 197, 94, 0.3) 0%, transparent 70%)'
-                : 'radial-gradient(circle, rgba(14, 165, 233, 0.3) 0%, transparent 70%)',
+                ? 'radial-gradient(circle, rgba(16,185,129,0.7), transparent 70%)'
+                : 'radial-gradient(circle, rgba(6,182,212,0.7), transparent 70%)',
+              filter: 'blur(3px)',
               animation: 'pulse 2s ease-in-out infinite',
             }}
           />
-          
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            {/* Pin head - SOLID COLORS */}
-            <div
-              style={{
-                width: '60px',
-                height: '60px',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: isPickup ? '#16a34a' : '#0284c7',
-                border: '5px solid white',
-                boxShadow: `
-                  0 8px 32px ${isPickup ? 'rgba(22, 163, 74, 0.6)' : 'rgba(2, 132, 199, 0.6)'},
-                  0 0 0 8px rgba(255, 255, 255, 0.8),
-                  0 0 80px ${isPickup ? 'rgba(22, 163, 74, 0.5)' : 'rgba(2, 132, 199, 0.5)'}
-                `,
+
+          {/* Lollipop SVG Pin */}
+          <div style={{ width: '44px', height: '76px' }}>
+            <svg 
+              viewBox="0 0 44 80"
+              width="44" height="76"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ 
+                filter: `drop-shadow(0 4px 12px ${isPickup ? 'rgba(16,185,129,0.3)' : 'rgba(6,182,212,0.3)'}) drop-shadow(0 1px 3px rgba(15,23,42,0.15))`,
               }}
             >
-              {isPickup ? (
-                <Target style={{ width: '28px', height: '28px', color: 'white', strokeWidth: 3 }} />
-              ) : (
-                <MapPin style={{ width: '28px', height: '28px', color: 'white', strokeWidth: 3 }} />
-              )}
-            </div>
+              <defs>
+                <linearGradient id={`mlpLolliGrad-${isPickup ? 'p' : 'd'}`} x1="22" y1="2" x2="22" y2="42" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor={isPickup ? '#34d399' : '#22d3ee'} />
+                  <stop offset="100%" stopColor={isPickup ? '#059669' : '#0891b2'} />
+                </linearGradient>
+              </defs>
 
-            {/* Pin needle - using CSS triangle */}
-            <div
-              style={{
-                width: 0,
-                height: 0,
-                borderLeft: '14px solid transparent',
-                borderRight: '14px solid transparent',
-                borderTop: `40px solid ${isPickup ? '#16a34a' : '#0284c7'}`,
-                marginTop: '-8px',
-                filter: `drop-shadow(0 4px 8px ${isPickup ? 'rgba(22, 163, 74, 0.4)' : 'rgba(2, 132, 199, 0.4)'})`,
-              }}
-            />
-            
-            {/* Ground shadow */}
-            <div 
-              style={{
-                width: '24px',
-                height: '10px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(0,0,0,0.25)',
-                filter: 'blur(4px)',
-                marginTop: '-4px',
-              }}
-            />
+              {/* Stick */}
+              <line 
+                x1="22" y1="38" x2="22" y2="80" 
+                stroke={isPickup ? '#059669' : '#0891b2'} 
+                strokeWidth="3" 
+                strokeLinecap="round"
+              />
+              {/* Circle — colored ring, transparent inside */}
+              <circle cx="22" cy="22" r="17" stroke={`url(#mlpLolliGrad-${isPickup ? 'p' : 'd'})`} strokeWidth="4" fill="none" />
+              {/* Top highlight */}
+              <path d="M12 8 A17 17 0 0 1 32 8" stroke="white" strokeOpacity="0.35" strokeWidth="2" fill="none" strokeLinecap="round" />
+            </svg>
           </div>
         </div>
 
@@ -493,7 +499,7 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       </div>
 
       {/* Bottom panel - Fixed at bottom */}
-      <div className="bg-card/95 backdrop-blur-md border-t border-border/50 shadow-2xl z-30">
+      <div className="bg-card/95 backdrop-blur-md border-t border-border/50 shadow-2xl z-30" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)' }}>
         <div className="p-3 sm:p-4">
           {/* Service area status with compact styling */}
           {serviceAreaStatus && !serviceAreaStatus.in_service && (

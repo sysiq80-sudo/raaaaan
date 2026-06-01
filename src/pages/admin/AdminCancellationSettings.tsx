@@ -229,7 +229,7 @@ export default function AdminCancellationSettings() {
                     variant={settings.amount === amount ? "default" : "outline"}
                     onClick={() => setSettings({ ...settings, amount })}
                   >
-                    {amount.toLocaleString()} د.ع
+                    {amount.toLocaleString('en-US')} د.ع
                   </Button>
                 ))}
               </div>

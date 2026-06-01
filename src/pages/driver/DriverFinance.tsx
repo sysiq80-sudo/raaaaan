@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { notifyAdminCritical } from "@/lib/notifyAdmin";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  Wallet, ArrowUpRight, ArrowDownLeft, TrendingUp, Clock, Car, XCircle, Gift, 
-  ChevronLeft, RefreshCw, AlertTriangle, Plus, Smartphone, Copy, CheckCircle, 
-  Send, Loader2, Percent, History, DollarSign, Banknote, CreditCard, Phone, 
-  Building2, Target, Star, Receipt, MapPin, ArrowDown, Ban
+  Wallet, ArrowUpRight, TrendingUp, Clock, Car, XCircle, Gift,
+  AlertTriangle, Plus, CheckCircle, Send, Loader2, Percent,
+  History, DollarSign, Banknote, CreditCard, Target, Star, ArrowDown
 } from "lucide-react";
 import { format, startOfWeek, startOfMonth } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -29,24 +29,6 @@ interface WalletStats {
   todayEarnings: number;
   weekEarnings: number;
   monthEarnings: number;
-}
-
-interface PaymentAccount {
-  id: string;
-  payment_method: string;
-  account_name: string;
-  account_number: string;
-  account_holder: string | null;
-  instructions: string | null;
-}
-
-interface TopupRequest {
-  id: string;
-  amount: number;
-  payment_method: string;
-  reference_number: string;
-  status: string;
-  created_at: string;
 }
 
 interface WithdrawalRequest {
@@ -72,8 +54,6 @@ interface EarningRecord {
   driver_rating: number | null;
   status: string;
 }
-
-const quickAmounts = [25000, 50000, 100000, 200000];
 
 const getTransactionIcon = (type: string) => {
   switch (type) {
@@ -107,22 +87,18 @@ const isIncome = (type: string) => ['ride_earning', 'cancellation_compensation',
 
 export default function DriverFinance() {
   const [driverId, setDriverId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [rides, setRides] = useState<EarningRecord[]>([]);
   const [stats, setStats] = useState<WalletStats | null>(null);
   const [driverData, setDriverData] = useState<{ total_earnings: number; total_rides: number; rating: number } | null>(null);
-  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
-  const [topupRequests, setTopupRequests] = useState<TopupRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const [topupAmount, setTopupAmount] = useState<number>(50000);
-  const [topupMethod, setTopupMethod] = useState<string>("");
-  const [referenceNumber, setReferenceNumber] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [voucherCode, setVoucherCode] = useState("");
+  const [redeemingVoucher, setRedeemingVoucher] = useState(false);
+  const [redeemSuccess, setRedeemSuccess] = useState<{ amount: number } | null>(null);
   const [commissionRate, setCommissionRate] = useState(15);
   const [tierName, setTierName] = useState<string | null>(null);
   const [tierBadge, setTierBadge] = useState<string | null>(null);
@@ -133,11 +109,12 @@ export default function DriverFinance() {
   const [activeTab, setActiveTab] = useState<'earnings' | 'transactions' | 'withdraw' | 'topup'>('earnings');
 
   const [earningsBreakdown, setEarningsBreakdown] = useState({
-    cash: 0, zain_cash: 0, asia_hawala: 0, qi_card: 0
+    cash: 0,
+    wallet: 0,
   });
 
   const [withdrawalAmount, setWithdrawalAmount] = useState<number>(25000);
-  const [withdrawalMethod, setWithdrawalMethod] = useState<string>("zain_cash");
+  const [withdrawalMethod, setWithdrawalMethod] = useState<string>("manual");
   const [accountHolder, setAccountHolder] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
@@ -165,7 +142,6 @@ export default function DriverFinance() {
     const fetchDriverId = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { navigate('/driver/auth'); return; }
-      setUserId(user.id);
       const { data: driver } = await supabase
         .from('drivers')
         .select('id, total_earnings, total_rides, rating')
@@ -257,11 +233,13 @@ export default function DriverFinance() {
 
       if (completedRides) {
         const breakdown = completedRides.filter(r => r.status === 'completed').reduce((acc, ride) => {
-          const method = ride.payment_method || "cash";
+          const method: "cash" | "wallet" = ride.payment_method === "wallet" || ride.payment_method === "nas_wallet"
+            ? "wallet"
+            : "cash";
           const fare = ride.final_fare || ride.estimated_fare || 0;
-          acc[method as keyof typeof acc] = (acc[method as keyof typeof acc] || 0) + fare;
+          acc[method] = (acc[method] || 0) + fare;
           return acc;
-        }, { cash: 0, zain_cash: 0, asia_hawala: 0, qi_card: 0 });
+        }, { cash: 0, wallet: 0 });
         setEarningsBreakdown(breakdown);
       }
 
@@ -287,27 +265,6 @@ export default function DriverFinance() {
         monthEarnings
       });
 
-      const { data: accounts } = await supabase
-        .from('payment_accounts')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order');
-      if (accounts) {
-        setPaymentAccounts(accounts);
-        if (accounts.length > 0 && !topupMethod) setTopupMethod(accounts[0].payment_method);
-      }
-
-      if (userId) {
-        const { data: requests } = await supabase
-          .from('wallet_topup_requests')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('user_type', 'driver')
-          .order('created_at', { ascending: false })
-          .limit(10);
-        if (requests) setTopupRequests(requests);
-      }
-
       const { data: wSettings } = await supabase
         .from('wallet_settings')
         .select('min_withdrawal_amount')
@@ -330,33 +287,44 @@ export default function DriverFinance() {
     }
   };
 
-  useEffect(() => { if (driverId) fetchAllData(); }, [driverId, userId]);
+  useEffect(() => { if (driverId) fetchAllData(); }, [driverId]);
 
   const handleRefresh = () => { setRefreshing(true); fetchAllData(); };
 
-  const handleSubmitTopup = async () => {
-    if (!userId || !topupMethod || !referenceNumber.trim()) {
-      toast({ title: "خطأ", description: "يرجى ملء جميع الحقول المطلوبة", variant: "destructive" });
+  const handleRedeemVoucher = async () => {
+    const code = voucherCode.trim().toUpperCase();
+    if (!driverId || !code) {
+      toast({ title: "خطأ", description: "أدخل رمز كارت الشحن", variant: "destructive" });
       return;
     }
-    setSubmitting(true);
+
+    setRedeemingVoucher(true);
+    setRedeemSuccess(null);
     try {
-      const { error } = await supabase.from("wallet_topup_requests").insert({
-        user_id: userId,
-        user_type: "driver",
-        amount: topupAmount,
-        payment_method: topupMethod,
-        reference_number: referenceNumber.trim(),
-        payment_account: paymentAccounts.find(a => a.payment_method === topupMethod)?.account_number
+      const { data, error } = await supabase.rpc("redeem_voucher_driver" as any, {
+        p_code: code,
+        p_driver_id: driverId,
       });
       if (error) throw error;
-      toast({ title: "تم إرسال الطلب", description: "سيتم مراجعة طلبك وإضافة الرصيد خلال دقائق" });
-      setReferenceNumber("");
+
+      const result = data as any;
+      if (!result?.success) {
+        toast({ title: "خطأ", description: result?.error || "رمز غير صالح", variant: "destructive" });
+        return;
+      }
+
+      setRedeemSuccess({ amount: Number(result.amount) || 0 });
+      setVoucherCode("");
+      toast({
+        title: "✅ تم شحن الرصيد",
+        description: `تمت إضافة ${Number(result.amount).toLocaleString('en-US')} د.ع إلى محفظتك`,
+      });
       await fetchAllData();
+      setTimeout(() => setRedeemSuccess(null), 5000);
     } catch (error: any) {
       toast({ title: "خطأ", description: error.message, variant: "destructive" });
     } finally {
-      setSubmitting(false);
+      setRedeemingVoucher(false);
     }
   };
 
@@ -367,11 +335,11 @@ export default function DriverFinance() {
       return;
     }
     if (withdrawalAmount < minWithdrawal) {
-      toast({ title: "خطأ", description: `الحد الأدنى للسحب ${minWithdrawal.toLocaleString()} د.ع`, variant: "destructive" });
+      toast({ title: "خطأ", description: `الحد الأدنى للسحب ${minWithdrawal.toLocaleString('en-US')} د.ع`, variant: "destructive" });
       return;
     }
     if (withdrawalAmount > walletBalance) {
-      toast({ title: "رصيد غير كافٍ", description: `رصيدك الحالي ${walletBalance.toLocaleString()} د.ع`, variant: "destructive" });
+      toast({ title: "رصيد غير كافٍ", description: `رصيدك الحالي ${walletBalance.toLocaleString('en-US')} د.ع`, variant: "destructive" });
       return;
     }
     setWithdrawing(true);
@@ -391,22 +359,20 @@ export default function DriverFinance() {
       setAccountNumber("");
       await fetchAllData();
     } catch (error: any) {
+      notifyAdminCritical("payment_failed", "خطأ في طلب سحب السائق", {
+        driver_id: driverId,
+        amount: withdrawalAmount,
+        error: error?.message ?? "unknown",
+      });
       toast({ title: "خطأ", description: error.message, variant: "destructive" });
     } finally {
       setWithdrawing(false);
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: "تم النسخ", description: "تم نسخ رقم الحساب" });
-  };
-
   const paymentMethods = [
     { id: "cash", name: "نقدي", icon: <Banknote className="w-5 h-5" />, earnings: earningsBreakdown.cash, color: "#5bdda6" },
-    { id: "zain_cash", name: "زين كاش", icon: <Phone className="w-5 h-5" />, earnings: earningsBreakdown.zain_cash, color: "#a78bfa" },
-    { id: "asia_hawala", name: "آسيا حوالة", icon: <Building2 className="w-5 h-5" />, earnings: earningsBreakdown.asia_hawala, color: "#38bdf8" },
-    { id: "qi_card", name: "كي كارد", icon: <CreditCard className="w-5 h-5" />, earnings: earningsBreakdown.qi_card, color: "#fb923c" },
+    { id: "wallet", name: "محفظة الراكب", icon: <Wallet className="w-5 h-5" />, earnings: earningsBreakdown.wallet, color: "#38bdf8" },
   ];
 
   const balancePercentage = stats ? Math.min(stats.balance / 100000 * 100, 100) : 0;
@@ -499,10 +465,10 @@ export default function DriverFinance() {
                     <DollarSign className="w-7 h-7 text-[#5bdda6]" />
                   </div>
                   <div className="text-right">
-                    <p className="text-slate-500 text-xs font-medium mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>إجمالي الأرباح الكلية</p>
+                    <p className="text-slate-500 text-xs font-medium mb-1" style={{ fontFamily: 'Cairo, sans-serif' }}>إجمالي الأرباح الكلية</p>
                     <div className="flex items-baseline gap-1.5 justify-end">
-                      <p className="text-4xl font-black text-white tracking-tight tabular-nums" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                        {totalEarnings.toLocaleString()}
+                      <p className="text-4xl font-black text-white tracking-tight tabular-nums" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                        {totalEarnings.toLocaleString('en-US')}
                       </p>
                       <p className="text-[#5bdda6] text-sm font-semibold">د.ع</p>
                     </div>
@@ -527,8 +493,8 @@ export default function DriverFinance() {
             <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-baseline gap-1.5 justify-end">
-                  <span className={`text-2xl font-black tabular-nums ${isZeroBalance ? 'text-red-400' : isLowBalance ? 'text-amber-400' : 'text-white'}`} style={{ fontFamily: 'Inter, sans-serif' }}>
-                    {stats?.balance.toLocaleString() || 0}
+                  <span className={`text-2xl font-black tabular-nums ${isZeroBalance ? 'text-red-400' : isLowBalance ? 'text-amber-400' : 'text-white'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    {stats?.balance.toLocaleString('en-US') || 0}
                   </span>
                   <span className="text-slate-500 text-xs font-medium">د.ع</span>
                 </div>
@@ -570,10 +536,10 @@ export default function DriverFinance() {
                     <button 
                       onClick={() => { setTempGoal(dailyGoal.toString()); setIsEditingGoal(true); }}
                       className="text-xs text-slate-300 font-medium tabular-nums hover:text-white transition-colors bg-[#0b1326] px-2.5 py-1.5 rounded-lg border border-slate-700/50 hover:border-[#5bdda6]/30 active:scale-95" 
-                      style={{ fontFamily: 'Inter, sans-serif' }}
+                      style={{ fontFamily: 'Cairo, sans-serif' }}
                       dir="ltr"
                     >
-                      {(stats?.todayEarnings || 0).toLocaleString()} / <span className="text-[#5bdda6]">{dailyGoal.toLocaleString()}</span> د.ع
+                      {(stats?.todayEarnings || 0).toLocaleString('en-US')} / <span className="text-[#5bdda6]">{dailyGoal.toLocaleString('en-US')}</span> د.ع
                     </button>
                   )}
                 </div>
@@ -625,7 +591,7 @@ export default function DriverFinance() {
               <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-xl font-black text-white tabular-nums" style={{ fontFamily: 'Inter, sans-serif' }}>{commissionRate}%</span>
+                    <span className="text-xl font-black text-white tabular-nums" style={{ fontFamily: 'Cairo, sans-serif' }}>{commissionRate}%</span>
                     <p className="text-[10px] text-slate-500">نسبة العمولة</p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -689,8 +655,8 @@ export default function DriverFinance() {
                       <div className="flex-1 p-4">
                         <div className="flex flex-row-reverse items-center justify-between mb-2.5">
                           <span className="font-semibold text-white text-sm">{method.name}</span>
-                          <span className="font-bold text-white tabular-nums text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>
-                            {method.earnings.toLocaleString()} <span className="text-[10px] text-slate-500 font-medium">د.ع</span>
+                          <span className="font-bold text-white tabular-nums text-sm" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                            {method.earnings.toLocaleString('en-US')} <span className="text-[10px] text-slate-500 font-medium">د.ع</span>
                           </span>
                         </div>
                         <div className="flex flex-row-reverse items-center gap-2.5">
@@ -727,13 +693,13 @@ export default function DriverFinance() {
                         </div>
                         <div className="flex-1 min-w-0 text-right">
                           <p className="font-semibold text-sm text-white truncate">{txn.description || getTransactionLabel(txn.type)}</p>
-                          <p className="text-[11px] text-slate-500 mt-0.5 font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>
+                          <p className="text-[11px] text-slate-500 mt-0.5 font-medium" style={{ fontFamily: 'Cairo, sans-serif' }}>
                             {format(new Date(txn.created_at), 'dd MMM yyyy - HH:mm', { locale: ar })}
                           </p>
                         </div>
-                        <div className={`font-bold tabular-nums ${txn.amount >= 0 ? 'text-[#5bdda6]' : 'text-red-400'}`} style={{ fontFamily: 'Inter, sans-serif' }}>
+                        <div className={`font-bold tabular-nums ${txn.amount >= 0 ? 'text-[#5bdda6]' : 'text-red-400'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                           <span className="text-xs">{txn.amount >= 0 ? '+' : ''}</span>
-                          <span className="text-sm">{txn.amount.toLocaleString()}</span>
+                          <span className="text-sm">{txn.amount.toLocaleString('en-US')}</span>
                           <span className="text-[10px] font-medium text-slate-500 mr-1">د.ع</span>
                         </div>
                       </div>
@@ -755,8 +721,8 @@ export default function DriverFinance() {
                       <ArrowDown className="w-5 h-5 text-[#5bdda6]" />
                     </div>
                     <div className="text-right">
-                      <h3 className="text-base font-bold text-white" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>سحب الأرباح</h3>
-                      <p className="text-[11px] text-slate-500 mt-0.5">الحد الأدنى {minWithdrawal.toLocaleString()} د.ع</p>
+                      <h3 className="text-base font-bold text-white" style={{ fontFamily: 'Cairo, sans-serif' }}>سحب الأرباح</h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">الحد الأدنى {minWithdrawal.toLocaleString('en-US')} د.ع</p>
                     </div>
                   </div>
                 </div>
@@ -766,7 +732,7 @@ export default function DriverFinance() {
                   <div className="bg-[#5bdda6]/5 border border-[#5bdda6]/20 rounded-xl p-4">
                     <div className="flex flex-row-reverse items-center justify-between">
                       <span className="text-xs text-slate-400 font-medium">الرصيد المتاح للسحب</span>
-                      <span className="text-xl font-black text-[#5bdda6] tabular-nums" style={{ fontFamily: 'Inter, sans-serif' }}>{walletBalance.toLocaleString()} د.ع</span>
+                      <span className="text-xl font-black text-[#5bdda6] tabular-nums" style={{ fontFamily: 'Cairo, sans-serif' }}>{walletBalance.toLocaleString('en-US')} د.ع</span>
                     </div>
                   </div>
 
@@ -784,7 +750,7 @@ export default function DriverFinance() {
                               : 'bg-[#0b1326] text-slate-400 border border-slate-700/50 hover:border-slate-600'
                           }`}
                         >
-                          {(amount / 1000).toLocaleString()}K
+                          {(amount / 1000).toLocaleString('en-US')}K
                         </button>
                       ))}
                     </div>
@@ -800,12 +766,9 @@ export default function DriverFinance() {
                   {/* طريقة السحب */}
                   <div>
                     <label className="text-xs text-slate-400 font-bold mb-2.5 block">طريقة السحب</label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2">
                       {[
-                        { id: "zain_cash", name: "زين كاش", icon: <Phone className="w-4 h-4" /> },
-                        { id: "nas_wallet", name: "ناس واليت", icon: <Smartphone className="w-4 h-4" /> },
-                        { id: "bank_transfer", name: "تحويل بنكي", icon: <Building2 className="w-4 h-4" /> },
-                        { id: "manual", name: "صرف يدوي", icon: <Banknote className="w-4 h-4" /> },
+                        { id: "manual", name: "صرف يدوي من الإدارة", icon: <Banknote className="w-4 h-4" /> },
                       ].map(m => (
                         <button
                           key={m.id}
@@ -837,9 +800,7 @@ export default function DriverFinance() {
                     </div>
                     <div>
                       <label className="text-xs text-slate-400 font-bold mb-1.5 block">
-                        {withdrawalMethod === "bank_transfer" ? "رقم الحساب البنكي (IBAN)" :
-                         withdrawalMethod === "zain_cash" ? "رقم زين كاش" :
-                         withdrawalMethod === "nas_wallet" ? "رقم ناس واليت" : "رقم الهاتف"}
+                        رقم الهاتف للتواصل
                       </label>
                       <input
                         placeholder="أدخل رقم الحساب"
@@ -855,7 +816,7 @@ export default function DriverFinance() {
                     onClick={handleSubmitWithdrawal}
                     disabled={withdrawing || !accountHolder.trim() || !accountNumber.trim() || withdrawalAmount < minWithdrawal || withdrawalAmount > walletBalance}
                     className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#5bdda6] to-[#3eba89] text-[#0b1326] font-bold text-base flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(91,221,166,0.25)] hover:shadow-[0_0_30px_rgba(91,221,166,0.4)] active:scale-[0.98] transition-all disabled:opacity-40 disabled:shadow-none"
-                    style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
                   >
                     {withdrawing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                     إرسال طلب السحب
@@ -874,7 +835,7 @@ export default function DriverFinance() {
                     {withdrawals.map((w, index) => (
                       <div key={w.id} className={`flex flex-row-reverse items-center justify-between p-4 ${index < withdrawals.length - 1 ? 'border-b border-slate-700/20' : ''}`}>
                         <div className="text-right">
-                          <p className="font-bold text-white text-sm tabular-nums" style={{ fontFamily: 'Inter, sans-serif' }}>{Number(w.amount).toLocaleString()} د.ع</p>
+                          <p className="font-bold text-white text-sm tabular-nums" style={{ fontFamily: 'Cairo, sans-serif' }}>{Number(w.amount).toLocaleString('en-US')} د.ع</p>
                           <p className="text-[11px] text-slate-500 mt-0.5">{w.account_holder_name} — {w.withdrawal_method}</p>
                           <p className="text-[11px] text-slate-600">{format(new Date(w.created_at), "d MMM yyyy HH:mm", { locale: ar })}</p>
                           {w.review_notes && <p className="text-[11px] text-orange-400 mt-1">{w.review_notes}</p>}
@@ -905,130 +866,58 @@ export default function DriverFinance() {
               <div className="bg-[#171f33] rounded-2xl border border-slate-700/30 overflow-hidden">
                 {/* العنوان */}
                 <div className="p-5 border-b border-slate-700/20">
-                  <h3 className="text-base font-bold text-white" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>إضافة رصيد للمحفظة</h3>
-                  <p className="text-[11px] text-slate-500 mt-1">يتم خصم الاشتراك اليومي أو العمولة من هذا الرصيد</p>
+                  <h3 className="text-base font-bold text-white" style={{ fontFamily: 'Cairo, sans-serif' }}>شحن المحفظة بكارت RAAN</h3>
+                  <p className="text-[11px] text-slate-500 mt-1">الشحن متاح حالياً عبر كروت الشحن الداخلية فقط</p>
                 </div>
 
                 <div className="p-5 space-y-5">
-                  {/* اختيار المبلغ */}
-                  <div>
-                    <label className="text-xs text-slate-400 font-bold mb-2.5 block">اختر المبلغ</label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {quickAmounts.map(amount => (
-                        <button
-                          key={amount}
-                          onClick={() => setTopupAmount(amount)}
-                          className={`h-11 rounded-xl text-xs font-bold transition-all ${
-                            topupAmount === amount
-                              ? 'bg-[#5bdda6] text-[#0b1326] shadow-[0_0_15px_rgba(91,221,166,0.3)]'
-                              : 'bg-[#0b1326] text-slate-400 border border-slate-700/50 hover:border-slate-600'
-                          }`}
-                        >
-                          {(amount / 1000).toLocaleString()}K
-                        </button>
-                      ))}
+                  <div className="bg-[#0b1326] border border-[#5bdda6]/20 rounded-xl p-4">
+                    <div className="flex flex-row-reverse items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-[#5bdda6]/10 flex items-center justify-center">
+                        <CreditCard className="w-5 h-5 text-[#5bdda6]" />
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-white">أدخل رمز الكارت</p>
+                        <p className="text-[11px] text-slate-500">يقبل كروت السائق أو الكروت العامة فقط</p>
+                      </div>
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 font-bold mb-1.5 block">رمز كارت الشحن</label>
                     <input
-                      type="number"
-                      placeholder="أو أدخل مبلغ آخر"
-                      value={topupAmount}
-                      onChange={e => setTopupAmount(Number(e.target.value))}
-                      className="w-full mt-2.5 h-12 bg-[#0b1326] border border-slate-700/50 rounded-xl px-4 text-white text-sm placeholder:text-slate-600 focus:outline-none focus:border-[#5bdda6]/50 transition-colors"
+                      placeholder="RD-XXXX-XXXX"
+                      value={voucherCode}
+                      onChange={e => setVoucherCode(e.target.value.toUpperCase())}
+                      disabled={redeemingVoucher}
+                      dir="ltr"
+                      maxLength={20}
+                      className="w-full h-12 bg-[#0b1326] border border-slate-700/50 rounded-xl px-4 text-white text-center text-sm font-bold tracking-[0.2em] placeholder:text-slate-600 focus:outline-none focus:border-[#5bdda6]/50 transition-colors"
                     />
                   </div>
 
-                  {/* التقدير */}
-                  <div className="bg-[#0b1326] border border-slate-700/50 rounded-xl p-3.5">
-                    <div className="flex flex-row-reverse justify-between text-sm">
-                      <span className="text-slate-500 font-medium text-xs">عدد الرحلات التقريبي:</span>
-                      <span className="font-bold text-[#5bdda6] text-sm tabular-nums" style={{ fontFamily: 'Inter, sans-serif' }}>
-                        {Math.floor(topupAmount / (5000 * commissionRate / 100))} رحلة
-                      </span>
+                  {redeemSuccess && (
+                    <div className="rounded-xl bg-[#5bdda6]/10 border border-[#5bdda6]/25 p-3">
+                      <div className="flex flex-row-reverse items-center gap-2 text-[#5bdda6]">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="text-sm font-bold">
+                          تم شحن {redeemSuccess.amount.toLocaleString('en-US')} د.ع بنجاح
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* طريقة الدفع */}
-                  <div>
-                    <label className="text-xs text-slate-400 font-bold mb-2.5 block">طريقة الدفع</label>
-                    <div className="space-y-2">
-                      {paymentAccounts.map(account => (
-                        <button
-                          key={account.id}
-                          onClick={() => setTopupMethod(account.payment_method)}
-                          className={`w-full flex flex-row-reverse items-center gap-3.5 p-3.5 rounded-xl border transition-all ${
-                            topupMethod === account.payment_method
-                              ? 'border-[#5bdda6]/40 bg-[#5bdda6]/5'
-                              : 'border-slate-700/50 hover:border-slate-600'
-                          }`}
-                        >
-                          <div className="w-10 h-10 rounded-xl bg-[#0b1326] border border-slate-700/50 flex items-center justify-center flex-shrink-0">
-                            <Smartphone className="w-5 h-5 text-slate-400" />
-                          </div>
-                          <div className="flex-1 text-right min-w-0">
-                            <p className="font-semibold text-white text-sm truncate">{account.account_name}</p>
-                            <div className="flex flex-row-reverse items-center gap-2 mt-0.5">
-                              <p className="text-[11px] text-slate-500 truncate" dir="ltr">{account.account_number}</p>
-                              <button
-                                onClick={e => { e.stopPropagation(); copyToClipboard(account.account_number); }}
-                                className="p-1 rounded-md hover:bg-slate-700/50 transition-colors flex-shrink-0"
-                                aria-label="نسخ رقم الحساب"
-                              >
-                                <Copy className="w-3 h-3 text-slate-500" />
-                              </button>
-                            </div>
-                          </div>
-                          {topupMethod === account.payment_method && <CheckCircle className="w-5 h-5 text-[#5bdda6] flex-shrink-0" />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* رقم العملية */}
-                  <div>
-                    <label className="text-xs text-slate-400 font-bold mb-1.5 block">رقم العملية المرجعي</label>
-                    <input
-                      placeholder="أدخل رقم العملية بعد التحويل"
-                      value={referenceNumber}
-                      onChange={e => setReferenceNumber(e.target.value)}
-                      className="w-full h-12 bg-[#0b1326] border border-slate-700/50 rounded-xl px-4 text-white text-sm placeholder:text-slate-600 focus:outline-none focus:border-[#5bdda6]/50 transition-colors"
-                    />
-                  </div>
-
-                  {/* زر الإرسال */}
                   <button
-                    onClick={handleSubmitTopup}
-                    disabled={submitting || !referenceNumber.trim() || topupAmount < 1000}
+                    onClick={handleRedeemVoucher}
+                    disabled={redeemingVoucher || !voucherCode.trim()}
                     className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#5bdda6] to-[#3eba89] text-[#0b1326] font-bold text-base flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(91,221,166,0.25)] hover:shadow-[0_0_30px_rgba(91,221,166,0.4)] active:scale-[0.98] transition-all disabled:opacity-40 disabled:shadow-none"
-                    style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
                   >
-                    {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                    إرسال طلب الإضافة
+                    {redeemingVoucher ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                    شحن بكارت RAAN
                   </button>
                 </div>
               </div>
-
-              {/* طلبات قيد المراجعة */}
-              {topupRequests.filter(r => r.status === "pending").length > 0 && (
-                <div className="bg-[#171f33] rounded-2xl border border-amber-500/20 overflow-hidden">
-                  <div className="p-4 border-b border-amber-500/10 flex flex-row-reverse items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-400" />
-                    <h4 className="text-sm font-bold text-amber-400">طلبات قيد المراجعة</h4>
-                  </div>
-                  <div>
-                    {topupRequests.filter(r => r.status === "pending").map((request, index) => (
-                      <div key={request.id} className={`flex flex-row-reverse items-center justify-between p-4 ${index < topupRequests.filter(r => r.status === "pending").length - 1 ? 'border-b border-slate-700/20' : ''}`}>
-                        <div className="text-right">
-                          <p className="font-bold text-white text-sm tabular-nums" style={{ fontFamily: 'Inter, sans-serif' }}>{request.amount.toLocaleString()} د.ع</p>
-                          <p className="text-[11px] text-slate-500">{format(new Date(request.created_at), "d MMM yyyy HH:mm", { locale: ar })}</p>
-                        </div>
-                        <span className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-amber-500/10 text-amber-400">
-                          قيد المراجعة
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>

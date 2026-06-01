@@ -107,10 +107,14 @@ const RiderProfileMigratedPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-full bg-background" dir="rtl">
+    <div 
+      className="min-h-full bg-background" 
+      style={{ paddingTop: 'calc(4rem + env(safe-area-inset-top, 0px))' }} 
+      dir="rtl"
+    >
       <RiderPageHeader title="الملف الشخصي (نسخة React)" />
 
-      <div className="pt-16 p-4 md:p-6 max-w-2xl mx-auto">
+      <div className="p-4 md:p-6 max-w-2xl mx-auto">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">

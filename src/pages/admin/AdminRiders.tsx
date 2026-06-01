@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { arabicIncludes } from "@/utils/normalizeArabic";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -312,8 +313,8 @@ const AdminRiders = () => {
       const phoneQuery = searchQuery.replace(/\D/g, '');
 
       result = result.filter(r => {
-        // البحث بالاسم
-        if (r.full_name?.toLowerCase().includes(query)) return true;
+        // البحث بالاسم — بحث مرن
+        if (arabicIncludes(r.full_name || '', searchQuery)) return true;
         // البحث بالبريد
         if (r.email?.toLowerCase().includes(query)) return true;
 
@@ -501,7 +502,7 @@ const AdminRiders = () => {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">إجمالي الإيرادات</p>
-                <p className="text-2xl font-bold">{totalStats.totalRevenue.toLocaleString()} د.ع</p>
+                <p className="text-2xl font-bold">{totalStats.totalRevenue.toLocaleString('en-US')} د.ع</p>
               </div>
             </div>
           </CardContent>
@@ -633,7 +634,7 @@ const AdminRiders = () => {
                     <p className="text-muted-foreground flex items-center gap-1">
                       <Wallet className="w-3 h-3" /> الإنفاق
                     </p>
-                    <p className="font-bold">{rider.stats.total_spent.toLocaleString()} د.ع</p>
+                    <p className="font-bold">{rider.stats.total_spent.toLocaleString('en-US')} د.ع</p>
                   </div>
                 </div>
 
@@ -682,7 +683,7 @@ const AdminRiders = () => {
                       <span className="text-destructive text-xs mr-1">({rider.stats.cancelled_rides} ملغية)</span>
                     )}
                   </TableCell>
-                  <TableCell>{rider.stats.total_spent.toLocaleString()} د.ع</TableCell>
+                  <TableCell>{rider.stats.total_spent.toLocaleString('en-US')} د.ع</TableCell>
                   <TableCell>
                     {rider.stats.avg_rating > 0 ? (
                       <div className="flex items-center gap-1 text-amber-500">
@@ -795,7 +796,7 @@ const AdminRiders = () => {
                 </div>
                 <div className="p-3 rounded-lg bg-amber-500/10 text-center">
                   <Wallet className="w-5 h-5 mx-auto text-amber-500 mb-1" />
-                  <p className="text-2xl font-bold">{selectedRider.stats.total_spent.toLocaleString()}</p>
+                  <p className="text-2xl font-bold">{selectedRider.stats.total_spent.toLocaleString('en-US')}</p>
                   <p className="text-xs text-muted-foreground">د.ع إنفاق</p>
                 </div>
               </div>
@@ -844,7 +845,7 @@ const AdminRiders = () => {
                           </div>
                         </div>
                         <div className="text-left">
-                          <p className="font-bold">{(ride.final_fare || ride.estimated_fare || 0).toLocaleString()} د.ع</p>
+                          <p className="font-bold">{(ride.final_fare || ride.estimated_fare || 0).toLocaleString('en-US')} د.ع</p>
                           {ride.drivers?.full_name && (
                             <p className="text-xs text-muted-foreground">{ride.drivers.full_name}</p>
                           )}

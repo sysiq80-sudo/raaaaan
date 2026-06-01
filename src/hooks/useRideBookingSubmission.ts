@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { roundFare } from "@/lib/constants";
 import { logger } from "@/lib/logger";
+import { Sentry } from "@/lib/sentry";
 import {
   buildRideStopsPayload,
   checkServiceAreaWithRetry,
@@ -198,18 +199,6 @@ export const useRideBookingSubmission = ({
             description: "الرجاء تحديد نقطة الانطلاق والوجهة",
             variant: "destructive",
           });
-        } else if (locationValidation.reason === "pickup_dropoff_too_close") {
-          logger.warn(
-            "useRideBookingSubmission",
-            "Booking blocked: pickup and dropoff too close",
-            { distanceMeters: locationValidation.distanceMeters },
-          );
-          toast({
-            title: "الوجهة قريبة جداً",
-            description:
-              "الرجاء اختيار وجهة مختلفة عن نقطة الانطلاق (100 متر على الأقل)",
-            variant: "destructive",
-          });
         } else {
           logger.warn("useRideBookingSubmission", "Booking blocked: coordinates outside Iraq");
           toast({
@@ -218,6 +207,7 @@ export const useRideBookingSubmission = ({
             variant: "destructive",
           });
         }
+
         setIsBooking(false);
         return;
       }
@@ -296,7 +286,7 @@ export const useRideBookingSubmission = ({
           if (walletBalance < totalFare) {
             toast({
               title: "رصيد غير كافٍ",
-              description: `رصيد المحفظة: ${walletBalance.toLocaleString()} د.ع - الأجرة المتوقعة: ${totalFare.toLocaleString()} د.ع\nاشحن رصيدك أو اختر الدفع نقداً`,
+              description: `رصيد المحفظة: ${walletBalance.toLocaleString('en-US')} د.ع - الأجرة المتوقعة: ${totalFare.toLocaleString('en-US')} د.ع\nاشحن رصيدك أو اختر الدفع نقداً`,
               variant: "destructive",
             });
             setPaymentSheetOpen(true);
@@ -459,6 +449,11 @@ export const useRideBookingSubmission = ({
             );
           } catch (retryErr) {
             logger.error("useRideBookingSubmission", "match-ride retry also failed", retryErr);
+            // Phase 6C: report to Sentry so silent match failures are visible
+            Sentry.captureException(retryErr, {
+              tags: { module: "match-ride", event: "client_retry_failed" },
+              extra: { rideId: ride.id },
+            });
             toast({
               title: "⚠️ جارٍ البحث عن سائق",
               description:

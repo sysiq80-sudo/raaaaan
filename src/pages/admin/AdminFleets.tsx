@@ -307,7 +307,7 @@ const AdminFleets = () => {
               <Car className="w-8 h-8 text-blue-500" />
               <div>
                 <p className="text-2xl font-bold">
-                  {fleetStats.reduce((sum, s) => sum + s.total_rides, 0).toLocaleString()}
+                  {fleetStats.reduce((sum, s) => sum + s.total_rides, 0).toLocaleString('en-US')}
                 </p>
                 <p className="text-sm text-muted-foreground">إجمالي الرحلات</p>
               </div>
@@ -412,7 +412,7 @@ const AdminFleets = () => {
                         {stats?.online_drivers || 0}
                       </Badge>
                     </TableCell>
-                    <TableCell>{stats?.total_rides?.toLocaleString() || 0}</TableCell>
+                    <TableCell>{stats?.total_rides?.toLocaleString('en-US') || 0}</TableCell>
                     <TableCell>
                       {stats?.avg_rating ? `⭐ ${Number(stats.avg_rating).toFixed(1)}` : "-"}
                     </TableCell>

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { User } from "@supabase/supabase-js";
@@ -17,7 +18,7 @@ import {
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { getDriverDocumentUrl } from "@/utils/driverDocumentUrl";
 
 interface DriverSideMenuProps {
   user: User | null;
@@ -70,15 +71,17 @@ const DriverSideMenu = ({
     driverPhone ||
     "كابتن";
 
-  const getAvatarSrc = () => {
-    if (!driverProfileImage) return logo;
-    if (driverProfileImage.startsWith("http") || driverProfileImage.startsWith("data:")) {
-      return driverProfileImage;
-    }
-    // Fallback: If it's a relative path, resolve it using Supabase storage
-    const { data } = supabase.storage.from("driver-documents").getPublicUrl(driverProfileImage);
-    return data.publicUrl || logo;
-  };
+  const [avatarUrl, setAvatarUrl] = useState<string>(logo);
+
+  // تحميل صورة السائق — يدعم المسارات النسبية + URLs القديمة (getPublicUrl)
+  useEffect(() => {
+    if (!driverProfileImage) return;
+    let cancelled = false;
+    getDriverDocumentUrl(driverProfileImage, 3600).then((url) => {
+      if (!cancelled && url) setAvatarUrl(url);
+    });
+    return () => { cancelled = true; };
+  }, [driverProfileImage]);
 
   // بناء قائمة العناصر مع الحفاظ على جميع الروابط الأصلية
   const gridItems = [
@@ -132,7 +135,7 @@ const DriverSideMenu = ({
               {/* الصورة الشخصية */}
               <div className="relative flex-shrink-0">
                 <img
-                  src={getAvatarSrc()}
+                  src={avatarUrl}
                   alt="السائق"
                   className="w-20 h-20 min-w-[80px] min-h-[80px] rounded-full object-cover ring-2 ring-[#5bdda6]/20 bg-[#2d3449]"
                   onError={(e) => {
@@ -148,7 +151,7 @@ const DriverSideMenu = ({
               <div className="flex flex-col min-w-0 flex-1 items-start text-right">
                 <h2
                   className="text-lg font-bold text-white tracking-tight truncate w-full"
-                  style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}
+                  style={{ fontFamily: "Cairo, sans-serif" }}
                 >
                   {displayName}
                 </h2>

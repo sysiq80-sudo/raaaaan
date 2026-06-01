@@ -208,7 +208,6 @@ export const createDelayAlertsTable = async () => {
 
 /**
  * الحصول على سجل التنبيهات لرحلة معينة
- * TODO: تفعيل بعد تنفيذ migration
  */
 export const getRideDelayAlerts = async (
   rideId: string
@@ -229,7 +228,6 @@ export const getRideDelayAlerts = async (
 
 /**
  * إحصائيات التأخير للسائق
- * TODO: تفعيل بعد تنفيذ migration
  */
 export const getDriverDelayStats = async (driverId: string) => {
   const { data, error } = await supabase

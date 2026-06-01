@@ -1533,7 +1533,7 @@ export const ActiveRideCard = ({
                 className="w-full rounded-none"
               >
                 <button
-                  className="relative overflow-hidden w-full min-h-[52px] text-base font-black text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
+                  className="relative overflow-hidden w-full min-h-[52px] text-base font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
                   onClick={handleArrived} disabled={loading}
                   style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}
                 >
@@ -1547,8 +1547,8 @@ export const ActiveRideCard = ({
                     transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
                   />
                   <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
-                    {loading ? <Loader2 className="w-7 h-7 animate-spin text-[#0b1326]" /> : (
-                      <div className="flex items-center justify-center gap-3 text-[#0b1326]">
+                    {loading ? <Loader2 className="w-7 h-7 animate-spin text-emerald-950" /> : (
+                      <div className="flex items-center justify-center gap-3 text-emerald-950">
                         <MapPin className="w-6 h-6 stroke-[2.5]" /><span>وصلت لموقع العميل</span>
                       </div>
                     )}
@@ -1564,7 +1564,7 @@ export const ActiveRideCard = ({
                 className="w-full rounded-none"
               >
                 <button
-                  className="relative overflow-hidden w-full min-h-[52px] text-base font-black text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
+                  className="relative overflow-hidden w-full min-h-[52px] text-base font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
                   onClick={handleStartRide} disabled={loading}
                   style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}
                 >
@@ -1578,8 +1578,8 @@ export const ActiveRideCard = ({
                     transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
                   />
                   <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
-                    {loading ? <Loader2 className="w-7 h-7 animate-spin text-[#0b1326]" /> : (
-                      <div className="flex items-center justify-center gap-3 text-[#0b1326]">
+                    {loading ? <Loader2 className="w-7 h-7 animate-spin text-emerald-950" /> : (
+                      <div className="flex items-center justify-center gap-3 text-emerald-950">
                         <CheckCircle className="w-6 h-6 stroke-[2.5]" /><span>ركب العميل — بدء الرحلة</span>
                       </div>
                     )}
@@ -1595,7 +1595,7 @@ export const ActiveRideCard = ({
                 className="w-full rounded-none"
               >
                 <button
-                  className="relative overflow-hidden w-full min-h-[52px] text-base font-black text-[#0b1326] rounded-none border-none transition-all active:scale-[0.98]"
+                  className="relative overflow-hidden w-full min-h-[52px] text-base font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
                   onClick={handleCompleteRide} disabled={loading}
                   style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}
                 >
@@ -1609,8 +1609,8 @@ export const ActiveRideCard = ({
                     transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
                   />
                   <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
-                    {loading ? <Loader2 className="w-7 h-7 animate-spin text-[#0b1326]" /> : (
-                      <div className="flex items-center justify-center gap-3 text-[#0b1326]">
+                    {loading ? <Loader2 className="w-7 h-7 animate-spin text-emerald-950" /> : (
+                      <div className="flex items-center justify-center gap-3 text-emerald-950">
                         <Flag className="w-6 h-6 stroke-[2.5]" /><span>إنهاء الرحلة وتحصيل الأجرة</span>
                       </div>
                     )}

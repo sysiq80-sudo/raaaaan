@@ -24,11 +24,11 @@ const RiderPageHeader = ({ title, backTo = "/rider" }: RiderPageHeaderProps) => 
         {/* يسار: زر الرجوع */}
         <button
           onClick={() => navigate(backTo)}
-          className="flex items-center gap-1.5 bg-slate-800/40 border border-slate-700/50 hover:bg-slate-700/50 active:scale-90 transition-all rounded-xl px-3 py-2 z-10"
+          className="flex items-center gap-1.5 bg-[#5bdda6] shadow-[0_0_20px_rgba(91,221,166,0.45)] hover:bg-[#4ecf99] active:bg-[#3dbe88] active:scale-90 transition-all rounded-xl px-3 py-2 z-10"
           aria-label="رجوع"
         >
-          <ChevronLeft className="w-5 h-5 text-slate-300" />
-          <span className="text-sm font-medium text-slate-300 leading-none">رجوع</span>
+          <ChevronLeft className="w-5 h-5 text-[#0b1326]" />
+          <span className="text-sm font-bold text-[#0b1326] leading-none">رجوع</span>
         </button>
 
         {/* وسط: الشعار + عنوان الصفحة */}
@@ -36,7 +36,7 @@ const RiderPageHeader = ({ title, backTo = "/rider" }: RiderPageHeaderProps) => 
           <img
             src={logo}
             alt="RAAN"
-            className="w-8 h-8 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]"
+            className="w-10 h-10 rounded-xl shadow-[0_0_12px_rgba(91,221,166,0.3)]"
           />
           <span className="font-black text-white text-base tracking-wider">{title}</span>
         </div>

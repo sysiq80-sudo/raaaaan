@@ -113,6 +113,14 @@ export default function RiderHomeScreen() {
       return;
     }
 
+    if (distanceKm && distanceKm < 0.1) {
+      Alert.alert(
+        'الوجهة قريبة جداً',
+        'الرجاء اختيار وجهة مختلفة عن نقطة الانطلاق (100 متر على الأقل)'
+      );
+      return;
+    }
+
     setBooking(true);
     try {
       const { data, error } = await supabase

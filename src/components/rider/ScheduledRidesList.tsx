@@ -280,7 +280,7 @@ export function ScheduledRidesList() {
                     {vehicleTypeLabels[ride.vehicle_type] || ride.vehicle_type}
                   </span>
                   <span className="font-medium text-primary">
-                    {ride.estimated_fare?.toLocaleString()} د.ع
+                    {ride.estimated_fare?.toLocaleString('en-US')} د.ع
                   </span>
                 </div>
 

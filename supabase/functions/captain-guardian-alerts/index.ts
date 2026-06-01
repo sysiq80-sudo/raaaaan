@@ -9,7 +9,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
-import { corsHeaders } from "../_shared/utils.ts";
+import { getCorsHeaders, requireInternalSecret } from "../_shared/utils.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -17,6 +17,18 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 let CAPTAIN_BOT_TOKEN = "";
 let TELEGRAM_API = "";
 let _configLoaded = false;
+
+const REQUIRED_ACTION_FIELDS: Record<string, string[]> = {
+  risk_radar: ["ride_id", "driver_id", "rider_id"],
+  compensation_shield: ["ride_id", "driver_id"],
+  punctuality_check: [],
+};
+
+function getMissingActionFields(action: string, body: Record<string, unknown>): string[] {
+  const requiredFields = REQUIRED_ACTION_FIELDS[action];
+  if (!requiredFields) return ["action"];
+  return requiredFields.filter((fieldName) => !body[fieldName]);
+}
 
 async function loadDynamicConfig() {
   if (_configLoaded) return;
@@ -60,16 +72,28 @@ async function sendTelegram(chatId: string, text: string) {
 // ==================== Main Handler ====================
 
 serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  const internalDenied = requireInternalSecret(req, corsHeaders);
+  if (internalDenied) return internalDenied;
 
   await loadDynamicConfig();
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const body = await req.json();
-    const action = body.action;
+    const action = typeof body.action === "string" ? body.action : "";
+    const missingFields = getMissingActionFields(action, body);
+
+    if (missingFields.length > 0) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "INVALID_GUARDIAN_PAYLOAD", missing_fields: missingFields }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     console.log(`[CaptainGuardian] Action: ${action}`, JSON.stringify(body));
 
@@ -84,7 +108,10 @@ serve(async (req: Request) => {
         await handlePunctualityCheck(supabase);
         break;
       default:
-        console.log(`[CaptainGuardian] Unknown action: ${action}`);
+        return new Response(
+          JSON.stringify({ ok: false, error: "UNKNOWN_GUARDIAN_ACTION" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
     }
 
     return new Response(JSON.stringify({ ok: true, action }), {
@@ -205,23 +232,18 @@ async function handleRiskRadar(supabase: any, payload: any) {
 }
 
 // =============================================================
-// الميزة 3: درع التعويض — Compensation Shield
+// الميزة 3: درع التعويض — Compensation Shield (إشعار فقط)
 // يُفعّل عندما يلغي الراكب بعد قبول السائق
-// يفحص إذا السائق تحرك ويعوضه تلقائياً
+//
+// ⚠️ هذه الدالة لا تكتب أي بيانات مالية نهائياً.
+// المسؤول الوحيد عن التعويض المالي هو trigger_rider_cancellation_penalty (DB).
+// دور هذه الدالة: قراءة ما سجّله الـ trigger فعلاً ثم إبلاغ السائق عبر تلغرام.
 // =============================================================
 
 async function handleCompensationShield(supabase: any, payload: any) {
-  const {
-    ride_id,
-    driver_id,
-    rider_id,
-    cancellation_reason,
-    distance_to_pickup_at_cancel,
-  } = payload;
+  const { ride_id, driver_id, old_status } = payload;
 
-  console.log(
-    `[CompensationShield] ride=${ride_id}, driver=${driver_id}, distance=${distance_to_pickup_at_cancel}`
-  );
+  console.log(`[CompensationShield] ride=${ride_id}, driver=${driver_id}, old_status=${old_status}`);
 
   // جلب معلومات السائق
   const { data: driver } = await supabase
@@ -230,10 +252,15 @@ async function handleCompensationShield(supabase: any, payload: any) {
     .eq("id", driver_id)
     .single();
 
+  if (!driver?.telegram_chat_id) {
+    console.log(`[CompensationShield] Driver ${driver_id} has no telegram_chat_id — skipping`);
+    return;
+  }
+
   // جلب تفاصيل الرحلة
   const { data: ride } = await supabase
     .from("rides")
-    .select("matched_at, pickup_address, dropoff_address, estimated_fare, distance_km")
+    .select("matched_at, pickup_address, dropoff_address")
     .eq("id", ride_id)
     .single();
 
@@ -242,149 +269,68 @@ async function handleCompensationShield(supabase: any, payload: any) {
     return;
   }
 
-  // حساب الوقت منذ قبول الرحلة
-  const acceptedAt = ride.matched_at ? new Date(ride.matched_at) : null;
-  const minutesSinceAccept = acceptedAt
-    ? (Date.now() - acceptedAt.getTime()) / (1000 * 60)
-    : 0;
+  const minutesSinceAccept = ride.matched_at
+    ? ((Date.now() - new Date(ride.matched_at).getTime()) / (1000 * 60)).toFixed(0)
+    : "?";
 
-  // معايير التعويض: السائق انتظر > 2 دقيقة أو تحرك باتجاه الراكب (< 3 كم)
-  const DISTANCE_THRESHOLD = 3; // كم
-  const TIME_THRESHOLD = 2; // دقائق
-
-  const driverMoved =
-    distance_to_pickup_at_cancel != null &&
-    distance_to_pickup_at_cancel < DISTANCE_THRESHOLD;
-  const waitedLong = minutesSinceAccept > TIME_THRESHOLD;
-
-  if (!driverMoved && !waitedLong) {
-    console.log(
-      `[CompensationShield] No compensation: time=${minutesSinceAccept.toFixed(1)}min, distance=${distance_to_pickup_at_cancel}`
-    );
-
-    // إشعار بسيط بدون تعويض
-    if (driver?.telegram_chat_id) {
-      await sendTelegram(
-        driver.telegram_chat_id,
-        `❌ <b>رحلة ملغاة</b>\n\n` +
-          `📍 من: ${ride.pickup_address || "?"}\n` +
-          `📍 إلى: ${ride.dropoff_address || "?"}\n` +
-          `📝 السبب: ${cancellation_reason || "بدون سبب"}\n\n` +
-          `ℹ️ الإلغاء كان مبكراً — لم يتم منح تعويض.\n` +
-          `الله يعوضك كابتن! 💪`
-      );
-    }
-    return;
-  }
-
-  // حساب التعويض (25% من الأجرة المتوقعة، حد أدنى 1000 د.ع)
-  const estimatedFare = ride.estimated_fare || 5000;
-  const compensation = Math.max(Math.round(estimatedFare * 0.25), 1000);
-
-  // إضافة التعويض لمحفظة السائق
-  let compensationAdded = false;
-
-  const { data: wallet } = await supabase
-    .from("driver_wallets")
-    .select("id, balance")
+  // ── المصدر الوحيد للحقيقة المالية: قاعدة البيانات ──
+  // نقرأ ما سجّله trigger_rider_cancellation_penalty فعلاً في wallet_transactions.
+  // pg_net يُطلق هذا الطلب بعد commit الـ transaction، فالبيانات مضمونة مرئية.
+  //
+  // ملاحظة: create_wallet_transaction() يُسجّل التعويض كـ type='bonus'
+  // مع metadata->>'penalty_type' = 'rider_cancellation_compensation'
+  // لذا نفلتر على كليهما لتمييز تعويض الإلغاء عن أي مكافأة عادية.
+  const { data: compensationTx } = await supabase
+    .from("wallet_transactions")
+    .select("amount, description")
+    .eq("ride_id", ride_id)
     .eq("driver_id", driver_id)
-    .single();
+    .eq("transaction_type", "bonus")
+    .filter("metadata->>penalty_type", "eq", "rider_cancellation_compensation")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (wallet) {
-    const newBalance = (wallet.balance || 0) + compensation;
+  let logMessage: string;
 
-    // تحديث الرصيد
-    await supabase
-      .from("driver_wallets")
-      .update({ balance: newBalance })
-      .eq("id", wallet.id);
-
-    // تسجيل العملية المالية
-    await supabase.from("wallet_transactions").insert({
-      driver_id,
-      wallet_id: wallet.id,
-      ride_id,
-      amount: compensation,
-      balance_before: wallet.balance || 0,
-      balance_after: newBalance,
-      transaction_type: "compensation",
-      status: "completed",
-      description: `🛡️ تعويض إلغاء — الراكب ألغى بعد ${minutesSinceAccept.toFixed(0)} دقيقة`,
-      metadata: {
-        cancellation_reason,
-        minutes_waited: minutesSinceAccept.toFixed(1),
-        distance_to_pickup: distance_to_pickup_at_cancel,
-      },
-    });
-
-    compensationAdded = true;
-  } else {
-    // احتياط: استخدام driver_wallet_transactions
-    await supabase.from("driver_wallet_transactions").insert({
-      driver_id,
-      ride_id,
-      amount: compensation,
-      type: "compensation",
-      description: `🛡️ تعويض إلغاء — الراكب ألغى بعد ${minutesSinceAccept.toFixed(0)} دقيقة`,
-    });
-
-    // تحديث wallet_balance في جدول drivers
-    const { data: driverData } = await supabase
-      .from("drivers")
-      .select("wallet_balance")
-      .eq("id", driver_id)
-      .single();
-
-    await supabase
-      .from("drivers")
-      .update({
-        wallet_balance: (driverData?.wallet_balance || 0) + compensation,
-      })
-      .eq("id", driver_id);
-
-    compensationAdded = true;
-  }
-
-  // إرسال تنبيه تلغرام للسائق
-  if (driver?.telegram_chat_id) {
-    const reasons = [];
-    if (waitedLong)
-      reasons.push(`⏱ انتظرت ${minutesSinceAccept.toFixed(0)} دقيقة`);
-    if (driverMoved)
-      reasons.push(
-        `📏 تحركت ${distance_to_pickup_at_cancel?.toFixed(1)} كم باتجاه الراكب`
-      );
-
+  if (compensationTx) {
+    // السائق حصل على تعويض — أبلّغه بالمبلغ الفعلي من DB
+    const statusLabel = old_status === "arrived" ? "بعد وصولك" : "بعد قبولك";
     const alertMsg =
       `🛡️ <b>درع التعويض — تم حماية حقوقك!</b>\n\n` +
-      `❌ الراكب ألغى الرحلة بعد قبولك\n\n` +
+      `❌ الراكب ألغى الرحلة ${statusLabel}\n\n` +
       `📍 من: ${ride.pickup_address || "?"}\n` +
       `📍 إلى: ${ride.dropoff_address || "?"}\n` +
-      `📝 سبب الإلغاء: ${cancellation_reason || "بدون سبب"}\n\n` +
-      `<b>سبب التعويض:</b>\n` +
-      reasons.map((r) => `  ${r}`).join("\n") +
-      `\n\n` +
-      `💰 <b>التعويض: ${compensation.toLocaleString()} د.ع</b>\n` +
-      (compensationAdded
-        ? `✅ تمت إضافته لمحفظتك تلقائياً`
-        : `⚠️ يتم معالجة التعويض`) +
-      `\n\n` +
+      `⏱ منذ القبول: ${minutesSinceAccept} دقيقة\n\n` +
+      `💰 <b>التعويض: ${compensationTx.amount.toLocaleString()} د.ع</b>\n` +
+      `✅ تمت إضافته لمحفظتك تلقائياً\n\n` +
       `الله يعوضك خير كابتن! 💪🛡️`;
 
     await sendTelegram(driver.telegram_chat_id, alertMsg);
+    logMessage = `إشعار تعويض ${compensationTx.amount} د.ع`;
+    console.log(`[CompensationShield] Notified driver ${driver_id}: ${compensationTx.amount} IQD for ride ${ride_id}`);
+  } else {
+    // لا تعويض — إلغاء مبكر لم تتوفر شروطه
+    await sendTelegram(
+      driver.telegram_chat_id,
+      `❌ <b>رحلة ملغاة</b>\n\n` +
+        `📍 من: ${ride.pickup_address || "?"}\n` +
+        `📍 إلى: ${ride.dropoff_address || "?"}\n` +
+        `⏱ منذ القبول: ${minutesSinceAccept} دقيقة\n\n` +
+        `ℹ️ الإلغاء كان مبكراً — لم تتوفر شروط التعويض.\n` +
+        `الله يعوضك كابتن! 💪`
+    );
+    logMessage = `إلغاء مبكر — لا تعويض`;
+    console.log(`[CompensationShield] No compensation for driver ${driver_id}, ride ${ride_id} — notified`);
   }
 
-  // تسجيل التنبيه
+  // تسجيل الإشعار (لا مال — إشعار فقط)
   await supabase.from("captain_alerts_log").insert({
     driver_id,
     ride_id,
     alert_type: "compensation_shield",
-    message: `تعويض ${compensation} د.ع — انتظر ${minutesSinceAccept.toFixed(0)} دقيقة`,
+    message: logMessage,
   });
-
-  console.log(
-    `[CompensationShield] Compensated driver ${driver_id}: ${compensation} IQD for ride ${ride_id}`
-  );
 }
 
 // =============================================================

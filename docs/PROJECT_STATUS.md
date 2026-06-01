@@ -90,6 +90,9 @@
 | 3 | App.tsx = 1,198 سطر (كل routes في ملف واحد) | منخفضة | `src/App.tsx` |
 | 4 | sanitizeForDatabase غير ضرورية مع Supabase | منخفضة | `src/lib/sanitization.ts` |
 | 5 | 3 مكتبات خرائط مثبتة (Google + Leaflet + Mapbox) لكن واحدة مستخدمة | منخفضة | `package.json` |
+| 6 | `WebView.setWebContentsDebuggingEnabled(true)` دائماً مفعّل — يكشف كل الـ traffic لأي شخص يملك كابل USB حتى في الإنتاج | **عالية قبل Play Store** | `android/app/src/main/java/com/raan/rider/MainActivity.java` |
+| 7 | `minifyEnabled false` في buildType release — APK الإنتاج غير مضغوط وغير مشفر الأسماء، سهل العكس | متوسطة | `android/app/build.gradle` |
+| 8 | لا يوجد `signingConfigs` في build.gradle — APK release يُوقَّع بـ debug keystore، لا يمكن رفعه على Play Store | **لازمة للنشر** | `android/app/build.gradle` |
 
 ---
 
@@ -110,21 +113,122 @@
 
 ---
 
+## 📈 خطة السعة والتوسع التشغيلي
+
+> آخر مراجعة: 26 مايو 2026  
+> الهدف: تحويل تقدير الموارد إلى خطة تشغيل فعلية للـ Pilot ثم الإطلاق المحلي، بدون افتراض أن عدد الحسابات المسجلة يساوي عدد المستخدمين المتصلين لحظياً.
+
+### حدود Supabase Realtime المرجعية
+
+حسب وثائق Supabase الحالية:
+
+| الخطة | الاتصالات المتزامنة | الرسائل/الثانية | ملاحظات |
+|------|---------------------|-----------------|---------|
+| Free | 200 اتصال | 100 رسالة/ثانية | مناسب لفحص داخلي وPilot صغير |
+| Pro | 500 اتصال | 500 رسالة/ثانية | مناسب لإطلاق منطقة/مدينة بحجم مضبوط |
+| Pro بدون Spend Cap | حتى 10,000 اتصال | 2,500 رسالة/ثانية | يحتاج مراقبة تكلفة وضبط رسائل Realtime |
+
+المصدر: [Supabase Realtime limits](https://supabase.com/docs/guides/realtime/rate-limits) و[Supabase Realtime pricing](https://supabase.com/docs/guides/realtime/pricing).
+
+### تقدير تشغيل RAAN على الموارد الحالية
+
+| المرحلة | السائقون المتصلون فعلياً | الركاب النشطون فعلياً | الحسابات المسجلة المتوقعة | القرار |
+|--------|--------------------------|------------------------|----------------------------|--------|
+| Pilot صغير | 20-50 | 50-100 | 200-500 راكب | مناسب على Free/Pro مع مراقبة |
+| إطلاق أول منطقة | 100-200 | 150-300 | 2,000-5,000 راكب | يفضّل Pro |
+| إطلاق مدينة كاملة | 300-700 | 500-1,000 | 10,000-30,000 راكب | Pro بدون Spend Cap + ضبط Realtime |
+| توسع أكبر | 1,000+ | 1,000+ | 50,000+ راكب | فصل خدمات الموقع/التوجيه ومراجعة بنية Realtime |
+
+### قواعد تشغيل إلزامية قبل التوسع
+
+1. تحديث موقع السائق كل 5-10 ثوانٍ فقط، أو عند حركة فعلية أكبر من 10-20 متر.
+2. منع إرسال GPS كل ثانية في الإنتاج إلا أثناء رحلة نشطة وبحدود ضيقة.
+3. الركاب يشتركون فقط في رحلة واحدة نشطة، وليس في كل حركة الأسطول.
+4. لوحة الأدمن لا تعرض كل السائقين مباشرة عند الأعداد الكبيرة؛ تستخدم تجميع/فلترة حسب المنطقة.
+5. مراقبة Supabase Realtime: Peak Connections, Messages/sec, Channel errors.
+6. تفعيل Sentry وSupabase logs أثناء الـ Pilot، ومراجعة الأخطاء يومياً.
+7. عدم الانتقال من Pilot إلى إطلاق عام قبل اختبار 14-30 يوم على أجهزة سائقين حقيقية.
+
+### مؤشرات الانتقال للمرحلة التالية
+
+| المؤشر | الحد المقبول |
+|-------|--------------|
+| فشل Realtime أو CHANNEL_ERROR | أقل من 1% من الجلسات النشطة |
+| تأخر ظهور طلب الرحلة للسائق | أقل من 3 ثوانٍ في أغلب الحالات |
+| تأخر تحديث موقع السائق للراكب | 5-10 ثوانٍ مقبول |
+| فشل complete-ride | صفر حالات غير معالجة مالياً |
+| استهلاك البطارية للسائق | مقبول ميدانياً خلال دوام 6-8 ساعات |
+
+### قرارات تقنية مؤجلة حسب النمو
+
+| متى؟ | القرار |
+|------|--------|
+| أقل من 200 سائق متصل | Supabase Realtime الحالي كافٍ |
+| 300-700 سائق متصل | تحسين قنوات Realtime وتقليل payloads ومراقبة التكلفة |
+| 1,000+ سائق متصل | دراسة خدمة مواقع مستقلة أو طبقة WebSocket مخصصة للسائقين |
+| 5,000+ سائق متصل | بنية Dispatch/Location منفصلة عن قاعدة البيانات العامة |
+
+---
+
 ## 🏃 الخطوات التالية (حسب الأولوية)
 
 ### جاهز للتنفيذ
 1. **معالجة تعارض SupabaseConfigContext** — توحيد عميل Supabase
 2. **توحيد schemas كلمة المرور** بين validations.ts و sanitization.ts
 3. **دمج طبقة المحوّلات بالكامل مع GoPage** (بديل مجاني لـ Google)
+4. **تثبيت خطة الـ Pilot التشغيلية** — 20-50 سائق حقيقي، 14-30 يوم، مراقبة Realtime وGPS وcomplete-ride
+
+### مطلوب قبل نشر Play Store (Android)
+1. **إصلاح WebView Debugging** — تغيير `setWebContentsDebuggingEnabled(true)` إلى `BuildConfig.DEBUG` في `MainActivity.java`
+2. **تفعيل minifyEnabled** — تغيير `minifyEnabled false` إلى `true` في buildType release في `build.gradle`
+3. **إضافة signingConfigs** — إنشاء keystore إنتاج وإضافة `signingConfigs` block في `build.gradle` وربطه بـ buildType release
 
 ### تحسين هيكلي (غير عاجل)
 1. تقسيم App.tsx إلى route files منفصلة
 2. حذف `sanitizeForDatabase` من sanitization.ts
 3. إزالة مكتبات الخرائط غير المستخدمة (leaflet, mapbox-gl) من package.json
+4. تجهيز مسار التوسع إلى Pro/Pro بدون Spend Cap عند تجاوز حدود Pilot
 
 ---
 
-## 📋 سجل التغييرات — 26 مايو 2026
+## 📋 سجل التغييرات — 28 مايو 2026
+
+### تصليب الأمان (Security Hardening) — Edge Functions
+**الملفات الرئيسية:**
+- `supabase/functions/detect-fraud-patterns/index.ts` — تأمين بـ `requireInternalSecret` (كان مكشوفاً للعموم)
+- `supabase/functions/admin-telegram-webhook/index.ts` — تعطيل عمل الإنتاج بعلامة `ADMIN_TELEGRAM_WEBHOOK_DISABLED = true`
+- `supabase/config.toml` — إضافة إدخالات صحيحة مع تعليقات توضيحية لكل function
+- `supabase/migrations/20270528001000_captain_guardian_internal_secret_callers.sql` — تحديث DB triggers لاستخدام Vault secret
+- `docs/EDGE_FUNCTION_SECURITY.md` — توثيق شامل لوضع أمان كل Edge Function
+
+**الوضع الأمني بعد الجلسة:**
+- ✅ 7 Edge Functions داخلية محمية بـ `requireInternalSecret`
+- ✅ admin-telegram-webhook معطّل (لا side effects)
+- ⚠️ `AdminFraudAlerts.tsx` يستدعي `detect-fraud-patterns` من المتصفح → سيرجع 403 حتى يتم الإصلاح
+- ⚠️ `INFOBIP_WEBHOOK_SECRET` لم يُضبط بعد في Supabase Secrets
+
+**فحص TypeScript:** ✅ 0 أخطاء
+
+---
+
+## 📋 سجل التغييرات — 26 مايو 2026 (الجلسة الثانية)
+
+### تحسينات الواجهة النهائية للإطلاق
+**الملفات الرئيسية:** 
+- `src/pages/rider/GoPage.tsx` — زر إغلاق، تقليل padding، توحيد خط، حذف شريط المحفوظة
+- `src/components/rider/DynamicSearchResults.tsx` — إصلاح تكرار إنجليزي، نص بحث أسود
+- `src/components/rider/BookingConfirmationView.tsx` — تعطيل جدولة الرحلات
+- `src/components/rider/AIVoiceHome.tsx` — إضافة 11 موقع لجامعات الرمادي
+- `src/components/rider/RiderSideMenu.tsx` — جلب اسم ديناميكي، زر خروج أحمر
+- `src/pages/rider/WalletTopupPage.tsx` — أيقونة دائرية خضراء مشعة
+- `docs/FUTURE_FEATURES.md` — توثيق ميزة الجدولة المعطلة
+- **67 ملف** — توحيد `.toLocaleString('en-US')`
+
+**فحص TypeScript:** ✅ 0 أخطاء
+
+---
+
+## 📋 سجل التغييرات — 26 مايو 2026 (الجلسة الأولى)
 
 ### `b352883` ui: تطبيق ثيم الفخامة الداكن، تنظيف العناوين العربية، وإصلاح رسم المسار وزر المفضلة
 **الملفات:** 
@@ -269,5 +373,63 @@
 ### `e34d009` chore: إزالة محرك المحاكاة
 **الملف:** `src/components/rider/AIVoiceHome.tsx` (+4 أسطر، -3 أسطر)  
 إزالة كود المحاكاة غير المستخدم (simulation engine) من المكون.
+
+---
+
+## 📋 سجل التغييرات — 27 مايو 2026 (خطة الأمان والأداء)
+
+> **حالة البناء:** ✅ TypeScript — 0 أخطاء  
+> **Edge Functions:** ✅ match-ride + cron-dispatch deployed  
+> **Migrations:** ✅ system_events مطبّق على Supabase
+
+### الملفات المعدّلة الرئيسية
+
+| الملف | التغيير |
+|-------|---------|
+| `src/hooks/useDriverNotifications.ts` | Phase 3C: حذف postgres_changes INSERT+UPDATE، إضافة قناة broadcast شخصية |
+| `src/hooks/useDriverLocationSync.ts` | Phase 5B: SYNC_INTERVAL_MS 5000 → 10000 |
+| `src/components/rider/LiveRideTracker.tsx` | Phase 5B: fallback poll 5000 → 30000 ms |
+| `src/hooks/useActiveRide.ts` | Phase 5A: polling interval 2000 → 5000 ms |
+| `src/hooks/useRideBookingSubmission.ts` | Phase 6C: Sentry.captureException عند فشل match-ride retry |
+| `supabase/functions/match-ride/index.ts` | Phase 3B + 3C + 6B: PostGIS + broadcast + log_system_event |
+| `supabase/functions/cron-dispatch/index.ts` | Phase 6B: log_system_event للأحداث الحرجة |
+| `supabase/migrations/20260527400000_drivers_postgis_spatial.sql` | Phase 3B: get_nearby_drivers RPC |
+| `supabase/migrations/20260527500000_system_events.sql` | Phase 6A: system_events table + RPC + pg_cron |
+
+### ملخص المراحل
+
+| المرحلة | الوصف | الحالة |
+|---------|-------|--------|
+| Phase 1 | Security Hardening — RLS audit، Edge Functions secrets | ✅ |
+| Phase 2 | CI Gate — tsc check قبل deploy | ✅ |
+| Phase 3A | cron-dispatch + match-ride stateless | ✅ |
+| Phase 3B | PostGIS spatial filter — `get_nearby_drivers` RPC | ✅ deployed |
+| Phase 3C | Targeted ride notifications — broadcast للمرشحين فقط | ✅ deployed |
+| Phase 4 | google-maps-proxy Edge Function | ✅ |
+| Phase 5A | useActiveRide polling: 2s → 5s | ✅ |
+| Phase 5B | GPS sync: 5s → 10s / LiveRideTracker fallback: 5s → 30s | ✅ |
+| Phase 6A | system_events migration + pg_cron | ✅ applied |
+| Phase 6B | Sentry/logging في cron-dispatch + match-ride | ✅ deployed |
+| Phase 6C | Sentry في useRideBookingSubmission | ✅ |
+
+### تأثير الأداء
+
+| المقياس | قبل | بعد |
+|---------|-----|-----|
+| سائقون يستقبلون pending ride عبر Realtime | كل N متصل | المرشحون فقط (3-5) |
+| GPS writes/min أثناء رحلة | 12 | 6 |
+| DB reads/min للراكب (useActiveRide) | 30 | 12 |
+| DB reads/min للراكب (LiveRideTracker fallback) | 12 | 2 |
+| جلب السائقين في match-ride | full-table-scan | PostGIS ST_DWithin |
+
+### Hardening لاحق (خارج هذه الخطة)
+
+| البند | الأولوية |
+|-------|----------|
+| Realtime Authorization لـ `driver-notif-{id}` | متوسطة |
+| Supabase Advisor: Security Definer View | منخفضة |
+| تقييد Google Maps API Key من Cloud Console | عالية |
+| مراجعة RLS على `app_settings` | متوسطة |
+| مراقبة 24 ساعة post-deploy (DB requests، Edge invocations، Realtime) | فورية |
 
 ---

@@ -4,15 +4,16 @@
  * Google Maps Version
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "./use-toast";
-import { getDirections, drawPolyline, ROUTE_STYLES } from "@/lib/googleMapService";
+import { getDirections, createSvgIcon, getOrCreateSharedMap } from "@/lib/googleMapService";
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { useGoogleMapsApiKey } from "./useGoogleMapsApiKey";
 import { useAdaptiveRouting } from "@/hooks/useAdaptiveRouting";
 import { logger } from "@/lib/logger";
 import { showErrorToast } from "@/lib/toastHelpers";
 import type { PaymentMethod } from "@/types/savedCards";
+import useRiderStore from "@/stores/riderStore";
 
 const LOG_CONTEXT = "useBookingFlow";
 
@@ -20,6 +21,16 @@ interface LocationType {
   lat: number;
   lng: number;
   address: string;
+  snappedLat?: number;
+  snappedLng?: number;
+}
+
+interface IntermediateStop {
+  id: string;
+  address: string;
+  location: { lat: number; lng: number } | null;
+  estimatedTime?: number;
+  distanceFromPrevious?: number;
 }
 
 type VehicleType = "economy" | "comfort" | "premium" | "women_only";
@@ -27,6 +38,8 @@ type VehicleType = "economy" | "comfort" | "premium" | "women_only";
 export const useBookingFlow = () => {
   const { toast } = useToast();
   const { apiKey: googleApiKey } = useGoogleMapsApiKey();
+  const storedPaymentMethod = useRiderStore((state) => state.selectedPayment);
+  const setStoredPaymentMethod = useRiderStore((state) => state.setPayment);
 
   // Phase 7: Adaptive routing — OSRM primary, Haversine fallback
   const { currentAdapter: routingAdapter, getRoute: getAdaptiveRoute } = useAdaptiveRouting();
@@ -36,16 +49,59 @@ export const useBookingFlow = () => {
 
   const [selectedVehicle, setSelectedVehicle] =
     useState<VehicleType>("economy");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [paymentMethod, setPaymentMethodState] = useState<PaymentMethod>(storedPaymentMethod);
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
-  // Track markers and polylines for proper cleanup
+  // Track markers for proper cleanup
   const markersRef = useRef<google.maps.Marker[]>([]);
   const polylinesRef = useRef<google.maps.Polyline[]>([]);
   const [isBooking, setIsBooking] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
 
-  // Helper function to fetch and draw route
+  useEffect(() => {
+    setPaymentMethodState(storedPaymentMethod);
+  }, [storedPaymentMethod]);
+
+  const setPaymentMethod = useCallback(
+    (method: PaymentMethod) => {
+      setPaymentMethodState(method);
+      setStoredPaymentMethod(method);
+    },
+    [setStoredPaymentMethod],
+  );
+
+  // Helper: fit camera to show all markers
+  const fitBoundsToMarkers = useCallback((
+    pickupLocation: LocationType,
+    dropoffLocation: LocationType,
+    intermediateStops?: IntermediateStop[]
+  ) => {
+    if (!bookingMap.current) return;
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend(new google.maps.LatLng(
+      pickupLocation.snappedLat ?? pickupLocation.lat,
+      pickupLocation.snappedLng ?? pickupLocation.lng
+    ));
+    bounds.extend(new google.maps.LatLng(
+      dropoffLocation.snappedLat ?? dropoffLocation.lat,
+      dropoffLocation.snappedLng ?? dropoffLocation.lng
+    ));
+    if (intermediateStops) {
+      intermediateStops.forEach((stop) => {
+        if (stop.location) {
+          bounds.extend(new google.maps.LatLng(stop.location.lat, stop.location.lng));
+        }
+      });
+    }
+    bookingMap.current.fitBounds(bounds, {
+      top: 80,
+      bottom: window.innerHeight * 0.55 + 20,
+      left: 50,
+      right: 50,
+    });
+  }, []);
+
+  // Helper function to fetch route distance/duration (NO polyline drawing for rider)
   const fetchRouteAndDraw = useCallback(
     async (
       pickupLocation: LocationType,
@@ -53,7 +109,7 @@ export const useBookingFlow = () => {
       intermediateStops?: IntermediateStop[]
     ) => {
       const hasMap = !!bookingMap.current;
-      console.error('🔴 [useBookingFlow] fetchRouteAndDraw CALLED', {
+      logger.debug(LOG_CONTEXT, 'fetchRouteAndDraw CALLED', {
         hasMap,
         hasRoutingAdapter: !!routingAdapter,
         hasGoogleApiKey: !!googleApiKey,
@@ -65,8 +121,14 @@ export const useBookingFlow = () => {
         logger.debug(LOG_CONTEXT, "No map instance — will compute distance without drawing");
       }
 
-      const origin = { lat: pickupLocation.lat, lng: pickupLocation.lng };
-      const destination = { lat: dropoffLocation.lat, lng: dropoffLocation.lng };
+      const origin = {
+        lat: pickupLocation.snappedLat ?? pickupLocation.lat,
+        lng: pickupLocation.snappedLng ?? pickupLocation.lng
+      };
+      const destination = {
+        lat: dropoffLocation.snappedLat ?? dropoffLocation.lat,
+        lng: dropoffLocation.snappedLng ?? dropoffLocation.lng
+      };
       const waypoints = intermediateStops
         ?.filter((s) => s.location && s.location.lat && s.location.lng)
         .map((s) => ({ lat: s.location!.lat, lng: s.location!.lng })) || [];
@@ -81,42 +143,17 @@ export const useBookingFlow = () => {
           const durationMin = Math.ceil(routeResult.duration / 60);
           setRouteDistance(Math.round(distanceKm * 10) / 10);
           setRouteDuration(durationMin);
-          console.error('🔴 [useBookingFlow] ADAPTIVE ROUTE SUCCESS → routeDistance =', Math.round(distanceKm * 10) / 10);
+          logger.debug(LOG_CONTEXT, 'ADAPTIVE ROUTE SUCCESS', { routeDistance: Math.round(distanceKm * 10) / 10 });
           logger.debug(LOG_CONTEXT, "Adaptive route received", { distanceKm, durationMin });
 
-          if (routeResult.path.length > 0 && bookingMap.current) {
-            const polyline = drawPolyline(bookingMap.current, routeResult.path, ROUTE_STYLES.main);
-            if (polyline) polylinesRef.current.push(polyline);
-
-            const bounds = new google.maps.LatLngBounds();
-            routeResult.path.forEach((point) => {
-              bounds.extend(new google.maps.LatLng(point.lat, point.lng));
-            });
-            bounds.extend(new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng));
-            bounds.extend(new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng));
-            
-            if (intermediateStops) {
-              intermediateStops.forEach((stop) => {
-                if (stop.location) {
-                  bounds.extend(new google.maps.LatLng(stop.location.lat, stop.location.lng));
-                }
-              });
-            }
-
-            bookingMap.current.fitBounds(bounds, {
-              top: 80,
-              bottom: window.innerHeight * 0.55 + 20,
-              left: 50,
-              right: 50,
-            });
-          }
+          // Fit camera to markers only (no polyline for rider)
+          fitBoundsToMarkers(pickupLocation, dropoffLocation, intermediateStops);
           return; // ✅ تم — لا حاجة لـ Google Directions
         }
 
         // ─── Fallback: Google Directions API ─────────────────────────────────
         if (!googleApiKey) {
           logger.warn(LOG_CONTEXT, "No routing adapter and no Google API key — using Haversine fallback");
-          // Haversine distance calculation
           const R = 6371;
           const dLat = (destination.lat - origin.lat) * Math.PI / 180;
           const dLng = (destination.lng - origin.lng) * Math.PI / 180;
@@ -124,7 +161,7 @@ export const useBookingFlow = () => {
                     Math.cos(origin.lat * Math.PI / 180) * Math.cos(destination.lat * Math.PI / 180) *
                     Math.sin(dLng/2) * Math.sin(dLng/2);
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-          const distanceKm = R * c * 1.35; // 1.35x factor for road vs straight-line
+          const distanceKm = R * c * 1.35;
           setRouteDistance(Math.round(distanceKm * 10) / 10);
           setRouteDuration(Math.ceil(distanceKm * 2.5));
           logger.debug(LOG_CONTEXT, "Haversine fallback route", { distanceKm: distanceKm.toFixed(1) });
@@ -141,32 +178,8 @@ export const useBookingFlow = () => {
           setRouteDistance(Math.round(distanceKm * 10) / 10);
           setRouteDuration(durationMin);
 
-          if (hasMap && bookingMap.current) {
-            const polyline = drawPolyline(bookingMap.current, result.route, ROUTE_STYLES.main);
-            if (polyline) polylinesRef.current.push(polyline);
-
-            const bounds = new google.maps.LatLngBounds();
-            result.route.forEach((point) => {
-              bounds.extend(new google.maps.LatLng(point.lat, point.lng));
-            });
-            bounds.extend(new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng));
-            bounds.extend(new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng));
-            
-            if (intermediateStops) {
-              intermediateStops.forEach((stop) => {
-                if (stop.location) {
-                  bounds.extend(new google.maps.LatLng(stop.location.lat, stop.location.lng));
-                }
-              });
-            }
-
-            bookingMap.current.fitBounds(bounds, {
-              top: 80,
-              bottom: window.innerHeight * 0.55 + 20,
-              left: 50,
-              right: 50,
-            });
-          }
+          // Fit camera to markers only (no polyline for rider)
+          fitBoundsToMarkers(pickupLocation, dropoffLocation, intermediateStops);
         } else {
           logger.warn(LOG_CONTEXT, "No route data received from Google, using Haversine fallback");
           const R = 6371;
@@ -191,7 +204,7 @@ export const useBookingFlow = () => {
         showErrorToast(toast, "خطأ في الاتجاهات", "فشل في جلب المسار - تحقق من الإنترنت");
       }
     },
-    [routingAdapter, getAdaptiveRoute, googleApiKey, toast]
+    [routingAdapter, getAdaptiveRoute, googleApiKey, toast, fitBoundsToMarkers]
   );
 
   const clearDrawing = useCallback(() => {
@@ -209,9 +222,8 @@ export const useBookingFlow = () => {
       intermediateStops?: IntermediateStop[]
     ) => {
       // Always compute route distance (even if map container isn't mounted yet)
-      // This ensures fareBreakdown gets populated and the booking button works
       if (!bookingMapContainer.current || !googleApiKey) {
-        console.error('🔴 [useBookingFlow] initializeBookingMap: container or apiKey missing, computing distance only', {
+        logger.debug(LOG_CONTEXT, 'initializeBookingMap: container or apiKey missing, computing distance only', {
           hasContainer: !!bookingMapContainer.current,
           hasApiKey: !!googleApiKey,
         });
@@ -234,48 +246,21 @@ export const useBookingFlow = () => {
       // If map is not initialized yet, initialize it
       if (!bookingMap.current) {
         if (bookingMapContainer.current) {
-          bookingMapContainer.current.style.backgroundColor = "#1a1a1a"; // 🌙 Dark background
+          bookingMapContainer.current.style.backgroundColor = "#1a1a1a";
         }
 
         logger.debug(LOG_CONTEXT, "Initializing booking map");
-        
-        // 🌙 Dark Mode Styling (same as location picker)
-        const darkModeStyles = [
-          { elementType: "geometry", stylers: [{ color: "#212121" }] },
-          { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
-          { elementType: "labels.text.fill", stylers: [{ color: "#10b981" }] },
-          {
-            featureType: "road",
-            elementType: "geometry",
-            stylers: [{ color: "#2c2c2c" }]
-          },
-          {
-            featureType: "road",
-            elementType: "labels.text.fill",
-            stylers: [{ color: "#10b981" }]
-          },
-          {
-            featureType: "poi",
-            elementType: "labels.text.fill",
-            stylers: [{ color: "#10b981" }]
-          },
-          {
-            featureType: "water",
-            elementType: "geometry",
-            stylers: [{ color: "#1a1a2e" }]
-          }
-        ];
-        
-        bookingMap.current = new google.maps.Map(bookingMapContainer.current, {
+
+        // ✅ بدون styles مخصصة — نفس المظهر الافتراضي لخريطة الانطلاق/الوصول
+        bookingMap.current = getOrCreateSharedMap(bookingMapContainer.current, {
           center: new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng),
           zoom: 13,
           mapTypeId: 'roadmap',
-          styles: darkModeStyles, // 🌙 تطبيق النمط الداكن
           mapTypeControl: false,
           fullscreenControl: false,
           streetViewControl: false,
           gestureHandling: "cooperative",
-          draggable: true, // ✨ تفعيل السحب
+          draggable: true,
           disableDefaultUI: false,
           zoomControl: true,
         });
@@ -287,36 +272,78 @@ export const useBookingFlow = () => {
       clearDrawing();
 
       // Add pickup marker
+      const pickupPinSvg = `
+        <svg viewBox="0 0 80 65" width="80" height="65" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <style type="text/css">
+              @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;900&amp;display=swap');
+              .text-label {
+                font-family: 'Cairo', sans-serif;
+                font-size: 10px;
+                font-weight: 900;
+                text-anchor: middle;
+              }
+            </style>
+            <filter id="shadowP" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000" flood-opacity="0.25"/>
+            </filter>
+          </defs>
+          <!-- White background label with shadow -->
+          <rect x="2" y="2" width="76" height="22" rx="8" fill="#ffffff" stroke="#10b981" stroke-width="1.5" filter="url(#shadowP)"/>
+          <!-- Green square -->
+          <rect x="60" y="9" width="8" height="8" rx="2" fill="#10b981"/>
+          <!-- الانطلاق text -->
+          <text x="35" y="16" fill="#10b981" class="text-label">الانطلاق</text>
+          <!-- Pin icon -->
+          <g transform="translate(28, 28)">
+            <path d="M12,2.06a5.5,5.5,0,0,0-.5,10.97v8.41a.5.5,0,0,0,.5.5.5.5,0,0,0,.5-.5V13.03A5.5,5.5,0,0,0,12,2.06Zm0,10a4.5,4.5,0,1,1,4.5-4.5A4.5,4.5,0,0,1,12,12.06Z" fill="#10b981"/>
+          </g>
+        </svg>
+      `;
       const pickupMarker = new google.maps.Marker({
         map: bookingMap.current,
-        position: new google.maps.LatLng(pickupLocation.lat, pickupLocation.lng),
+        position: new google.maps.LatLng(pickupLocation.snappedLat ?? pickupLocation.lat, pickupLocation.snappedLng ?? pickupLocation.lng),
         title: "الانطلاق",
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          fillColor: "#22c55e",
-          fillOpacity: 1,
-          strokeColor: "#fff",
-          strokeWeight: 2,
-          scale: 10,
-        },
+        icon: createSvgIcon(pickupPinSvg, 1.8, 80, 65, 40, 47),
         zIndex: 100,
       });
       markersRef.current.push(pickupMarker);
       logger.debug(LOG_CONTEXT, "Pickup marker added");
 
       // Add dropoff marker
+      const dropoffPinSvg = `
+        <svg viewBox="0 0 80 65" width="80" height="65" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <style type="text/css">
+              @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;900&amp;display=swap');
+              .text-label {
+                font-family: 'Cairo', sans-serif;
+                font-size: 10px;
+                font-weight: 900;
+                text-anchor: middle;
+              }
+            </style>
+            <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000" flood-opacity="0.25"/>
+            </filter>
+          </defs>
+          <!-- White background label with shadow -->
+          <rect x="2" y="2" width="76" height="22" rx="8" fill="#ffffff" stroke="#0ea5e9" stroke-width="1.5" filter="url(#shadow)"/>
+          <!-- Blue dot -->
+          <circle cx="64" cy="13" r="4" fill="#0ea5e9"/>
+          <!-- الوصول text -->
+          <text x="35" y="16" fill="#0ea5e9" class="text-label">الوصول</text>
+          <!-- Pin icon -->
+          <g transform="translate(28, 28)">
+            <path d="M12,2.06a5.5,5.5,0,0,0-.5,10.97v8.41a.5.5,0,0,0,.5.5.5.5,0,0,0,.5-.5V13.03A5.5,5.5,0,0,0,12,2.06Zm0,10a4.5,4.5,0,1,1,4.5-4.5A4.5,4.5,0,0,1,12,12.06Z" fill="#0ea5e9"/>
+          </g>
+        </svg>
+      `;
       const dropoffMarker = new google.maps.Marker({
         map: bookingMap.current,
-        position: new google.maps.LatLng(dropoffLocation.lat, dropoffLocation.lng),
+        position: new google.maps.LatLng(dropoffLocation.snappedLat ?? dropoffLocation.lat, dropoffLocation.snappedLng ?? dropoffLocation.lng),
         title: "الوصول",
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          fillColor: "#2A6CD5",
-          fillOpacity: 1,
-          strokeColor: "#fff",
-          strokeWeight: 2,
-          scale: 10,
-        },
+        icon: createSvgIcon(dropoffPinSvg, 1.8, 80, 65, 40, 47),
         zIndex: 101,
       });
       markersRef.current.push(dropoffMarker);
@@ -326,18 +353,16 @@ export const useBookingFlow = () => {
       if (intermediateStops) {
         intermediateStops.forEach((stop, index) => {
           if (stop.location) {
+            const stopPinSvg = `
+              <svg viewBox="0 0 24 24" width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12,2.06a5.5,5.5,0,0,0-.5,10.97v8.41a.5.5,0,0,0,.5.5.5.5,0,0,0,.5-.5V13.03A5.5,5.5,0,0,0,12,2.06Zm0,10a4.5,4.5,0,1,1,4.5-4.5A4.5,4.5,0,0,1,12,12.06Z" fill="#f59e0b"/>
+              </svg>
+            `;
             const stopMarker = new google.maps.Marker({
               map: bookingMap.current,
               position: new google.maps.LatLng(stop.location.lat, stop.location.lng),
               title: `محطة ${index + 1}: ${stop.address}`,
-              icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                fillColor: "#f59e0b",
-                fillOpacity: 1,
-                strokeColor: "#fff",
-                strokeWeight: 2,
-                scale: 8,
-              },
+              icon: createSvgIcon(stopPinSvg, 1.1),
               zIndex: 102 + index,
             });
             markersRef.current.push(stopMarker);
@@ -346,8 +371,7 @@ export const useBookingFlow = () => {
         });
       }
 
-      // Fetch and draw the route — call immediately (OSRM works without map tiles)
-      // Using 'idle' event was unreliable when Google Maps billing is not enabled
+      // Fetch route distance/duration and fit camera (no polyline drawn)
       fetchRouteAndDraw(pickupLocation, dropoffLocation, intermediateStops);
     },
     [googleApiKey, fetchRouteAndDraw, clearDrawing]
