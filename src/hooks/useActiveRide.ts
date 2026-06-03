@@ -121,11 +121,6 @@ export const useActiveRide = (userId: string | null) => {
               setShowCompletedScreen(true);
               playSound("completed");
               vibrate(VibrationPatterns.inProgress);
-              toast({
-                title: "🎉 تمت الرحلة بنجاح!",
-                description: "شكراً لاستخدامك ران - يرجى تقييم السائق",
-                duration: 5000,
-              });
             };
             
             showCompletedWithDriver();

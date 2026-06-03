@@ -892,11 +892,6 @@ export const ActiveRideCard = ({
       notifyRider("driver_arrived", "السائق وصل لموقعك!", {
         riderName: riderInfo?.full_name,
       }).catch(() => { });
-
-      toast({
-        title: "تم تأكيد الوصول ✅",
-        description: distanceMeters > 0 ? `المسافة: ${Math.round(distanceMeters)}م` : "تم إبلاغ العميل",
-      });
     } catch (error: any) {
       toast({
         title: "خطأ",
@@ -936,11 +931,6 @@ export const ActiveRideCard = ({
         riderName: riderInfo?.full_name,
         dropoffAddress: activeRide.dropoff_address,
       }).catch(() => { });
-
-      toast({
-        title: "✅ العميل ركب - بدأت الرحلة!",
-        description: "رحلة موفقة وآمنة",
-      });
     } catch (error: any) {
       toast({
         title: "خطأ",

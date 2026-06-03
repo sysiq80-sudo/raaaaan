@@ -270,6 +270,8 @@ export const RideRequestCard = ({
       const searchLabel = searchFromDropoff && activeRideDropoff ? 'موقع الوجهة' : 'الموقع الحالي';
       const collected: PendingRide[] = [];
 
+      let rpcRanSuccessfully = false;
+
       // ═══ 1. RPC مع الموقع (يُعيد حتى 5 رحلات مرتبة بالمسافة) ═══
       if (searchLocation?.lat && searchLocation?.lng) {
         logger.debug("RideRequestCard", `🔍 البحث من: ${searchLabel}`, {
@@ -278,8 +280,6 @@ export const RideRequestCard = ({
           max_radius_km: maxPickupRadius,
           driver_vehicle_type: vehicleType || "economy",
         });
-
-        let rpcRanSuccessfully = false;
 
         try {
           const { data, error } = await supabase.rpc("get_nearby_pending_rides_geospatial", {
@@ -859,7 +859,6 @@ export const RideRequestCard = ({
       }
 
       console.log("[RideRequestCard] ✅ Accept completed successfully");
-      toast({ title: "✅ تم القبول", description: "تم قبول الطلب بنجاح" });
       onRideAccepted?.();
       setPendingRides([]);
       setCurrentIndex(0);
@@ -881,7 +880,6 @@ export const RideRequestCard = ({
         if (rideState?.status === 'accepted' && rideState?.driver_id === driverId) {
           console.log("[RideRequestCard] ✅ Ride accepted silently — showing success");
           silentSuccess = true;
-          toast({ title: "✅ تم القبول", description: "تم قبول الطلب بنجاح" });
           onRideAccepted?.();
           setPendingRides([]);
           setCurrentIndex(0);
