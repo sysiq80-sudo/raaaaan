@@ -962,13 +962,32 @@ const DriverHome = () => {
       if (online && !latestLocationRef.current) {
         console.log('📍 handleOnlineToggle: Requesting GPS...');
         try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
+          const isBrowser = !window.hasOwnProperty('Capacitor') || !(window as any).Capacitor?.isNativePlatform?.();
+          let position: { coords: { latitude: number; longitude: number } };
+
+          if (!isBrowser) {
+            // استخدام الجسر الأصلي للأجهزة النيتيف لطلب الصلاحيات وتحديد الموقع
+            const { Geolocation } = await import('@capacitor/geolocation');
+            const perm = await Geolocation.requestPermissions();
+            if (perm.location !== 'granted' && perm.coarseLocation !== 'granted') {
+              throw new Error("PERMISSION_DENIED");
+            }
+            const pos = await Geolocation.getCurrentPosition({
               enableHighAccuracy: true,
               timeout: 10000,
-              maximumAge: 30000,
             });
-          });
+            position = pos as any;
+          } else {
+            const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 30000,
+              });
+            });
+            position = pos;
+          }
+
           const loc = { lat: position.coords.latitude, lng: position.coords.longitude };
           setCurrentLocation(loc);
           latestLocationRef.current = loc;
@@ -1217,9 +1236,7 @@ const DriverHome = () => {
       dir="rtl"
     >
       {/* ═══ Header — Futuristic Glassmorphism ═══ */}
-      <header className="absolute top-0 left-0 right-0 z-50 bg-[#0a0f1c]/40 backdrop-blur-2xl border-b border-transparent shadow-[0_10px_40px_rgba(0,0,0,0.5)] w-full transition-all">
-        {/* Thin cyan separator line */}
-        <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
+      <header className="absolute top-0 left-0 right-0 z-50 bg-transparent w-full transition-all">
         
         <div className="container relative flex items-center justify-between h-[max(env(safe-area-inset-top,64px),64px)] w-full pt-[env(safe-area-inset-top,0px)] px-4">
           {/* ═══ Left: Notification Icons ═══ */}
