@@ -203,15 +203,7 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
       <div className="absolute inset-0 bg-background">
         <div ref={bookingMapContainerRef} className="absolute inset-0" />
 
-        {/* Geolocate button — above bottom sheet */}
-        <button
-          onClick={onGeolocate}
-          className="absolute left-4 z-40 w-10 h-10 flex items-center justify-center rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-400/30 shadow-[0_0_12px_rgba(16,185,129,0.5)] hover:shadow-[0_0_18px_rgba(16,185,129,0.75)] active:scale-95 transition-all"
-          style={{ bottom: "calc(55% + 16px)" }}
-          aria-label="تحديد موقعي"
-        >
-          <Navigation className="w-5 h-5 text-white" />
-        </button>
+
       </div>
 
       {/* Header */}

@@ -334,7 +334,7 @@ export const ActiveRideCard = ({
                 updatedRide.status === "cancelled" &&
                 updatedRide.cancelled_by === "rider"
               ) {
-                const fee = updatedRide.cancellation_fee || 0;
+                const fee = updatedRide.cancellation_fee_paid ? (updatedRide.cancellation_fee || 0) : 0;
                 setCancellationInfo({
                   reason: updatedRide.cancellation_reason,
                   fee: fee,
@@ -349,18 +349,13 @@ export const ActiveRideCard = ({
                 // Show notification
                 showNotification(
                   "❌ العميل ألغى الرحلة",
-                  fee > 0
-                    ? `ستحصل على تعويض مالي بقيمة ${fee.toLocaleString('en-US')} د.ع`
-                    : "تم إلغاء الرحلة",
+                  updatedRide.cancellation_reason || "تم إلغاء الرحلة",
                   { tag: "ride-cancelled", requireInteraction: true },
                 );
 
                 toast({
                   title: "❌ تم إلغاء الرحلة من العميل",
-                  description:
-                    fee > 0
-                      ? `ستحصل على تعويض: ${fee.toLocaleString('en-US')} د.ع`
-                      : updatedRide.cancellation_reason || "تم إلغاء الطلب",
+                  description: updatedRide.cancellation_reason || "تم إلغاء الطلب",
                   duration: 10000,
                 });
               }
@@ -439,7 +434,7 @@ export const ActiveRideCard = ({
               pickup_lng: activeRide.pickup_location.lng,
               dropoff_lat: activeRide.dropoff_location.lat,
               dropoff_lng: activeRide.dropoff_location.lng,
-              distance_km: activeRide.distance_km && activeRide.distance_km > 0 ? activeRide.distance_km : 1,
+              distance_km: activeRide.distance_km !== null && activeRide.distance_km !== undefined && activeRide.distance_km >= 0 ? activeRide.distance_km : 1,
               vehicle_type: activeRide.vehicle_type || "economy",
               waiting_minutes: 0,
             },
@@ -1027,14 +1022,15 @@ export const ActiveRideCard = ({
       const gpsDistance = calculateGpsDistance(trackingPointsRef.current);
       console.log(`[Driver] GPS distance: ${gpsDistance} km from ${trackingPointsRef.current.length} points`);
 
-      // حساب وقت الانتظار من وصول السائق (driver_arrival_time) وليس من إنشاء الرحلة
-      const arrivalRef = activeRide.driver_arrival_time || activeRide.started_at || activeRide.created_at;
-      const waitingMinutes =
-        (activeRide.status === "arrived" || activeRide.driver_arrival_time)
-          ? Math.max(0, Math.floor(
-            (Date.now() - new Date(arrivalRef).getTime()) / 60000,
-          ))
-          : 0;
+      // حساب وقت الانتظار الفعلي عند موقع الاستلام (حتى بدء الرحلة فقط)
+      let waitingMinutes = 0;
+      if (activeRide.driver_arrival_time) {
+        const arrivalTime = new Date(activeRide.driver_arrival_time).getTime();
+        const endTime = activeRide.started_at
+          ? new Date(activeRide.started_at).getTime()
+          : Date.now();
+        waitingMinutes = Math.max(0, Math.floor((endTime - arrivalTime) / 60000));
+      }
 
       const estimatedFare = activeRide.estimated_fare || 0;
 

@@ -846,7 +846,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     if (currentMode === 'pickup') {
       setPickupLocation(location);
       setCurrentMode(dropoffLocation ? 'booking' : 'dropoff');
-      toast({ title: 'تم تحديد موقع الانطلاق ✅', description: location.address });
     } else if (currentMode === 'stop') {
       if (!activeStopId) {
         toast({
@@ -865,12 +864,10 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         );
         setActiveStopId(null);
         setCurrentMode(dropoffLocation ? 'booking' : 'dropoff');
-        toast({ title: 'تم تحديد المحطة ✅', description: location.address });
       }
     } else {
       setDropoffLocation(location);
       setCurrentMode(pickupLocation ? 'booking' : 'pickup');
-      toast({ title: 'تم تحديد الوجهة ✅', description: location.address });
     }
 
     if (!applied) return false;
@@ -1070,10 +1067,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           map.current.panTo(freshLocation);
           map.current.setZoom(16);
         }
-        toast({
-          title: "تم التحديث",
-          description: "تم تحديث موقعك الحالي"
-        });
       }, error => {
         console.error("Location error:", error);
         toast({
@@ -1231,10 +1224,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         }
         setCenterAddress("");
         setSearchQuery("");
-        toast({
-          title: pickupLocation ? "تم تحديث موقع الانطلاق ✅" : "تم تحديد موقع الانطلاق ✅",
-          description: address
-        });
       } else if (currentMode === "dropoff" || currentMode === "stop") {
         // فحص Geofencing قبل تحديد الوجهة
         const geofenceCheck = await checkDestinationGeofence(actualLat, actualLng, mapToken);
@@ -1265,17 +1254,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           );
           setActiveStopId(null);
           setCurrentMode(dropoffLocation ? 'booking' : 'dropoff');
-          toast({
-            title: "تم تحديد المحطة ✅",
-            description: address
-          });
         } else {
           setDropoffLocation(location);
           setCurrentMode("booking");
-          toast({
-            title: dropoffLocation ? "تم تحديث الوجهة ✅" : "تم تحديد الوجهة ✅",
-            description: address
-          });
         }
       }
     } catch (error) {
@@ -1961,58 +1942,76 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   // Booking confirmation screen
   if (isBookingMode && pickupLocation && dropoffLocation) {
     return (
-      <BookingConfirmationView
-        pickupLocation={pickupLocation}
-        dropoffLocation={dropoffLocation}
-        routeDistance={routeDistance}
-        routeDuration={routeDuration}
-        bookingMapContainerRef={bookingMapContainer}
-        onGeolocate={manualGeolocateBooking}
-        fareBreakdown={fareBreakdown}
-        fareLoading={fareLoading}
-        fareError={fareError}
-        selectedVehicle={selectedVehicle}
-        onVehicleChange={setSelectedVehicle}
-        paymentMethod={paymentMethod}
-        onPaymentChange={setPaymentMethod}
-        isBooking={isBooking}
-        onBookRide={handleBookRide}
-        onEditLocation={startLocationEdit}
-        intermediateStops={intermediateStops}
-        onStopsChange={setIntermediateStops}
-        onStopSelect={(stopId) => {
-          setActiveStopId(stopId);
-          setCurrentMode('stop');
-        }}
-        onSwapLocations={() => {
-          const temp = pickupLocation;
-          setPickupLocation(dropoffLocation);
-          setDropoffLocation(temp);
-          setIntermediateStops([]);
-          toast({
-            title: "تم عكس الاتجاه ✅",
-            description: "تم تبديل موقع الانطلاق مع الوجهة وتم مسح المحطات الوسطية",
-            duration: 2000,
-          });
-        }}
-        scheduleDialogRef={scheduleDialogRef}
-        onScheduled={() => {
-          toast({ title: "تم جدولة الرحلة ✅", description: "سيتم تذكيرك قبل الموعد" });
-          resetBooking();
-        }}
-        isOnline={isOnline}
-        bottomNavEnabled={bottomNavEnabled}
-        buildDescriptiveAddress={buildDescriptiveAddress}
-        availableDriversByType={availableDriversByType || {}}
-        user={user}
-        menuOpen={menuOpen}
-        onMenuToggle={setMenuOpen}
-        onLogout={async () => {
-          await supabase.auth.signOut();
-          if (navigate) navigate("/auth");
-        }}
-        onGoBack={handleGoBack}
-      />
+      <div className="relative h-full w-full max-w-[480px] mx-auto overflow-hidden">
+        <BookingConfirmationView
+          pickupLocation={pickupLocation}
+          dropoffLocation={dropoffLocation}
+          routeDistance={routeDistance}
+          routeDuration={routeDuration}
+          bookingMapContainerRef={bookingMapContainer}
+          onGeolocate={manualGeolocateBooking}
+          fareBreakdown={fareBreakdown}
+          fareLoading={fareLoading}
+          fareError={fareError}
+          selectedVehicle={selectedVehicle}
+          onVehicleChange={setSelectedVehicle}
+          paymentMethod={paymentMethod}
+          onPaymentChange={setPaymentMethod}
+          isBooking={isBooking}
+          onBookRide={handleBookRide}
+          onEditLocation={startLocationEdit}
+          intermediateStops={intermediateStops}
+          onStopsChange={setIntermediateStops}
+          onStopSelect={(stopId) => {
+            setActiveStopId(stopId);
+            setCurrentMode('stop');
+          }}
+          onSwapLocations={() => {
+            const temp = pickupLocation;
+            setPickupLocation(dropoffLocation);
+            setDropoffLocation(temp);
+            setIntermediateStops([]);
+            toast({
+              title: "تم عكس الاتجاه ✅",
+              description: "تم تبديل موقع الانطلاق مع الوجهة وتم مسح المحطات الوسطية",
+              duration: 2000,
+            });
+          }}
+          scheduleDialogRef={scheduleDialogRef}
+          onScheduled={() => {
+            toast({ title: "تم جدولة الرحلة ✅", description: "سيتم تذكيرك قبل الموعد" });
+            resetBooking();
+          }}
+          isOnline={isOnline}
+          bottomNavEnabled={bottomNavEnabled}
+          buildDescriptiveAddress={buildDescriptiveAddress}
+          availableDriversByType={availableDriversByType || {}}
+          user={user}
+          menuOpen={menuOpen}
+          onMenuToggle={setMenuOpen}
+          onLogout={async () => {
+            await supabase.auth.signOut();
+            if (navigate) navigate("/auth");
+          }}
+          onGoBack={handleGoBack}
+        />
+        
+        {/* Always visible geolocate button in booking mode, styled exactly like the main one */}
+        <button
+          onClick={() => manualGeolocateBooking()}
+          disabled={isLocating}
+          className="absolute left-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-[#5bdda6] border border-[#5bdda6]/30 shadow-[0_0_18px_rgba(91,221,166,0.5)] hover:bg-[#4ecf99] active:scale-95 transition-all"
+          style={{ bottom: "calc(55% + 16px)" }}
+          aria-label="تحديد موقعي"
+          title="تحديد موقعي"
+        >
+          {isLocating ? (
+            <Loader2 className="w-4.5 h-4.5 text-[#0b1326] animate-spin" />
+          ) : (
+            <LocateFixed className="w-4.5 h-4.5 text-[#0b1326]" />
+          )}
+        </button>
+      </div>
     );
   }
 

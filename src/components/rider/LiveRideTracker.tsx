@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRiderLocation } from "@/hooks/useRiderLocation";
 import DriverInfoCard from "@/components/rider/DriverInfoCard";
 import ChangeDestinationSheet from "@/components/rider/ChangeDestinationSheet";
+import { CancellationReasonDialog } from "@/components/rider/CancellationReasonDialog";
 import { RideChat } from "@/components/rider/RideChat";
 import FareBreakdownCard from "@/components/driver/FareBreakdownCard";
 import { useBroadcastChannel } from "@/hooks/useBroadcastChannel";
@@ -944,11 +945,11 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
   }, [ride.id]);
 
   // Cancel ride handler — via atomic RPC
-  const handleCancelRide = async () => {
-    if (!["pending", "accepted"].includes(ride.status)) {
+  const handleCancelRide = async (reason?: string) => {
+    if (!["pending", "accepted", "arrived"].includes(ride.status)) {
       toast({
         title: "لا يمكن إلغاء الرحلة",
-        description: "لا يمكن إلغاء الرحلة بعد وصول السائق أو بدء التنقل",
+        description: "لا يمكن إلغاء الرحلة بعد بدء المشوار",
         variant: "destructive",
       });
       return;
@@ -970,7 +971,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         {
           p_ride_id: ride.id,
           p_rider_user_id: currentUser.id,
-          p_reason: "إلغاء من قبل الراكب",
+          p_reason: reason || "إلغاء من قبل الراكب",
         }
       );
 
@@ -986,12 +987,16 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
             toast({
               title: "تم إلغاء الرحلة ❌",
               description: `تم إلغاء الرحلة وخصم غرامة إلغاء: ${penaltyAmount.toLocaleString()} د.ع من محفظتك`,
-              variant: "destructive",
+            });
+          } else if (penaltyAmount > 0 && !result.penalty_paid) {
+            toast({
+              title: "تم إلغاء الرحلة ❌",
+              description: "تم إلغاء الرحلة. لم يُخصم شيء من محفظتك لعدم كفاية الرصيد.",
             });
           } else {
             toast({
               title: "تم إلغاء الرحلة ❌",
-              description: "يمكنك طلب رحلة جديدة في أي وقت",
+              description: "تم إلغاء الرحلة بنجاح دون أي غرامات",
             });
           }
           onClose();
@@ -1222,6 +1227,15 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
                       </button>
                     </>
                   )}
+                  
+                  {/* زر إلغاء الرحلة */}
+                  <div className="w-px h-5 shrink-0 bg-white/10" />
+                  <button
+                    onClick={() => setShowCancelConfirm(true)}
+                    className="shrink-0 px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all active:scale-95 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                  >
+                    ✕ إلغاء الرحلة
+                  </button>
                 </>
               )}
             </div>
@@ -1315,6 +1329,15 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           </div>
         </div>
       )}
+      
+      <CancellationReasonDialog
+        open={showCancelConfirm}
+        onOpenChange={setShowCancelConfirm}
+        onConfirm={(reason) => handleCancelRide(reason)}
+        isLoading={isCancelling}
+        rideStatus={ride.status}
+        estimatedFare={ride.estimated_fare || 0}
+      />
     </div>
   );
 };
