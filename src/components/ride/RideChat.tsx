@@ -108,13 +108,8 @@ export const RideChat = ({ rideId, userType, rideStatus }: RideChatProps) => {
   useEffect(() => {
     if (open && unreadCount > 0) {
       setUnreadCount(0);
-      // تحديث is_read في قاعدة البيانات
-      supabase
-        .from('ride_messages')
-        .update({ is_read: true } as Record<string, unknown>)
-        .eq('ride_id' as string, rideId)
-        .neq('sender_type' as string, userType)
-        .eq('is_read' as string, false)
+      (supabase as any)
+        .rpc('mark_messages_as_read', { p_ride_id: rideId })
         .then();
     }
   }, [open, unreadCount, rideId, userType]);
@@ -144,44 +139,15 @@ export const RideChat = ({ rideId, userType, rideStatus }: RideChatProps) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // حفظ الرسالة في ride_messages
-      const { error } = await supabase
-        .from('ride_messages')
-        .insert({
-          ride_id: rideId,
-          sender_type: userType,
-          sender_id: user.id,
-          message: text.trim()
+      const { data, error } = await (supabase as any)
+        .rpc('send_ride_message', {
+          p_ride_id: rideId,
+          p_message: text.trim(),
         });
 
       if (error) throw error;
-
-      // ── Relay: إذا كان المرسل هو السائق، أرسل الرسالة للراكب عبر البوت
-      if (userType === 'driver') {
-        try {
-          // جلب بيانات الرحلة لمعرفة rider_id و trip_type
-          const { data: ride } = await supabase
-            .from('rides')
-            .select('rider_id, trip_type')
-            .eq('id', rideId)
-            .single();
-
-          if (ride?.rider_id && ride?.trip_type) {
-            // relay-chat-message Edge Function
-            await supabase.functions.invoke('relay-chat-message', {
-              body: {
-                ride_id: rideId,
-                message: text.trim(),
-                sender_type: 'driver',
-                platform: ride.trip_type, // 'whatsapp' أو 'telegram'
-                rider_id: ride.rider_id,
-              }
-            });
-          }
-        } catch (relayErr) {
-          console.warn('[RideChat] Relay to bot failed (non-blocking):', relayErr);
-          // لا نعرض خطأ للسائق — الرسالة محفوظة في DB
-        }
+      if (data && data.success === false) {
+        throw new Error(data.error || "send_ride_message_failed");
       }
 
       setNewMessage("");

@@ -658,12 +658,9 @@ export const ActiveRideCard = ({
     // 2. DB fallback: حفظ الرسالة في ride_messages لضمان الوصول
     if (activeRide) {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        await supabase.from('ride_messages').insert({
-          ride_id: activeRide.id,
-          sender_type: 'driver',
-          sender_id: user?.id || driverId,
-          message: message,
+        await (supabase as any).rpc('send_ride_message', {
+          p_ride_id: activeRide.id,
+          p_message: message,
         });
       } catch (dbErr) {
         logger.warn("ActiveRideCard", "Quick message DB save failed", dbErr);

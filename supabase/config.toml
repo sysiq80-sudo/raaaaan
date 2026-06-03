@@ -122,7 +122,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.relay-chat-message]
-verify_jwt = true
+verify_jwt = false
 
 [functions.generate-tracking-link]
 verify_jwt = true

@@ -16,7 +16,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
-import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
+import { getCorsHeaders, requireInternalSecret } from "../_shared/utils.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -113,6 +113,20 @@ async function sendTelegramMessage(chatId: number | string, text: string) {
     console.error(`[RelayChatMessage] Telegram send error:`, e);
     return false;
   }
+}
+
+function normalizeRelayText(text: unknown): string {
+  return String(text ?? "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, 1000);
+}
+
+function escapeTelegramHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 // ════════════════════════════════════════════════════════════
@@ -289,34 +303,59 @@ async function getDriverName(
 // ════════════════════════════════════════════════════════════
 
 serve(async (req: Request) => {
-  const corsHeaders = getCorsHeaders(req);
-  // تحميل الإعدادات الديناميكية من system_configs
-  await loadDynamicConfig();
+  const responseHeaders = getCorsHeaders(req);
 
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: responseHeaders });
   }
+
+  const forbidden = requireInternalSecret(req, responseHeaders);
+  if (forbidden) return forbidden;
+
+  // تحميل الإعدادات الديناميكية من system_configs بعد اجتياز الحماية الداخلية.
+  await loadDynamicConfig();
 
   console.log("[RelayChatMessage] ═══ FUNCTION INVOKED ═══");
 
   try {
     const rawBody = await req.text();
-    console.log(`[RelayChatMessage] Raw payload:`, rawBody.substring(0, 500));
-
     const payload = JSON.parse(rawBody);
-    const { ride_id, message, sender_type, platform, rider_id } = payload;
+    const { ride_id, sender_type, platform, rider_id } = payload;
+    const message = normalizeRelayText(payload.message);
 
     console.log(
-      `[RelayChatMessage] ride=${ride_id} sender=${sender_type} platform=${platform} rider=${rider_id}`
+      `[RelayChatMessage] ride=${ride_id} sender=${sender_type} platform=${platform} rider=${rider_id} length=${message.length}`
     );
 
     // التحقق من البيانات المطلوبة
-    if (!ride_id || !message || !platform || !rider_id) {
+    if (!ride_id || !message || !platform || !rider_id || sender_type !== "driver") {
       console.error("[RelayChatMessage] Missing required fields");
-      return jsonOk({ error: "missing_fields" });
+      return jsonOk({ error: "invalid_payload" }, responseHeaders);
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    const { data: ride, error: rideError } = await supabase
+      .from("rides")
+      .select("id, rider_id, driver_id, trip_type, status")
+      .eq("id", ride_id)
+      .maybeSingle();
+
+    if (
+      rideError ||
+      !ride ||
+      ride.rider_id !== rider_id ||
+      ride.trip_type !== platform ||
+      !["accepted", "arrived", "in_progress"].includes(ride.status)
+    ) {
+      console.error("[RelayChatMessage] Ride validation failed", {
+        ride_id,
+        platform,
+        rider_id,
+        status: ride?.status,
+      });
+      return jsonOk({ error: "ride_validation_failed" }, responseHeaders);
+    }
 
     // جلب اسم السائق
     const driverName = await getDriverName(supabase, ride_id);
@@ -335,7 +374,7 @@ serve(async (req: Request) => {
       console.log(`[RelayChatMessage] Sending WhatsApp to ${phone}: ${formattedMsg.substring(0, 100)}`);
 
       const sent = await sendWhatsAppMessage(phone, formattedMsg);
-      return jsonOk({ sent, platform: "whatsapp", phone });
+      return jsonOk({ sent, platform: "whatsapp", phone }, responseHeaders);
     }
 
     // ══════════════════════════════════
@@ -348,19 +387,19 @@ serve(async (req: Request) => {
         return jsonOk({ error: "no_chat_id" });
       }
 
-      const formattedMsg = `💬 <b>رسالة من ${driverName}:</b>\n\n${message}`;
+      const formattedMsg = `💬 <b>رسالة من ${escapeTelegramHtml(driverName)}:</b>\n\n${escapeTelegramHtml(message)}`;
       const sent = await sendTelegramMessage(chatId, formattedMsg);
-      return jsonOk({ sent, platform: "telegram", chatId });
+      return jsonOk({ sent, platform: "telegram", chatId }, responseHeaders);
     }
 
     console.log(`[RelayChatMessage] Unknown platform: ${platform}`);
-    return jsonOk({ error: "unknown_platform" });
+    return jsonOk({ error: "unknown_platform" }, responseHeaders);
 
   } catch (err) {
     console.error("[RelayChatMessage] Error:", err);
     return new Response(
       JSON.stringify({ error: (err as Error).message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...responseHeaders, "Content-Type": "application/json" } }
     );
   }
 });
@@ -369,9 +408,9 @@ serve(async (req: Request) => {
 // Helper: JSON Response
 // ════════════════════════════════════════════════════════════
 
-function jsonOk(data: Record<string, unknown>) {
+function jsonOk(data: Record<string, unknown>, headers: Record<string, string>) {
   return new Response(JSON.stringify(data), {
     status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...headers, "Content-Type": "application/json" },
   });
 }

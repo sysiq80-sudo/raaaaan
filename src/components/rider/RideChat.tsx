@@ -183,13 +183,8 @@ export const RideChat = ({
   useEffect(() => {
     if (open && unreadCount > 0) {
       setUnreadCount(0);
-      // تحديث is_read في قاعدة البيانات
-      supabase
-        .from('ride_messages')
-        .update({ is_read: true } as Record<string, unknown>)
-        .eq('ride_id', rideId)
-        .neq('sender_type', userType)
-        .eq('is_read', false)
+      (supabase as any)
+        .rpc("mark_messages_as_read", { p_ride_id: rideId })
         .then();
     }
   }, [open, unreadCount, rideId, userType]);
@@ -224,14 +219,16 @@ export const RideChat = ({
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { error } = await supabase.from("ride_messages").insert({
-        ride_id: rideId,
-        sender_type: userType,
-        sender_id: user.id,
-        message: text.trim(),
-      });
+      const { data, error } = await (supabase as any)
+        .rpc("send_ride_message", {
+          p_ride_id: rideId,
+          p_message: text.trim(),
+        });
 
       if (error) throw error;
+      if (data && data.success === false) {
+        throw new Error(data.error || "send_ride_message_failed");
+      }
       setNewMessage("");
     } catch (error) {
       console.error("Error sending message:", error);

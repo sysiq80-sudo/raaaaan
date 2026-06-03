@@ -337,16 +337,11 @@ export const useBroadcastChannel = ({
       else if (event === "rider_on_my_way") dbMessage = "🚶 أنا في الطريق إليك";
 
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase.from("ride_messages").insert({
-            ride_id: ride.id,
-            sender_type: "rider",
-            sender_id: user.id,
-            message: dbMessage,
-          });
-          console.log("[sendQuickMessage] Message successfully written to database");
-        }
+        await (supabase as any).rpc("send_ride_message", {
+          p_ride_id: ride.id,
+          p_message: dbMessage,
+        });
+        console.log("[sendQuickMessage] Message successfully written to database");
       } catch (dbErr) {
         console.warn("[sendQuickMessage] Quick message DB insert failed", dbErr);
       }
