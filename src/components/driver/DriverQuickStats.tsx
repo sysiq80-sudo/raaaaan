@@ -57,17 +57,17 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center gap-2 shrink-0 pointer-events-auto">
-        <div className="h-11 w-11 rounded-full bg-[#0d1729]/80 animate-pulse border border-slate-800" />
+      <div className="flex flex-col items-start gap-2 shrink-0 pointer-events-auto">
+        <div className="h-11 w-11 rounded-l-none rounded-r-2xl bg-[#0d1729]/80 animate-pulse border border-l-0 border-slate-800" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center gap-2 shrink-0 pointer-events-auto">
+    <div className="flex flex-col items-start gap-2 shrink-0 pointer-events-auto">
       <button
         onClick={() => setIsVisible(!isVisible)}
-        className="w-11 h-11 flex items-center justify-center rounded-full border border-[#5bdda6]/30 outline-none ring-0 shadow-[0_0_20px_rgba(91,221,166,0.5)] transition-all bg-[#5bdda6] hover:bg-[#34d399] group shrink-0 pointer-events-auto"
+        className="w-11 h-11 flex items-center justify-center rounded-l-none rounded-r-2xl border border-l-0 border-[#5bdda6]/30 outline-none ring-0 shadow-[0_0_20px_rgba(91,221,166,0.5)] transition-all bg-[#5bdda6] hover:bg-[#34d399] group shrink-0 pointer-events-auto"
         aria-label={isVisible ? "إخفاء الإحصائيات" : "إظهار الإحصائيات"}
       >
         <motion.div
@@ -92,7 +92,7 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
             className="flex flex-col gap-2"
           >
             {/* بطاقة الأرباح */}
-            <div className="flex items-center gap-2 bg-[#0d1729]/95 backdrop-blur-xl rounded-2xl px-3 py-2.5 border border-[#5bdda6]/20 shadow-[0_4px_20px_rgba(0,0,0,0.45)] w-28">
+            <div className="flex items-center gap-2 bg-[#0d1729]/95 backdrop-blur-xl rounded-l-none rounded-r-2xl px-3 py-2.5 border border-l-0 border-[#5bdda6]/20 shadow-[0_4px_20px_rgba(0,0,0,0.45)] w-28">
               <div className="w-7 h-7 rounded-xl bg-[#5bdda6]/12 flex items-center justify-center shrink-0">
                 <DollarSign className="w-3.5 h-3.5 text-[#5bdda6]" />
               </div>
@@ -108,7 +108,7 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
             </div>
 
             {/* بطاقة الرحلات */}
-            <div className="flex items-center gap-2 bg-[#0d1729]/95 backdrop-blur-xl rounded-2xl px-3 py-2.5 border border-sky-500/20 shadow-[0_4px_20px_rgba(0,0,0,0.45)] w-28">
+            <div className="flex items-center gap-2 bg-[#0d1729]/95 backdrop-blur-xl rounded-l-none rounded-r-2xl px-3 py-2.5 border border-l-0 border-sky-500/20 shadow-[0_4px_20px_rgba(0,0,0,0.45)] w-28">
               <div className="w-7 h-7 rounded-xl bg-sky-500/12 flex items-center justify-center shrink-0">
                 <Car className="w-3.5 h-3.5 text-sky-400" />
               </div>

@@ -108,14 +108,14 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
         </defs>
         <g transform="rotate(${Math.round(currentHeading)} 40 40)">
           <!-- Soft shadow -->
-          <ellipse cx="40" cy="41.6" rx="30" ry="15" fill="black" opacity="0.25" transform="rotate(90 40 40)" />
+          <ellipse cx="40" cy="34.3" rx="30" ry="15" fill="black" opacity="0.25" transform="rotate(90 40 40)" />
           
           <!-- Headlight beams (beams of light pointing forward) -->
           <path d="M 32.5,13.3 L 16.7,-13.3 L 38.3,-13.3 Z" fill="url(#lightBeam)" />
           <path d="M 47.5,13.3 L 41.7,-13.3 L 63.3,-13.3 Z" fill="url(#lightBeam)" />
 
           <!-- Car image (rotated 90deg to face UP) -->
-          <image href="${carBase64}" x="6.7" y="20.6" width="66.6" height="38.8" transform="rotate(90 40 40)" />
+          <image href="${carBase64}" x="6.7" y="13.3" width="66.6" height="38.8" transform="rotate(90 40 40)" />
         </g>
       </svg>
     `;

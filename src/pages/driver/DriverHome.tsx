@@ -1246,13 +1246,13 @@ const DriverHome = () => {
 
           {/* ═══ Center: Logo ═══ */}
           <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center mt-1">
-            <img src={logo} alt="RAAN" className="w-9 h-9 rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.4)]" />
+            <img src={logo} alt="RAAN" className="w-11 h-11 rounded-2xl shadow-[0_0_15px_rgba(6,182,212,0.4)]" />
           </div>
 
           {/* ═══ Menu Button — Right side ═══ */}
           <button
             onClick={() => { setMenuOpen(!menuOpen); setNotificationsOpen(false); setRewardsOpen(false); }}
-            className="relative bg-[#5bdda6] border border-[#5bdda6]/30 hover:bg-[#34d399] p-2.5 rounded-xl active:scale-95 transition-all z-10 outline-none focus:outline-none select-none tap-highlight-transparent shadow-[0_0_20px_rgba(91,221,166,0.5)]"
+            className="relative bg-[#5bdda6] border border-[#5bdda6]/30 hover:bg-[#34d399] w-11 h-11 flex items-center justify-center rounded-2xl active:scale-95 transition-all z-10 outline-none focus:outline-none select-none tap-highlight-transparent shadow-[0_0_20px_rgba(91,221,166,0.5)]"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             {menuOpen ? (
@@ -1359,7 +1359,7 @@ const DriverHome = () => {
 
             {/* ═══ Dashboard Stats Summary — Floating top cards (just below header) ═══ */}
             {!hasRideRequest && !hasActiveRide && isOnline && driverId && (
-              <div className="absolute top-[max(env(safe-area-inset-top,64px),64px)] mt-4 left-4 z-30 pointer-events-auto transition-all duration-300 ease-in-out">
+              <div className="absolute top-[max(env(safe-area-inset-top,64px),64px)] mt-4 left-0 z-30 pointer-events-auto transition-all duration-300 ease-in-out">
                 <DriverQuickStats driverId={driverId} />
               </div>
             )}
