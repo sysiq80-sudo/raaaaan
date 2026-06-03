@@ -1379,39 +1379,6 @@ export const ActiveRideCard = ({
         <div className="absolute bottom-0 inset-x-0 pointer-events-auto flex flex-col gap-3 bg-gradient-to-t from-[#0a0f1c] via-[#0a0f1c]/90 to-transparent pt-32 w-full">
 
           <div className="px-4 flex flex-col gap-3">
-            {/* Glass Navigation Actions (Absolute positioned right above the cards) */}
-            {(activeRide.status === "accepted" || activeRide.status === "in_progress") && (
-              <div className="flex justify-center mb-1">
-                <div className="flex items-center gap-2 bg-[#0a0f1c]/60 p-2 rounded-[20px] border border-cyan-500/20 backdrop-blur-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-                  <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${activeRide.status === "accepted" ? activeRide.pickup_location.lat : activeRide.dropoff_location.lat},${activeRide.status === "accepted" ? activeRide.pickup_location.lng : activeRide.dropoff_location.lng}&travelmode=driving`, "_blank")}
-                    className="h-12 px-4 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 transition-all active:scale-95 border border-white/5">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" className="w-5 h-5">
-                      <circle cx="12" cy="12" r="11" fill="#ffffff" stroke="#e0e0e0" strokeWidth="1"/>
-                      <path d="M12 4.5c-2.8 0-5 2.2-5 5 0 3.8 5 9.5 5 9.5s5-5.7 5-9.5c0-2.8-2.2-5-5-5z" fill="#1a73e8"/>
-                      <path d="M12 4.5c-2.8 0-5 2.2-5 5 0 .9.3 1.8.8 2.6L12 9.5z" fill="#ea4335"/>
-                      <path d="M12 19s-5-5.7-5-9.5c0-.9.3-1.8.8-2.6L12 12.5z" fill="#f9ab00"/>
-                      <path d="M12 12.5l4.2-5.6c.5.8.8 1.7.8 2.6 0 3.8-5 9.5-5 9.5z" fill="#34a853"/>
-                      <circle cx="12" cy="9.5" r="1.8" fill="#ffffff"/>
-                    </svg>
-                    <span className="text-xs font-bold text-slate-200">Google Maps</span>
-                  </button>
-                  <div className="w-[1px] h-6 bg-white/10" />
-                  <button onClick={() => window.open(`https://waze.com/ul?ll=${activeRide.status === "accepted" ? activeRide.pickup_location.lat : activeRide.dropoff_location.lat},${activeRide.status === "accepted" ? activeRide.pickup_location.lng : activeRide.dropoff_location.lng}&navigate=yes`, "_blank")}
-                    className="h-12 px-4 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 transition-all active:scale-95 border border-white/5">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" className="w-5 h-5">
-                      <path fill="#33cdff" stroke="#33cdff" d="M19.1 11.6c.1-.4.1-.8.1-1.2 0-4.6-3.8-8.4-8.4-8.4S2.4 5.8 2.4 10.4s3.8 8.4 8.4 8.4c1.1 0 2.2-.2 3.2-.6.9-.4 2.2.4 2.9.7.5.2 1 .3 1.5.1.7-.3 1.2-1 1.2-1.8 0-.5-.2-1-.5-1.3-.2-.1-.3-.2-.5-.3z"/>
-                      <circle cx="8" cy="11" r="1.5" fill="#000"/>
-                      <circle cx="14" cy="11" r="1.5" fill="#000"/>
-                      <path d="M10 14.5c.8.6 1.8.6 2.6 0" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
-                      <circle cx="8" cy="19.5" r="2" fill="#333" stroke="#fff" strokeWidth="1"/>
-                      <circle cx="14" cy="19.5" r="2" fill="#333" stroke="#fff" strokeWidth="1"/>
-                    </svg>
-                    <span className="text-xs font-bold text-slate-200">Waze</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* 1. Premium Rider Card (Glassmorphism) */}
             <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl border border-cyan-500/20 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
               <div className={`absolute -top-10 -right-10 w-40 h-40 rounded-full blur-[50px] opacity-20 pointer-events-none ${activeRide.status === "accepted" ? "bg-blue-500" : activeRide.status === "arrived" ? "bg-amber-500" : "bg-cyan-500"}`} />

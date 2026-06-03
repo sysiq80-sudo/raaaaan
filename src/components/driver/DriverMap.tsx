@@ -640,20 +640,66 @@ export const DriverMap = ({
       
       <div ref={mapContainer} className={`absolute inset-0 bg-gray-100 ${isMapReady ? 'visible' : 'invisible'}`} />
       
-      {/* Right Controls — Emergency + Auto-Accept + My Location */}
-      <div className="absolute top-20 right-4 z-[9999] flex flex-col items-end gap-3">
-
-
-
+      {/* Right Controls — My Location + Navigation Shortcuts */}
+      <div className="absolute top-24 right-0 z-[9999] flex flex-col items-end gap-3">
         {/* My Location */}
         <button
-          className="w-12 h-12 flex items-center justify-center rounded-full border border-[#5bdda6]/30 outline-none ring-0 shadow-[0_0_20px_rgba(91,221,166,0.5)] transition-all bg-[#5bdda6] hover:bg-[#34d399] group disabled:opacity-40"
+          className="w-12 h-12 flex items-center justify-center rounded-l-2xl border border-r-0 border-[#5bdda6]/30 outline-none ring-0 shadow-[0_0_20px_rgba(91,221,166,0.3)] transition-all bg-[#5bdda6] hover:bg-[#34d399] group disabled:opacity-40"
           onClick={handleCenterOnDriver}
           disabled={!driverLocation}
           title="موقعي"
         >
           <MapPin className="w-6 h-6 text-slate-950 group-hover:scale-110 transition-transform" />
         </button>
+
+        {/* Navigation shortcuts (Google Maps + Waze) */}
+        {activeRide && (activeRide.status === "accepted" || activeRide.status === "in_progress") && (
+          <>
+            {/* Google Maps Shortcut */}
+            <button
+              onClick={() => {
+                const lat = activeRide.status === "accepted" ? activeRide.pickup_location?.lat : activeRide.dropoff_location?.lat;
+                const lng = activeRide.status === "accepted" ? activeRide.pickup_location?.lng : activeRide.dropoff_location?.lng;
+                if (lat && lng) {
+                  window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, "_blank");
+                }
+              }}
+              className="w-12 h-12 flex items-center justify-center rounded-l-2xl border border-r-0 border-white/10 bg-[#0a0f1c]/80 hover:bg-[#0a0f1c] backdrop-blur-md shadow-lg transition-all active:scale-95 group"
+              title="Google Maps"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" className="w-5 h-5 group-hover:scale-110 transition-transform">
+                <circle cx="12" cy="12" r="11" fill="#ffffff" stroke="#e0e0e0" strokeWidth="1"/>
+                <path d="M12 4.5c-2.8 0-5 2.2-5 5 0 3.8 5 9.5 5 9.5s5-5.7 5-9.5c0-2.8-2.2-5-5-5z" fill="#1a73e8"/>
+                <path d="M12 4.5c-2.8 0-5 2.2-5 5 0 .9.3 1.8.8 2.6L12 9.5z" fill="#ea4335"/>
+                <path d="M12 19s-5-5.7-5-9.5c0-.9.3-1.8.8-2.6L12 12.5z" fill="#f9ab00"/>
+                <path d="M12 12.5l4.2-5.6c.5.8.8 1.7.8 2.6 0 3.8-5 9.5-5 9.5z" fill="#34a853"/>
+                <circle cx="12" cy="9.5" r="1.8" fill="#ffffff"/>
+              </svg>
+            </button>
+
+            {/* Waze Shortcut */}
+            <button
+              onClick={() => {
+                const lat = activeRide.status === "accepted" ? activeRide.pickup_location?.lat : activeRide.dropoff_location?.lat;
+                const lng = activeRide.status === "accepted" ? activeRide.pickup_location?.lng : activeRide.dropoff_location?.lng;
+                if (lat && lng) {
+                  window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`, "_blank");
+                }
+              }}
+              className="w-12 h-12 flex items-center justify-center rounded-l-2xl border border-r-0 border-white/10 bg-[#0a0f1c]/80 hover:bg-[#0a0f1c] backdrop-blur-md shadow-lg transition-all active:scale-95 group"
+              title="Waze"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" className="w-5 h-5 group-hover:scale-110 transition-transform">
+                <path fill="#33cdff" stroke="#33cdff" d="M19.1 11.6c.1-.4.1-.8.1-1.2 0-4.6-3.8-8.4-8.4-8.4S2.4 5.8 2.4 10.4s3.8 8.4 8.4 8.4c1.1 0 2.2-.2 3.2-.6.9-.4 2.2.4 2.9.7.5.2 1 .3 1.5.1.7-.3 1.2-1 1.2-1.8 0-.5-.2-1-.5-1.3-.2-.1-.3-.2-.5-.3z"/>
+                <circle cx="8" cy="11" r="1.5" fill="#000"/>
+                <circle cx="14" cy="11" r="1.5" fill="#000"/>
+                <path d="M10 14.5c.8.6 1.8.6 2.6 0" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="8" cy="19.5" r="2" fill="#333" stroke="#fff" strokeWidth="1"/>
+                <circle cx="14" cy="19.5" r="2" fill="#333" stroke="#fff" strokeWidth="1"/>
+              </svg>
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
