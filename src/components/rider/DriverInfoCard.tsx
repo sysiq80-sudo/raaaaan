@@ -100,21 +100,21 @@ const DriverInfoCard = ({
 
             <div className="flex flex-col min-w-0">
               <h3 className="font-bold text-[15px] text-white truncate max-w-[130px]">{driver.full_name}</h3>
-              <div className="flex items-center gap-1 mt-0.5">
+              <div className="flex items-center gap-2 mt-1">
                 <Car className="w-3 h-3 text-slate-400 shrink-0" />
                 <span className="text-[11px] text-slate-300 truncate">
                   {[driver.vehicle_color, driver.vehicle_model].filter(Boolean).join(" ") || "مركبة"}
                 </span>
+                {driver.vehicle_plate && (
+                  <div className="bg-white/10 backdrop-blur px-1.5 py-0.5 rounded border border-white/10 shrink-0">
+                    <span className="font-black text-[10px] tracking-wider text-white leading-none">{driver.vehicle_plate}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {driver.vehicle_plate && (
-              <div className="bg-white/10 backdrop-blur px-2.5 py-1 rounded-lg border border-white/10">
-                <span className="font-black text-[12px] tracking-wider text-white">{driver.vehicle_plate}</span>
-              </div>
-            )}
             {driverPhone && (
               <a href={`tel:${driverPhone}`} className="shrink-0 flex items-center justify-center h-10 w-10 rounded-full transition-all active:scale-95 bg-white/10 text-white border border-white/10">
                 <Phone className="h-4.5 w-4.5" />
