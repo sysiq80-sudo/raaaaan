@@ -119,6 +119,8 @@ const DriverHome = () => {
   // Phase 7: تتبع معرّف الرحلة النشطة لـ useRealtimeRideEvents
   const [activeRideId, setActiveRideId] = useState<string | null>(null);
   const [hasRideRequest, setHasRideRequest] = useState(false);
+  const [currentRideRequest, setCurrentRideRequest] = useState<any | null>(null);
+  const [isRequestMinimized, setIsRequestMinimized] = useState(false);
   const [rideAcceptedTrigger, setRideAcceptedTrigger] = useState(0);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancellingRide, setIsCancellingRide] = useState(false);
@@ -151,11 +153,13 @@ const DriverHome = () => {
     onRideCompleted: () => {
       setHasActiveRide(false);
       setActiveRideId(null);
+      setIsMinimized(false);
       routeNotification("ride-completed", { driverId, occurredAt: Date.now() });
     },
     onRideCancelled: () => {
       setHasActiveRide(false);
       setActiveRideId(null);
+      setIsMinimized(false);
     },
   });
   // Stable callback لمنع إعادة إنشاء subscriptions في RideRequestCard
@@ -166,6 +170,7 @@ const DriverHome = () => {
     console.log("[DriverHome] Ride accepted — triggering ActiveRideCard refresh");
     setIsPaused(false);
     setHasActiveRide(true);
+    setIsMinimized(false);
     setRideAcceptedTrigger(prev => prev + 1);
   }, []);
 
@@ -1147,7 +1152,7 @@ const DriverHome = () => {
 
   if (!user) {
     return (
-      <div className="h-screen w-full overflow-hidden bg-[#0a0f1c] flex flex-col items-center justify-center font-sans" dir="rtl">
+      <div className="h-screen w-full overflow-hidden bg-[#0a0f1c] flex flex-col items-center justify-center font-cairo" dir="rtl">
         <div className="flex flex-col items-center gap-6 px-8 w-full max-w-sm">
           <div className="w-20 h-20 bg-[#111827] rounded-2xl flex items-center justify-center border border-slate-800/80 shadow-lg">
             <img src={logo} alt="RAAN" className="w-12 h-12" />
@@ -1176,7 +1181,7 @@ const DriverHome = () => {
   // Show registration prompt if user is not registered as driver
   if (user && isDriverRegistered === false) {
     return (
-      <div className="h-screen w-full overflow-hidden bg-[#0a0f1c] flex flex-col items-center justify-center font-sans" dir="rtl">
+      <div className="h-screen w-full overflow-hidden bg-[#0a0f1c] flex flex-col items-center justify-center font-cairo" dir="rtl">
         <div className="flex flex-col items-center gap-6 px-8 w-full max-w-sm">
           {/* Icon */}
           <div className="w-24 h-24 bg-[#111827] rounded-3xl flex items-center justify-center border border-emerald-500/20 shadow-[0_0_30px_rgba(52,211,153,0.1)]">
@@ -1232,7 +1237,7 @@ const DriverHome = () => {
 
   return (
     <div 
-      className="h-[100dvh] w-full bg-[#0a0f1c] flex flex-col overflow-hidden font-sans relative" 
+      className="h-[100dvh] w-full bg-[#0a0f1c] flex flex-col overflow-hidden font-cairo relative" 
       dir="rtl"
     >
       {/* ═══ Header — Futuristic Glassmorphism ═══ */}
@@ -1298,6 +1303,9 @@ const DriverHome = () => {
                 driverLocation={currentLocation}
                 isOnline={isOnline}
                 hasActiveRide={hasActiveRide}
+                currentRideRequest={currentRideRequest}
+                isRideRequestMinimized={isRequestMinimized}
+                isActiveRideMinimized={isMinimized}
               />
               {/* ✅ مؤشر حالة الشبكة فوق الخريطة */}
               <MapNetworkOverlay />
@@ -1342,20 +1350,20 @@ const DriverHome = () => {
               />
             )}
 
-            {!isMinimized && (
-              <RideRequestCard
-                driverId={driverId}
-                vehicleType={vehicleType}
-                isOnline={isOnline}
-                isPaused={isPaused}
-                driverLocation={currentLocation}
-                maxPickupRadius={maxPickupRadius}
-                highlightRideId={highlightRideId}
-                onDeepLinkResolved={handleDeepLinkResolved}
-                onRideRequestVisible={handleRideRequestVisible}
-                onRideAccepted={handleRideAccepted}
-              />
-            )}
+            <RideRequestCard
+              driverId={driverId}
+              vehicleType={vehicleType}
+              isOnline={isOnline}
+              isPaused={isPaused}
+              driverLocation={currentLocation}
+              maxPickupRadius={maxPickupRadius}
+              highlightRideId={highlightRideId}
+              onDeepLinkResolved={handleDeepLinkResolved}
+              onRideRequestVisible={handleRideRequestVisible}
+              onRideRequestChange={setCurrentRideRequest}
+              onMinimizedChange={setIsRequestMinimized}
+              onRideAccepted={handleRideAccepted}
+            />
 
             {/* ═══ Dashboard Stats Summary — Floating top cards (just below header) ═══ */}
             {!hasRideRequest && !hasActiveRide && isOnline && driverId && (

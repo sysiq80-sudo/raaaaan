@@ -27,7 +27,7 @@ import { useAutoAccept } from "@/stores/driverStore";
 import { useVehicleTypes } from "@/hooks/useVehicleTypes";
 import { calculateLocalDistance } from "@/lib/mapUtils";
 
-interface PendingRide {
+export interface PendingRide {
   id: string;
   pickup_location: { lat: number; lng: number };
   dropoff_location: { lat: number; lng: number };
@@ -50,6 +50,8 @@ interface RideRequestCardProps {
   driverLocation?: { lat: number; lng: number } | null;
   onRideAccepted?: () => void;
   onRideRequestVisible?: (visible: boolean) => void;
+  onRideRequestChange?: (ride: PendingRide | null) => void;
+  onMinimizedChange?: (minimized: boolean) => void;
   maxPickupRadius?: number;
   highlightRideId?: string | null;
   onDeepLinkResolved?: (rideId: string, found: boolean) => void;
@@ -79,11 +81,13 @@ export const RideRequestCard = ({
   vehicleType,
   isOnline,
   isPaused = false,
-  driverLocation,
+  driverLocation = null,
   onRideAccepted,
   onRideRequestVisible,
+  onRideRequestChange,
+  onMinimizedChange,
   maxPickupRadius = 10,
-  highlightRideId,
+  highlightRideId = null,
   onDeepLinkResolved,
 }: RideRequestCardProps) => {
   const { toast } = useToast();
@@ -105,8 +109,19 @@ export const RideRequestCard = ({
   // قفل لمنع التداخل أثناء القبول/الرفض
   const actionInProgressRef = useRef(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   // الرحلة الحالية المعروضة
   const pendingRide = pendingRides[currentIndex] ?? null;
+
+  useEffect(() => {
+    onRideRequestChange?.(pendingRide);
+  }, [pendingRide, onRideRequestChange]);
+
+  useEffect(() => {
+    setIsExpanded(false);
+    setIsMinimized(false);
+    onMinimizedChange?.(false);
+  }, [pendingRide?.id, onMinimizedChange]);
 
   // حساب الوقت المتبقي من created_at بدلاً من إعادة العد من 30
   const calcTimeLeft = useCallback((createdAt: string): number => {
@@ -988,6 +1003,14 @@ export const RideRequestCard = ({
   const timerPercent = (timeLeft / 30) * 100;
   const isUrgent = timeLeft <= 10;
   const total = pendingRides.length;
+  const pickupDistanceKm = driverLocation && pendingRide.pickup_location
+    ? calculateLocalDistance(driverLocation, pendingRide.pickup_location)
+    : null;
+
+  const setRequestMinimized = (minimized: boolean) => {
+    setIsMinimized(minimized);
+    onMinimizedChange?.(minimized);
+  };
 
   return (
     <AnimatePresence mode="wait">
@@ -1004,9 +1027,21 @@ export const RideRequestCard = ({
         dragElastic={0.2}
         onDragEnd={(_, { offset, velocity }) => {
           if (offset.y < -40 || velocity.y < -400) {
-            setIsExpanded(true);
+            if (isMinimized) {
+              setRequestMinimized(false);
+              setIsExpanded(false);
+            } else {
+              setRequestMinimized(false);
+              setIsExpanded(true);
+            }
           } else if (offset.y > 40 || velocity.y > 400) {
-            setIsExpanded(false);
+            if (isExpanded) {
+              setIsExpanded(false);
+              setRequestMinimized(false);
+            } else {
+              setIsExpanded(false);
+              setRequestMinimized(true);
+            }
           }
         }}
       >
@@ -1023,108 +1058,136 @@ export const RideRequestCard = ({
           </div>
 
           <div className="px-5 pt-3 pb-2 space-y-4 flex-1 flex flex-col min-h-0 overflow-y-auto">
-            {/* هيدر: العنوان */}
-            <div className="flex items-center justify-center shrink-0">
-              <span className="font-extrabold text-xl text-white tracking-wide" style={{ fontFamily: "Cairo, sans-serif" }}>طلب جديد</span>
-            </div>
+            {isMinimized ? (
+              <div className="shrink-0 rounded-lg border border-slate-700/30 bg-[#171f33] px-3 py-3">
+                <div className="flex items-center gap-3 min-w-0">
 
-            {/* الأجرة + الإحصائيات (Bento Layout) */}
-            <div className="flex flex-col gap-3 shrink-0">
-              {/* الصف الأول: السعر والنوع */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* بطاقة السعر */}
-                <div className="bg-[#171f33] rounded-2xl p-4 border border-slate-700/30 flex flex-col justify-center items-center relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-gradient-to-b from-[#5bdda6]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                   <Wallet className="w-4 h-4 text-[#5bdda6]/70" />
-                   <span className="text-xs font-semibold text-slate-400">الأجرة المقدرة</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-[#5bdda6]" style={{ fontFamily: "Cairo, sans-serif" }}>طلب جديد</p>
+                    <p className="truncate text-sm font-semibold text-slate-100">
+                      {cleanArabicAddress(pendingRide.pickup_address || "موقع العميل")}
+                    </p>
                   </div>
-                  <div className="flex items-baseline gap-1.5" style={{ fontFamily: "Cairo, sans-serif" }}>
-                    <span className="text-3xl font-black text-[#5bdda6] tabular-nums tracking-tight">
-                      {roundFare(pendingRide.estimated_fare || 0).toLocaleString('en-US')}
-                    </span>
-                    <span className="text-sm text-[#5bdda6]/70 font-semibold">د.ع</span>
+                  <div className="shrink-0 text-left" style={{ fontFamily: "Cairo, sans-serif" }}>
+                    <div className="text-base font-black text-[#5bdda6] tabular-nums">
+                      {roundFare(pendingRide.estimated_fare || 0).toLocaleString('en-US')} د.ع
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-400">
+                      {pickupDistanceKm !== null ? `${pickupDistanceKm.toFixed(1)} كم` : "المسافة غير متاحة"}
+                    </div>
                   </div>
-                  {pendingRide.surge_multiplier && pendingRide.surge_multiplier > 1 && (
-                    <span className="absolute top-2 right-2 bg-amber-500 text-amber-950 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
-                      <Zap className="w-2.5 h-2.5" />
-                      x{pendingRide.surge_multiplier.toFixed(1)}
-                    </span>
-                  )}
-                </div>
-
-                {/* بطاقة النوع */}
-                <div className="bg-[#171f33] rounded-2xl p-4 border border-slate-700/30 flex flex-col justify-center items-center relative overflow-hidden">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Car className="w-4 h-4 text-[#5bdda6]/70" />
-                    <span className="text-xs font-semibold text-slate-400">نوع السيارة</span>
-                  </div>
-                  <span className="text-2xl mt-1">{getVehicleIcon(pendingRide.vehicle_type)}</span>
-                  <span className="text-xl font-black text-[#5bdda6] tracking-wide mt-0.5" style={{ fontFamily: "Cairo, sans-serif" }}>
-                    {getVehicleName(pendingRide.vehicle_type)}
-                  </span>
                 </div>
               </div>
-            </div>
-
-            {/* العناوين — Timeline */}
-            <div className="bg-[#171f33] rounded-2xl p-4 border border-slate-700/30 relative shrink-0">
-              <div className="flex gap-4">
-                {/* Timeline Dots */}
-                <div className="flex flex-col items-center pt-2 pb-1.5">
-                  <div className="w-3.5 h-3.5 rounded-full bg-[#5bdda6] shadow-[0_0_8px_rgba(91,221,166,0.6)]" />
-                  <div className="w-0.5 flex-1 bg-gradient-to-b from-[#5bdda6]/50 to-blue-500/50 my-1 min-h-[32px]" />
-                  <div className="w-3.5 h-3.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+            ) : (
+              <>
+                {/* هيدر: العنوان */}
+                <div className="flex items-center justify-center shrink-0">
+                  <span className="font-extrabold text-xl text-white tracking-wide" style={{ fontFamily: "Cairo, sans-serif" }}>طلب جديد</span>
                 </div>
+
+                {/* الأجرة + الإحصائيات (Bento Layout) */}
+                <div className="flex flex-col gap-3 shrink-0">
+                  {/* الصف الأول: السعر والنوع */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* بطاقة السعر */}
+                    <div className="bg-[#171f33] rounded-2xl p-4 border border-slate-700/30 flex flex-col justify-center items-center relative overflow-hidden group">
+                      <div className="absolute inset-0 bg-gradient-to-b from-[#5bdda6]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                       <Wallet className="w-4 h-4 text-[#5bdda6]/70" />
+                       <span className="text-xs font-semibold text-slate-400">الأجرة المقدرة</span>
+                      </div>
+                      <div className="flex items-baseline gap-1.5" style={{ fontFamily: "Cairo, sans-serif" }}>
+                        <span className="text-3xl font-black text-[#5bdda6] tabular-nums tracking-tight">
+                          {roundFare(pendingRide.estimated_fare || 0).toLocaleString('en-US')}
+                        </span>
+                        <span className="text-sm text-[#5bdda6]/70 font-semibold">د.ع</span>
+                      </div>
+                      {pendingRide.surge_multiplier && pendingRide.surge_multiplier > 1 && (
+                        <span className="absolute top-2 right-2 bg-amber-500 text-amber-950 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                          <Zap className="w-2.5 h-2.5" />
+                          x{pendingRide.surge_multiplier.toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* بطاقة النوع */}
+                    <div className="bg-[#171f33] rounded-2xl p-4 border border-slate-700/30 flex flex-col justify-center items-center relative overflow-hidden">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Car className="w-4 h-4 text-[#5bdda6]/70" />
+                        <span className="text-xs font-semibold text-slate-400">نوع السيارة</span>
+                      </div>
+
+                      <span className="text-xl font-black text-[#5bdda6] tracking-wide mt-0.5" style={{ fontFamily: "Cairo, sans-serif" }}>
+                        {getVehicleName(pendingRide.vehicle_type)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* العناوين — Timeline */}
+                <div className="bg-[#171f33] rounded-2xl p-4 border border-slate-700/30 relative shrink-0">
+                  <div className="flex gap-4">
+                    {/* Timeline Dots */}
+                    <div className="flex flex-col items-center pt-2 pb-1.5">
+                      <div className="w-3.5 h-3.5 rounded-full bg-[#5bdda6] shadow-[0_0_8px_rgba(91,221,166,0.6)]" />
+                      <div className="w-0.5 flex-1 bg-gradient-to-b from-[#5bdda6]/50 to-blue-500/50 my-1 min-h-[32px]" />
+                      <div className="w-3.5 h-3.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+                    </div>
+                    
+                    {/* Locations */}
+                    <div className="flex-1 flex flex-col justify-between gap-4 min-w-0 py-0.5">
+                      <div>
+                        <p className="text-xs text-[#5bdda6] font-bold mb-1" style={{ fontFamily: "Cairo, sans-serif" }}>نقطة الانطلاق</p>
+                        <p className="text-base font-semibold text-slate-200 line-clamp-1 leading-snug">{cleanArabicAddress(pendingRide.pickup_address || "موقع الانطلاق")}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-blue-400 font-bold mb-1" style={{ fontFamily: "Cairo, sans-serif" }}>الوجهة</p>
+                        <p className="text-base font-semibold text-slate-200 line-clamp-1 leading-snug">{cleanArabicAddress(pendingRide.dropoff_address || "الوجهة")}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* تنقل بين الطلبات (إذا كان هناك أكثر من طلب) */}
+                {total > 1 && (
+                  <div className="flex items-center justify-between px-2 bg-[#171f33] rounded-xl p-2 border border-slate-700/30 shrink-0 mt-auto">
+                    <button onClick={() => setCurrentIndex(i => Math.max(0, i - 1))} disabled={currentIndex === 0}
+                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors">
+                      <ChevronRight className="w-4 h-4" />السابق
+                    </button>
+                    <div className="flex gap-1.5">
+                      {pendingRides.map((_, i) => (
+                        <button key={i} onClick={() => setCurrentIndex(i)}
+                          className={`h-1.5 rounded-full transition-all duration-300 ${i === currentIndex ? "bg-[#5bdda6] w-5" : "bg-slate-700 w-1.5"}`}
+                        />
+                      ))}
+                    </div>
+                    <button onClick={() => setCurrentIndex(i => Math.min(total - 1, i + 1))} disabled={currentIndex === total - 1}
+                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors">
+                      التالي<ChevronLeft className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
                 
-                {/* Locations */}
-                <div className="flex-1 flex flex-col justify-between gap-4 min-w-0 py-0.5">
-                  <div>
-                    <p className="text-xs text-[#5bdda6] font-bold mb-1" style={{ fontFamily: "Cairo, sans-serif" }}>نقطة الانطلاق</p>
-                    <p className="text-base font-semibold text-slate-200 line-clamp-1 leading-snug">{cleanArabicAddress(pendingRide.pickup_address || "موقع الانطلاق")}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-blue-400 font-bold mb-1" style={{ fontFamily: "Cairo, sans-serif" }}>الوجهة</p>
-                    <p className="text-base font-semibold text-slate-200 line-clamp-1 leading-snug">{cleanArabicAddress(pendingRide.dropoff_address || "الوجهة")}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* تنقل بين الطلبات (إذا كان هناك أكثر من طلب) */}
-            {total > 1 && (
-              <div className="flex items-center justify-between px-2 bg-[#171f33] rounded-xl p-2 border border-slate-700/30 shrink-0 mt-auto">
-                <button onClick={() => setCurrentIndex(i => Math.max(0, i - 1))} disabled={currentIndex === 0}
-                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors">
-                  <ChevronRight className="w-4 h-4" />السابق
-                </button>
-                <div className="flex gap-1.5">
-                  {pendingRides.map((_, i) => (
-                    <button key={i} onClick={() => setCurrentIndex(i)}
-                      className={`h-1.5 rounded-full transition-all duration-300 ${i === currentIndex ? "bg-[#5bdda6] w-5" : "bg-slate-700 w-1.5"}`}
-                    />
-                  ))}
-                </div>
-                <button onClick={() => setCurrentIndex(i => Math.min(total - 1, i + 1))} disabled={currentIndex === total - 1}
-                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors">
-                  التالي<ChevronLeft className="w-4 h-4" />
-                </button>
-              </div>
+                {/* Expanded spacer to push actions down if expanded */}
+                {isExpanded && <div className="flex-1" />}
+              </>
             )}
-            
-            {/* Expanded spacer to push actions down if expanded */}
-            {isExpanded && <div className="flex-1" />}
           </div>
 
           {/* ═══ أزرار الإجراءات ═══ */}
-          <div className="flex w-full mt-auto shrink-0 bg-[#163d30]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', zIndex: 10 }}>
+          <div className="flex w-full mt-auto shrink-0 bg-[#163d30]" style={{ zIndex: 10 }}>
             {/* تخطي — Style Dark Luxury Secondary */}
             <Button
               variant="outline"
-              className="flex-1 max-w-[120px] min-h-[52px] rounded-none flex items-center justify-center text-sm font-bold text-emerald-300 bg-[#0f2922] hover:bg-[#163d30] transition-colors disabled:opacity-50 touch-manipulation border-none border-t border-l border-emerald-500/20"
+              className="flex-1 max-w-[120px] rounded-none flex items-center justify-center text-[18px] font-black text-emerald-300 bg-[#0f2922] hover:bg-[#163d30] transition-colors disabled:opacity-50 touch-manipulation border-none border-t border-l border-emerald-500/20"
               onClick={handleRejectClick}
               disabled={loading}
-              style={{ fontFamily: "Cairo, sans-serif" }}
+              style={{
+                fontFamily: "Cairo, sans-serif",
+                paddingTop: "26px",
+                paddingBottom: "calc(26px + var(--safe-area-bottom, 0px))"
+              }}
             >
               {loading && actionType === "reject" ? (
                 <Loader2 className="w-5 h-5 animate-spin mx-auto" />
@@ -1136,39 +1199,19 @@ export const RideRequestCard = ({
               )}
             </Button>
 
-            {/* قبول — Emerald Glow with Urgency Animation */}
-            <motion.div
-              animate={{ boxShadow: ["0 0 0px 0px rgba(91,221,166,0)", "0 0 25px 5px rgba(91,221,166,0.4)", "0 0 0px 0px rgba(91,221,166,0)"] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-              className="flex-auto rounded-none"
-            >
+            {/* قبول — Emerald Glow */}
+            <div className="flex-auto rounded-none">
               <Button
-                className="relative overflow-hidden w-full min-h-[52px] text-base font-bold text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
+                className="relative overflow-hidden w-full text-[18px] font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98] bg-[#5bdda6] hover:bg-[#34d399]"
                 onClick={handleAcceptClick}
                 disabled={loading}
-                style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}
+                style={{
+                  fontFamily: "Cairo, sans-serif",
+                  paddingTop: "26px",
+                  paddingBottom: "calc(26px + var(--safe-area-bottom, 0px))"
+                }}
               >
-                {/* 1. السحب اللوني المتكرر (Animated Gradient Background) */}
-                <motion.div
-                  className="absolute inset-0"
-                  style={{
-                    backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)",
-                    backgroundSize: "200% 100%"
-                  }}
-                  animate={{ backgroundPosition: ["200% 0%", "0% 0%"] }}
-                  transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                />
-
-                {/* 2. خط اللمعان العامودي للإسراع (Urgent Shimmer Line) */}
-                <motion.div
-                  className="absolute inset-y-0 w-16 bg-white/40 blur-[5px]"
-                  style={{ transform: "skewX(-25deg)", bottom: "-20px", top: "-20px" }}
-                  initial={{ left: "-40%" }}
-                  animate={{ left: "140%" }}
-                  transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
-                />
-
-                {/* 3. المحتوى والنصوص */}
+                {/* المحتوى والنصوص */}
                 <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
                   {loading && actionType === "accept" ? (
                     <Loader2 className="w-6 h-6 animate-spin text-emerald-950" />
@@ -1180,7 +1223,7 @@ export const RideRequestCard = ({
                   )}
                 </div>
               </Button>
-            </motion.div>
+            </div>
           </div>
         </div>
       </motion.div>

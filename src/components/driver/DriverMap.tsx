@@ -20,9 +20,22 @@ interface DriverMapProps {
   isOnline: boolean;
   onLocationUpdate?: () => void;
   hasActiveRide?: boolean;
+  currentRideRequest?: any | null;
+  isRideRequestMinimized?: boolean;
+  isActiveRideMinimized?: boolean;
 }
 
-export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiveRide }: DriverMapProps) => {
+export const DriverMap = ({
+  driverLocation,
+  isOnline,
+  onLocationUpdate,
+  hasActiveRide,
+  currentRideRequest,
+  isRideRequestMinimized,
+  isActiveRideMinimized
+}: DriverMapProps) => {
+  const isMinimized = hasActiveRide ? isActiveRideMinimized : isRideRequestMinimized;
+  const bottomPadding = isMinimized ? 160 : 350;
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
   const driverMarker = useRef<google.maps.Marker | null>(null);
@@ -107,8 +120,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
           </linearGradient>
         </defs>
         <g transform="rotate(${Math.round(currentHeading)} 40 40)">
-          <!-- Soft shadow -->
-          <ellipse cx="40" cy="34.3" rx="30" ry="15" fill="black" opacity="0.25" transform="rotate(90 40 40)" />
+          
           
           <!-- Headlight beams (beams of light pointing forward) -->
           <path d="M 32.5,13.3 L 16.7,-13.3 L 38.3,-13.3 Z" fill="url(#lightBeam)" />
@@ -185,7 +197,6 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
               mapTypeControl: false,
               fullscreenControl: false,
               streetViewControl: false,
-              styles: getDarkMapStyle(),
               gestureHandling: "greedy",
             });
 
@@ -354,30 +365,30 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
       if (dropoffPulseAnimRef.current) { clearInterval(dropoffPulseAnimRef.current); dropoffPulseAnimRef.current = null; }
     };
 
-    if (!activeRide || !activeRide.status) {
+    if ((!activeRide || !activeRide.status) && !currentRideRequest) {
       clearRideMarkers();
       lastFitBoundsRideRef.current = null;
       return;
     }
 
-    const status = activeRide.status;
+    const isRequest = !activeRide?.status && currentRideRequest;
+    const status = isRequest ? 'accepted' : (activeRide?.status || '');
+    const pickupLoc = isRequest ? currentRideRequest.pickup_location : activeRide?.pickup_location;
+    const pickupAddr = isRequest ? currentRideRequest.pickup_address : activeRide?.pickup_address;
 
     // === Pickup marker (accepted / arrived) ===
-    if ((status === 'accepted' || status === 'arrived') && activeRide.pickup_location) {
-      const pLoc = activeRide.pickup_location;
-      const pos = new google.maps.LatLng(pLoc.lat, pLoc.lng);
+    if ((status === 'accepted' || status === 'arrived') && pickupLoc) {
+      const pos = new google.maps.LatLng(pickupLoc.lat, pickupLoc.lng);
 
       if (!pickupMarkerRef.current) {
         pickupMarkerRef.current = new google.maps.Marker({
           position: pos,
           map: map.current,
-          title: activeRide.pickup_address || 'موقع العميل',
+          title: pickupAddr || 'موقع العميل',
           icon: createPickupMarkerIcon(),
           zIndex: 15,
           animation: google.maps.Animation.DROP,
         });
-
-
 
         // Draw a dashed line from driver to pickup
         if (driverLocation) {
@@ -422,18 +433,16 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
       if (dropoffPulseRef.current) { dropoffPulseRef.current.setMap(null); dropoffPulseRef.current = null; }
       if (dropoffPulseAnimRef.current) { clearInterval(dropoffPulseAnimRef.current); dropoffPulseAnimRef.current = null; }
 
-      // Fit bounds to show both driver and pickup (only once per ride)
-      const rideKey = `pickup-${pLoc.lat}-${pLoc.lng}`;
-      if (driverLocation && lastFitBoundsRideRef.current !== rideKey) {
-        lastFitBoundsRideRef.current = rideKey;
+      // Fit bounds to show both driver and pickup (always updated dynamically)
+      if (driverLocation) {
         const bounds = new google.maps.LatLngBounds();
         bounds.extend(new google.maps.LatLng(driverLocation.lat, driverLocation.lng));
         bounds.extend(pos);
-        map.current.fitBounds(bounds, { top: 80, bottom: 350, left: 40, right: 40 });
+        map.current.fitBounds(bounds, { top: 80, bottom: bottomPadding, left: 40, right: 40 });
       }
     }
     // === Dropoff marker (in_progress) ===
-    else if (status === 'in_progress' && activeRide.dropoff_location) {
+    else if (status === 'in_progress' && activeRide?.dropoff_location) {
       const dLoc = activeRide.dropoff_location;
       const pos = new google.maps.LatLng(dLoc.lat, dLoc.lng);
 
@@ -452,8 +461,6 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
           zIndex: 15,
           animation: google.maps.Animation.DROP,
         });
-
-
       } else {
         dropoffMarkerRef.current.setPosition(pos);
       }
@@ -490,14 +497,12 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
         }
       }
 
-      // Fit bounds (only once per ride phase)
-      const rideKey = `dropoff-${dLoc.lat}-${dLoc.lng}`;
-      if (driverLocation && lastFitBoundsRideRef.current !== rideKey) {
-        lastFitBoundsRideRef.current = rideKey;
+      // Fit bounds (always updated dynamically)
+      if (driverLocation) {
         const bounds = new google.maps.LatLngBounds();
         bounds.extend(new google.maps.LatLng(driverLocation.lat, driverLocation.lng));
         bounds.extend(pos);
-        map.current.fitBounds(bounds, { top: 80, bottom: 350, left: 40, right: 40 });
+        map.current.fitBounds(bounds, { top: 80, bottom: bottomPadding, left: 40, right: 40 });
       }
     } else {
       clearRideMarkers();
@@ -507,7 +512,20 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
     return () => {
       // Cleanup only if ride ends — markers are managed in the effect body
     };
-  }, [isMapReady, activeRide?.status, activeRide?.pickup_location?.lat, activeRide?.dropoff_location?.lat, driverLocation?.lat, driverLocation?.lng]);
+  }, [
+    isMapReady,
+    activeRide?.status,
+    activeRide?.pickup_location?.lat,
+    activeRide?.pickup_location?.lng,
+    activeRide?.dropoff_location?.lat,
+    activeRide?.dropoff_location?.lng,
+    driverLocation?.lat,
+    driverLocation?.lng,
+    currentRideRequest?.id,
+    currentRideRequest?.pickup_location?.lat,
+    currentRideRequest?.pickup_location?.lng,
+    bottomPadding
+  ]);
 
   const addDriverMarker = (location: { lat: number; lng: number }, heading: number = 0) => {
     if (!map.current || !window.google?.maps) return;
@@ -613,7 +631,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
         </div>
       )}
       
-      <div ref={mapContainer} className={`absolute inset-0 bg-gray-100 dark:bg-gray-800 ${isMapReady ? 'visible' : 'invisible'}`} />
+      <div ref={mapContainer} className={`absolute inset-0 bg-gray-100 ${isMapReady ? 'visible' : 'invisible'}`} />
       
       {/* Right Controls — Emergency + Auto-Accept + My Location */}
       <div className="absolute top-20 right-4 z-[9999] flex flex-col items-end gap-3">
