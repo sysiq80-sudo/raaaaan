@@ -617,24 +617,15 @@ export const useDriverNotifications = (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driverId, handleNewRide, openRideRequestFromNotification]);
 
-  // Request notification permission on mount
+  // Read notification permission on mount without opening a permission prompt.
   useEffect(() => {
     const WebNotification = getWebNotification();
     if (WebNotification) {
       setNotificationPermission(WebNotification.permission);
-      
-      // Auto-request if permission is default
-      if (WebNotification.permission === 'default') {
-        // Delay to not be too aggressive
-        const timer = setTimeout(() => {
-          requestNotificationPermission();
-        }, 3000);
-        return () => clearTimeout(timer);
-      }
     } else {
       setNotificationPermission('unsupported');
     }
-  }, [requestNotificationPermission]);
+  }, []);
 
   return {
     notificationPermission,

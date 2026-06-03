@@ -46,6 +46,13 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_icon_color" />
+
+        <!-- Transistorsoft BackgroundGeolocation license.
+             For the captain flavor, Gradle injects the real JWT from
+             TRANSISTOR_BG_GEO_LICENSE or android/local.properties. -->
+        <meta-data
+            android:name="com.transistorsoft.locationmanager.license"
+            android:value="${transistorBgGeoLicense}" />
     </application>
 
     <!-- ═══ Permissions ═══ -->

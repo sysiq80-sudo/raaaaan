@@ -14,6 +14,7 @@ import { useLocation } from "react-router-dom";
 import MaintenanceScreen from "@/components/MaintenanceScreen";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import RootLayout from "@/components/layout/RootLayout";
+import RiderGradientBottomNav from "@/components/rider/RiderGradientBottomNav";
 
 interface RiderLayoutProps {
   children: React.ReactNode;
@@ -25,7 +26,19 @@ interface RiderLayoutProps {
  */
 const TAB_ROUTES = new Set([
   "/rider",
+  "/rider/rides",
+  "/rider/payments",
+  "/rider/saved-places",
+  "/rider/settings",
+]);
+
+const MAP_ROUTES = new Set([
   "/rider/go",
+  "/rider/schedule",
+]);
+
+// صفحات تُظهر الشريط السفلي (Tab Bar)
+const NAV_ROUTES = new Set([
   "/rider/rides",
   "/rider/payments",
   "/rider/saved-places",
@@ -42,12 +55,15 @@ const RiderLayout: React.FC<RiderLayoutProps> = ({ children }) => {
   }
 
   const isTabRoute = TAB_ROUTES.has(pathname);
+  const isMapRoute = MAP_ROUTES.has(pathname);
+  const showBottomNav = NAV_ROUTES.has(pathname);
 
   return (
     <RootLayout
-      className="rider-premium safe-area-inset"
-      animationKey={pathname}
-      animationMode={isTabRoute ? "tab" : "slide"}
+      className="rider-premium"
+      animationKey={isMapRoute ? undefined : pathname}
+      animationMode={isMapRoute ? undefined : (isTabRoute ? "tab" : "slide")}
+      bottom={showBottomNav ? <RiderGradientBottomNav /> : undefined}
     >
       {children}
     </RootLayout>

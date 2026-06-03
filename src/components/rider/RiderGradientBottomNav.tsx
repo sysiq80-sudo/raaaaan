@@ -141,12 +141,12 @@ const RiderGradientBottomNav: React.FC = () => {
     <div
       dir="rtl"
       className="shrink-0 w-full transition-colors duration-300"
-      style={{ borderTop: '1px solid var(--raan-border)' }}
+      style={{ borderTop: '1px solid var(--raan-border)', paddingBottom: 0 }}
       role="navigation"
       aria-label="التنقل الرئيسي"
     >
       <div
-        className="backdrop-blur-xl flex items-center h-[68px] px-2 transition-colors duration-300 pb-[env(safe-area-inset-bottom)]"
+        className="backdrop-blur-xl flex items-center h-[68px] px-2 transition-colors duration-300"
         style={{
           background: 'var(--raan-bg)',
         }}

@@ -64,7 +64,7 @@ const AddCardModal: React.FC<AddCardModalProps> = ({
           </SheetTitle>
         </SheetHeader>
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="sync">
           {/* === مرحلة المقدمة === */}
           {step === "intro" && (
             <motion.div

@@ -359,7 +359,7 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
 
           {/* رسالة التقييم */}
           <div className="h-8 flex items-center justify-center shrink-0">
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="sync">
               <motion.div
                 key={display}
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -402,27 +402,34 @@ export const DriverRideCompleted = ({ ride, riderName, onClose }: DriverRideComp
       </motion.div>
 
       {/* ═══ الأزرار السفلية الحادة ممتدة للجوانب ═══ */}
-      <div className="shrink-0 flex bg-[#171f33]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={loading}
-          className="flex-1 h-[72px] flex items-center justify-center text-sm font-bold text-slate-300 bg-[#171f33] hover:bg-slate-800 transition-all disabled:opacity-50 rounded-none pointer-events-auto touch-manipulation border-t border-r border-slate-700/50"
-        >
-          تخطي
-        </button>
-        <button
-           type="button"
-           onClick={handleSubmit}
-           disabled={loading}
-           style={{ fontFamily: "Cairo, sans-serif" }}
-           className="flex-[2] h-[72px] flex items-center justify-center gap-2 text-lg font-bold text-[#0b1326] bg-[#5bdda6] shadow-[0_-5px_30px_rgba(91,221,166,0.2)] hover:bg-[#4bcc98] active:bg-[#3eba89] transition-all disabled:opacity-50 rounded-none pointer-events-auto touch-manipulation border-t border-[#5bdda6]"
-        >
-          {loading
-            ? <Loader2 className="w-6 h-6 animate-spin" />
-            : <><Send className="w-5 h-5 ml-1" />تأكيد التقييم</>
-          }
-        </button>
+      <div className="shrink-0 w-full pointer-events-auto bg-[#171f33] border-t border-white/[0.06] relative z-[10]" style={{ paddingBottom: 'var(--safe-area-bottom, 0px)' }}>
+        <div className="flex items-stretch h-[58px]">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="w-[100px] h-full flex items-center justify-center text-[13px] font-bold text-slate-300 bg-[#121929] hover:bg-slate-800 transition-all disabled:opacity-50 rounded-none pointer-events-auto touch-manipulation border-l border-white/[0.07] shrink-0"
+            style={{ fontFamily: "Cairo, sans-serif" }}
+          >
+            تخطي
+          </button>
+          <button
+             type="button"
+             onClick={handleSubmit}
+             disabled={loading}
+             style={{ fontFamily: "Cairo, sans-serif" }}
+             className="flex-1 h-full flex items-center justify-center gap-2 text-[15px] font-black text-[#0b1326] bg-[#5bdda6] shadow-[0_-4px_20px_rgba(91,221,166,0.2)] hover:bg-[#4bcc98] active:bg-[#3eba89] transition-all disabled:opacity-50 rounded-none pointer-events-auto touch-manipulation border-t border-[#5bdda6]"
+          >
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <Send className="w-4 h-4" />
+                <span>تأكيد التقييم</span>
+              </div>
+            )}
+          </button>
+        </div>
       </div>
     </motion.div>,
     document.body

@@ -125,9 +125,12 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-    if (distance_km > straightLineKm * 5) {
-      // المسافة أكثر من 5x المسافة الخطية — مبالغ فيها
-      console.warn(`[calculate-fare] Exaggerated distance: client=${distance_km}km, straight=${straightLineKm.toFixed(2)}km`);
+    
+    // For very short trips, U-turns and grid layouts can easily yield 5x-8x distance.
+    const maxRatio = straightLineKm < 2.0 ? 10.0 : 6.0;
+    if (distance_km > straightLineKm * maxRatio) {
+      // المسافة أكثر من الحد المسموح — مبالغ فيها
+      console.warn(`[calculate-fare] Exaggerated distance: client=${distance_km}km, straight=${straightLineKm.toFixed(2)}km, maxRatio=${maxRatio}`);
       return new Response(
         JSON.stringify({ error: "المسافة المُدخلة مبالغ فيها" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },

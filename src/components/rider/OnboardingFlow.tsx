@@ -230,7 +230,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
       {/* === القسم الأوسط: النص المتبدل === */}
       <div className="flex-1 flex flex-col items-center justify-start px-6 relative z-10 min-h-0 pt-4">
         <div className="w-full max-w-[320px] text-center min-h-[7rem] sm:min-h-[8rem] flex flex-col items-center justify-start">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="sync">
             <motion.div
               key={step.id}
               initial={{ opacity: 0, y: 15 }}
@@ -289,7 +289,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
 
           {/* الأزرار */}
           <div className="w-full">
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="sync">
               {isLastStep && !locationDenied && (
                 <motion.div
                   key="location-btn"

@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { useVoiceRecording, type VoiceResult, type VoiceState } from "@/hooks/useVoiceRecording";
 import useRiderStore from "@/stores/riderStore";
 import { useToast } from "@/hooks/use-toast";
-import { reverseGeocodeCoordinates } from "@/lib/googleMapService";
+import { prewarmSharedGoogleMap, reverseGeocodeCoordinates } from "@/lib/googleMapService";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
 import { GooglePlacesGeocodingAdapter } from "@/lib/adapters/GooglePlacesGeocodingAdapter";
@@ -37,8 +37,11 @@ import { useGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
 import { loadLandmarksCache, searchLandmarksByName } from "@/utils/landmarksCache";
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
+import { preloadRiderRoute } from "@/lib/riderRoutePreload";
+import { getLastKnownLocation } from "@/services/lastKnownLocationService";
 
 const nominatimAdapter = new NominatimGeocodingAdapter();
+const RAMADI_CENTER = { lat: 33.4233, lng: 43.2974 };
 
 /* ──────────────────────────────────────────
    ثوابت
@@ -210,7 +213,7 @@ const RotatingHints: React.FC<{ isPaused: boolean }> = ({ isPaused }) => {
   if (isPaused) return null;
   return (
     <div className="h-6 flex items-center justify-center overflow-hidden">
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="sync">
         <motion.p
           key={idx}
           className="text-sm text-emerald-400/50 text-center"
@@ -520,6 +523,18 @@ const AIVoiceHome: React.FC = () => {
     import("@/pages/rider/GoPage").catch(() => {});
     // ⚡ تحميل كاش المعالم المحلية — يجعل البحث فورياً عند الكتابة
     loadLandmarksCache().catch(() => {});
+  }, [googleMapsApiKey]);
+
+  const prepareGoMap = useCallback(() => {
+    preloadRiderRoute("/rider/go");
+    if (!googleMapsApiKey) return;
+
+    const cachedLocation = getLastKnownLocation();
+    const center = cachedLocation
+      ? { lat: cachedLocation.lat, lng: cachedLocation.lng }
+      : RAMADI_CENTER;
+
+    void prewarmSharedGoogleMap(googleMapsApiKey, center);
   }, [googleMapsApiKey]);
 
   const isMicAvailable =
@@ -1049,7 +1064,7 @@ const AIVoiceHome: React.FC = () => {
         animate={{ y: savedPlacesExpanded ? -220 : -60 }}
         transition={{ type: "spring", stiffness: 250, damping: 25 }}
       >
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="sync">
           {isProcessing ? (
             <AIProcessingView key="processing" />
           ) : !ENABLE_VOICE_MODE || isTextMode || !isMicAvailable ? (
@@ -1091,14 +1106,13 @@ const AIVoiceHome: React.FC = () => {
                   placeholder="إلى أين؟"
                   className={`flex-1 min-w-0 bg-transparent text-white text-[15px] font-medium py-4 placeholder:text-white/25 outline-none text-left overflow-hidden text-ellipsis ${textInput.length > 0 ? 'pl-4 pr-1' : 'px-4'}`}
                   dir="ltr"
-                  autoFocus
                   disabled={isSubmittingText}
                 />
               </div>
 
               {/* ── نتائج البحث الحي أو اقتراحات المسارات ── */}
               <div className="w-full max-w-sm mt-3" dir="rtl">
-                <AnimatePresence mode="wait">
+                <AnimatePresence mode="sync">
 
                   {/* ══ حالة الكتابة: نتائج بحث حية ══ */}
                   {textInput.trim().length >= 2 ? (
@@ -1197,7 +1211,7 @@ const AIVoiceHome: React.FC = () => {
                     </div>
                   </div>
 
-                  <AnimatePresence mode="wait">
+                  <AnimatePresence mode="sync">
                     {/* ══════ وضع المربعات ══════ */}
                     {catViewMode === 'grid' && !categorySelected && (
                     <motion.div
@@ -1408,7 +1422,7 @@ const AIVoiceHome: React.FC = () => {
                   disabled={voiceState === "processing"}
                   aria-label={voiceState === "recording" ? "ارفع إصبعك لإيقاف التسجيل" : "اضغط وتكلم"}
                 >
-                  <AnimatePresence mode="wait">
+                  <AnimatePresence mode="sync">
                     {voiceState === "recording" ? (
                       <motion.div key="rec" initial={{ scale: 0 }} animate={{ scale: [1, 1.12, 1] }} exit={{ scale: 0 }} transition={{ duration: 0.9, repeat: Infinity }}>
                         <Volume2 className="w-11 h-11 text-white drop-shadow-lg" />
@@ -1539,15 +1553,21 @@ const AIVoiceHome: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* ── صف الأزرار ── */}
+          {/* ── صف الأزرار — ملاصق للأسفل ── */}
           <div
             className="w-full flex border-t border-[#5bdda6]/10"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+            style={{ paddingBottom: 'var(--safe-area-bottom, 0px)' }}
           >
             {/* استخدم الخريطة */}
             <button
-              onClick={() => navigate("/rider/go")}
-              className="flex-auto min-h-[52px] rounded-none flex items-center justify-center gap-2 text-base font-black touch-manipulation active:scale-[0.98] bg-[#5bdda6] hover:bg-[#4ecf99] active:bg-[#3dbe88] transition-colors"
+              onPointerDown={prepareGoMap}
+              onMouseEnter={() => preloadRiderRoute("/rider/go")}
+              onClick={() => {
+                prepareGoMap();
+                navigate("/rider/go");
+              }}
+              style={{ fontFamily: "Cairo, sans-serif" }}
+              className="flex-auto h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors border-t border-[#5bdda6]/30 text-[#0b1326] bg-[#5bdda6] hover:bg-[#4ecf99] active:bg-[#3dbe88]"
             >
               <MapIcon className="w-5 h-5 text-[#0b1326]" />
               <span className="text-[#0b1326]">استخدم الخريطة</span>

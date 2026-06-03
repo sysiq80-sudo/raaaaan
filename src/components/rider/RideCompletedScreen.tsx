@@ -224,7 +224,7 @@ export const RideCompletedScreen = ({
       {/* ── هيدر ثابت ── */}
       <div
         className="relative z-10 flex flex-col items-center px-5 shrink-0"
-        style={{ paddingTop: "calc(env(safe-area-inset-top) + 18px)", paddingBottom: "14px" }}
+        style={{ paddingTop: "calc(var(--safe-area-top, 0px) + 18px)", paddingBottom: "14px" }}
       >
 
         {/* عنوان الشاشة */}
@@ -281,7 +281,7 @@ export const RideCompletedScreen = ({
           {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
           {/* ── الخطوة 0: ملخص الرحلة ─────────── */}
           {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="sync">
             {step === 0 && (
               <motion.div
                 key="step0"
@@ -478,7 +478,7 @@ export const RideCompletedScreen = ({
                     {/* تسميات جيد / سيء */}
                     <div className="flex items-center justify-between w-full px-1">
                       <span className="text-[10px] font-bold text-white/25">سيء جداً</span>
-                      <AnimatePresence mode="wait">
+                      <AnimatePresence mode="sync">
                         {display > 0 && (
                           <motion.div
                             key={display}
@@ -636,7 +636,7 @@ export const RideCompletedScreen = ({
       <motion.div
         initial={{ y: "100%" }} animate={{ y: 0 }} transition={{ delay: 0.35, type: "spring", stiffness: 150, damping: 20 }}
         className="relative z-50 bg-[#070b13] border-t border-white/[0.06] shrink-0"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        style={{ paddingBottom: "var(--safe-area-bottom, 0px)" }}
       >
         <div className="flex items-stretch h-[58px]">
           {/* زر السابق / تخطي */}

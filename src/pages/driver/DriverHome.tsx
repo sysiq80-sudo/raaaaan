@@ -431,6 +431,8 @@ const DriverHome = () => {
 
   // Location ref for stable reference in interval
   const latestLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastDbLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastDbLocationAttemptRef = useRef<{ lat: number; lng: number; heading: number | null; at: number } | null>(null);
 
   const driverIdRef = useRef(driverId);
   driverIdRef.current = driverId;
@@ -445,7 +447,7 @@ const DriverHome = () => {
 
   // Update driver location in database with retry
   const updateDriverLocation = useCallback(
-    async (lat: number, lng: number, heading?: number | null) => {
+    async (lat: number, lng: number, heading?: number | null, force: boolean = false) => {
       if (!driverId || (!isOnline && !hasActiveRide)) return;
 
       // Round to 6 decimal places (precision: ~0.1 meters)
@@ -453,21 +455,61 @@ const DriverHome = () => {
       const preciseLat = Math.round(lat * 1000000) / 1000000;
       const preciseLng = Math.round(lng * 1000000) / 1000000;
       const preciseHeading = heading !== undefined && heading !== null ? Math.round(heading) : null;
+      const now = Date.now();
+      const lastAttempt = lastDbLocationAttemptRef.current;
+
+      const newLoc = { lat: preciseLat, lng: preciseLng };
+      const movedSignificant = hasMoved(lastDbLocationRef.current, newLoc, 30);
+
+      // تطبيق الفلترة بالمسافة والوقت: 30 متر أو 30 ثانية (مع تجاوز الفلترة عند الطلب الإجباري)
+      if (!force && lastAttempt && now - lastAttempt.at < 30000) {
+        if (!movedSignificant) {
+          return;
+        }
+      }
+
+      lastDbLocationAttemptRef.current = {
+        lat: preciseLat,
+        lng: preciseLng,
+        heading: preciseHeading,
+        at: now,
+      };
+      lastDbLocationRef.current = newLoc;
 
       let retries = 3;
       while (retries > 0) {
         try {
+          const timestamp = new Date().toISOString();
+
+          // 1. تحديث جدول driver_locations الجغرافي لـ PostGIS (المصدر الرئيسي الجديد)
+          const { error: geoError } = await (supabase as any)
+            .from("driver_locations")
+            .upsert({
+              driver_id: driverId,
+              location: `POINT(${preciseLng} ${preciseLat})`,
+              heading: preciseHeading,
+              is_online: isOnline,
+              updated_at: timestamp,
+            });
+
+          if (geoError) {
+            console.error('[WebGPS] Failed to update driver_locations:', geoError);
+          } else {
+            console.log('[WebGPS] 📍 Geospatial position updated in driver_locations');
+          }
+
+          // 2. تحديث drivers.current_location للتوافقية مع الواجهات القديمة (لوحة الأدمن وتتبع الراكب)
           const { error } = await supabase
             .from("drivers")
             .update({
               current_location: { lat: preciseLat, lng: preciseLng, heading: preciseHeading },
               // لا نعدل is_available هنا - يتم التحكم بها عبر handlePauseToggle فقط
-              updated_at: new Date().toISOString(),
+              updated_at: timestamp,
             })
             .eq("id", driverId);
 
           if (error) throw error;
-          console.log("📍 Location updated (Real-time):", { lat: preciseLat, lng: preciseLng, heading: preciseHeading });
+          console.log("📍 Location updated (Real-time compatibility):", { lat: preciseLat, lng: preciseLng, heading: preciseHeading });
           // ⚡ البث للراكب يتم عبر ActiveRideCard (قناة مشتركة subscribed)
           // لا نبث هنا لأنه ينتج قناة غير مشتركة وتسبب تحذير REST fallback
           return;
@@ -506,7 +548,7 @@ const DriverHome = () => {
         const newLocation = { lat: latitude, lng: longitude, heading };
         setCurrentLocation(newLocation);
         latestLocationRef.current = newLocation;
-        updateDriverLocation(latitude, longitude, heading);
+        updateDriverLocation(latitude, longitude, heading, true); // فرض التحديث عند البداية
       },
       (error) => {
         console.error("Geolocation error (high accuracy):", error);
@@ -517,7 +559,7 @@ const DriverHome = () => {
             const newLocation = { lat: latitude, lng: longitude, heading };
             setCurrentLocation(newLocation);
             latestLocationRef.current = newLocation;
-            updateDriverLocation(latitude, longitude, heading);
+            updateDriverLocation(latitude, longitude, heading, true); // فرض التحديث عند البداية
             console.log('GPS fallback (low accuracy) succeeded');
           },
           (fallbackError) => {
@@ -563,10 +605,10 @@ const DriverHome = () => {
           saveLastKnownLocation(latitude, longitude);
         }
         
-        // 2. Throttle: تحديث قاعدة البيانات (الأساسي الموجود سابقاً)
+        // 2. Throttle: تحديث قاعدة البيانات (الأساسي الموجود سابقاً - يتبع فلترة 30 متر داخلياً)
         if (now - lastUpdateTime >= MIN_UPDATE_INTERVAL) {
           lastUpdateTime = now;
-          updateDriverLocation(latitude, longitude, heading);
+          updateDriverLocation(latitude, longitude, heading, false);
         }
       },
       (error) => console.error("Watch position error:", error),
@@ -581,7 +623,8 @@ const DriverHome = () => {
         updateDriverLocation(
           latestLocationRef.current.lat,
           latestLocationRef.current.lng,
-          (latestLocationRef.current as any).heading
+          (latestLocationRef.current as any).heading,
+          true // فرض التحديث للحفاظ على نشاط الجلسة وتجنب الزومبي
         );
       }
     }, 45000);

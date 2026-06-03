@@ -546,7 +546,7 @@ const DriverRegister = () => {
       </div>
 
       {/* Fixed Bottom Nav */}
-      <div className="fixed bottom-0 right-0 left-0 max-w-md mx-auto px-5 pt-3 bg-[#0a0f1c]/80 backdrop-blur-md border-t border-slate-800/60 flex gap-3" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
+      <div className="fixed bottom-0 right-0 left-0 max-w-md mx-auto px-5 pt-3 bg-[#0a0f1c]/80 backdrop-blur-md border-t border-slate-800/60 flex gap-3" style={{ paddingBottom: 'calc(var(--safe-area-bottom, 0px) + 16px)' }}>
         <button onClick={() => setCurrentStep(1)} className="flex-1 h-12 rounded-2xl border border-slate-700 text-slate-200 text-[15px] font-medium hover:bg-slate-800 transition-colors active:scale-95">
           السابق
         </button>
@@ -638,7 +638,7 @@ const DriverRegister = () => {
       </div>
 
       {/* Fixed Bottom Nav */}
-      <div className="fixed bottom-0 right-0 left-0 max-w-md mx-auto px-5 pt-3 bg-[#0a0f1c]/80 backdrop-blur-md border-t border-slate-800/60 flex gap-3" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
+      <div className="fixed bottom-0 right-0 left-0 max-w-md mx-auto px-5 pt-3 bg-[#0a0f1c]/80 backdrop-blur-md border-t border-slate-800/60 flex gap-3" style={{ paddingBottom: 'calc(var(--safe-area-bottom, 0px) + 16px)' }}>
         <button onClick={() => setCurrentStep(3)} className="flex-1 h-12 rounded-2xl border border-slate-700 text-slate-200 text-[15px] font-medium hover:bg-slate-800 transition-colors active:scale-95">
           السابق
         </button>
@@ -754,7 +754,7 @@ const DriverRegister = () => {
           )}
 
           {/* Safe Area Bottom */}
-          <div className="h-[env(safe-area-inset-bottom,4px)]" />
+          <div style={{ height: 'var(--safe-area-bottom, 4px)' }} />
         </div>
       </div>
     </div>

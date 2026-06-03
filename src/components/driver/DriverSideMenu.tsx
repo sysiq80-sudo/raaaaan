@@ -19,6 +19,7 @@ import {
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { getDriverDocumentUrl } from "@/utils/driverDocumentUrl";
+import { preloadDriverRoute } from "@/lib/driverRoutePreload";
 
 interface DriverSideMenuProps {
   user: User | null;
@@ -75,13 +76,18 @@ const DriverSideMenu = ({
 
   // تحميل صورة السائق — يدعم المسارات النسبية + URLs القديمة (getPublicUrl)
   useEffect(() => {
-    if (!driverProfileImage) return;
+    if (!isOpen || !driverProfileImage) return;
     let cancelled = false;
-    getDriverDocumentUrl(driverProfileImage, 3600).then((url) => {
+    const timer = window.setTimeout(() => {
+      void getDriverDocumentUrl(driverProfileImage, 3600).then((url) => {
       if (!cancelled && url) setAvatarUrl(url);
-    });
-    return () => { cancelled = true; };
-  }, [driverProfileImage]);
+      });
+    }, 180);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [driverProfileImage, isOpen]);
 
   // بناء قائمة العناصر مع الحفاظ على جميع الروابط الأصلية
   const gridItems = [
@@ -105,21 +111,19 @@ const DriverSideMenu = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-[59] bg-[#060e20]/80 backdrop-blur-sm"
+            transition={{ type: "tween", duration: 0.14, ease: "easeOut" }}
+            className="fixed inset-0 z-[59] bg-[#060e20]/80"
             onClick={onClose}
-          >
-            <div className="absolute bottom-10 right-10 w-64 h-64 bg-[#5bdda6]/15 rounded-full blur-[100px]" />
-            <div className="absolute top-10 left-10 w-96 h-96 bg-[#3e495d]/10 rounded-full blur-[120px]" />
-          </motion.div>
+          />
 
           {/* Drawer Panel — Mobile Style Sidebar (Full Screen) */}
           <motion.div
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 350, damping: 30 }}
-            className="fixed inset-0 z-[60] w-full h-full flex flex-col bg-[#0b1326] drop-shadow-[-20px_0_40px_rgba(0,0,0,0.5)] overflow-hidden outline-none touch-pan-y"
+            transition={{ type: "tween", duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+            className="fixed inset-0 z-[60] w-full h-full flex flex-col bg-[#0b1326] shadow-lg overflow-hidden outline-none touch-pan-y"
+            style={{ willChange: "transform" }}
             dir="rtl"
           >
             {/* Non-Scrollable Container */}
@@ -127,9 +131,6 @@ const DriverSideMenu = ({
         {/* ═══ Header: Profile Card ═══ */}
         <div className="flex-shrink-0 px-5 pt-8 pb-4">
           <header className="flex flex-col p-5 bg-[#131b2e] rounded-3xl relative overflow-hidden" dir="rtl">
-            {/* ديكور خلفي */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#5bdda6]/10 rounded-full translate-x-12 -translate-y-12 blur-3xl" />
-
             {/* User mentioned this container: div.flex.items-center */}
             <div className="flex items-center gap-4 relative z-10 w-full pr-2" dir="rtl">
               {/* الصورة الشخصية */}
@@ -179,6 +180,8 @@ const DriverSideMenu = ({
             <Link
               to="/driver/profile"
               onClick={onClose}
+              onPointerDown={() => preloadDriverRoute("/driver/profile")}
+              onMouseEnter={() => preloadDriverRoute("/driver/profile")}
               className="col-span-2 flex items-center gap-4 p-4 bg-gradient-to-br from-[#5bdda6] to-[#27b481] text-[#0b1326] rounded-2xl transition-all duration-300 ease-out active:scale-[0.97] shadow-[0_0_15px_rgba(91,221,166,0.3)] outline-none focus:outline-none select-none tap-highlight-transparent"
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
@@ -194,6 +197,8 @@ const DriverSideMenu = ({
                 key={href}
                 to={href}
                 onClick={onClose}
+                onPointerDown={() => preloadDriverRoute(href)}
+                onMouseEnter={() => preloadDriverRoute(href)}
                 className="flex flex-col gap-2 p-3 bg-[#171f33] rounded-2xl hover:bg-[#222a3d] transition-colors group active:scale-[0.97] duration-150 outline-none focus:outline-none select-none tap-highlight-transparent justify-center items-center text-center"
                 style={{ WebkitTapHighlightColor: 'transparent' }}
               >
@@ -209,7 +214,7 @@ const DriverSideMenu = ({
         {/* ═══ Footer: Logout ═══ */}
         <footer
           className="mt-auto border-t border-white/5 pt-4 flex-shrink-0"
-          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          style={{ paddingBottom: "calc(var(--safe-area-bottom, 0px) + 16px)" }}
         >
           <button
             onClick={() => {

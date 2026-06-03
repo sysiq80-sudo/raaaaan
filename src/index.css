@@ -42,6 +42,10 @@
   --raan-divider:      rgba(255,255,255,0.05);
   --raan-overlay:      rgba(11,19,38,0.92);
   --raan-body-bg:      #0b1326;
+
+  /* Safe area insets — يُعبَّأ بالـ JavaScript على Android (env() لا يعمل على WebView) */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -83,11 +87,17 @@ html, body {
    يمنع التمرير المزدوج في الراكب والسائق
    ═══════════════════════════════════════════════════════════ */
 html.app-shell, html.app-shell body {
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* لا padding-top هنا — الـ StatusBar مضبوط على overlaysWebView:true
+     ويتمدد الـ WebView تحت شريط الحالة. كل كومبوننت header يتعامل مع
+     safe-area-inset-top بنفسه لتجنب الفراغ الأسود. */
   overflow: hidden;
   height: 100dvh;
+  min-height: 100dvh;
   width: 100vw;
+}
+
+html.app-shell * {
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* الموقع التعريفي — تمرير طبيعي ناعم */
@@ -112,6 +122,8 @@ html.app-shell select {
   will-change: transform;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
+  touch-action: manipulation;
+  cursor: default;
 }
 
 /* ── 2. منع تحديد النص في وضع التطبيق ── */
@@ -119,6 +131,7 @@ html.app-shell {
   -webkit-user-select: none;
   user-select: none;
   touch-action: manipulation;
+  scroll-behavior: auto;
 }
 
 /* السماح بالتحديد فقط في حقول الإدخال */
@@ -149,6 +162,53 @@ html.app-shell .transition-all,
 html.app-shell .transition-transform,
 html.app-shell .transition-opacity {
   will-change: transform, opacity;
+}
+
+html.app-shell [class*="backdrop-blur"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html.app-shell .blur-3xl,
+html.app-shell .blur-\[150px\],
+html.app-shell .blur-\[130px\],
+html.app-shell .blur-\[100px\],
+html.app-shell .blur-\[120px\],
+html.app-shell .blur-\[90px\],
+html.app-shell .blur-\[80px\],
+html.app-shell .blur-\[70px\],
+html.app-shell .blur-\[60px\],
+html.app-shell .blur-\[50px\],
+html.app-shell .blur-\[40px\],
+html.app-shell .blur-\[30px\] {
+  filter: blur(24px);
+}
+
+html.app-shell .shadow-2xl,
+html.app-shell .shadow-xl {
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+html.app-shell .duration-300 {
+  transition-duration: 200ms !important;
+  animation-duration: 200ms !important;
+}
+
+html.app-shell .duration-500,
+html.app-shell .duration-700,
+html.app-shell .duration-1000 {
+  transition-duration: 220ms !important;
+  animation-duration: 220ms !important;
+}
+
+html.app-shell .animate-pulse-glow {
+  animation: none !important;
+}
+
+html.app-shell button:active,
+html.app-shell a:active,
+html.app-shell [role="button"]:active {
+  scale: 0.985;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -509,9 +569,9 @@ html.light-rider .dots-pattern {
    Utilities للموقع التسويقي
    ═══════════════════════════════════════════════════════════ */
 
-/* حشوة آمنة للأسفل (safe area) */
+/* حشوة آمنة للأسفل (safe area) — يستخدم CSS variable المحسوب بدقة من JS */
 .pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--safe-area-bottom, env(safe-area-inset-bottom, 0px));
 }
 
 /* حشوة إضافية للـ CTA العائم على الجوال */
@@ -1195,20 +1255,20 @@ html::-webkit-scrollbar {
 
 /* ✅ Safe-area CSS helpers for notches, home indicators */
 .safe-area-top {
-  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-top: max(1rem, var(--safe-area-top, env(safe-area-inset-top, 0px)));
 }
 
 .safe-area-bottom {
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-bottom: max(1rem, var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)));
 }
 
 .safe-area-pb {
-  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(1rem + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)));
 }
 
 .safe-area-inset {
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-top: var(--safe-area-top, env(safe-area-inset-top, 0px));
+  padding-bottom: var(--safe-area-bottom, env(safe-area-inset-bottom, 0px));
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
@@ -1689,7 +1749,7 @@ body:not(.driver-mode):not(.car-mode) pre {
 /* دعم المناطق الآمنة للأجهزة ذات الشقوق */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .safe-area-pb {
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--safe-area-bottom, env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -1704,11 +1764,10 @@ body.driver-mode {
   inset: 0;
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
   -webkit-user-select: none;
   user-select: none; /* منع التحديد في تطبيق السائق */
-  /* safe-area: منع تراكب المحتوى مع شريط التصفح السفلي */
-  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-  padding-top: env(safe-area-inset-top, 0px) !important;
+  padding: 0 !important;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1749,21 +1808,17 @@ body.car-mode .car-quick-btn svg {
   }
 }
 
-/* Utility: بادينج سفلي آمن لعناصر الـ bottom sheet */
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 16px);
-}
-
+/* pb-safe-4 / pb-safe-6 / pb-safe-8 — حشوات آمنة إضافية */
 .pb-safe-4 {
-  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(1rem + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)));
 }
 
 .pb-safe-6 {
-  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(1.5rem + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)));
 }
 
 .pb-safe-8 {
-  padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(2rem + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)));
 }
 
 /* ══════════════════════════════════════════════════════════════

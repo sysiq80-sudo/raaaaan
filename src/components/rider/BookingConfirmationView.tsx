@@ -315,24 +315,24 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
           </div>
         </div>
 
-        {/* CTA Button — always visible at bottom */}
+        {/* CTA Button — ملاصق للأسفل */}
         <div
           className="shrink-0 w-full pointer-events-auto bg-card border-t border-white/[0.06] relative z-[10]"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          style={{ paddingBottom: 'var(--safe-area-bottom, 0px)' }}
         >
-          <div className="flex items-stretch h-[58px]">
+          <div className="flex items-stretch">
             <motion.button
               type="button"
               onClick={handlePrimaryBookAction}
               disabled={isBooking}
               whileTap={isBooking ? {} : { scale: 0.98 }}
               style={{ fontFamily: "Cairo, sans-serif" }}
-              className={`flex-1 h-full flex items-center justify-center gap-2 text-[15px] font-black touch-manipulation transition-all ${
+              className={`flex-1 h-[72px] flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-all rounded-none ${
                 isBooking
                   ? "text-white/40 bg-[#0a111c] border-t border-white/[0.07] cursor-not-allowed"
                   : fareLoading
                   ? "text-white/60 bg-[#0a111c] border-t border-white/[0.07] cursor-wait"
-                  : "text-[#070b13] bg-[#5bdda6] shadow-[0_-4px_20px_rgba(91,221,166,0.2)] hover:bg-[#4ecf99] active:bg-[#34d399] border-t border-[#5bdda6]"
+                  : "text-[#070b13] bg-[#5bdda6] shadow-[0_-4px_20px_rgba(91,221,166,0.2)] hover:bg-[#4ecf99] active:bg-[#34d399] border-t border-[#5bdda6]/30"
               }`}
             >
               {isBooking ? (

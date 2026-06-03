@@ -10,6 +10,7 @@ import { carBase64 } from "@/assets/carBase64";
 import { useAutoAccept } from "@/stores/driverStore";
 import useDriverStore from "@/stores/driverStore";
 import { logger } from "@/lib/logger";
+import { onMapContainerReady } from "@/lib/mapContainerReady";
 
 // متغير على مستوى الوحدة — يبقى حتى بعد unmount/remount للمكون
 let googleMapsAuthFailedGlobal = false;
@@ -151,6 +152,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
 
     let isActive = true;
     let tileTimeout: ReturnType<typeof setTimeout> | null = null;
+    let cancelContainerReady: (() => void) | null = null;
 
     const initMap = () => {
       try {
@@ -168,76 +170,81 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
         };
 
         const createMap = () => {
-          if (!window.google || !mapContainer.current) return;
+          if (!window.google || !mapContainer.current || !isActive) return;
+          const container = mapContainer.current;
 
-          // Default to Ramadi center if no location
-          const center = driverLocation || { lat: 33.4279, lng: 43.3070 };
+          cancelContainerReady = onMapContainerReady(container, () => {
+            if (!isActive || map.current || !window.google?.maps || !mapContainer.current) return;
 
-          map.current = new google.maps.Map(mapContainer.current!, {
-            center: new google.maps.LatLng(center.lat, center.lng),
-            zoom: 14,
-            mapTypeControl: false,
-            fullscreenControl: false,
-            streetViewControl: false,
-            styles: getDarkMapStyle(),
-            gestureHandling: "greedy",
-          });
+            // Default to Ramadi center if no location
+            const center = driverLocation || { lat: 33.4279, lng: 43.3070 };
 
-          // Detect silent tile failure with timeout
-          let tilesLoaded = false;
-          google.maps.event.addListenerOnce(map.current, 'tilesloaded', () => {
-            if (!isActive || googleMapsAuthFailedGlobal) return;
-            tilesLoaded = true;
-            hasLoadedTilesOnceRef.current = true;
-            if (tileTimeout) {
-              clearTimeout(tileTimeout);
-              tileTimeout = null;
-            }
-            setAuthFailed(false);
-            setLoading(false);
-            setIsMapReady(true);
-            console.log('✅ DriverMap: Tiles loaded successfully');
-          });
+            map.current = new google.maps.Map(mapContainer.current, {
+              center: new google.maps.LatLng(center.lat, center.lng),
+              zoom: 14,
+              mapTypeControl: false,
+              fullscreenControl: false,
+              streetViewControl: false,
+              styles: getDarkMapStyle(),
+              gestureHandling: "greedy",
+            });
 
-          // If tiles don't load within 15s, show error
-          tileTimeout = setTimeout(() => {
-            if (!isActive) return;
-            if (!tilesLoaded && map.current) {
-              const isHidden = typeof document !== 'undefined' && document.hidden;
-              const containerVisible = !!mapContainer.current && mapContainer.current.clientWidth > 0 && mapContainer.current.clientHeight > 0;
-
-              if (isHidden || !containerVisible) {
-                setLoading(false);
-                return;
+            // Detect silent tile failure with timeout
+            let tilesLoaded = false;
+            google.maps.event.addListenerOnce(map.current, 'tilesloaded', () => {
+              if (!isActive || googleMapsAuthFailedGlobal) return;
+              tilesLoaded = true;
+              hasLoadedTilesOnceRef.current = true;
+              if (tileTimeout) {
+                clearTimeout(tileTimeout);
+                tileTimeout = null;
               }
-
-              if (hasLoadedTilesOnceRef.current) {
-                console.warn('⚠️ DriverMap: Tiles timeout ignored (map had loaded before)');
-                setLoading(false);
-                return;
-              }
-
-              console.warn('⚠️ DriverMap: Tiles did not load within 15s');
-              googleMapsAuthFailedGlobal = true;
-              setAuthFailed(true);
+              setAuthFailed(false);
               setLoading(false);
+              setIsMapReady(true);
+              console.log('✅ DriverMap: Tiles loaded successfully');
+            });
+
+            // If tiles don't load within 15s, show error
+            tileTimeout = setTimeout(() => {
+              if (!isActive) return;
+              if (!tilesLoaded && map.current) {
+                const isHidden = typeof document !== 'undefined' && document.hidden;
+                const containerVisible = !!mapContainer.current && mapContainer.current.clientWidth > 0 && mapContainer.current.clientHeight > 0;
+
+                if (isHidden || !containerVisible) {
+                  setLoading(false);
+                  return;
+                }
+
+                if (hasLoadedTilesOnceRef.current) {
+                  console.warn('⚠️ DriverMap: Tiles timeout ignored (map had loaded before)');
+                  setLoading(false);
+                  return;
+                }
+
+                console.warn('⚠️ DriverMap: Tiles did not load within 15s');
+                googleMapsAuthFailedGlobal = true;
+                setAuthFailed(true);
+                setLoading(false);
+              }
+            }, 15000);
+
+            console.log('✅ DriverMap: Map created successfully');
+
+            // تأخير بسيط ثم تفعيل resize لضمان ظهور البلاطات
+            setTimeout(() => {
+              if (map.current && window.google?.maps?.event) {
+                google.maps.event.trigger(map.current, 'resize');
+                map.current.setCenter(new google.maps.LatLng(center.lat, center.lng));
+              }
+            }, 300);
+
+            // Add driver marker
+            if (driverLocation) {
+              addDriverMarker(driverLocation, driverLocation.heading || 0);
             }
-          }, 15000);
-
-          console.log('✅ DriverMap: Map created successfully');
-
-          // تأخير بسيط ثم تفعيل resize لضمان ظهور البلاطات
-          setTimeout(() => {
-            if (map.current && window.google?.maps?.event) {
-              google.maps.event.trigger(map.current, 'resize');
-              map.current.setCenter(new google.maps.LatLng(center.lat, center.lng));
-            }
-          }, 300);
-
-          // Add driver marker
-          if (driverLocation) {
-            addDriverMarker(driverLocation, driverLocation.heading || 0);
-          }
+          });
         };
 
         // تحقق من تحميل Google Maps مسبقاً
@@ -270,6 +277,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
       if (tileTimeout) {
         clearTimeout(tileTimeout);
       }
+      cancelContainerReady?.();
       removePulseCircles();
       // Clean ride markers on unmount
       if (pickupMarkerRef.current) { pickupMarkerRef.current.setMap(null); pickupMarkerRef.current = null; }

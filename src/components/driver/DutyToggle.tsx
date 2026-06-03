@@ -122,57 +122,53 @@ const DutyToggle = ({
 
       {/* ═══ الزر الرئيسي — نفس تنسيق زر "احجز الآن" ═══ */}
       {!hasActiveRide && (
-        <div className="w-full pointer-events-auto flex bg-[#163d30]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-          <button
-            onClick={() => {
-              handlePress();
-            }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              handlePress();
-            }}
-            disabled={isDisabled}
-            style={{ fontFamily: "Cairo, sans-serif" }}
-            className={`flex-auto min-h-[52px] rounded-none flex items-center justify-center gap-2 text-base font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-colors disabled:opacity-50 border-t ${
-              isOnline
-                ? isPaused
-                  ? "border-amber-500/30 text-white bg-amber-500 hover:bg-amber-600 active:bg-amber-700"
-                  : "border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]"
-                : "border-yellow-500/30 text-[#064e3b] bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-600"
-            }`}
-            aria-label={isOnline ? (isPaused ? "استئناف استقبال الطلبات" : "قطع الاتصال") : "الاتصال واستقبال الطلبات"}
-            aria-pressed={isOnline}
-          >
-            <AnimatePresence mode="wait">
-              {isLoading ? (
-                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  <span>جاري التحميل...</span>
-                </motion.div>
-              ) : isPaused && isOnline ? (
-                <motion.div key="paused" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
-                  <Coffee className="w-5 h-5" strokeWidth={2.5} />
-                  <span>استئناف</span>
-                </motion.div>
-              ) : isOnline ? (
-                <motion.div key="online" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
-                  <Wifi className="w-5 h-5" />
-                  <span>نشط - جاهز لاستقبال الطلبات</span>
-                </motion.div>
-              ) : (
-                <motion.div key="offline" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
-                  <Power className="w-5 h-5" strokeWidth={2.5} />
-                  <span>غير نشط - الطلبات لا تصلك الان</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </button>
+        <div className="shrink-0 w-full pointer-events-auto bg-[#0a0f1c] border-t border-[#34d399]/10 relative z-[10] shadow-[0_-18px_34px_rgba(10,15,28,0.72)]" style={{ paddingBottom: 'var(--safe-area-bottom, 0px)' }}>
+          <div className="flex items-stretch h-[58px]">
+            <button
+              onClick={handlePress}
+              disabled={isDisabled}
+              style={{ fontFamily: "Cairo, sans-serif" }}
+              className={`flex-1 h-full min-w-0 px-4 flex items-center justify-center gap-2 text-[14px] font-black leading-none touch-manipulation transition-all rounded-none ${
+                isOnline
+                  ? isPaused
+                    ? "border-t border-amber-500/30 text-white bg-amber-500 hover:bg-amber-600 active:bg-amber-700"
+                    : "border-t border-[#34d399]/30 text-[#064e3b] bg-[#34d399] hover:bg-[#2dd392] active:bg-[#10b981]"
+                  : "border-t border-yellow-500/30 text-[#064e3b] bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-600"
+              }`}
+              aria-label={isOnline ? (isPaused ? "استئناف استقبال الطلبات" : "قطع الاتصال") : "الاتصال واستقبال الطلبات"}
+              aria-pressed={isOnline}
+            >
+              <AnimatePresence mode="sync">
+                {isLoading ? (
+                  <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex min-w-0 items-center justify-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="truncate">جاري التحميل...</span>
+                  </motion.div>
+                ) : isPaused && isOnline ? (
+                  <motion.div key="paused" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex min-w-0 items-center justify-center gap-2">
+                    <Coffee className="w-4 h-4" strokeWidth={2.5} />
+                    <span className="truncate">استئناف</span>
+                  </motion.div>
+                ) : isOnline ? (
+                  <motion.div key="online" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex min-w-0 items-center justify-center gap-2">
+                    <Wifi className="w-4 h-4" />
+                    <span className="truncate">نشط - جاهز لاستقبال الطلبات</span>
+                  </motion.div>
+                ) : (
+                  <motion.div key="offline" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex min-w-0 items-center justify-center gap-2">
+                    <Power className="w-4 h-4" strokeWidth={2.5} />
+                    <span className="truncate">غير نشط - الطلبات لا تصلك الان</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </button>
+          </div>
         </div>
       )}
 
       {/* ═══ كارد الحالة — يختفي بالكامل عند ورود طلب رحلة أو رحلة نشطة ═══ */}
       {isApproved && !hasRideRequest && !hasActiveRide && (
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="sync">
           <motion.div
             key={isOnline ? (isPaused ? "paused" : isSearching ? "searching" : "online") : "offline"}
             initial={{ opacity: 0, y: 6, scale: 0.97 }}

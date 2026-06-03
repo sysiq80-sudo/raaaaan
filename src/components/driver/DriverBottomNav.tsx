@@ -11,9 +11,11 @@ import { useLocation, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Home, Car, Wallet, User, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { preloadDriverRoute } from "@/lib/driverRoutePreload";
 
 /** motion-enhanced Link يحافظ على كل سلوك <Link> الأصلي */
 const MotionLink = motion(Link);
+const NAV_TAP_TRANSITION = { type: "tween", duration: 0.1, ease: "easeOut" } as const;
 
 // ترتيب من اليمين لليسار (RTL) — الرئيسية أولاً من اليمين
 const navItems = [
@@ -76,13 +78,13 @@ const DriverBottomNav = () => {
   return (
     <div
       dir="rtl"
-      className="shrink-0 w-full border-t border-[#5bdda6]/10"
+      className="shrink-0 w-full border-t border-[#5bdda6]/10 bg-[#0b1326]"
       role="navigation"
       aria-label="القائمة الرئيسية للسائق"
+      style={{ paddingBottom: 'var(--safe-area-bottom, 0px)' }}
     >
       <div
         className="backdrop-blur-xl flex items-center h-[68px] bg-[#0b1326]"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)' }}
       >
         {navItems.map((item, index) => {
           const isActive = index === activeIndex;
@@ -96,14 +98,16 @@ const DriverBottomNav = () => {
               aria-current={isActive ? "page" : undefined}
               className="relative flex flex-col items-center justify-center flex-1 h-full gap-1 group"
               style={{ WebkitTapHighlightColor: "transparent" }}
-              whileTap={{ scale: 0.82, opacity: 0.65 }}
-              transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.6 }}
+              onPointerDown={() => preloadDriverRoute(item.path)}
+              onMouseEnter={() => preloadDriverRoute(item.path)}
+              whileTap={{ scale: 0.94, opacity: 0.82 }}
+              transition={NAV_TAP_TRANSITION}
             >
               {isActive && (
                 <motion.div
                   layoutId="driver-nav-indicator"
                   className="absolute top-0 inset-x-3 h-0.5 rounded-full bg-[#5bdda6]"
-                  transition={{ type: "spring", stiffness: 600, damping: 40 }}
+                  transition={{ type: "tween", duration: 0.16, ease: "easeOut" }}
                 />
               )}
               <Icon

@@ -250,7 +250,7 @@ export const CustomizationPanel: React.FC<CustomizationPanelProps> = ({ isOpen, 
 
             {/* Content */}
             <div className="p-6 max-h-96 overflow-y-auto">
-              <AnimatePresence mode="wait">
+              <AnimatePresence mode="sync">
                 {activeTab === 'theme' && (
                   <motion.div
                     key="theme"

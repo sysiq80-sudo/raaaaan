@@ -31,7 +31,7 @@ const RiderMapHeader: React.FC<RiderMapHeaderProps> = ({
   return (
     <header
       className="absolute top-0 left-0 right-0 z-50 bg-transparent border-none shadow-none text-foreground"
-      style={{ paddingTop: 'max(8px, env(safe-area-inset-top, 8px))' }}
+      style={{ paddingTop: 'var(--safe-area-top, 0px)' }}
       dir="rtl"
     >
       <div className="relative flex items-center justify-between h-12 px-4">

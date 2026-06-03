@@ -1,5 +1,30 @@
 apply plugin: 'com.android.application'
 
+def readLocalProperty = { String key ->
+    def localPropertiesFile = rootProject.file("local.properties")
+    if (!localPropertiesFile.exists()) {
+        return null
+    }
+
+    def localProperties = new Properties()
+    localPropertiesFile.withInputStream { stream ->
+        localProperties.load(stream)
+    }
+    return localProperties.getProperty(key)
+}
+
+def readBuildSecret = { String envName, String localKey ->
+    def envValue = System.getenv(envName)
+    if (envValue != null && envValue.trim()) {
+        return envValue.trim()
+    }
+
+    def localValue = readLocalProperty(localKey)
+    return localValue != null ? localValue.trim() : ""
+}
+
+def transistorBgGeoLicense = readBuildSecret("TRANSISTOR_BG_GEO_LICENSE", "transistorBgGeoLicense")
+
 android {
     namespace = "com.raan.rider"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -15,6 +40,9 @@ android {
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
+        manifestPlaceholders = [
+            transistorBgGeoLicense: ""
+        ]
     }
     def keystorePropertiesFile = rootProject.file("keystore.properties")
     def keystoreProperties = new Properties()
@@ -36,6 +64,7 @@ android {
     buildTypes {
         release {
             minifyEnabled true
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             if (keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release
@@ -48,16 +77,25 @@ android {
             applicationId "com.raan.rider"
             versionCode 1
             versionName "1.0"
+            manifestPlaceholders = [
+                transistorBgGeoLicense: ""
+            ]
         }
         captain {
             applicationId "com.raan.captain"
             versionCode 1
             versionName "1.0"
+            manifestPlaceholders = [
+                transistorBgGeoLicense: transistorBgGeoLicense
+            ]
         }
         car {
             applicationId "com.raan.car"
             versionCode 1
             versionName "1.0"
+            manifestPlaceholders = [
+                transistorBgGeoLicense: ""
+            ]
         }
     }
     sourceSets {
@@ -70,6 +108,20 @@ android {
         car {
             res.srcDirs = ['src/car/res']
         }
+    }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def requiresCaptainReleaseLicense = taskGraph.allTasks.any { task ->
+        task.name == "assembleCaptainRelease" || task.name == "bundleCaptainRelease"
+    }
+
+    if (requiresCaptainReleaseLicense && !transistorBgGeoLicense) {
+        throw new GradleException(
+            "Missing Transistorsoft BGGeo license for com.raan.captain. " +
+            "Set TRANSISTOR_BG_GEO_LICENSE in CI/production or " +
+            "transistorBgGeoLicense in android/local.properties."
+        )
     }
 }
 

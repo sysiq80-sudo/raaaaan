@@ -202,7 +202,7 @@ const RideProgressStepper: React.FC<RideProgressStepperProps> = ({
 
       {/* Status Text - Compact and Responsive */}
       <div className="mt-2 sm:mt-3">
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="sync">
           <motion.div key={`${status}-${messageIndex}`} initial={{
           opacity: 0,
           y: 10

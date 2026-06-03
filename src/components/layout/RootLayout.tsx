@@ -42,17 +42,19 @@ const RootLayout: React.FC<RootLayoutProps> = ({
         style={mainStyle}
       >
         {animationKey && animationMode ? (
-          <AnimatePresence mode="wait" initial={false}>
+          <AnimatePresence mode="sync" initial={false}>
             <PageTransition
               pageKey={animationKey}
               mode={animationMode}
               className="absolute inset-0 overflow-y-auto overflow-x-hidden"
             >
-              {children}
+              <div data-scroll className="w-full h-full overflow-y-auto overflow-x-hidden">
+                {children}
+              </div>
             </PageTransition>
           </AnimatePresence>
         ) : (
-          <div className="w-full h-full overflow-y-auto overflow-x-hidden">
+          <div data-scroll className="w-full h-full overflow-y-auto overflow-x-hidden">
             {children}
           </div>
         )}

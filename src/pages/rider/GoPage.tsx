@@ -189,8 +189,43 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     checkServiceArea,
     reverseGeocode,
     resetGeocodeCache,
+    reattachMap, // ✅ إعادة ربط الخريطة دون reload
     setIsLoading,
   } = useLocationPicker(mapToken, userLocation, mapReloadKey, currentMode, userAccuracy);
+
+  const pickerMapRestoreInFlightRef = useRef(false);
+  const restorePickerMap = useCallback(() => {
+    if (pickerMapRestoreInFlightRef.current) return;
+    pickerMapRestoreInFlightRef.current = true;
+
+    let requestedReload = false;
+
+    const restore = () => {
+      reattachMap();
+
+      const container = mapContainerRef.current;
+      const hasMapDom = !!container?.firstElementChild;
+
+      if (!hasMapDom && !requestedReload) {
+        requestedReload = true;
+        setIsLoading(true);
+        setMapReloadKey((prev) => prev + 1);
+        return;
+      }
+
+      if (hasMapDom && map.current && window.google?.maps?.event) {
+        window.google.maps.event.trigger(map.current, "resize");
+        const center = map.current.getCenter?.();
+        if (center) map.current.setCenter(center);
+      }
+    };
+
+    window.setTimeout(restore, 0);
+    window.setTimeout(restore, 180);
+    window.setTimeout(() => {
+      pickerMapRestoreInFlightRef.current = false;
+    }, 300);
+  }, [mapContainerRef, map, reattachMap, setIsLoading, setMapReloadKey]);
 
   // Booking flow
   const {
@@ -997,6 +1032,16 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     };
   }, [currentMode, pickupLocation, dropoffLocation, intermediateStops, initializeBookingMap, cleanupBooking]);
 
+  const previousModeRef = useRef(currentMode);
+  useEffect(() => {
+    const previousMode = previousModeRef.current;
+    previousModeRef.current = currentMode;
+
+    if (previousMode === "booking" && currentMode !== "booking") {
+      restorePickerMap();
+    }
+  }, [currentMode, restorePickerMap]);
+
   // تحذير المستخدم قبل مغادرة الصفحة أثناء الحجز
   useEffect(() => {
     if (currentMode === "booking" && dropoffLocation) {
@@ -1275,9 +1320,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     // Reset to pickup mode to allow user to start fresh
     setCurrentMode("pickup");
 
-    // Force map reinitialization — mapReloadKey increment triggers useLocationPicker to recreate the map
-    setIsLoading(true);
-    setMapReloadKey((prev) => prev + 1);
+    restorePickerMap();
 
     // إظهار toast بعد تأخير قصير
     setTimeout(() => {
@@ -1287,23 +1330,21 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       });
     }, 300);
     
-  }, [toast, setIsLoading, setMapReloadKey, cleanupBooking, setIsBooking]);
+  }, [toast, restorePickerMap, cleanupBooking, setIsBooking]);
 
   // الانتقال لتعديل نقطة الانطلاق/الوجهة من شاشة الحجز بدون إعادة العملية من الصفر
   const startLocationEdit = useCallback((mode: "pickup" | "dropoff") => {
     // تنظيف خريطة الحجز الحالية حتى لا تتداخل مع خريطة اختيار الموقع
     cleanupBooking();
 
-    // إعادة تهيئة خريطة اختيار الموقع بعد العودة من شاشة الحجز
-    setIsLoading(true);
-    setMapReloadKey((prev) => prev + 1);
+    restorePickerMap();
 
     // انتقال إلى وضع التعديل المطلوب
     setActiveStopId(null);
     setCurrentMode(mode);
     setSearchQuery("");
     setCenterAddress("");
-  }, [cleanupBooking, setIsLoading, setMapReloadKey, setSearchQuery, setCenterAddress]);
+  }, [cleanupBooking, restorePickerMap, setSearchQuery, setCenterAddress]);
 
   // ═══ رجوع بين المراحل ═══
   const handleGoBack = useCallback(() => {
@@ -1322,7 +1363,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         if (center) reverseGeocode(center.lat(), center.lng());
       }, 300);
     } else if (currentMode === "booking") {
-      // Going back to dropoff — clean up booking map & reinitialize main map
+      // Going back to dropoff — clean up booking map & reattach main map
       cleanupBooking();
       setDropoffLocation(null);
       setCenterAddress('');
@@ -1331,18 +1372,16 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
       setRouteDistance(null);
       setRouteDuration(null);
 
-      // ✅ إعادة تهيئة خريطة اختيار الموقع — بدون هذا الخطوة تظهر شاشة بيضاء/سوداء
-      setIsLoading(true);
-      setMapReloadKey((prev) => prev + 1);
+      restorePickerMap();
 
       // Trigger fresh geocode after map re-attaches
       resetGeocodeCache();
       setTimeout(() => {
         const center = map.current?.getCenter?.();
         if (center) reverseGeocode(center.lat(), center.lng());
-      }, 500);
+      }, 300);
     }
-  }, [currentMode, clearSearch, cleanupBooking, setRouteDistance, setRouteDuration, setCenterAddress, reverseGeocode, resetGeocodeCache, map, setIsLoading, setMapReloadKey]);
+  }, [currentMode, clearSearch, cleanupBooking, setRouteDistance, setRouteDuration, setCenterAddress, reverseGeocode, resetGeocodeCache, restorePickerMap, map]);
 
   // [Android] Back button — close side menu first, handle booking stages, then navigate(-1)
   useAndroidBackButton(() => {
@@ -1718,7 +1757,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
 
         withTimeout(
           supabase.functions.invoke("match-ride", { body: { rideId: ride.id } }),
-          8000,
+          15000,
           "مطابقة السائق"
         ).catch(async (matchErr) => {
           console.warn("⚠️ match-ride first attempt failed:", matchErr);
@@ -2035,7 +2074,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
           style={{ 
             touchAction: 'none',
             pointerEvents: 'auto',
-            cursor: 'grab'
+            cursor: 'grab',
+            backgroundColor: '#eef3f8',
           }}
         />
 
@@ -2530,7 +2570,7 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         {!isLocationFocused && (
         <div
           className="shrink-0 w-full pointer-events-auto bg-card border-t border-white/[0.06] relative z-[10]"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          style={{ paddingBottom: 'var(--safe-area-bottom, 0px)' }}
         >
           <div className="flex items-stretch h-[58px]">
             <motion.button

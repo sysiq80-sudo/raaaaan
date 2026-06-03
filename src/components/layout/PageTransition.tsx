@@ -7,7 +7,7 @@
  * • "tab" — للتنقل بين الـ Bottom Tabs
  *   fade + scale خفيف جداً، لا slide — مثل iOS tab bar السلوك الأصلي
  *
- * المدة: 220ms فقط لإحساس native حقيقي
+ * المدة: 150-180ms فقط لإحساس native حقيقي
  * easing: [0.25, 0.1, 0.25, 1.0] — cubic-bezier أصيل من iOS
  */
 import { motion } from "framer-motion";
@@ -25,24 +25,24 @@ interface PageTransitionProps {
 
 // ─── Variants ───────────────────────────────────────────────
 
-/** Slide من اليسار → يدخل من x:24 → x:0 (RTL — الصفحة الجديدة تدخل من اليسار) */
+/** Slide قصير جداً — transform/opacity فقط لتجنب أي freeze عند التنقل */
 const slideVariants = {
-  initial:  { opacity: 0, x: 24 },
+  initial:  { opacity: 0, x: 14 },
   animate:  { opacity: 1, x: 0 },
-  exit:     { opacity: 0, x: -16 },
+  exit:     { opacity: 0, x: -10 },
 };
 
 /** Fade + scale خفيف جداً للـ tabs (لا slide) */
 const tabVariants = {
-  initial:  { opacity: 0, scale: 0.98 },
+  initial:  { opacity: 0, scale: 0.995 },
   animate:  { opacity: 1, scale: 1 },
-  exit:     { opacity: 0, scale: 0.99 },
+  exit:     { opacity: 0, scale: 0.998 },
 };
 
 // ─── Transitions ─────────────────────────────────────────────
 
 const slideTransition = {
-  duration: 0.22,
+  duration: 0.18,
   ease: [0.25, 0.1, 0.25, 1.0] as [number, number, number, number],
 };
 
@@ -71,7 +71,10 @@ const PageTransition = ({
       exit="exit"
       transition={transition}
       className={`w-full h-full ${className}`.trim()}
-      style={{ willChange: "transform, opacity" }}
+      style={{
+        willChange: "transform, opacity",
+        backfaceVisibility: "hidden",
+      }}
     >
       {children}
     </motion.div>

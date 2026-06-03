@@ -146,7 +146,7 @@ export default function SaveLocationModal({
 
           {/* ── محتوى الخطوات ── */}
           <div className="px-6 pb-3 min-h-[180px]">
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="sync">
               {/* الخطوة 1: الموقع */}
               {currentStep === 1 && (
                 <motion.div

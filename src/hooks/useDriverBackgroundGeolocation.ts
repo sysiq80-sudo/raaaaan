@@ -107,19 +107,50 @@ export function useDriverBackgroundGeolocation(): void {
     lat: number,
     lng: number,
     heading: number | null,
+    force: boolean = false,
   ): Promise<void> => {
     if (!driverIdRef.current) return;
 
     const now = Date.now();
-    if (now - lastDbUpdateRef.current < MIN_DB_INTERVAL_MS) return;
+    const timePassed = now - lastDbUpdateRef.current >= MIN_DB_INTERVAL_MS;
+
+    const newLoc = { lat, lng };
+    const movedSignificant = hasMoved(lastLocationRef.current, newLoc, 30);
+
+    // تحديث قاعدة البيانات فقط عند الاتصال/الإيقاف الإجباري (force) أو عند مرور 30 ثانية مع تحرك السائق 30 متر
+    if (!force && (!timePassed || !movedSignificant)) {
+      return;
+    }
+
     lastDbUpdateRef.current = now;
+    lastLocationRef.current = newLoc;
 
     const preciseLat = Math.round(lat * 1_000_000) / 1_000_000;
     const preciseLng = Math.round(lng * 1_000_000) / 1_000_000;
     const preciseHeading = heading !== null ? Math.round(heading) : null;
+    const isOnline = useDriverStore.getState().isOnline;
+    const timestamp = new Date().toISOString();
 
     try {
-      await supabase
+      // 1. تحديث جدول driver_locations الجغرافي لـ PostGIS (المصدر الرئيسي الجديد)
+      const { error: geoError } = await (supabase as any)
+        .from('driver_locations')
+        .upsert({
+          driver_id: driverIdRef.current,
+          location: `POINT(${preciseLng} ${preciseLat})`,
+          heading: preciseHeading,
+          is_online: isOnline,
+          updated_at: timestamp,
+        });
+
+      if (geoError) {
+        console.error('[BGGeo] Failed to update driver_locations:', geoError);
+      } else {
+        console.log('[BGGeo] 📍 Geospatial position updated in driver_locations');
+      }
+
+      // 2. تحديث drivers.current_location للتوافقية مع الواجهات القديمة (لوحة الأدمن وتتبع الراكب)
+      const { error: driverError } = await supabase
         .from('drivers')
         .update({
           current_location: {
@@ -127,9 +158,13 @@ export function useDriverBackgroundGeolocation(): void {
             lng: preciseLng,
             heading: preciseHeading,
           },
-          updated_at: new Date().toISOString(),
+          updated_at: timestamp,
         })
         .eq('id', driverIdRef.current);
+
+      if (driverError) {
+        console.error('[BGGeo] Failed to update drivers table:', driverError);
+      }
     } catch (err) {
       console.error('[BGGeo] DB update error:', err);
     }
@@ -145,7 +180,7 @@ export function useDriverBackgroundGeolocation(): void {
       transistorAuthorizationToken: import.meta.env.VITE_TRANSISTOR_BG_GEO_TOKEN,
       geolocation: {
         desiredAccuracy: BackgroundGeolocation.DesiredAccuracy.High,
-        distanceFilter: 10,
+        distanceFilter: 30, // تحديث الفلتر ليكون 30 متر لتوفير البطارية وتقليل التحديثات غير الضرورية
         stopTimeout: 0,
         locationAuthorizationRequest: 'Always',
       },
@@ -185,12 +220,11 @@ export function useDriverBackgroundGeolocation(): void {
             // تحديث store (يُشغّل re-render للمكونات المشتركة به مثل DriverHome)
             useDriverStore.getState().setLocation(newLoc);
 
-            if (hasMoved(lastLocationRef.current, newLoc, 10)) {
-              lastLocationRef.current = newLoc;
+            if (hasMoved(lastLocationRef.current, { lat: latitude, lng: longitude }, 30)) {
               saveLastKnownLocation(latitude, longitude);
             }
 
-            updateInDb(latitude, longitude, heading ?? null);
+            updateInDb(latitude, longitude, heading ?? null, false);
           },
           (err: unknown) => console.error('[BGGeo] Location error:', err),
         );
@@ -199,9 +233,8 @@ export function useDriverBackgroundGeolocation(): void {
         bgGeoHeartbeatSubRef.current = BackgroundGeolocation.onHeartbeat(() => {
           const loc = lastLocationRef.current;
           if (!loc) return;
-          // تجاوز الـ throttle لأن الـ heartbeat بطبعه نادر (كل 60 ثانية)
-          lastDbUpdateRef.current = 0;
-          updateInDb(loc.lat, loc.lng, null);
+          // تجاوز الـ throttle لأن الـ heartbeat بطبعه نادر (كل 60 ثانية) والسائق واقف
+          updateInDb(loc.lat, loc.lng, null, true);
         });
 
         // إذا كان السائق نشطاً قبل انتهاء ready() → ابدأ الآن

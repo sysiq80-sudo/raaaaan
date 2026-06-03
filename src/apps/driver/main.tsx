@@ -1,8 +1,12 @@
 import { createRoot } from "react-dom/client";
 import DriverApp from "./DriverApp";
 import "@/index.css";
-import { initCapacitorPlugins } from "@/lib/capacitorBridge";
+import { initCapacitorPlugins, isNativePlatform } from "@/lib/capacitorBridge";
 import { initUserGestureTracking } from "@/lib/userGestureTracker";
+
+if (isNativePlatform || window.matchMedia("(display-mode: standalone)").matches) {
+  document.documentElement.classList.add("app-shell");
+}
 
 // ⚡ Sentry يُحمّل بعد العرض الأول — لا يُبطئ البداية
 const deferredInit = typeof requestIdleCallback === 'function' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 2000);

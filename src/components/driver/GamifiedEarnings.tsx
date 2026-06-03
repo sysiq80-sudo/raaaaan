@@ -188,7 +188,7 @@ const GamifiedEarnings = ({
       </div>
 
       {/* Status Message */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="sync">
         {isOverAchieved ? (
           <motion.div
             key="over"

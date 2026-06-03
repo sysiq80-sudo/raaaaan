@@ -10,6 +10,7 @@ import { useLocation, Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Car, Wallet, Navigation, MapPin, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { preloadRiderRoute } from "@/lib/riderRoutePreload";
 
 /** motion-enhanced Link يحافظ على كل سلوك <Link> الأصلي */
 const MotionLink = motion(Link);
@@ -25,8 +26,7 @@ const LEFT_ITEMS = [
   { id: "settings", path: "/rider/settings",     label: "الإعدادات", icon: Settings },
 ] as const;
 
-/* ─── spring مشترك للـ nav items ─── */
-const NAV_TAP_TRANSITION = { type: "spring", stiffness: 500, damping: 30, mass: 0.6 } as const;
+const NAV_TAP_TRANSITION = { type: "tween", duration: 0.1, ease: "easeOut" } as const;
 
 /* ───────────── المكوّن ───────────────── */
 const RiderBottomNav = () => {
@@ -54,7 +54,9 @@ const RiderBottomNav = () => {
         aria-current={active ? "page" : undefined}
         className="relative flex flex-col items-center justify-center flex-1 h-full gap-1 group"
         style={{ WebkitTapHighlightColor: "transparent" }}
-        whileTap={{ scale: 0.82, opacity: 0.65 }}
+        onPointerDown={() => preloadRiderRoute(path)}
+        onMouseEnter={() => preloadRiderRoute(path)}
+        whileTap={{ scale: 0.94, opacity: 0.82 }}
         transition={NAV_TAP_TRANSITION}
       >
         {active && (
@@ -62,7 +64,7 @@ const RiderBottomNav = () => {
             layoutId="rider-nav-indicator"
             className="absolute top-0 inset-x-3 h-0.5 rounded-full"
             style={{ background: 'var(--raan-accent)' }}
-            transition={{ type: "spring", stiffness: 600, damping: 40 }}
+            transition={{ type: "tween", duration: 0.16, ease: "easeOut" }}
           />
         )}
         <Icon
@@ -83,12 +85,15 @@ const RiderBottomNav = () => {
     <div
       dir="rtl"
       className="shrink-0 w-full"
-      style={{ borderTop: '1px solid var(--raan-border)' }}
+      style={{
+        borderTop: '1px solid var(--raan-border)',
+        paddingBottom: 0,
+      }}
       role="navigation"
       aria-label="التنقل الرئيسي"
     >
       <div
-        className="backdrop-blur-xl flex items-center h-[68px] pb-[env(safe-area-inset-bottom)]"
+        className="backdrop-blur-xl flex items-center h-[68px]"
         style={{ background: 'var(--raan-bg)' }}
       >
         {/* يمين */}
@@ -100,8 +105,10 @@ const RiderBottomNav = () => {
         <div className="flex items-center justify-center flex-shrink-0 px-3">
           <motion.button
             onClick={() => navigate("/rider")}
-            whileTap={{ scale: 0.88, opacity: 0.85 }}
-            transition={{ type: "spring", stiffness: 500, damping: 28, mass: 0.5 }}
+            onPointerDown={() => preloadRiderRoute("/rider")}
+            onMouseEnter={() => preloadRiderRoute("/rider")}
+            whileTap={{ scale: 0.94, opacity: 0.88 }}
+            transition={NAV_TAP_TRANSITION}
             className={cn(
               "relative flex flex-col items-center justify-center gap-1.5",
               "w-[64px] h-[52px] rounded-2xl -mt-4",

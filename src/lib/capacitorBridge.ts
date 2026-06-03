@@ -143,16 +143,11 @@ export const showNativeNotification = async (
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
     
-    // التحقق من الإذن أولاً (بدون طلبه مجدداً — يُطلب مبكراً في initCapacitorPlugins)
+    // التحقق من الإذن فقط. طلب الإذن يتم من تفاعل واضح مثل زر الاتصال.
     let permGranted = false;
     try {
       const perm = await LocalNotifications.checkPermissions();
       permGranted = perm.display === 'granted';
-      if (!permGranted) {
-        // محاولة أخيرة لطلب الإذن
-        const reqPerm = await LocalNotifications.requestPermissions();
-        permGranted = reqPerm.display === 'granted';
-      }
     } catch (permError) {
       console.warn('⚠️ Permission check failed, assuming denied:', permError);
       permGranted = false;
@@ -280,10 +275,9 @@ export const onAppStateChange = async (
   }
 };
 
-// ═══ شريط الحالة ═══
-
 /**
  * تخصيص شريط حالة Android — شفاف مع overlay لدعم Safe Area
+ * + ضبط CSS custom properties لتعويض عدم عمل env(safe-area-inset-*) على Android WebView
  */
 export const configureStatusBar = async (): Promise<void> => {
   if (!isNativePlatform) return;
@@ -296,7 +290,84 @@ export const configureStatusBar = async (): Promise<void> => {
   } catch {
     // صامت
   }
+
+  // ═══ ضبط CSS safe area variables لأن env() لا تعمل على Android WebView ═══
+  if (isAndroid) {
+    applySafeAreaCSSVariables();
+  }
 };
+
+let safeAreaListenersInstalled = false;
+let safeAreaFrame: number | null = null;
+
+/**
+ * يكشف ارتفاع أشرطة النظام على Android ويضبط CSS custom properties.
+ * Android WebView غالباً يرجع env(safe-area-inset-bottom)=0 مع edge-to-edge.
+ * لا نفرض حداً أدنى سفلياً لأن WebView قد يكون مقاساً فوق شريط Android أصلاً؛
+ * فرض قيمة ثابتة يرفع شريط الراكب ويترك فراغاً فوق أزرار النظام.
+ */
+function applySafeAreaCSSVariables() {
+  const updateSafeArea = () => {
+    const root = document.documentElement;
+    const topInset = Math.max(readEnvSafeAreaInset('top'), 24);
+    const bottomInset = getAndroidBottomInset();
+
+    root.style.setProperty('--safe-area-top', `${topInset}px`);
+    root.style.setProperty('--safe-area-bottom', `${bottomInset}px`);
+    console.log(`📐 Safe area (Android): top=${topInset}px, bottom=${bottomInset}px`);
+  };
+
+  const scheduleUpdate = () => {
+    if (safeAreaFrame !== null) cancelAnimationFrame(safeAreaFrame);
+    safeAreaFrame = requestAnimationFrame(() => {
+      safeAreaFrame = null;
+      updateSafeArea();
+    });
+  };
+
+  scheduleUpdate();
+
+  if (safeAreaListenersInstalled) return;
+  safeAreaListenersInstalled = true;
+  window.addEventListener('resize', scheduleUpdate, { passive: true });
+  window.addEventListener('orientationchange', scheduleUpdate, { passive: true });
+  window.visualViewport?.addEventListener('resize', scheduleUpdate, { passive: true });
+}
+
+function readEnvSafeAreaInset(edge: 'top' | 'bottom'): number {
+  if (!document.body) return 0;
+
+  try {
+    const probe = document.createElement('div');
+    probe.style.cssText = [
+      'position:fixed',
+      edge === 'top' ? 'top:0' : 'bottom:0',
+      'left:0',
+      'width:1px',
+      `height:env(safe-area-inset-${edge},0px)`,
+      'pointer-events:none',
+      'opacity:0',
+      'z-index:-1',
+    ].join(';');
+    document.body.appendChild(probe);
+    const inset = Math.round(probe.getBoundingClientRect().height);
+    probe.remove();
+    return Number.isFinite(inset) ? Math.max(0, inset) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function getAndroidBottomInset(): number {
+  const envBottom = readEnvSafeAreaInset('bottom');
+  const visualHeight = window.visualViewport?.height ?? window.innerHeight;
+  const visualGap = Math.max(0, window.innerHeight - visualHeight);
+  const inset = Math.max(envBottom, visualGap);
+
+  // Use one bounded Android nav inset. Larger viewport gaps usually mean keyboard
+  // or WebView measurement noise; applying them lifts rider buttons too far.
+  return Number.isFinite(inset) ? Math.min(72, Math.round(inset)) : 0;
+}
 
 // ═══ تهيئة شاملة ═══
 
@@ -320,19 +391,6 @@ export const initCapacitorPlugins = async (): Promise<void> => {
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
 
-    // ⚠️ طلب إذن LocalNotifications مبكراً (قبل أول إشعار)
-    // على Android 13+، يجب منح POST_NOTIFICATIONS قبل schedule()
-    try {
-      const permResult = await LocalNotifications.requestPermissions();
-      if (permResult.display === 'granted') {
-        console.log('✅ LocalNotifications permission granted');
-      } else {
-        console.warn('⚠️ LocalNotifications permission:', permResult.display);
-      }
-    } catch (permErr) {
-      console.warn('فشل طلب إذن LocalNotifications:', permErr);
-    }
-    
     // قناة طلبات الرحلات — أولوية قصوى
     await LocalNotifications.createChannel({
       id: 'raan-rides',
@@ -424,11 +482,8 @@ export const initNativePushNotifications = async (): Promise<void> => {
     const permResult = await PushNotifications.checkPermissions();
     
     if (permResult.receive === 'prompt' || permResult.receive === 'prompt-with-rationale') {
-      const requestResult = await PushNotifications.requestPermissions();
-      if (requestResult.receive !== 'granted') {
-        console.warn('⚠️ إذن Push مرفوض');
-        return;
-      }
+      console.warn('⚠️ إذن Push مؤجل حتى يفعّل السائق الإشعارات');
+      return;
     } else if (permResult.receive !== 'granted') {
       console.warn('⚠️ إذن Push غير ممنوح:', permResult.receive);
       return;

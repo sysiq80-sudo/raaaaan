@@ -29,7 +29,7 @@ const LocationSelectionActionBar = ({
   return (
     <div
       className="absolute bottom-0 left-0 right-0 flex z-[100] gap-2 p-3 bg-[linear-gradient(180deg,rgba(7,17,31,0),rgba(7,17,31,0.94)_36%,rgba(7,17,31,0.99)_100%)]"
-      style={{ paddingBottom: "max(env(safe-area-inset-bottom, 24px), 24px)" }}
+      style={{ paddingBottom: "max(var(--safe-area-bottom, 0px), 24px)" }}
     >
 
 

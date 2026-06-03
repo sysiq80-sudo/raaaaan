@@ -1139,7 +1139,7 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
           />
         </button>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]" dir="rtl">
+        <div className="flex-1 overflow-y-auto px-4" style={{ paddingBottom: 'max(1rem, var(--safe-area-bottom, 0px))' }} dir="rtl">
 
         {/* ── بطاقة حالة الرحلة (In Progress) ── */}
         {ride.status === "in_progress" && (

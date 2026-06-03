@@ -38,6 +38,27 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: IS_DEV,
     backgroundColor: '#0a0f14',
+    includePlugins: [
+      '@capacitor-community/keep-awake',
+      '@capacitor-community/speech-recognition',
+      '@capacitor-community/text-to-speech',
+      '@capacitor/app',
+      '@capacitor/browser',
+      '@capacitor/device',
+      '@capacitor/dialog',
+      '@capacitor/geolocation',
+      '@capacitor/haptics',
+      '@capacitor/keyboard',
+      '@capacitor/local-notifications',
+      '@capacitor/network',
+      '@capacitor/preferences',
+      '@capacitor/push-notifications',
+      '@capacitor/screen-orientation',
+      '@capacitor/share',
+      '@capacitor/splash-screen',
+      '@capacitor/status-bar',
+      '@capacitor/toast',
+    ],
   },
 
   plugins: {

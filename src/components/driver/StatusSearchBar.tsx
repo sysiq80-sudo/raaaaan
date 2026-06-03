@@ -210,7 +210,7 @@ export const StatusSearchBar = ({
                   aria-label={isOnline ? (isPaused ? "استئناف استقبال الطلبات" : "قطع الاتصال") : "الاتصال واستقبال الطلبات"}
                   aria-pressed={isOnline}
                 >
-                  <AnimatePresence mode="wait">
+                  <AnimatePresence mode="sync">
                     {isLoading ? (
                       <motion.div
                         key="loading"

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState, useMemo, type SetStateAction 
 import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 import { useToast } from "./use-toast";
 import { getMapStyle, watchThemeChanges } from "@/utils/mapStyles";
-import { getGeocoder, getOrCreateSharedMap, resetSharedMapCache } from "@/lib/googleMapService";
+import { getGeocoder, getOrCreateSharedMap } from "@/lib/googleMapService";
 import { saveLastKnownLocation, getLastKnownLocation } from "@/services/lastKnownLocationService";
 import { useMapContext } from "@/contexts/MapContext";
 import type { IGeocodingAdapter } from "@/lib/adapters";
@@ -50,6 +50,10 @@ export const useLocationPicker = (
   const { googleMapsApiKey, isGoogleConfigured } = useMapContext();
 
   const mapContainer = useRef<HTMLDivElement | null>(null);
+  const map = useRef<google.maps.Map | null>(null);
+
+  // Memoize Ramadi center coordinates
+  const ramadiCenter = useMemo(() => ({ lat: 33.4233, lng: 43.2974 }), []);
 
   // ✅ إصلاح الخريطة البيضاء: callback ref يُطلق إعادة تشغيل الـ effect عند mount الـ div
   // useRef وحده لا يُطلق re-run عند تغيّر .current — هذا هو سبب البياض
@@ -58,10 +62,13 @@ export const useLocationPicker = (
     mapContainer.current = node;
     if (node) {
       // div صار جاهزاً → أطلق إعادة تشغيل useEffect لتهيئة الخريطة
-      setContainerMountKey((k) => k + 1);
+      // إذا كانت الخريطة موجودة لكن الحاوية الجديدة فارغة (رجوع من شاشة الحجز)
+      // نعيد تشغيل effect ليعيد ربط الخريطة بنفس الـ instance دون إنشاء جديد.
+      if (!map.current || !node.firstElementChild) {
+        setContainerMountKey((k) => k + 1);
+      }
     }
   }, []);
-  const map = useRef<google.maps.Map | null>(null);
   const googleListenersRef = useRef<google.maps.MapsEventListener[]>([]);
   const userMarkerRef = useRef<google.maps.Marker | null>(null);
   const userAccuracyCircleRef = useRef<google.maps.Circle | null>(null);
@@ -178,9 +185,6 @@ export const useLocationPicker = (
 
     setIsLoading(true);
   }, [reloadKey]);
-
-  // Memoize Ramadi center coordinates
-  const ramadiCenter = useMemo(() => ({ lat: 33.4233, lng: 43.2974 }), []);
 
   // Check service area
   const checkServiceArea = useCallback(async (lat: number, lng: number) => {
@@ -654,6 +658,47 @@ export const useLocationPicker = (
     pendingGeocodeRef.current = null;
   }, []);
 
+  /**
+   * أعد ربط الخريطة المشتركة بحاوية LocationPicker دون تدميرها.
+   * استخدمها بدلاً من setMapReloadKey عند العودة من Booking.
+   * ✅ لا loading screen — الخريطة تظهر فوراً.
+   */
+  const reattachMap = useCallback(() => {
+    if (!mapContainer.current) return;
+    if (!window.google?.maps || !map.current) return;
+    try {
+      const center = map.current?.getCenter?.();
+      const zoom = (map.current as any)?.getZoom?.() ?? 15;
+      const restoredCenter = center ? { lat: center.lat(), lng: center.lng() } : ramadiCenter;
+
+      map.current = getOrCreateSharedMap(mapContainer.current, {
+        center: restoredCenter,
+        zoom,
+        mapTypeId: window.google.maps.MapTypeId.ROADMAP,
+        zoomControl: false,
+        mapTypeControl: false,
+        scaleControl: false,
+        streetViewControl: false,
+        rotateControl: false,
+        fullscreenControl: false,
+        disableDefaultUI: true,
+        gestureHandling: 'greedy',
+        draggable: true,
+        clickableIcons: true,
+      });
+      if (userMarkerRef.current) userMarkerRef.current.setMap(map.current);
+      if (userAccuracyCircleRef.current) userAccuracyCircleRef.current.setMap(map.current);
+      setMapProvider("google");
+      setIsLoading(false);
+
+      window.google.maps.event.trigger(map.current, "resize");
+      map.current.setCenter(restoredCenter);
+      logger.debug('useLocationPicker', 'Map reattached — no reload');
+    } catch (e) {
+      logger.warn('useLocationPicker', 'reattachMap failed', e);
+    }
+  }, [ramadiCenter]);
+
   const initOsmFallbackMap = useCallback(
     async (reason: string) => {
       if (!mapContainer.current || osmMapRef.current) return;
@@ -661,7 +706,9 @@ export const useLocationPicker = (
       try {
         const L = await import("leaflet");
         const cachedLocation = getLastKnownLocation();
-        const initialCenter = userLocation || cachedLocation || ramadiCenter;
+        // ✅ لا نعتمد على userLocation (state) لتجنب إعادة إنشاء هذه الدالة مع كل تحديث GPS
+        // نستخدم الموقع المخزّن أو الرمادي كمركز أولي — panTo سيُحدّث لاحقاً
+        const initialCenter = cachedLocation || ramadiCenter;
 
         mapContainer.current.innerHTML = "";
 
@@ -723,7 +770,7 @@ export const useLocationPicker = (
         setIsLoading(false);
       }
     },
-    [ramadiCenter, reverseGeocode, userLocation],
+    [ramadiCenter, reverseGeocode],
   );
 
   // Load Google Maps API script if not already loaded
@@ -774,10 +821,13 @@ export const useLocationPicker = (
       return;
     }
 
-    // ✅ عند تغيير reloadKey: دمّر الخريطة القديمة دائماً لإجبار إعادة التهيئة
-    if (map.current) {
-      logger.debug("useLocationPicker", "reloadKey changed; destroying old map instance");
-      map.current = null;
+    // ✅ تحقق: هل map.current موجود ومربوط بنفس الـ container div؟
+    // نُدمّر فقط عند reloadKey/containerMountKey — الباقي (مثل initOsmFallbackMap) لا يستدعي تدمير
+    if (map.current && mapContainer.current) {
+      // إذا الـ div هو نفسه المربوط بالخريطة → لا حاجة لتدمير
+      // reloadKey و containerMountKey هما من يفرض التدمير (عبر effect سابق يُصفّر map.current)
+      reattachMap();
+      return; // الخريطة محمّلة وتعمل — لا شيء يحتاج إعادة تهيئة
     }
 
     // ⚡ Helper: إنشاء الخريطة فعلياً
@@ -802,9 +852,6 @@ export const useLocationPicker = (
 
         try {
           logger.debug("useLocationPicker", "Creating Google Maps instance");
-
-          // ✅ مسح الـ cache لضمان إنشاء خريطة جديدة دائماً
-          resetSharedMapCache();
 
           map.current = getOrCreateSharedMap(mapContainer.current, {
             center: initialCenter,
@@ -983,7 +1030,7 @@ export const useLocationPicker = (
     return () => clearInterval(checkGoogleMaps);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleMapsApiKey, initOsmFallbackMap, isGoogleConfigured, reloadKey, containerMountKey]); // Re-run when API key, reload key, OR container div مounts/remounts
+  }, [googleMapsApiKey, initOsmFallbackMap, isGoogleConfigured, reloadKey, containerMountKey, reattachMap]); // Re-run when API key, reload key, OR container div مounts/remounts
 
   // ✅ إصلاح الخريطة البيضاء: trigger resize بعد كل تغيير في reloadKey
   useEffect(() => {
@@ -1282,6 +1329,7 @@ export const useLocationPicker = (
     checkServiceArea,
     reverseGeocode,
     resetGeocodeCache,
+    reattachMap, // ✅ إعادة ربط الخريطة دون reload
     setIsDragging,
     setIsLoading,
   };

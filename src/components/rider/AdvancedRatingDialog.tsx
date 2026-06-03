@@ -455,7 +455,7 @@ export const AdvancedRatingDialog: React.FC<AdvancedRatingProps> = ({
                     ))}
                 </div>
 
-                <AnimatePresence mode="wait">
+                <AnimatePresence mode="sync">
                     {renderStep()}
                 </AnimatePresence>
             </DialogContent>

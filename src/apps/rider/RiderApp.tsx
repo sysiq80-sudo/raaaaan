@@ -17,6 +17,7 @@ import SplashScreen from "@/components/SplashScreen";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import DevInspector from "@/components/DevInspector";
 import RiderNotificationBootstrap from "@/components/rider/RiderNotificationBootstrap";
+import RiderMapPrewarmer from "@/components/rider/RiderMapPrewarmer";
 import { isNativePlatform } from "@/lib/capacitorBridge";
 import { capacitorStorageSync } from "@/lib/capacitorStorage";
 import { useForceUpdate } from "@/hooks/useForceUpdate";
@@ -83,6 +84,7 @@ const RiderApp = () => {
               <Sonner />
               <Toaster />
               <RiderNotificationBootstrap />
+              <RiderMapPrewarmer />
               {isNativePlatform ? (
                 <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                   <Suspense fallback={<LoadingFallback />}>
@@ -120,18 +122,6 @@ const RiderRoutes = () => {
   useEffect(() => {
     const timer = setTimeout(() => setMinSplashDone(true), 600);
     return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    // ⚡ Pre-load GoPage first (most likely next navigation from AIVoiceHome)
-    const t1 = setTimeout(() => import("@/pages/rider/GoPage"), 500);
-    const t2 = setTimeout(() => {
-      import("@/pages/rider/RiderRidesPage");
-      import("@/pages/rider/RiderPaymentsPage");
-      import("@/pages/rider/RiderSettingsPage");
-      import("@/pages/rider/RiderSavedPlacesPage");
-    }, 1500);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
   if (isLoading || !minSplashDone) return <LoadingFallback />;

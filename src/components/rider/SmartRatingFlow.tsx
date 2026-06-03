@@ -288,7 +288,7 @@ const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: S
             </div>
 
             {/* رسالة التقييم */}
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="sync">
               <motion.div
                 key={display}
                 initial={{ opacity: 0, scale: 0.8, y: 8 }}
@@ -381,7 +381,7 @@ const SmartRatingFlow = ({ rideId, driverId, driverName, onComplete, onSkip }: S
           </div>
 
           {/* الأزرار */}
-          <div className="shrink-0 flex border-t-2 border-emerald-500/20 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)' }}>
+          <div className="shrink-0 flex border-t-2 border-emerald-500/20 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]" style={{ paddingBottom: 'var(--safe-area-bottom, 0px)' }}>
             <button
               type="button" onClick={onSkip} title="تخطي"
               className="flex-1 h-[72px] flex items-center justify-center text-sm font-bold text-slate-200 bg-[#1a2333] hover:bg-[#212d42] active:bg-[#283a52] transition-all rounded-none touch-manipulation border-r border-slate-600/40"

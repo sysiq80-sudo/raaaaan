@@ -1525,99 +1525,101 @@ export const ActiveRideCard = ({
           </div>
 
           {/* 4. Primary CTA Button */}
-          <div className="w-full shrink-0 flex mt-1 bg-[#163d30]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', zIndex: 10 }}>
-            {activeRide.status === "accepted" && (
-              <motion.div
-                animate={isNearPickup ? { boxShadow: ["0 0 0px 0px rgba(91,221,166,0)", "0 0 25px 5px rgba(91,221,166,0.4)", "0 0 0px 0px rgba(91,221,166,0)"] } : {}}
-                transition={isNearPickup ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
-                className="w-full rounded-none"
-              >
-                <button
-                  className="relative overflow-hidden w-full min-h-[52px] text-base font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
-                  onClick={handleArrived} disabled={loading}
-                  style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}
+          <div className="shrink-0 w-full pointer-events-auto bg-[#163d30] border-t border-[#34d399]/10 relative z-[10]" style={{ paddingBottom: 'var(--safe-area-bottom, 0px)' }}>
+            <div className="flex items-stretch h-[58px]">
+              {activeRide.status === "accepted" && (
+                <motion.div
+                  animate={isNearPickup ? { boxShadow: ["0 0 0px 0px rgba(91,221,166,0)", "0 0 25px 5px rgba(91,221,166,0.4)", "0 0 0px 0px rgba(91,221,166,0)"] } : {}}
+                  transition={isNearPickup ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
+                  className="flex-1 h-full rounded-none overflow-hidden"
                 >
-                  <motion.div className="absolute inset-0"
-                    style={{ backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)", backgroundSize: "200% 100%" }}
-                    animate={{ backgroundPosition: ["200% 0%", "0% 0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                  />
-                  <motion.div className="absolute inset-y-0 w-16 bg-white/40 blur-[5px]"
-                    style={{ transform: "skewX(-25deg)", bottom: "-20px", top: "-20px" }}
-                    initial={{ left: "-40%" }} animate={{ left: "140%" }}
-                    transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
-                  />
-                  <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
-                    {loading ? <Loader2 className="w-7 h-7 animate-spin text-emerald-950" /> : (
-                      <div className="flex items-center justify-center gap-3 text-emerald-950">
-                        <MapPin className="w-6 h-6 stroke-[2.5]" /><span>وصلت لموقع العميل</span>
-                      </div>
-                    )}
-                  </div>
-                </button>
-              </motion.div>
-            )}
+                  <button
+                    className="relative overflow-hidden w-full h-full text-[15px] font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
+                    onClick={handleArrived} disabled={loading}
+                    style={{ fontFamily: "Cairo, sans-serif" }}
+                  >
+                    <motion.div className="absolute inset-0"
+                      style={{ backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)", backgroundSize: "200% 100%" }}
+                      animate={{ backgroundPosition: ["200% 0%", "0% 0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                    />
+                    <motion.div className="absolute inset-y-0 w-16 bg-white/40 blur-[5px]"
+                      style={{ transform: "skewX(-25deg)", bottom: "-20px", top: "-20px" }}
+                      initial={{ left: "-40%" }} animate={{ left: "140%" }}
+                      transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
+                    />
+                    <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin text-emerald-950" /> : (
+                        <div className="flex items-center justify-center gap-2 text-emerald-950">
+                          <MapPin className="w-5 h-5 stroke-[2.5]" /><span>وصلت لموقع العميل</span>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                </motion.div>
+              )}
 
-            {activeRide.status === "arrived" && (
-              <motion.div
-                animate={{ boxShadow: ["0 0 0px 0px rgba(91,221,166,0)", "0 0 25px 5px rgba(91,221,166,0.4)", "0 0 0px 0px rgba(91,221,166,0)"] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                className="w-full rounded-none"
-              >
-                <button
-                  className="relative overflow-hidden w-full min-h-[52px] text-base font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
-                  onClick={handleStartRide} disabled={loading}
-                  style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}
+              {activeRide.status === "arrived" && (
+                <motion.div
+                  animate={{ boxShadow: ["0 0 0px 0px rgba(91,221,166,0)", "0 0 25px 5px rgba(91,221,166,0.4)", "0 0 0px 0px rgba(91,221,166,0)"] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="flex-1 h-full rounded-none overflow-hidden"
                 >
-                  <motion.div className="absolute inset-0"
-                    style={{ backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)", backgroundSize: "200% 100%" }}
-                    animate={{ backgroundPosition: ["200% 0%", "0% 0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                  />
-                  <motion.div className="absolute inset-y-0 w-16 bg-white/40 blur-[5px]"
-                    style={{ transform: "skewX(-25deg)", bottom: "-20px", top: "-20px" }}
-                    initial={{ left: "-40%" }} animate={{ left: "140%" }}
-                    transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
-                  />
-                  <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
-                    {loading ? <Loader2 className="w-7 h-7 animate-spin text-emerald-950" /> : (
-                      <div className="flex items-center justify-center gap-3 text-emerald-950">
-                        <CheckCircle className="w-6 h-6 stroke-[2.5]" /><span>ركب العميل — بدء الرحلة</span>
-                      </div>
-                    )}
-                  </div>
-                </button>
-              </motion.div>
-            )}
+                  <button
+                    className="relative overflow-hidden w-full h-full text-[15px] font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
+                    onClick={handleStartRide} disabled={loading}
+                    style={{ fontFamily: "Cairo, sans-serif" }}
+                  >
+                    <motion.div className="absolute inset-0"
+                      style={{ backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)", backgroundSize: "200% 100%" }}
+                      animate={{ backgroundPosition: ["200% 0%", "0% 0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                    />
+                    <motion.div className="absolute inset-y-0 w-16 bg-white/40 blur-[5px]"
+                      style={{ transform: "skewX(-25deg)", bottom: "-20px", top: "-20px" }}
+                      initial={{ left: "-40%" }} animate={{ left: "140%" }}
+                      transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
+                    />
+                    <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin text-emerald-950" /> : (
+                        <div className="flex items-center justify-center gap-2 text-emerald-950">
+                          <CheckCircle className="w-5 h-5 stroke-[2.5]" /><span>ركب العميل — بدء الرحلة</span>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                </motion.div>
+              )}
 
-            {activeRide.status === "in_progress" && (
-              <motion.div
-                animate={{ boxShadow: ["0 0 0px 0px rgba(91,221,166,0)", "0 0 25px 5px rgba(91,221,166,0.4)", "0 0 0px 0px rgba(91,221,166,0)"] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                className="w-full rounded-none"
-              >
-                <button
-                  className="relative overflow-hidden w-full min-h-[52px] text-base font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
-                  onClick={handleCompleteRide} disabled={loading}
-                  style={{ fontFamily: "Cairo, sans-serif", padding: 0 }}
+              {activeRide.status === "in_progress" && (
+                <motion.div
+                  animate={{ boxShadow: ["0 0 0px 0px rgba(91,221,166,0)", "0 0 25px 5px rgba(91,221,166,0.4)", "0 0 0px 0px rgba(91,221,166,0)"] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="flex-1 h-full rounded-none overflow-hidden"
                 >
-                  <motion.div className="absolute inset-0"
-                    style={{ backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)", backgroundSize: "200% 100%" }}
-                    animate={{ backgroundPosition: ["200% 0%", "0% 0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                  />
-                  <motion.div className="absolute inset-y-0 w-16 bg-white/40 blur-[5px]"
-                    style={{ transform: "skewX(-25deg)", bottom: "-20px", top: "-20px" }}
-                    initial={{ left: "-40%" }} animate={{ left: "140%" }}
-                    transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
-                  />
-                  <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
-                    {loading ? <Loader2 className="w-7 h-7 animate-spin text-emerald-950" /> : (
-                      <div className="flex items-center justify-center gap-3 text-emerald-950">
-                        <Flag className="w-6 h-6 stroke-[2.5]" /><span>إنهاء الرحلة وتحصيل الأجرة</span>
-                      </div>
-                    )}
-                  </div>
-                </button>
-              </motion.div>
-            )}
+                  <button
+                    className="relative overflow-hidden w-full h-full text-[15px] font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
+                    onClick={handleCompleteRide} disabled={loading}
+                    style={{ fontFamily: "Cairo, sans-serif" }}
+                  >
+                    <motion.div className="absolute inset-0"
+                      style={{ backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)", backgroundSize: "200% 100%" }}
+                      animate={{ backgroundPosition: ["200% 0%", "0% 0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                    />
+                    <motion.div className="absolute inset-y-0 w-16 bg-white/40 blur-[5px]"
+                      style={{ transform: "skewX(-25deg)", bottom: "-20px", top: "-20px" }}
+                      initial={{ left: "-40%" }} animate={{ left: "140%" }}
+                      transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
+                    />
+                    <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin text-emerald-950" /> : (
+                        <div className="flex items-center justify-center gap-2 text-emerald-950">
+                          <Flag className="w-5 h-5 stroke-[2.5]" /><span>إنهاء الرحلة وتحصيل الأجرة</span>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                </motion.div>
+              )}
+            </div>
           </div>
         </div>
       </div>

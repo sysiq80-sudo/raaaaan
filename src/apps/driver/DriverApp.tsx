@@ -120,21 +120,6 @@ const DriverRoutes = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    // ⚡ الموجة الأولى (800ms): أهم صفحتين يزورهما السائق يومياً
-    const t1 = setTimeout(() => {
-      import("@/pages/driver/DriverRides");
-      import("@/pages/driver/DriverFinance");
-    }, 800);
-    // ⚡ الموجة الثانية (2500ms): بقية الصفحات — بعد استقرار الـ UI
-    const t2 = setTimeout(() => {
-      import("@/pages/driver/DriverProfile");
-      import("@/pages/driver/DriverStatistics");
-      import("@/pages/driver/DriverSettings");
-    }, 2500);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
-
   if (isLoading || !minSplashDone) return <LoadingFallback />;
 
   if (updateRequired) return <ForceUpdateScreen currentVersion={currentVersion} minVersion={minVersion} />;

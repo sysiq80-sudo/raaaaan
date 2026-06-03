@@ -870,7 +870,7 @@ export const RideWaitingScreen = ({
         </div>
 
         {/* زر تتبع الرحلة */}
-        <div className="shrink-0 px-4 pb-4 bg-card border-t border-border/30" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)', zIndex: 10 }}>
+        <div className="shrink-0 px-4 bg-card border-t border-border/30" style={{ paddingBottom: 'max(var(--safe-area-bottom, 0px), 16px)', zIndex: 10 }}>
           <motion.button
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1143,12 +1143,13 @@ export const RideWaitingScreen = ({
         </motion.div>
       </div>
 
-      {/* زر الإلغاء */}
-      <div className="shrink-0 bg-[#0b1326]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', zIndex: 10 }}>
+      {/* زر الإلغاء — ملاصق للأسفل */}
+      <div className="shrink-0 bg-[#0b1326]" style={{ paddingBottom: 'var(--safe-area-bottom, 0px)', zIndex: 10 }}>
         <button
           onClick={handleCancelClick}
           disabled={cancelling}
-          className="w-full min-h-[52px] rounded-none flex items-center justify-center gap-2 text-base font-bold bg-[#F04438] hover:bg-[#D92D20] text-white transition-all disabled:opacity-50 touch-manipulation active:scale-[0.98]"
+          style={{ fontFamily: "Cairo, sans-serif" }}
+          className="w-full h-[72px] rounded-none flex items-center justify-center gap-2 text-lg font-black bg-[#F04438] hover:bg-[#D92D20] active:bg-[#B42318] text-white transition-all disabled:opacity-50 touch-manipulation pointer-events-auto active:scale-[0.98] border-t border-[#F04438]/30"
         >
           {cancelling ? (
             <><Loader2 className="w-5 h-5 animate-spin" />جاري الإلغاء...</>

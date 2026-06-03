@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { preloadRiderRoute } from "@/lib/riderRoutePreload";
 import {
   X, LogOut, History, Settings, CreditCard, MapPin,
   HelpCircle, LogIn, Wallet, PlusCircle,
@@ -25,6 +26,8 @@ const MenuListItem = ({
   <Link
     to={href}
     onClick={onClick}
+    onPointerDown={() => preloadRiderRoute(href)}
+    onMouseEnter={() => preloadRiderRoute(href)}
     dir="rtl"
     className="group flex items-center gap-3.5 rounded-2xl border border-border/20 bg-card/40 p-3.5 transition-all duration-200 hover:border-ring/30 hover:bg-secondary/60 active:scale-[0.98] shadow-sm no-underline"
   >
@@ -44,13 +47,13 @@ const DRAWER_VARIANTS = {
   visible: { x: "0%" },
   exit:    { x: "100%" },
 };
-const OPEN_TRANSITION  = { type: "tween", duration: 0.35, ease: [0.32, 0.72, 0, 1] } as const;
+const OPEN_TRANSITION  = { type: "tween", duration: 0.2, ease: [0.25, 0.1, 0.25, 1] } as const;
 const BACKDROP_VARIANTS = {
   hidden:  { opacity: 0 },
   visible: { opacity: 1 },
   exit:    { opacity: 0 },
 };
-const BACKDROP_TRANSITION = { type: "tween", duration: 0.25, ease: "easeInOut" } as const;
+const BACKDROP_TRANSITION = { type: "tween", duration: 0.14, ease: "easeOut" } as const;
 
 const RiderSideMenu = ({
   isOpen, onClose, open, onOpenChange, onLogout,
@@ -64,22 +67,26 @@ const RiderSideMenu = ({
 
   useEffect(() => {
     if (!user || !isMenuOpen) return;
-    const fetchProfileData = async () => {
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
       try {
         const { data: profile } = await supabase
           .from("profiles")
           .select("wallet_balance, full_name")
           .eq("user_id", user.id)
           .single();
-        if (profile) {
+        if (!cancelled && profile) {
           setBalance(profile.wallet_balance || 0);
           if (profile.full_name) setProfileName(profile.full_name);
         }
       } catch (err) {
         console.error("Error fetching profile:", err);
       }
+    }, 180);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
     };
-    fetchProfileData();
   }, [user, isMenuOpen]);
 
   const handleClose = () => {
@@ -110,7 +117,7 @@ const RiderSideMenu = ({
         <>
           <motion.div
             key="rider-menu-backdrop"
-            className="fixed inset-0 z-[59] bg-black/60 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[59] bg-black/60"
             variants={BACKDROP_VARIANTS}
             initial="hidden" animate="visible" exit="exit"
             transition={BACKDROP_TRANSITION}
@@ -126,8 +133,6 @@ const RiderSideMenu = ({
             className="fixed inset-0 z-[60] overflow-hidden bg-background h-[100dvh]"
             dir="rtl"
           >
-            <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-ring/10 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-emerald-500/5 blur-3xl" />
             <div 
               className="absolute top-0 left-0 z-30 pb-4 px-4"
               style={{ paddingTop: "max(16px, calc(env(safe-area-inset-top, 0px) + 16px))" }}
@@ -153,7 +158,13 @@ const RiderSideMenu = ({
                           <p className="text-xs font-semibold text-white/70">الرصيد الحالي</p>
                           <p className="mt-1 text-2xl font-extrabold">{balance.toLocaleString('en-US')} د.ع</p>
                         </div>
-                        <Link to="/rider/wallet-topup" onClick={handleClose} className="flex items-center gap-1.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 px-4 py-2.5 text-sm font-bold text-[#0b1326] shadow-lg shadow-emerald-400/40 hover:shadow-emerald-300/50 transition-all duration-200 active:scale-95">
+                        <Link
+                          to="/rider/wallet-topup"
+                          onClick={handleClose}
+                          onPointerDown={() => preloadRiderRoute("/rider/wallet-topup")}
+                          onMouseEnter={() => preloadRiderRoute("/rider/wallet-topup")}
+                          className="flex items-center gap-1.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 px-4 py-2.5 text-sm font-bold text-[#0b1326] shadow-lg shadow-emerald-400/40 hover:shadow-emerald-300/50 transition-all duration-200 active:scale-95"
+                        >
                           <PlusCircle className="h-4 w-4" />
                           <span>شحن الرصيد</span>
                         </Link>

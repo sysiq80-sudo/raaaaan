@@ -256,7 +256,7 @@ const SimplifiedBookingPanel = ({
         </AnimatePresence>
 
         {/* Book Button + Schedule Button */}
-        <div className="flex w-[calc(100%+2.5rem)] -mx-5 shrink-0 bg-[#131b2e]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 32px), 32px)', zIndex: 10 }}>
+        <div className="flex w-[calc(100%+2.5rem)] -mx-5 shrink-0 bg-[#131b2e]" style={{ paddingBottom: 'max(var(--safe-area-bottom, 0px), 32px)', zIndex: 10 }}>
           {/* Main Action Button */}
           <button
             className={`flex-auto h-[72px] rounded-none border-t flex items-center justify-center gap-3 text-[18px] font-black transition-all touch-manipulation ${

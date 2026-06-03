@@ -68,9 +68,9 @@ export function useNotificationRouter(
     const initNotifications = async () => {
       try {
         if (Capacitor.isNativePlatform()) {
-          await LocalNotifications.requestPermissions();
-          setIsNativeNotificationsSupported(true);
-          console.log('[useNotificationRouter] Native notifications enabled');
+          const permission = await LocalNotifications.checkPermissions();
+          setIsNativeNotificationsSupported(permission.display === 'granted');
+          console.log('[useNotificationRouter] Native notifications permission:', permission.display);
         }
       } catch (error) {
         console.error('[useNotificationRouter] Failed to init notifications:', error);

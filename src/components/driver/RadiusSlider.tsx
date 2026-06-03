@@ -208,7 +208,7 @@ const RadiusSlider = ({
       </div>
 
       {/* Recommendation */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="sync">
         {value < 5 && density.pendingRides === 0 && (
           <motion.p
             initial={{ opacity: 0, height: 0 }}

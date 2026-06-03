@@ -5,6 +5,7 @@
  */
 
 import { getGoogleMapsApiKey } from "@/hooks/useGoogleMapsApiKey";
+import { loadGoogleMaps } from "@/lib/googleMapsLoader";
 
 export interface MarkerIcon {
   path?: string;
@@ -599,9 +600,12 @@ export const getDarkMapStyle = (): google.maps.MapTypeStyle[] => {
 
 let cachedMap: any = null;
 let cachedMapDiv: HTMLDivElement | null = null;
+let prewarmContainer: HTMLDivElement | null = null;
+let prewarmPromise: Promise<any> | null = null;
 
 /** مسح الـ cache لإجبار إعادة إنشاء الخريطة (مثلاً بعد تغيير الـ styles) */
 export const resetSharedMapCache = (): void => {
+  prewarmPromise = null;
   if (cachedMap) {
     try { cachedMap.unbindAll?.(); } catch {}
     cachedMap = null;
@@ -651,4 +655,95 @@ export const getOrCreateSharedMap = (
   return cachedMap;
 };
 
+const createPrewarmContainer = (): HTMLDivElement | null => {
+  if (typeof document === "undefined") return null;
 
+  if (!prewarmContainer) {
+    prewarmContainer = document.createElement("div");
+    prewarmContainer.setAttribute("data-raan-map-prewarm", "true");
+    prewarmContainer.style.cssText = [
+      "position:fixed",
+      "left:-1200px",
+      "top:0",
+      "width:420px",
+      "height:760px",
+      "opacity:0",
+      "pointer-events:none",
+      "overflow:hidden",
+      "background:#eef3f8",
+      "z-index:-1",
+    ].join(";");
+    document.body.appendChild(prewarmContainer);
+  } else if (!prewarmContainer.parentNode) {
+    document.body.appendChild(prewarmContainer);
+  }
+
+  return prewarmContainer;
+};
+
+const waitForMapWarm = (map: google.maps.Map, timeoutMs = 4500): Promise<google.maps.Map> => {
+  return new Promise((resolve) => {
+    let done = false;
+    let tilesListener: google.maps.MapsEventListener | null = null;
+    let idleListener: google.maps.MapsEventListener | null = null;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      if (tilesListener) google.maps.event.removeListener(tilesListener);
+      if (idleListener) google.maps.event.removeListener(idleListener);
+      resolve(map);
+    };
+
+    tilesListener = google.maps.event.addListenerOnce(map, "tilesloaded", finish);
+    idleListener = google.maps.event.addListenerOnce(map, "idle", finish);
+    window.setTimeout(finish, timeoutMs);
+  });
+};
+
+export const prewarmSharedGoogleMap = (
+  apiKey: string,
+  center: { lat: number; lng: number } = { lat: 33.4233, lng: 43.2974 },
+): Promise<any> => {
+  if (typeof window === "undefined" || typeof document === "undefined" || !apiKey) {
+    return Promise.resolve(null);
+  }
+
+  if (cachedMap) return Promise.resolve(cachedMap);
+  if (prewarmPromise) return prewarmPromise;
+
+  prewarmPromise = loadGoogleMaps(apiKey)
+    .then(() => {
+      const container = createPrewarmContainer();
+      if (!container || !window.google?.maps?.Map) return null;
+
+      const map = getOrCreateSharedMap(container, {
+        center,
+        zoom: 15,
+        mapTypeId: window.google.maps.MapTypeId.ROADMAP,
+        disableDefaultUI: true,
+        zoomControl: false,
+        mapTypeControl: false,
+        scaleControl: false,
+        streetViewControl: false,
+        rotateControl: false,
+        fullscreenControl: false,
+        clickableIcons: true,
+        gestureHandling: "greedy",
+        draggable: true,
+      });
+
+      if (!map) return null;
+
+      window.google.maps.event.trigger(map, "resize");
+      map.setCenter(center);
+      return waitForMapWarm(map);
+    })
+    .catch((error) => {
+      prewarmPromise = null;
+      console.warn("[GoogleMaps] prewarm failed:", error);
+      return null;
+    });
+
+  return prewarmPromise;
+};

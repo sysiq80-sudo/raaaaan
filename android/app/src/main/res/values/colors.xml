@@ -7,4 +7,7 @@
 
     <!-- لون خلفية أيقونة الإشعارات (أخضر ران) -->
     <color name="notification_icon_color">#1DB954</color>
+
+    <!-- ✅ خلفية داكنة للـ Activity قبل تحميل WebView (يمنع الفلاش الأبيض/الأسود) -->
+    <color name="darkBackground">#0a0f14</color>
 </resources>

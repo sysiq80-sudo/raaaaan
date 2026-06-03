@@ -19,11 +19,14 @@ import { useDriverBackgroundGeolocation } from "@/hooks/useDriverBackgroundGeolo
 
 /** صفحات الـ Bottom Tabs للسائق → fade (لا slide) */
 const DRIVER_TAB_ROUTES = new Set([
-  "/driver",
   "/driver/rides",
   "/driver/finance",
   "/driver/statistics",
   "/driver/profile",
+]);
+
+const DRIVER_MAP_ROUTES = new Set([
+  "/driver",
 ]);
 
 interface DriverLayoutProps {
@@ -49,14 +52,14 @@ const DriverLayout: React.FC<DriverLayoutProps> = ({ children }) => {
   }
 
   const isTabRoute = DRIVER_TAB_ROUTES.has(pathname);
+  const isMapRoute = DRIVER_MAP_ROUTES.has(pathname);
 
   return (
     <RootLayout
       className={`driver-luxury driver-page-shell ${isCarMode ? "car-mode-layout" : ""}`}
-      mainStyle={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)' }}
       dir="rtl"
-      animationKey={pathname}
-      animationMode={isTabRoute ? "tab" : "slide"}
+      animationKey={isMapRoute ? undefined : pathname}
+      animationMode={isMapRoute ? undefined : (isTabRoute ? "tab" : "slide")}
     >
       <div data-driver-theme="dark-luxury-geometric" className="h-full">
         {children}

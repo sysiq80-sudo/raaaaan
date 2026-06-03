@@ -29,9 +29,9 @@ const RiderBottomSheet = React.forwardRef<HTMLDivElement, RiderBottomSheetProps>
   return (
     <motion.div
       ref={ref}
-      initial={{ y: 80, opacity: 0 }}
+      initial={{ y: 48, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ type: "spring", damping: 28, stiffness: 300 }}
+      transition={{ type: "tween", duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
       drag="y"
       dragControls={dragControls}
       dragListener={false}
@@ -51,12 +51,13 @@ const RiderBottomSheet = React.forwardRef<HTMLDivElement, RiderBottomSheetProps>
       } ${className}`}
       style={{
         maxHeight: isFullScreen ? "100dvh" : "75dvh",
-        transition: "max-height 0.35s cubic-bezier(0.4,0,0.2,1), top 0.35s cubic-bezier(0.4,0,0.2,1)",
-        paddingBottom: (!isFullScreen && keyboardHeight) ? `${keyboardHeight}px` : undefined,
+        transition: "max-height 0.2s cubic-bezier(0.25,0.1,0.25,1), top 0.2s cubic-bezier(0.25,0.1,0.25,1)",
+        willChange: "transform, opacity",
+        paddingBottom: keyboardHeight ? `${keyboardHeight}px` : 0,
       }}
     >
       {/* Inner card — single container with rounded corners + overflow clip */}
-      <div className={`flex-1 flex flex-col min-h-0 ${isFullScreen ? '' : 'rounded-t-[2rem]'} bg-card/95 backdrop-blur-xl border-t border-border/30 shadow-xl text-foreground overflow-hidden`}>
+      <div className={`flex-1 flex flex-col min-h-0 ${isFullScreen ? '' : 'rounded-t-[2rem]'} bg-card border-t border-border/30 shadow-lg text-foreground overflow-hidden`}>
         {/* Drag handle */}
         <div
           className="flex justify-center pt-3 pb-1 shrink-0 cursor-grab active:cursor-grabbing"

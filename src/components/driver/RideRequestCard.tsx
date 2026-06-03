@@ -279,6 +279,8 @@ export const RideRequestCard = ({
           driver_vehicle_type: vehicleType || "economy",
         });
 
+        let rpcRanSuccessfully = false;
+
         try {
           const { data, error } = await supabase.rpc("get_nearby_pending_rides_geospatial", {
             p_driver_id: driverId,
@@ -286,32 +288,37 @@ export const RideRequestCard = ({
             p_limit: 5,
           });
 
-          if (!error && data && data.length > 0) {
-            for (const ride of data.slice(0, 5)) {
-              if (!isRideVisible(ride.id)) continue;
-              collected.push({
-                id: ride.id,
-                pickup_location: ride.pickup_location as { lat: number; lng: number },
-                dropoff_location: ride.dropoff_location as { lat: number; lng: number },
-                pickup_address: ride.pickup_address,
-                dropoff_address: ride.dropoff_address,
-                estimated_fare: ride.estimated_fare,
-                distance_km: ride.distance_km ? Number(ride.distance_km) : null,
-                duration_minutes: ride.duration_minutes,
-                vehicle_type: ride.vehicle_type || "economy",
-                created_at: ride.created_at,
-                rider_id: ride.rider_id || "",
-                surge_multiplier: (ride as any).surge_multiplier ?? undefined,
-              });
+          if (error) {
+            logger.warn("RideRequestCard", "Geospatial RPC failed, using fallback", error);
+          } else {
+            rpcRanSuccessfully = true;
+            if (data && data.length > 0) {
+              for (const ride of data.slice(0, 5)) {
+                if (!isRideVisible(ride.id)) continue;
+                collected.push({
+                  id: ride.id,
+                  pickup_location: ride.pickup_location as { lat: number; lng: number },
+                  dropoff_location: ride.dropoff_location as { lat: number; lng: number },
+                  pickup_address: ride.pickup_address,
+                  dropoff_address: ride.dropoff_address,
+                  estimated_fare: ride.estimated_fare,
+                  distance_km: ride.distance_km ? Number(ride.distance_km) : null,
+                  duration_minutes: ride.duration_minutes,
+                  vehicle_type: ride.vehicle_type || "economy",
+                  created_at: ride.created_at,
+                  rider_id: ride.rider_id || "",
+                  surge_multiplier: (ride as any).surge_multiplier ?? undefined,
+                });
+              }
             }
           }
         } catch (rpcError) {
-          logger.error("RideRequestCard", "RPC error, falling to fallback", rpcError);
+          logger.warn("RideRequestCard", "Geospatial RPC failed, using fallback", rpcError);
         }
       }
 
-      // ═══ 2. Fallback عام إذا لم تُعد النتائج — يشمل: لا GPS، RPC رجع فارغ، أو RPC فشل ═══
-      if (collected.length === 0) {
+      // ═══ 2. Fallback عام إذا لم تُعد النتائج — يشمل: لا GPS، أو RPC فشل ═══
+      if (collected.length === 0 && !rpcRanSuccessfully) {
         logger.debug("RideRequestCard", "Using fallback query");
         const { data, error } = await supabase
           .from("rides")

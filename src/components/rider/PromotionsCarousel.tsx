@@ -78,7 +78,7 @@ const PromotionsCarousel = () => {
         <div className="space-y-3">
             {/* Carousel */}
             <div className="relative overflow-hidden rounded-2xl">
-                <AnimatePresence mode="wait">
+                <AnimatePresence mode="sync">
                     <motion.div
                         key={currentIndex}
                         initial={{ opacity: 0, x: 50 }}

@@ -1,0 +1,6 @@
+sdk.dir=C:/Users/YOUR_USER/AppData/Local/Android/Sdk
+
+# Transistorsoft BackgroundGeolocation Android license for driver production.
+# Generate this key for Android applicationId: com.raan.captain
+# Copy the real JWT to android/local.properties only; do not commit it.
+transistorBgGeoLicense=YOUR_LICENSE_KEY_JWT
