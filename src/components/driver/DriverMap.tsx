@@ -64,13 +64,16 @@ export const DriverMap = ({
     // Beautiful blue balloon pin with text "موقع العميل" (Arabic RTL layout)
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="140" height="65" viewBox="0 0 140 65">
       <defs>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@900&amp;display=swap');
+        </style>
         <filter id="ds" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#1e3a8a" flood-opacity="0.3"/></filter>
         <linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient>
       </defs>
       <g filter="url(#ds)">
         <path d="M 22 5 C 12.6 5 5 12.6 5 22 C 5 31.4 12.6 39 22 39 L 58 39 L 70 52 L 82 39 L 118 39 C 127.4 39 135 31.4 135 22 C 135 12.6 127.4 5 118 5 Z" fill="url(#pg)" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
       </g>
-      <text x="62" y="24" font-family="Cairo, system-ui, sans-serif" font-size="15" font-weight="900" fill="#ffffff" text-anchor="middle" dominant-baseline="central">موقع العميل</text>
+      <text x="62" y="24" font-family="'Cairo', system-ui, sans-serif" font-size="15" font-weight="900" fill="#ffffff" text-anchor="middle" dominant-baseline="central">موقع العميل</text>
       <circle cx="114" cy="22" r="10" fill="#ffffff" opacity="0.25"/>
       <circle cx="114" cy="19" r="3.5" fill="#ffffff"/>
       <path d="M 108 28 C 108 24 111 22 114 22 S 120 24 120 28" fill="#ffffff" opacity="0.95"/>
