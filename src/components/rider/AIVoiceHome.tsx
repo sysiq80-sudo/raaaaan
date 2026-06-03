@@ -1233,7 +1233,7 @@ const AIVoiceHome: React.FC = () => {
                           className={`aspect-square flex flex-col items-center justify-center gap-1.5 rounded-2xl border backdrop-blur-md transition-all duration-200 hover:brightness-110 active:brightness-90 select-none ${cat.color}`}
                         >
                           <span className="text-xl">{cat.icon}</span>
-                          <span className="text-[11px] font-bold text-center leading-tight px-1">{cat.label}</span>
+                          <span className="text-[13px] font-bold text-center leading-tight px-1">{cat.label}</span>
                         </motion.button>
                       ))}
                     </motion.div>
