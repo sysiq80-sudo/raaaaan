@@ -48,7 +48,10 @@ const isConnectionToast = (node: React.ReactNode): boolean => {
       node.includes("أنت متصل الآن") ||
       node.includes("تم قطع الاتصال") ||
       node.includes("تم استعادة الاتصال") ||
-      node.includes("لا يوجد اتصال بالإنترنت")
+      node.includes("لا يوجد اتصال بالإنترنت") ||
+      node.includes("لا يوجد سائقين متاحين") ||
+      node.includes("تم التخطي") ||
+      node.includes("سيتم البحث عن طلبات جديدة")
     );
   }
   if (Array.isArray(node)) {
