@@ -9,6 +9,10 @@ import { supabase } from "./integrations/supabase/client";
 import { initCapacitorPlugins, isNativePlatform } from "./lib/capacitorBridge";
 import { initUserGestureTracking } from "./lib/userGestureTracker";
 import { validateEnv } from "./lib/validateEnv";
+import { initGeolocationPolyfill } from "./lib/capacitorGeolocationPolyfill";
+
+// تهيئة الـ Geolocation Polyfill للتطبيق الهجين قبل أي استدعاء موقع
+initGeolocationPolyfill();
 
 // التحقق من متغيرات البيئة
 validateEnv();

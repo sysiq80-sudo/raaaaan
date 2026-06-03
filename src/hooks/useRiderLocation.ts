@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { isNativePlatform } from '@/lib/capacitorBridge';
 
 interface UseRiderLocationOptions {
   enabled?: boolean;
@@ -12,21 +13,18 @@ interface LocationCoords {
 }
 
 export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
-  const { enabled = true, updateInterval = 5000 } = options; // Default: update every 5 seconds (reduced from 30s)
+  const { enabled = true, updateInterval = 5000 } = options;
   const lastUpdateRef = useRef<number>(0);
-  const watchIdRef = useRef<number | null>(null);
+  const watchIdRef = useRef<string | number | null>(null);
   const [location, setLocation] = useState<LocationCoords | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const dbErrorCountRef = useRef<number>(0);
 
-  const updateLocation = useCallback(async (position: GeolocationPosition) => {
+  const updateLocation = useCallback(async (lat: number, lng: number) => {
     const now = Date.now();
     
-    const locationData = {
-      lat: position.coords.latitude,
-      lng: position.coords.longitude,
-    };
+    const locationData = { lat, lng };
 
     // Always update local state (cheap) but throttle DB writes
     setLocation(prev => {
@@ -40,50 +38,113 @@ export const useRiderLocation = (options: UseRiderLocationOptions = {}) => {
       return;
     }
 
-    // Skip Database updates for Rider Location to prevent 403 errors and reduce DB load.
-    // The location is kept in local state (and can be broadcasted via Realtime if needed).
     dbErrorCountRef.current = 0;
   }, [updateInterval]);
 
-  const handleError = useCallback((err: GeolocationPositionError) => {
-    console.warn('Geolocation error:', err.message);
-    setError(err.message);
+  const handleError = useCallback((msg: string) => {
+    console.warn('Geolocation error:', msg);
+    setError(msg);
   }, []);
 
   useEffect(() => {
-    if (!enabled || !navigator.geolocation) {
-      return;
-    }
+    if (!enabled) return;
 
-    // ✅ Guard: لا تبدأ تتبع الموقع بدون مستخدم مسجل
+    let mounted = true;
+
     const startTracking = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user || !mounted) return;
 
-      // Get initial position
-      navigator.geolocation.getCurrentPosition(updateLocation, handleError, {
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 0,
-      });
+      if (isNativePlatform) {
+        try {
+          const { Geolocation } = await import('@capacitor/geolocation');
+          
+          // Check and request permissions natively
+          const checkPerm = await Geolocation.checkPermissions();
+          if (checkPerm.location !== 'granted' && checkPerm.coarseLocation !== 'granted') {
+            const reqPerm = await Geolocation.requestPermissions();
+            if (reqPerm.location !== 'granted' && reqPerm.coarseLocation !== 'granted') {
+              throw new Error("PERMISSION_DENIED");
+            }
+          }
 
-      // Watch position changes - fires every 1-2 seconds when moving
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        updateLocation,
-        handleError,
-        {
-          enableHighAccuracy: true,
-          timeout: 3000,
-          maximumAge: 1000, // Max 1 second old (reduced from 5s)
+          if (!mounted) return;
+
+          // Get initial position natively
+          const position = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 10000,
+          });
+
+          if (mounted && position) {
+            updateLocation(position.coords.latitude, position.coords.longitude);
+          }
+
+          // Watch position changes natively
+          const watchId = await Geolocation.watchPosition(
+            { enableHighAccuracy: true, timeout: 5000 },
+            (pos, err) => {
+              if (!mounted) return;
+              if (err || !pos) {
+                handleError(err?.message || "Watch position native error");
+                return;
+              }
+              updateLocation(pos.coords.latitude, pos.coords.longitude);
+            }
+          );
+
+          if (mounted) {
+            watchIdRef.current = watchId;
+          }
+        } catch (err: any) {
+          console.warn("⚠️ Native Geolocation failed, trying web fallback:", err);
+          startWebTracking();
         }
+      } else {
+        startWebTracking();
+      }
+    };
+
+    const startWebTracking = () => {
+      if (!navigator.geolocation || !mounted) return;
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (mounted) {
+            updateLocation(position.coords.latitude, position.coords.longitude);
+          }
+        },
+        (err) => handleError(err.message),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
+
+      const watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          if (mounted) {
+            updateLocation(position.coords.latitude, position.coords.longitude);
+          }
+        },
+        (err) => handleError(err.message),
+        { enableHighAccuracy: true, timeout: 3000, maximumAge: 1000 }
+      );
+
+      if (mounted) {
+        watchIdRef.current = watchId;
+      }
     };
 
     startTracking();
 
     return () => {
+      mounted = false;
       if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
+        if (isNativePlatform && typeof watchIdRef.current === 'string') {
+          import('@capacitor/geolocation').then(({ Geolocation }) => {
+            Geolocation.clearWatch({ id: watchIdRef.current as string });
+          }).catch(() => {});
+        } else if (typeof watchIdRef.current === 'number') {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+        }
         watchIdRef.current = null;
       }
     };

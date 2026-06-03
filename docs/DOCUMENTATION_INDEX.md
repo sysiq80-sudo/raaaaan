@@ -1,5 +1,5 @@
 # فهرس التوثيق
-> تاريخ التحديث: 2026-05-31 (تحديث شامل — الجلسة الثالثة)
+> تاريخ التحديث: 2026-06-03
 
 ## التوثيق النشط (Active)
 
@@ -22,6 +22,11 @@
 | [EDGE_FUNCTION_SECURITY.md](EDGE_FUNCTION_SECURITY.md) | توثيق أمني | ✅ نشط | أمان Edge Functions |
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | دليل | ✅ نشط | حلول المشاكل الشائعة |
 | [MAPS_STRATEGY.md](MAPS_STRATEGY.md) | استراتيجية | ✅ نشط | تسعير Google Maps + تحليل Baly + خطة التوفير |
+| [BOTTOM_BUTTONS_SPEC.md](BOTTOM_BUTTONS_SPEC.md) | **مرجع UI حرج** | ✅ نشط | مواصفات الأزرار السفلية + safe-area — **لا تعدّل بدون مراجعته** |
+| [BGGEO_SETUP.md](BGGEO_SETUP.md) | دليل | ✅ نشط | إعداد Background Geolocation |
+| [FARE_AND_GEOGRAPHY_AUDIT.md](FARE_AND_GEOGRAPHY_AUDIT.md) | تدقيق | ✅ نشط | تدقيق شامل لنظام التسعير والارتباط الجغرافي بالمدن |
+| [LAUNCH_READINESS_AUDIT.md](LAUNCH_READINESS_AUDIT.md) | تدقيق | ✅ نشط | تدقيق شامل للمتطلبات المتبقية للإطلاق التقني والبرمجي والتشغيلي |
+
 
 ## التوثيق المطلوب مراجعته
 

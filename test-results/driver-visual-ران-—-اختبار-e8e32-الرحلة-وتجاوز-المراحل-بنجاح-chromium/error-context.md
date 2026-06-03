@@ -1,0 +1,64 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - region "Notifications alt+T"
+  - status "متصل بالإنترنت"
+  - main [ref=e4]:
+    - generic [ref=e7]:
+      - generic [ref=e10]:
+        - button "2" [ref=e12] [cursor=pointer]:
+          - img [ref=e13]
+          - generic [ref=e16]: "2"
+        - img "RAAN" [ref=e19]
+        - button [ref=e20] [cursor=pointer]:
+          - img [ref=e21]
+      - main [ref=e22]:
+        - generic [ref=e24]:
+          - generic [ref=e26]:
+            - generic:
+              - button "اختصارات لوحة المفاتيح"
+            - region "الخريطة" [ref=e27]
+            - generic [ref=e28]:
+              - img "السائق" [ref=e129] [cursor=pointer]
+              - iframe [ref=e130]:
+                
+              - button "عناصر التحكّم بطريقة عرض الخريطة" [ref=e132] [cursor=pointer]
+              - link "‏فتح هذه المنطقة في \"خرائط Google\" (يؤدي ذلك إلى فتح نافذة جديدة)" [ref=e134] [cursor=pointer]:
+                - /url: https://maps.google.com/maps?ll=33.3152,44.3661&z=14&t=m&hl=ar&gl=IQ&mapclient=apiv3
+                - img "Google" [ref=e136]
+              - generic [ref=e137]:
+                - button "اختصارات لوحة المفاتيح" [ref=e143] [cursor=pointer]
+                - generic [ref=e148]: Map data ©2026
+                - link "البنود (يتم فتح الرابط في علامة تبويب جديدة)" [ref=e153] [cursor=pointer]:
+                  - /url: https://www.google.com/intl/ar_IQ/help/terms_maps.html
+                  - text: البنود
+          - button "موقعي" [ref=e155] [cursor=pointer]:
+            - img [ref=e156]
+        - generic [ref=e160]:
+          - button "قطع الاتصال" [pressed] [ref=e163] [cursor=pointer]:
+            - generic [ref=e164]:
+              - img [ref=e165]
+              - generic [ref=e169]: نشط - جاهز لاستقبال الطلبات
+          - generic [ref=e174]:
+            - img [ref=e176]
+            - generic [ref=e178]:
+              - paragraph [ref=e179]: جاري البحث عن طلبات
+              - paragraph [ref=e180]: أنت ضمن نطاق 10 كم
+        - generic [ref=e186]:
+          - generic [ref=e187]:
+            - generic [ref=e188]:
+              - img [ref=e190]
+              - generic [ref=e192]:
+                - paragraph [ref=e193]: الأرباح
+                - generic [ref=e194]:
+                  - generic [ref=e195]: "0"
+                  - generic [ref=e196]: د.ع
+            - generic [ref=e197]:
+              - img [ref=e199]
+              - generic [ref=e203]:
+                - paragraph [ref=e204]: الرحلات
+                - generic [ref=e205]: "0"
+          - button "إخفاء الإحصائيات" [ref=e206] [cursor=pointer]:
+            - img [ref=e208]
+```

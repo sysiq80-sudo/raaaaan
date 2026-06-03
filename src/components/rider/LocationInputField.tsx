@@ -74,12 +74,6 @@ export default function LocationInputField({
             onCurrentLocationClick();
           }
           
-          toast({
-            title: "تم تحديد موقعك ✅",
-            description: "موقعك الحالي محدد - انقر تأكيد",
-            duration: 2000
-          });
-          
           setIsLoadingCurrent(false);
         },
         (error) => {

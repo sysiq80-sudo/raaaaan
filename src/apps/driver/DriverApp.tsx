@@ -175,17 +175,17 @@ const DriverRoutes = () => {
         {/* DriverHome محمّل مباشرة — أول شاشة يراها السائق، لا lazy */}
         <Route index element={<DriverHome />} />
         {/* صفحات lazy — كل منها Suspense خاص بها لمنع SplashScreen عند التنقل */}
-        <Route path="rides" element={<Suspense fallback={<PageSkeleton rows={4} />}><DriverRides /></Suspense>} />
-        <Route path="finance" element={<Suspense fallback={<PageSkeleton rows={3} />}><DriverFinance /></Suspense>} />
+        <Route path="rides" element={<Suspense fallback={<PageSkeleton layout="list" rows={4} />}><DriverRides /></Suspense>} />
+        <Route path="finance" element={<Suspense fallback={<PageSkeleton layout="list" rows={3} />}><DriverFinance /></Suspense>} />
         <Route path="wallet" element={<Navigate to="/driver/finance" replace />} />
         <Route path="payments" element={<Navigate to="/driver/finance" replace />} />
-        <Route path="statistics" element={<Suspense fallback={<PageSkeleton rows={4} />}><DriverStatistics /></Suspense>} />
-        <Route path="profile" element={<Suspense fallback={<PageSkeleton rows={3} />}><DriverProfile /></Suspense>} />
-        <Route path="settings" element={<Suspense fallback={<PageSkeleton rows={3} />}><DriverSettings /></Suspense>} />
-        <Route path="incentives" element={<Suspense fallback={<PageSkeleton rows={2} />}><DriverIncentives /></Suspense>} />
-        <Route path="subscription" element={<Suspense fallback={<PageSkeleton rows={2} />}><DriverSubscription /></Suspense>} />
-        <Route path="guide" element={<Suspense fallback={<PageSkeleton rows={3} />}><DriverGuide /></Suspense>} />
-        <Route path="dashboard-v2" element={<Suspense fallback={<PageSkeleton rows={4} />}><DriverDashboardMigrated /></Suspense>} />
+        <Route path="statistics" element={<Suspense fallback={<PageSkeleton layout="list" rows={4} />}><DriverStatistics /></Suspense>} />
+        <Route path="profile" element={<Suspense fallback={<PageSkeleton layout="list" rows={3} />}><DriverProfile /></Suspense>} />
+        <Route path="settings" element={<Suspense fallback={<PageSkeleton layout="list" rows={3} />}><DriverSettings /></Suspense>} />
+        <Route path="incentives" element={<Suspense fallback={<PageSkeleton layout="list" rows={2} />}><DriverIncentives /></Suspense>} />
+        <Route path="subscription" element={<Suspense fallback={<PageSkeleton layout="list" rows={2} />}><DriverSubscription /></Suspense>} />
+        <Route path="guide" element={<Suspense fallback={<PageSkeleton layout="list" rows={3} />}><DriverGuide /></Suspense>} />
+        <Route path="dashboard-v2" element={<Suspense fallback={<PageSkeleton layout="map" showHeader={false} />}><DriverDashboardMigrated /></Suspense>} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

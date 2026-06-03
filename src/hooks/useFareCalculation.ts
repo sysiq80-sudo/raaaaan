@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 import { useVehicleTypes } from '@/hooks/useVehicleTypes';
 import { useRegionFares } from '@/hooks/useRegionFares';
-import { calculateFare, validateDistance } from '@/lib/fareCalculation';
+import { calculateFare, DEFAULT_MAX_TRIP_DISTANCE_KM, validateDistance } from '@/lib/fareCalculation';
 
 type VehicleType = 'economy' | 'comfort' | 'premium' | 'women_only';
 
@@ -40,9 +41,28 @@ export const useFareCalculation = (
   const lastSurgeMultiplierRef = useRef<number>(1.0);
 
   // جلب معاملات أنواع المركبات من DB بدل القيم الثابتة
-  const { getMultiplier } = useVehicleTypes();
+  const { getMultiplier, getMinFare } = useVehicleTypes();
   // جلب أسعار الأساس من DB (base_fare, per_km_fare) بدل القيم الثابتة
   const { defaultFare } = useRegionFares();
+  const { data: maxTripDistanceKm = DEFAULT_MAX_TRIP_DISTANCE_KM } = useQuery({
+    queryKey: ['fare-calculation-max-trip-distance'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'fare_calculation')
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const value = data?.value as { max_trip_distance_km?: number } | null;
+      const configuredMax = Number(value?.max_trip_distance_km ?? DEFAULT_MAX_TRIP_DISTANCE_KM);
+      return Number.isFinite(configuredMax) && configuredMax > 0
+        ? configuredMax
+        : DEFAULT_MAX_TRIP_DISTANCE_KM;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const estimateFareLocally = (
     distanceKm: number,
@@ -53,6 +73,7 @@ export const useFareCalculation = (
     const perKmRate = defaultFare.per_km_fare;
     const perMinuteRate = defaultFare.per_minute_fare || 0;
     const vehicleMultiplier = getMultiplier(vehicle);
+    const vehicleMinFare = getMinFare(vehicle);
     const surgeMultiplier = lastSurgeMultiplierRef.current;
 
     // استخدام الدالة المشتركة (نفس المنطق في السيرفر والعميل)
@@ -65,6 +86,7 @@ export const useFareCalculation = (
       surgeMultiplier,
       durationMinutes: durationMin ?? undefined,
     });
+    const fareAfterMin = Math.max(result.totalFare, vehicleMinFare);
 
     return {
       base_fare: result.baseFare,
@@ -78,9 +100,9 @@ export const useFareCalculation = (
       subtotal: result.subtotal,
       vehicle_adjusted_fare: result.totalFare,
       service_fee: 0,
-      total_fare: result.totalFare,
+      total_fare: fareAfterMin,
       region_name: "تقدير تقريبي",
-      formatted_fare: `${result.totalFare.toLocaleString('en-US')} د.ع`,
+      formatted_fare: `${fareAfterMin.toLocaleString('en-US')} د.ع`,
     };
   };
 
@@ -108,7 +130,7 @@ export const useFareCalculation = (
       }
 
       // ✅ التحقق من صحة المسافة (عبر الدالة المشتركة)
-      const distanceCheck = validateDistance(routeDistance);
+      const distanceCheck = validateDistance(routeDistance, maxTripDistanceKm);
       if (!distanceCheck.valid) {
         setFareError(distanceCheck.error || 'المسافة غير صحيحة');
         setFareBreakdown(null);
@@ -198,7 +220,7 @@ export const useFareCalculation = (
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [pickupCoords, dropoffCoords, selectedVehicle, routeDistance, routeDuration]);
+  }, [pickupCoords, dropoffCoords, selectedVehicle, routeDistance, routeDuration, maxTripDistanceKm]);
 
   return { fareBreakdown, fareLoading, fareError, setFareBreakdown };
 };

@@ -3,6 +3,7 @@ import {
   calculateFare,
   validateDistance,
   DEFAULT_VEHICLE_MULTIPLIERS,
+  DEFAULT_MAX_TRIP_DISTANCE_KM,
   MAX_SURGE_MULTIPLIER,
   DEFAULT_CITY_SPEED_KMH,
   type FareParams,
@@ -33,14 +34,15 @@ describe('calculateFare', () => {
     expect(result.totalFare).toBe(9000);
   });
 
-  it('should never go below base fare', () => {
+  it('should allow zero-distance rides without going below base fare', () => {
     const result = calculateFare({
       ...baseParams,
-      distanceKm: 0.1,
+      distanceKm: 0,
       perKmRate: 0,
       perMinuteRate: 0,
     });
 
+    expect(result.distanceFare).toBe(0);
     expect(result.totalFare).toBeGreaterThanOrEqual(baseParams.baseFare);
   });
 
@@ -154,16 +156,17 @@ describe('validateDistance', () => {
     expect(validateDistance(100)).toEqual({ valid: true });
     expect(validateDistance(0.5)).toEqual({ valid: true });
     expect(validateDistance(500)).toEqual({ valid: true });
+    expect(validateDistance(DEFAULT_MAX_TRIP_DISTANCE_KM)).toEqual({ valid: true });
   });
 
-  it('should reject distances below 0.1 km', () => {
-    const result = validateDistance(0.05);
-    expect(result.valid).toBe(false);
-    expect(result.error).toBeDefined();
+  it('should accept zero and very short distances', () => {
+    expect(validateDistance(0)).toEqual({ valid: true });
+    expect(validateDistance(0.05)).toEqual({ valid: true });
   });
 
-  it('should reject distances above 500 km', () => {
-    const result = validateDistance(501);
+  it('should reject distances above the configured maximum', () => {
+    expect(validateDistance(501, 500).valid).toBe(false);
+    const result = validateDistance(DEFAULT_MAX_TRIP_DISTANCE_KM + 1);
     expect(result.valid).toBe(false);
   });
 

@@ -123,6 +123,13 @@ export function useVehicleTypes() {
     };
   }, [vehicleTypes]);
 
+  const getMinFare = useMemo(() => {
+    return (typeId: string): number => {
+      const type = vehicleTypes.find(v => v.id === typeId);
+      return type?.min_fare || 2000;
+    };
+  }, [vehicleTypes]);
+
   const getCommissionRate = useMemo(() => {
     return (typeId: string): number => {
       const type = vehicleTypes.find(v => v.id === typeId);
@@ -136,6 +143,7 @@ export function useVehicleTypes() {
     getVehicleTypeName,
     getVehicleTypeIcon,
     getMultiplier,
+    getMinFare,
     getCommissionRate,
     isLoading,
     error,

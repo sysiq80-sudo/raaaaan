@@ -274,18 +274,12 @@ export function NotificationsBell({ driverId, isOpen: externalOpen, onToggle }: 
       {/* Trigger Button — World-Class Glassmorphism Bell */}
       <button
         onClick={handleToggle}
-        className="relative flex items-center justify-center w-11 h-11 rounded-2xl outline-none focus:outline-none select-none active:scale-90 transition-all duration-200"
+        className="relative flex items-center justify-center w-11 h-11 rounded-xl border border-[#5bdda6]/30 outline-none focus:outline-none select-none active:scale-90 transition-all duration-200 bg-[#5bdda6] hover:bg-[#34d399] text-slate-950 shadow-[0_0_20px_rgba(91,221,166,0.5)]"
         style={{
           WebkitTapHighlightColor: 'transparent',
-          background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)',
-          backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          boxShadow: isOpen
-            ? '0 0 0 2px rgba(91,221,166,0.4), 0 8px 32px rgba(0,0,0,0.3)'
-            : '0 4px 24px rgba(0,0,0,0.2)',
         }}
       >
-        <Bell className={`w-5 h-5 transition-colors duration-200 ${isOpen ? 'text-[#5bdda6]' : 'text-slate-300'}`} />
+        <Bell className="w-5 h-5 text-slate-950" />
 
         {/* Badge */}
         {unreadCount > 0 && (
@@ -310,16 +304,6 @@ export function NotificationsBell({ driverId, isOpen: externalOpen, onToggle }: 
           </span>
         )}
 
-        {/* Pulse ring when unread */}
-        {unreadCount > 0 && (
-          <span
-            className="absolute inset-0 rounded-2xl animate-ping"
-            style={{
-              background: 'rgba(244,63,94,0.15)',
-              animationDuration: '2s',
-            }}
-          />
-        )}
       </button>
 
       {/* Full Screen Panel — slides up from bottom (Portal to escape header stacking context) */}

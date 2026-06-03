@@ -38,8 +38,8 @@ const HelpAndContact = lazy(() => import("@/pages/HelpAndContact"));
 const PaymentResult = lazy(() => import("@/pages/payment/PaymentResult"));
 
 // صفحات الراكب
+import AIVoiceHome from "@/components/rider/AIVoiceHome";
 const GoPage = lazy(() => import("@/pages/rider/GoPage"));
-const AIVoiceHome = lazy(() => import("@/components/rider/AIVoiceHome"));
 const RiderRidesPage = lazy(() => import("@/pages/rider/RiderRidesPage"));
 const RiderPaymentsPage = lazy(() => import("@/pages/rider/RiderPaymentsPage"));
 const WalletTopupPage = lazy(() => import("@/pages/rider/WalletTopupPage"));
@@ -170,18 +170,18 @@ const RiderRoutes = () => {
       <Route path="/payment/result" element={<ErrorBoundary><PaymentResult /></ErrorBoundary>} />
 
       <Route path="/rider" element={<RiderProtectedLayout />}>
-        {/* AIVoiceHome محمّلة لازي لكنها الشاشة الأولى — prefetch يضمن جاهزيتها */}
-        <Route index element={<Suspense fallback={<PageSkeleton rows={2} showHeader={false} />}><AIVoiceHome /></Suspense>} />
-        {/* صفحات lazy — كل منها Suspense خاص */}
-        <Route path="go" element={<Suspense fallback={<PageSkeleton rows={2} showHeader={false} />}><GoPage /></Suspense>} />
-        <Route path="schedule" element={<Suspense fallback={<PageSkeleton rows={2} showHeader={false} />}><GoPage scheduleMode={true} /></Suspense>} />
-        <Route path="rides" element={<Suspense fallback={<PageSkeleton rows={4} />}><RiderRidesPage /></Suspense>} />
-        <Route path="payments" element={<Suspense fallback={<PageSkeleton rows={3} />}><RiderPaymentsPage /></Suspense>} />
-        <Route path="wallet-topup" element={<Suspense fallback={<PageSkeleton rows={2} />}><WalletTopupPage /></Suspense>} />
-        <Route path="saved-places" element={<Suspense fallback={<PageSkeleton rows={3} />}><RiderSavedPlacesPage /></Suspense>} />
-        <Route path="settings" element={<Suspense fallback={<PageSkeleton rows={3} />}><RiderSettingsPage /></Suspense>} />
-        <Route path="profile-v2" element={<Suspense fallback={<PageSkeleton rows={3} />}><RiderProfileMigratedPage /></Suspense>} />
-        <Route path="go-v2" element={<Suspense fallback={<PageSkeleton rows={2} showHeader={false} />}><RiderGoMigrated /></Suspense>} />
+        {/* AIVoiceHome محمّلة مباشرة لتبدأ فوراً بدون شاشة تحميل */}
+        <Route index element={<AIVoiceHome />} />
+        {/* صفحات lazy — كل منها Suspense خاص بـ Skeleton ملائم لها */}
+        <Route path="go" element={<Suspense fallback={<PageSkeleton layout="map" showHeader={false} />}><GoPage /></Suspense>} />
+        <Route path="schedule" element={<Suspense fallback={<PageSkeleton layout="map" showHeader={false} />}><GoPage scheduleMode={true} /></Suspense>} />
+        <Route path="rides" element={<Suspense fallback={<PageSkeleton layout="list" rows={4} />}><RiderRidesPage /></Suspense>} />
+        <Route path="payments" element={<Suspense fallback={<PageSkeleton layout="list" rows={3} />}><RiderPaymentsPage /></Suspense>} />
+        <Route path="wallet-topup" element={<Suspense fallback={<PageSkeleton layout="list" rows={2} />}><WalletTopupPage /></Suspense>} />
+        <Route path="saved-places" element={<Suspense fallback={<PageSkeleton layout="list" rows={3} />}><RiderSavedPlacesPage /></Suspense>} />
+        <Route path="settings" element={<Suspense fallback={<PageSkeleton layout="list" rows={3} />}><RiderSettingsPage /></Suspense>} />
+        <Route path="profile-v2" element={<Suspense fallback={<PageSkeleton layout="list" rows={3} />}><RiderProfileMigratedPage /></Suspense>} />
+        <Route path="go-v2" element={<Suspense fallback={<PageSkeleton layout="map" showHeader={false} />}><RiderGoMigrated /></Suspense>} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

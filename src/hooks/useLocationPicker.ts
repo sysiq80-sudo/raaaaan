@@ -1128,7 +1128,7 @@ export const useLocationPicker = (
             radius: 8,
             color: "#ffffff",
             weight: 2,
-            fillColor: "#5bdda6",
+            fillColor: "#3b82f6",
             fillOpacity: 0.9,
           }).addTo(osmMapRef.current);
         }
@@ -1139,9 +1139,9 @@ export const useLocationPicker = (
         } else {
           osmAccuracyCircleRef.current = L.circle([userLocation.lat, userLocation.lng], {
             radius: Math.max(10, Math.min(userAccuracy ?? 50, 200)),
-            color: "#5bdda6",
+            color: "#3b82f6",
             weight: 1,
-            fillColor: "#5bdda6",
+            fillColor: "#3b82f6",
             fillOpacity: 0.08,
           }).addTo(osmMapRef.current);
         }
@@ -1166,54 +1166,26 @@ export const useLocationPicker = (
       logger.debug("useLocationPicker", "Map panned to user location", userLocation);
     }
 
-    // 🟢 نقطة خضراء ديناميكية مع نبض مشع — تمثل الموقع الجغرافي الحقيقي (مثل النقطة الزرقاء في جوجل ماب)
-    // إضافة CSS للنبض إلى الصفحة مرة واحدة فقط
-    if (!document.getElementById('raan-user-dot-pulse-style')) {
-      const style = document.createElement('style');
-      style.id = 'raan-user-dot-pulse-style';
-      style.textContent = `
-        @keyframes raan-pulse-ring {
-          0%   { r: 8;  opacity: 0.6; }
-          70%  { r: 15; opacity: 0; }
-          100% { r: 15; opacity: 0; }
-        }
-        .raan-pulse-ring {
-          animation: raan-pulse-ring 2s ease-out infinite;
-          transform-origin: center;
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
-    const glowingGreenDotSvg = `
+    // 🔵 نقطة زرقاء ديناميكية ثابتة — تمثل الموقع الجغرافي الحقيقي (مثل النقطة الزرقاء الكلاسيكية في جوجل ماب)
+    const glowingBlueDotSvg = `
       <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
         <defs>
           <radialGradient id="userGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#10b981" stop-opacity="0.35" />
-            <stop offset="100%" stop-color="#10b981" stop-opacity="0" />
+            <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35" />
+            <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
           </radialGradient>
-          <style>
-            @keyframes pulse-ring {
-              0%   { r: 8;  opacity: 0.6; }
-              70%  { r: 18; opacity: 0; }
-              100% { r: 18; opacity: 0; }
-            }
-            .pulse { animation: pulse-ring 2s ease-out infinite; }
-          </style>
         </defs>
         <!-- Soft ambient glow -->
         <circle cx="22" cy="22" r="20" fill="url(#userGlow)" />
-        <!-- Pulsing ring — expanding outward -->
-        <circle class="pulse" cx="22" cy="22" r="8" fill="none" stroke="#10b981" stroke-width="2" opacity="0.6" />
-        <!-- Core dot — solid green with crisp white border -->
-        <circle cx="22" cy="22" r="7" fill="#10b981" stroke="#ffffff" stroke-width="2.5" />
+        <!-- Core dot — solid blue with crisp white border -->
+        <circle cx="22" cy="22" r="7" fill="#3b82f6" stroke="#ffffff" stroke-width="2.5" />
         <!-- Specular highlight for 3D look -->
         <circle cx="20" cy="20" r="2.5" fill="white" opacity="0.3" />
       </svg>
     `;
 
     const userPinMarkerIcon = {
-      url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(glowingGreenDotSvg),
+      url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(glowingBlueDotSvg),
       scaledSize: new google.maps.Size(44, 44),
       anchor: new google.maps.Point(22, 22),
     };
@@ -1232,11 +1204,11 @@ export const useLocationPicker = (
         title: 'موقعي الحالي',
         zIndex: 5,
         clickable: false,
-        optimized: false, // مطلوب لتشغيل CSS animations داخل الـ SVG
+        optimized: false,
       });
     }
 
-    // 🟢 دائرة دقة الموقع — نصف القطر يعكس دقة GPS الحقيقية
+    // 🔵 دائرة دقة الموقع — نصف القطر يعكس دقة GPS الحقيقية
     const accuracyRadius = Math.max(10, Math.min(userAccuracy ?? 50, 200)); // clamp 10–200 متر
     if (userAccuracyCircleRef.current) {
       userAccuracyCircleRef.current.setCenter({ lat: userLocation.lat, lng: userLocation.lng });
@@ -1244,10 +1216,10 @@ export const useLocationPicker = (
       userAccuracyCircleRef.current.setMap(map.current);
     } else {
       userAccuracyCircleRef.current = new google.maps.Circle({
-        strokeColor: '#5bdda6',
+        strokeColor: '#3b82f6',
         strokeOpacity: 0.25,
         strokeWeight: 1,
-        fillColor: '#5bdda6',
+        fillColor: '#3b82f6',
         fillOpacity: 0.06,
         map: map.current,
         center: { lat: userLocation.lat, lng: userLocation.lng },

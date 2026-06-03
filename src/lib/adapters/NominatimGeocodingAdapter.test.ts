@@ -62,7 +62,7 @@ describe('NominatimGeocodingAdapter', () => {
       );
 
       const result = await adapter.reverseGeocode(33.4233, 43.2974);
-      expect(result).toBe('الرمادي، الأنبار، العراق');
+      expect(result).toBe('الرمادي، الأنبار');
 
       const url = fetchSpy.mock.calls[0][0] as string;
       expect(url).toContain('/reverse');

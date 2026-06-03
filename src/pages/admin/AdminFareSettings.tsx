@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 interface FareSettings {
   service_fee_percentage: number;
   min_service_fee: number;
+  max_trip_distance_km: number;
   surge_pricing_enabled: boolean;
   max_surge_multiplier: number;
   subscription_discounts_enabled: boolean;
@@ -52,6 +53,7 @@ const AdminFareSettings = () => {
   const [fareSettings, setFareSettings] = useState<FareSettings>({
     service_fee_percentage: 5,
     min_service_fee: 500,
+    max_trip_distance_km: 2000,
     surge_pricing_enabled: true,
     max_surge_multiplier: 3.0,
     subscription_discounts_enabled: true,
@@ -145,6 +147,10 @@ const AdminFareSettings = () => {
   });
 
   const handleSave = () => {
+    if (!Number.isFinite(fareSettings.max_trip_distance_km) || fareSettings.max_trip_distance_km < 1) {
+      toast.error('الحد الأعلى لمسافة الرحلة يجب أن يكون 1 كم أو أكثر');
+      return;
+    }
     if (fareSettings.max_surge_multiplier > 2.0) {
       toast.error('الحد الأقصى لمعامل الزيادة لا يمكن أن يتجاوز 2.0');
       return;
@@ -419,7 +425,7 @@ const AdminFareSettings = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>نسبة رسوم الخدمة (%)</Label>
                 <Input
@@ -444,8 +450,24 @@ const AdminFareSettings = () => {
                   onChange={(e) => setFareSettings({ 
                     ...fareSettings, 
                     min_service_fee: parseInt(e.target.value) 
+                  })} 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>الحد الأعلى لمسافة الرحلة (كم)</Label>
+                <Input
+                  type="number"
+                  step="10"
+                  min="1"
+                  value={fareSettings.max_trip_distance_km}
+                  onChange={(e) => setFareSettings({
+                    ...fareSettings,
+                    max_trip_distance_km: parseFloat(e.target.value)
                   })}
                 />
+                <p className="text-xs text-muted-foreground">
+                  يتحكم في رفض حساب الأجرة للرحلات التي تتجاوز هذا الحد.
+                </p>
               </div>
             </div>
           </CardContent>

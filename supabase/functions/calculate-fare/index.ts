@@ -107,10 +107,37 @@ serve(async (req) => {
       );
     }
 
-    // التحقق من المسافة — الحد الأقصى 500 كم (عبر العراق كاملاً)، الحد الأدنى 0.1 كم
-    if (isNaN(distance_km) || distance_km < 0.1 || distance_km > 2000) {
+    const fallbackFareSettings = {
+      service_fee_percentage: 5,
+      min_service_fee: 500,
+      max_trip_distance_km: 2000,
+      surge_pricing_enabled: true,
+      max_surge_multiplier: 2.0,
+      subscription_discounts_enabled: true,
+      tier_discounts_enabled: true,
+    };
+
+    const { data: fareSettingsRow, error: fareSettingsError } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "fare_calculation")
+      .maybeSingle();
+
+    if (fareSettingsError) {
+      console.warn("[calculate-fare] Failed to load fare_calculation settings, using fallback:", fareSettingsError.message);
+    }
+
+    const fareSettings = fareSettingsRow?.value || fallbackFareSettings;
+    const configuredMaxTripDistanceKm = Number(fareSettings.max_trip_distance_km ?? fallbackFareSettings.max_trip_distance_km);
+    const maxTripDistanceKm = Number.isFinite(configuredMaxTripDistanceKm) && configuredMaxTripDistanceKm > 0
+      ? configuredMaxTripDistanceKm
+      : fallbackFareSettings.max_trip_distance_km;
+
+    // التحقق من المسافة — سياسة RAAN تسمح برحلة 0 كم كطلب حضور سائق.
+    // لا تزال الأجرة محمية بالحد الأدنى لنوع السيارة أدناه.
+    if (isNaN(distance_km) || distance_km < 0 || distance_km > maxTripDistanceKm) {
       return new Response(
-        JSON.stringify({ error: `المسافة غير صالحة — يجب أن تكون بين 0.1 و 2000 كم (استلمنا ${distance_km})` }),
+        JSON.stringify({ error: `المسافة غير صالحة — يجب أن تكون بين 0 و ${maxTripDistanceKm} كم (استلمنا ${distance_km})` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -128,7 +155,7 @@ serve(async (req) => {
     
     // For very short trips, U-turns and grid layouts can easily yield 5x-8x distance.
     const maxRatio = straightLineKm < 2.0 ? 10.0 : 6.0;
-    if (distance_km > straightLineKm * maxRatio) {
+    if (straightLineKm > 0.1 && distance_km > straightLineKm * maxRatio) {
       // المسافة أكثر من الحد المسموح — مبالغ فيها
       console.warn(`[calculate-fare] Exaggerated distance: client=${distance_km}km, straight=${straightLineKm.toFixed(2)}km, maxRatio=${maxRatio}`);
       return new Response(
@@ -147,12 +174,7 @@ serve(async (req) => {
     });
 
     // ⚡ تنفيذ الاستعلامات الثلاثة بالتوازي لتسريع حساب السعر
-    const [fareSettingsResult, vehicleTypeResult, regionsResult] = await Promise.all([
-      supabase
-        .from("app_settings")
-        .select("value")
-        .eq("key", "fare_calculation")
-        .single(),
+    const [vehicleTypeResult, regionsResult] = await Promise.all([
       supabase
         .from("vehicle_types")
         .select("multiplier, commission_rate, min_fare")
@@ -165,15 +187,6 @@ serve(async (req) => {
         .eq("is_active", true)
         .order("name_ar", { ascending: true }),
     ]);
-
-    const fareSettings = fareSettingsResult.data?.value || {
-      service_fee_percentage: 5,
-      min_service_fee: 500,
-      surge_pricing_enabled: true,
-      max_surge_multiplier: 2.0,
-      subscription_discounts_enabled: true,
-      tier_discounts_enabled: true,
-    };
 
     const vehicleMultiplier = vehicleTypeResult.data?.multiplier || 1.0;
     const vehicleMinFare = vehicleTypeResult.data?.min_fare || 2000;
@@ -384,6 +397,7 @@ serve(async (req) => {
       commission_bonus: commissionBonus,
       min_fare_applied: surgeAdjustedFare < vehicleMinFare,
       vehicle_min_fare: vehicleMinFare,
+      max_trip_distance_km: maxTripDistanceKm,
       fare_after_min: fareAfterMin,
       service_fee_percentage: serviceFeePercent,
       service_fee: serviceFee,

@@ -39,6 +39,9 @@ export const MAX_SURGE_MULTIPLIER = 2.0;
 /** سرعة المدينة الافتراضية لتقدير الوقت (كم/ساعة) */
 export const DEFAULT_CITY_SPEED_KMH = 30;
 
+/** الحد الأعلى الافتراضي لمسافة الرحلة، ويمكن تغييره من إعدادات الإدارة */
+export const DEFAULT_MAX_TRIP_DISTANCE_KM = 2000;
+
 /**
  * حساب الأجرة بناءً على المسافة والمعاملات
  * يُرجع تفاصيل الحساب كاملة
@@ -93,11 +96,17 @@ export function calculateFare(params: FareParams): FareResult {
 /**
  * التحقق من صحة المسافة
  */
-export function validateDistance(distanceKm: number): { valid: boolean; error?: string } {
+export function validateDistance(
+  distanceKm: number,
+  maxDistanceKm: number = DEFAULT_MAX_TRIP_DISTANCE_KM,
+): { valid: boolean; error?: string } {
   if (!isFinite(distanceKm) || isNaN(distanceKm) || distanceKm < 0) {
     return { valid: false, error: 'المسافة غير صحيحة' };
   }
-  if (distanceKm > 500) {
+  const effectiveMaxDistance = Number.isFinite(maxDistanceKm) && maxDistanceKm > 0
+    ? maxDistanceKm
+    : DEFAULT_MAX_TRIP_DISTANCE_KM;
+  if (distanceKm > effectiveMaxDistance) {
     return { valid: false, error: 'المسافة غير صحيحة' };
   }
   return { valid: true };

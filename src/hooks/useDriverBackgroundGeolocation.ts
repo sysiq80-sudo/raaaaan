@@ -177,7 +177,9 @@ export function useDriverBackgroundGeolocation(): void {
     let cancelled = false;
 
     BackgroundGeolocation.ready({
-      transistorAuthorizationToken: import.meta.env.VITE_TRANSISTOR_BG_GEO_TOKEN,
+      license: (import.meta.env.VITE_BG_GEO_LICENSE || undefined) as any,
+      transistorAuthorizationToken: (import.meta.env.VITE_TRANSISTOR_BG_GEO_TOKEN || undefined) as any,
+      reset: true,
       geolocation: {
         desiredAccuracy: BackgroundGeolocation.DesiredAccuracy.High,
         distanceFilter: 30, // تحديث الفلتر ليكون 30 متر لتوفير البطارية وتقليل التحديثات غير الضرورية

@@ -135,6 +135,17 @@ export const useRiderData = () => {
         // ═══ Capacitor Native ═══
         const { Geolocation } = await import('@capacitor/geolocation');
         
+        // طلب الصلاحيات أولاً لضمان إتاحة التتبع الجغرافي داخل الويب فيو
+        const checkPerm = await Geolocation.checkPermissions();
+        if (checkPerm.location !== 'granted' && checkPerm.coarseLocation !== 'granted') {
+          const reqPerm = await Geolocation.requestPermissions();
+          if (reqPerm.location !== 'granted' && reqPerm.coarseLocation !== 'granted') {
+            throw new Error("PERMISSION_DENIED");
+          }
+        }
+
+        if (!mounted) return;
+        
         // 1️⃣ طلب سريع بدقة منخفضة — يظهر النقطة فوراً
         const quickPos = await Geolocation.getCurrentPosition({
           enableHighAccuracy: false,
