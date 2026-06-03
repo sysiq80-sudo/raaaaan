@@ -1385,17 +1385,6 @@ export const ActiveRideCard = ({
 
               <div className="relative z-10 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  {/* Avatar with Status Ring */}
-                  <div className="relative">
-                    <div className={`w-14 h-14 rounded-full flex items-center justify-center border-2 ${activeRide.status === "accepted" ? "border-blue-500 bg-blue-500/20 text-blue-300" : activeRide.status === "arrived" ? "border-amber-500 bg-amber-500/20 text-amber-300" : "border-cyan-500 bg-cyan-500/20 text-cyan-300"} shadow-[0_0_15px_rgba(0,0,0,0.5)]`}>
-                      <User className="w-6 h-6" />
-                    </div>
-                    <div className="absolute -bottom-1 -right-1 bg-amber-400 text-amber-950 text-[10px] font-black px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 shadow-md border border-amber-300">
-                      <Star className="w-2.5 h-2.5 fill-amber-950" />
-                      {typeof riderInfo?.rating === "number" ? riderInfo.rating.toFixed(1) : "—"}
-                    </div>
-                  </div>
-
                   {/* Info */}
                   <div className="flex flex-col">
                     <span className="font-extrabold text-white text-lg tracking-tight font-cairo">{riderInfo?.full_name || "العميل"}</span>
