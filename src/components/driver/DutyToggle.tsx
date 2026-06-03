@@ -46,6 +46,7 @@ const DutyToggle = ({
 }: DutyToggleProps) => {
   const [pressing, setPressing] = useState(false);
   const [clickCount, setClickCount] = useState(0);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const isDisabled = isLoading || driverStatus !== "approved";
   const isApproved = driverStatus === "approved";
@@ -58,14 +59,30 @@ const DutyToggle = ({
     // تهيئة AudioContext عند أول تفاعل مستخدم (Go Online)
     initAudioContext();
     resumeAudioContext();
-    // Haptic feedback
-    if (navigator.vibrate) navigator.vibrate(isOnline ? [100] : [50, 50, 150]);
+
+    if (isOnline) {
+      // إظهار نافذة تأكيد قبل قطع الاتصال
+      setShowConfirm(true);
+    } else {
+      // Haptic feedback للاتصال المباشر
+      if (navigator.vibrate) navigator.vibrate([50, 50, 150]);
+      performToggle();
+    }
+  };
+
+  const performToggle = async () => {
     setPressing(true);
     try {
       await onToggle(!isOnline);
     } finally {
       setPressing(false);
     }
+  };
+
+  const handleConfirmOffline = () => {
+    setShowConfirm(false);
+    if (navigator.vibrate) navigator.vibrate([100]);
+    performToggle();
   };
 
 
@@ -131,6 +148,61 @@ const DutyToggle = ({
           </span>
         </motion.div>
       )}
+
+      {/* نافذة تأكيد قطع الاتصال */}
+      <AnimatePresence>
+        {showConfirm && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowConfirm(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            
+            {/* Content Card */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", duration: 0.4 }}
+              className="relative w-full max-w-sm overflow-hidden rounded-[24px] border border-white/10 bg-gradient-to-b from-[#181d2a] to-[#0f131e] p-6 shadow-2xl z-10"
+              style={{ fontFamily: "Cairo, sans-serif" }}
+            >
+              {/* Decorative background glow */}
+              <div className="absolute -top-12 -right-12 w-24 h-24 rounded-full bg-rose-500/10 blur-xl pointer-events-none" />
+
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mb-4">
+                  <Power className="w-6 h-6 text-rose-400" />
+                </div>
+                
+                <h3 className="text-lg font-black text-white mb-2">تأكيد قطع الاتصال</h3>
+                <p className="text-xs text-slate-400 leading-relaxed mb-6">
+                  هل أنت متأكد من رغبتك في قطع الاتصال؟ لن تتمكن من استقبال طلبات رحلات جديدة حتى تقوم بإعادة الاتصال بالشبكة.
+                </p>
+                
+                <div className="flex flex-col gap-2 w-full">
+                  <button
+                    onClick={handleConfirmOffline}
+                    className="w-full h-11 flex items-center justify-center rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm transition-colors"
+                  >
+                    تأكيد قطع الاتصال
+                  </button>
+                  <button
+                    onClick={() => setShowConfirm(false)}
+                    className="w-full h-11 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 font-bold text-sm transition-colors"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
