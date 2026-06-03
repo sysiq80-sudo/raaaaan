@@ -1516,7 +1516,7 @@ const AIVoiceHome: React.FC = () => {
                 style={{ overflow: 'hidden' }}
               >
                 <div className="pt-1 pb-4 border-t border-[#5bdda6]/10">
-                  <div className="flex gap-3 justify-start overflow-x-auto no-scrollbar pb-1 px-4" dir="rtl">
+                  <div className="flex gap-3 justify-center overflow-x-auto no-scrollbar pb-1 px-4" dir="rtl">
                     {normalizedFavorites.map((fav) => (
                       <motion.button
                         key={fav.id}
