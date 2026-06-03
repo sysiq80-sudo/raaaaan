@@ -377,28 +377,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
           animation: google.maps.Animation.DROP,
         });
 
-        // Pulsing glow circle around pickup
-        pickupPulseRef.current = new google.maps.Circle({
-          center: pos,
-          radius: 40,
-          map: map.current,
-          fillColor: '#3b82f6',
-          fillOpacity: 0.15,
-          strokeColor: '#3b82f6',
-          strokeOpacity: 0.4,
-          strokeWeight: 1.5,
-          clickable: false,
-          zIndex: 12,
-        });
-        let pulseRadius = 40;
-        pickupPulseAnimRef.current = setInterval(() => {
-          if (!pickupPulseRef.current?.getMap()) { if (pickupPulseAnimRef.current) clearInterval(pickupPulseAnimRef.current); return; }
-          pulseRadius += 4;
-          if (pulseRadius > 250) pulseRadius = 40;
-          const opacity = 0.18 * (1 - (pulseRadius - 40) / 210);
-          pickupPulseRef.current.setRadius(pulseRadius);
-          pickupPulseRef.current.setOptions({ fillOpacity: Math.max(opacity, 0), strokeOpacity: Math.max(opacity * 2.5, 0) });
-        }, 35);
+
 
         // Draw a dashed line from driver to pickup
         if (driverLocation) {
@@ -474,28 +453,7 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
           animation: google.maps.Animation.DROP,
         });
 
-        // Pulsing glow circle around dropoff
-        dropoffPulseRef.current = new google.maps.Circle({
-          center: pos,
-          radius: 40,
-          map: map.current,
-          fillColor: '#5bdda6',
-          fillOpacity: 0.15,
-          strokeColor: '#5bdda6',
-          strokeOpacity: 0.4,
-          strokeWeight: 1.5,
-          clickable: false,
-          zIndex: 12,
-        });
-        let dpRadius = 40;
-        dropoffPulseAnimRef.current = setInterval(() => {
-          if (!dropoffPulseRef.current?.getMap()) { if (dropoffPulseAnimRef.current) clearInterval(dropoffPulseAnimRef.current); return; }
-          dpRadius += 4;
-          if (dpRadius > 250) dpRadius = 40;
-          const opacity = 0.18 * (1 - (dpRadius - 40) / 210);
-          dropoffPulseRef.current.setRadius(dpRadius);
-          dropoffPulseRef.current.setOptions({ fillOpacity: Math.max(opacity, 0), strokeOpacity: Math.max(opacity * 2.5, 0) });
-        }, 35);
+
       } else {
         dropoffMarkerRef.current.setPosition(pos);
       }
@@ -562,73 +520,21 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
         icon: drawCarIcon(heading),
         zIndex: 10,
       });
-
-      addPulseCircles(location);
     } catch (err) {
       console.error("DriverMap: addDriverMarker error", err);
     }
   };
 
   const addPulseCircles = (location: { lat: number; lng: number }) => {
-    if (!map.current || !window.google?.maps) return;
-    removePulseCircles();
-
-    const center = new google.maps.LatLng(location.lat, location.lng);
-    const innerCircle = new google.maps.Circle({
-      center,
-      radius: 60,
-      map: map.current,
-      fillColor: "#5bdda6",
-      fillOpacity: 0.18,
-      strokeColor: "#5bdda6",
-      strokeOpacity: 0.4,
-      strokeWeight: 1,
-      clickable: false,
-      zIndex: 5,
-    });
-    const outerCircle = new google.maps.Circle({
-      center,
-      radius: 60,
-      map: map.current,
-      fillColor: "#5bdda6",
-      fillOpacity: 0.12,
-      strokeColor: "#5bdda6",
-      strokeOpacity: 0.3,
-      strokeWeight: 1,
-      clickable: false,
-      zIndex: 4,
-    });
-    pulseCircles.current = [innerCircle, outerCircle];
-
-    const minRadius = 60;
-    const maxRadius = 600;
-    const step = 6;
-    const animInterval = setInterval(() => {
-      if (!outerCircle.getMap()) { clearInterval(animInterval); return; }
-      let r = outerCircle.getRadius();
-      r += step;
-      if (r >= maxRadius) r = minRadius;
-      const opacity = 0.15 * (1 - (r - minRadius) / (maxRadius - minRadius));
-      outerCircle.setRadius(r);
-      outerCircle.setOptions({ fillOpacity: Math.max(opacity, 0), strokeOpacity: Math.max(opacity * 2, 0) });
-    }, 40);
-
-    // تخزين interval للتنظيف
-    (outerCircle as unknown as { _pulseInterval: ReturnType<typeof setInterval> })._pulseInterval = animInterval;
+    // Disabled to remove pulsing rings around the car marker
   };
 
   const removePulseCircles = () => {
-    pulseCircles.current.forEach(c => {
-      const circ = c as unknown as { _pulseInterval?: ReturnType<typeof setInterval> };
-      if (circ._pulseInterval) clearInterval(circ._pulseInterval);
-      c.setMap(null);
-    });
-    pulseCircles.current = [];
+    // Disabled
   };
 
   const updatePulseCirclesPosition = (location: { lat: number; lng: number }) => {
-    const center = new google.maps.LatLng(location.lat, location.lng);
-    pulseCircles.current.forEach(c => c.setCenter(center));
+    // Disabled
   };
 
   const handleCenterOnDriver = () => {
@@ -716,12 +622,12 @@ export const DriverMap = ({ driverLocation, isOnline, onLocationUpdate, hasActiv
 
         {/* My Location */}
         <button
-          className="w-12 h-12 flex items-center justify-center rounded-full border-none outline-none ring-0 shadow-[0_0_15px_rgba(0,0,0,0.3)] transition-all bg-black/80 hover:bg-black/90 backdrop-blur group disabled:opacity-40"
+          className="w-12 h-12 flex items-center justify-center rounded-full border border-[#5bdda6]/30 outline-none ring-0 shadow-[0_0_20px_rgba(91,221,166,0.5)] transition-all bg-[#5bdda6] hover:bg-[#34d399] group disabled:opacity-40"
           onClick={handleCenterOnDriver}
           disabled={!driverLocation}
           title="موقعي"
         >
-          <MapPin className="w-6 h-6 text-[#5bdda6] group-hover:scale-110 transition-transform" />
+          <MapPin className="w-6 h-6 text-slate-950 group-hover:scale-110 transition-transform" />
         </button>
       </div>
     </div>

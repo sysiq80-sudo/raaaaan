@@ -65,10 +65,9 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
 
   return (
     <div className="flex flex-col items-center gap-2 shrink-0 pointer-events-auto">
-      {/* زر إخفاء وإظهار التفاصيل */}
       <button
         onClick={() => setIsVisible(!isVisible)}
-        className="w-11 h-11 flex items-center justify-center rounded-full border border-slate-700/30 outline-none ring-0 shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all bg-[#0d1729]/95 hover:bg-[#152238] backdrop-blur group shrink-0 pointer-events-auto"
+        className="w-11 h-11 flex items-center justify-center rounded-full border border-[#5bdda6]/30 outline-none ring-0 shadow-[0_0_20px_rgba(91,221,166,0.5)] transition-all bg-[#5bdda6] hover:bg-[#34d399] group shrink-0 pointer-events-auto"
         aria-label={isVisible ? "إخفاء الإحصائيات" : "إظهار الإحصائيات"}
       >
         <motion.div
@@ -76,9 +75,9 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
           transition={{ duration: 0.3 }}
         >
           {isVisible ? (
-            <EyeOff className="w-5 h-5 text-slate-300 group-hover:scale-110 transition-transform" />
+            <EyeOff className="w-5 h-5 text-slate-950 group-hover:scale-110 transition-transform" />
           ) : (
-            <Eye className="w-5 h-5 text-[#5bdda6] group-hover:scale-110 transition-transform" />
+            <Eye className="w-5 h-5 text-slate-950 group-hover:scale-110 transition-transform" />
           )}
         </motion.div>
       </button>

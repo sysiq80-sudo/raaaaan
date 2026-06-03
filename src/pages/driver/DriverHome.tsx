@@ -1252,13 +1252,13 @@ const DriverHome = () => {
           {/* ═══ Menu Button — Right side ═══ */}
           <button
             onClick={() => { setMenuOpen(!menuOpen); setNotificationsOpen(false); setRewardsOpen(false); }}
-            className="relative bg-white/5 border border-white/10 hover:bg-white/10 p-2.5 rounded-xl active:scale-95 transition-all z-10 outline-none focus:outline-none select-none tap-highlight-transparent shadow-lg backdrop-blur-md"
+            className="relative bg-[#5bdda6] border border-[#5bdda6]/30 hover:bg-[#34d399] p-2.5 rounded-xl active:scale-95 transition-all z-10 outline-none focus:outline-none select-none tap-highlight-transparent shadow-[0_0_20px_rgba(91,221,166,0.5)]"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             {menuOpen ? (
-              <X className="w-5 h-5 text-cyan-50" />
+              <X className="w-5 h-5 text-slate-950" />
             ) : (
-              <Menu className="w-5 h-5 text-cyan-50" />
+              <Menu className="w-5 h-5 text-slate-950" />
             )}
           </button>
         </div>
@@ -1302,16 +1302,7 @@ const DriverHome = () => {
               {/* ✅ مؤشر حالة الشبكة فوق الخريطة */}
               <MapNetworkOverlay />
 
-              {/* Cinematic Vignette Overlay */}
-              <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_150px_rgba(10,15,28,0.9)] z-10" />
 
-              {hasActiveRide ? (
-                /* تأثير التدرج فوق الخريطة أثناء الرحلة (Deep Navy Tone) */
-                <div className="absolute inset-0 pointer-events-none z-10" style={{ background: 'radial-gradient(circle at center, transparent 10%, rgba(10,15,28,0.85) 90%)' }} />
-              ) : (
-                /* تأثيرات محيطية فوق الخريطة عند الانتظار */
-                <div className="absolute inset-0 pointer-events-none bg-black/10 z-10" />
-              )}
               {/* خريطة مناطق الطلب الحرارية */}
               <DemandHeatMap isOnline={isOnline} />
             </div>

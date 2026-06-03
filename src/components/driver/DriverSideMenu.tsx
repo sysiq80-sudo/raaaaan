@@ -162,11 +162,11 @@ const DriverSideMenu = ({
               {/* زر الإغلاق (مدمج في نهاية الصف المعاكس للبروفايل) */}
               <button
                 onClick={onClose}
-                className="w-10 h-10 rounded-full bg-[#2d3449]/40 flex-shrink-0 flex items-center justify-center active:scale-90 transition-all hover:bg-[#3d4a5d] outline-none focus:outline-none select-none tap-highlight-transparent"
+                className="w-10 h-10 rounded-full bg-red-500/20 border border-red-500/35 flex-shrink-0 flex items-center justify-center active:scale-90 transition-all hover:bg-red-500/30 text-red-400 outline-none focus:outline-none select-none tap-highlight-transparent"
                 aria-label="إغلاق القائمة"
                 style={{ WebkitTapHighlightColor: 'transparent' }}
               >
-                <X className="w-5 h-5 text-white/90" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
