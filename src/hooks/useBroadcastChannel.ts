@@ -76,14 +76,6 @@ export const useBroadcastChannel = ({
         playSound("accepted");
         vibrate(VibrationPatterns.accepted);
 
-        toast({
-          title: "🎉 تم قبول طلبك!",
-          description: typeof eventPayload?.driverName === "string"
-            ? `${eventPayload.driverName} في الطريق إليك`
-            : "السائق في الطريق إليك الآن",
-          duration: 8000,
-        });
-
         showNotification(
           "🎉 تم قبول طلبك!",
           "السائق في الطريق إليك - انتظره في موقع الانطلاق",
@@ -96,12 +88,6 @@ export const useBroadcastChannel = ({
         playSound("arrived");
         vibrate(VibrationPatterns.arrived);
         setShowArrivedAlert(true);
-
-        toast({
-          title: "🔔 السائق وصل!",
-          description: "اخرج الآن - السائق في انتظارك",
-          duration: 15000,
-        });
 
         showNotification(
           "🔔 السائق وصل!",
@@ -120,12 +106,6 @@ export const useBroadcastChannel = ({
         });
         playSound("inProgress");
         vibrate(VibrationPatterns.inProgress);
-
-        toast({
-          title: "🛣️ انطلقت الرحلة!",
-          description: "أنت في الطريق للوجهة - رحلة موفقة",
-          duration: 5000,
-        });
       })
       .on("broadcast", { event: "ride_completed" }, (payload: Record<string, unknown>) => {
         console.log("[Broadcast] ⚡ ride_completed received");
@@ -138,11 +118,6 @@ export const useBroadcastChannel = ({
           completedNotifiedRef.current = true;
           playSound("completed");
           vibrate(VibrationPatterns.completed);
-          toast({
-            title: "✅ تم إكمال الرحلة!",
-            description: "الحمد لله على السلامة 🤲",
-            duration: 8000,
-          });
         }
         // ✅ useActiveRide يتولى عرض شاشة التقييم عبر الـ Realtime الخاص به
       })
@@ -264,33 +239,18 @@ export const useBroadcastChannel = ({
             if (newStatus === "accepted" && prevStatus === "pending") {
               playSound("accepted");
               vibrate(VibrationPatterns.accepted);
-              toast({
-                title: "🎉 تم قبول طلبك!",
-                description: "السائق في الطريق إليك الآن",
-                duration: 8000,
-              });
             }
 
             if (newStatus === "arrived" && prevStatus !== "arrived") {
               playSound("arrived");
               vibrate(VibrationPatterns.arrived);
               setShowArrivedAlert(true);
-              toast({
-                title: "🔔 السائق وصل!",
-                description: "اخرج الآن - السائق في انتظارك",
-                duration: 15000,
-              });
               setTimeout(() => setShowArrivedAlert(false), 15000);
             }
 
             if (newStatus === "in_progress" && prevStatus !== "in_progress") {
               playSound("inProgress");
               vibrate(VibrationPatterns.inProgress);
-              toast({
-                title: "🛣️ انطلقت الرحلة!",
-                description: "أنت في الطريق للوجهة - رحلة موفقة",
-                duration: 5000,
-              });
             }
 
             if (newStatus === "completed") {
@@ -298,11 +258,6 @@ export const useBroadcastChannel = ({
                 completedNotifiedRef.current = true;
                 playSound("completed");
                 vibrate(VibrationPatterns.completed);
-                toast({
-                  title: "✅ تم إكمال الرحلة!",
-                  description: "الحمد لله على السلامة 🤲",
-                  duration: 8000,
-                });
               }
               // ✅ useActiveRide يتولى عرض شاشة التقييم عبر الـ Realtime الخاص به
             }

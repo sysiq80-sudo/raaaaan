@@ -164,12 +164,6 @@ export const useActiveRide = (userId: string | null) => {
         playSound("accepted");
         vibrate(VibrationPatterns.accepted);
 
-        toast({
-          title: "🎉 تم قبول طلبك!",
-          description: "السائق في الطريق إليك الآن",
-          duration: 8000,
-        });
-
         // Switch screens immediately
         setShowWaitingScreen(false);
         setShowLiveTracker(true);
@@ -181,24 +175,12 @@ export const useActiveRide = (userId: string | null) => {
         playSound("arrived");
         vibrate(VibrationPatterns.arrived);
 
-        toast({
-          title: "🔔 السائق وصل!",
-          description: "اخرج الآن - السائق في انتظارك",
-          duration: 10000,
-        });
-
       }
 
       // Handle in_progress status
       if (newStatus === "in_progress" && previousStatus !== "in_progress") {
         playSound("inProgress");
         vibrate(VibrationPatterns.inProgress);
-
-        toast({
-          title: "🛣️ انطلقت الرحلة!",
-          description: "أنت في الطريق للوجهة - رحلة موفقة",
-          duration: 5000,
-        });
       }
 
       // Update ride state
