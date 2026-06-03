@@ -34,7 +34,8 @@ const RootLayout: React.FC<RootLayoutProps> = ({
 }) => {
   return (
     <div
-      className={`flex flex-col h-[100dvh] w-full overflow-hidden bg-background ${className}`.trim()}
+      className={`flex flex-col h-[100dvh] w-full sm:max-w-[480px] sm:mx-auto sm:shadow-[0_0_60px_rgba(0,0,0,0.6)] sm:border-x sm:border-slate-800/80 relative overflow-hidden bg-background ${className}`.trim()}
+      style={{ transform: "translate3d(0, 0, 0)" }}
       dir={dir ?? "rtl"}
     >
       <main
