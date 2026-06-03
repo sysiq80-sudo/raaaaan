@@ -1147,7 +1147,7 @@ const DriverHome = () => {
 
   if (!user) {
     return (
-      <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col items-center justify-center font-sans" dir="rtl">
+      <div className="h-screen w-full overflow-hidden bg-[#0a0f1c] flex flex-col items-center justify-center font-sans" dir="rtl">
         <div className="flex flex-col items-center gap-6 px-8 w-full max-w-sm">
           <div className="w-20 h-20 bg-[#111827] rounded-2xl flex items-center justify-center border border-slate-800/80 shadow-lg">
             <img src={logo} alt="RAAN" className="w-12 h-12" />
@@ -1176,7 +1176,7 @@ const DriverHome = () => {
   // Show registration prompt if user is not registered as driver
   if (user && isDriverRegistered === false) {
     return (
-      <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col items-center justify-center font-sans" dir="rtl">
+      <div className="h-screen w-full overflow-hidden bg-[#0a0f1c] flex flex-col items-center justify-center font-sans" dir="rtl">
         <div className="flex flex-col items-center gap-6 px-8 w-full max-w-sm">
           {/* Icon */}
           <div className="w-24 h-24 bg-[#111827] rounded-3xl flex items-center justify-center border border-emerald-500/20 shadow-[0_0_30px_rgba(52,211,153,0.1)]">
@@ -1232,7 +1232,7 @@ const DriverHome = () => {
 
   return (
     <div 
-      className="h-[100dvh] w-screen bg-[#0a0f1c] flex flex-col overflow-hidden font-sans relative" 
+      className="h-[100dvh] w-full bg-[#0a0f1c] flex flex-col overflow-hidden font-sans relative" 
       dir="rtl"
     >
       {/* ═══ Header — Futuristic Glassmorphism ═══ */}

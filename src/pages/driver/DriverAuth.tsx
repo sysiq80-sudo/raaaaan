@@ -301,7 +301,7 @@ const DriverAuth = () => {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" dir="rtl">
+    <div className="h-screen w-full sm:max-w-[480px] sm:mx-auto sm:shadow-[0_0_60px_rgba(0,0,0,0.6)] sm:border-x sm:border-slate-800/80 relative overflow-hidden bg-[#0a0f1c] flex flex-col font-sans" style={{ transform: "translate3d(0, 0, 0)" }} dir="rtl">
       <div className="flex-1 overflow-y-auto w-full max-w-md mx-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex flex-col min-h-full px-6 pt-[8vh] pb-8">
             
