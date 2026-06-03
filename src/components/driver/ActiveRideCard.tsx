@@ -1385,13 +1385,27 @@ export const ActiveRideCard = ({
                 <div className="flex items-center gap-2 bg-[#0a0f1c]/60 p-2 rounded-[20px] border border-cyan-500/20 backdrop-blur-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
                   <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${activeRide.status === "accepted" ? activeRide.pickup_location.lat : activeRide.dropoff_location.lat},${activeRide.status === "accepted" ? activeRide.pickup_location.lng : activeRide.dropoff_location.lng}&travelmode=driving`, "_blank")}
                     className="h-12 px-4 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 transition-all active:scale-95 border border-white/5">
-                    <span className="text-lg">🗺️</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" className="w-5 h-5">
+                      <circle cx="12" cy="12" r="11" fill="#ffffff" stroke="#e0e0e0" strokeWidth="1"/>
+                      <path d="M12 4.5c-2.8 0-5 2.2-5 5 0 3.8 5 9.5 5 9.5s5-5.7 5-9.5c0-2.8-2.2-5-5-5z" fill="#1a73e8"/>
+                      <path d="M12 4.5c-2.8 0-5 2.2-5 5 0 .9.3 1.8.8 2.6L12 9.5z" fill="#ea4335"/>
+                      <path d="M12 19s-5-5.7-5-9.5c0-.9.3-1.8.8-2.6L12 12.5z" fill="#f9ab00"/>
+                      <path d="M12 12.5l4.2-5.6c.5.8.8 1.7.8 2.6 0 3.8-5 9.5-5 9.5z" fill="#34a853"/>
+                      <circle cx="12" cy="9.5" r="1.8" fill="#ffffff"/>
+                    </svg>
                     <span className="text-xs font-bold text-slate-200">Google Maps</span>
                   </button>
                   <div className="w-[1px] h-6 bg-white/10" />
                   <button onClick={() => window.open(`https://waze.com/ul?ll=${activeRide.status === "accepted" ? activeRide.pickup_location.lat : activeRide.dropoff_location.lat},${activeRide.status === "accepted" ? activeRide.pickup_location.lng : activeRide.dropoff_location.lng}&navigate=yes`, "_blank")}
                     className="h-12 px-4 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 transition-all active:scale-95 border border-white/5">
-                    <span className="text-lg">🚗</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" className="w-5 h-5">
+                      <path fill="#33cdff" stroke="#33cdff" d="M19.1 11.6c.1-.4.1-.8.1-1.2 0-4.6-3.8-8.4-8.4-8.4S2.4 5.8 2.4 10.4s3.8 8.4 8.4 8.4c1.1 0 2.2-.2 3.2-.6.9-.4 2.2.4 2.9.7.5.2 1 .3 1.5.1.7-.3 1.2-1 1.2-1.8 0-.5-.2-1-.5-1.3-.2-.1-.3-.2-.5-.3z"/>
+                      <circle cx="8" cy="11" r="1.5" fill="#000"/>
+                      <circle cx="14" cy="11" r="1.5" fill="#000"/>
+                      <path d="M10 14.5c.8.6 1.8.6 2.6 0" stroke="#000" strokeWidth="1.5" strokeLinecap="round"/>
+                      <circle cx="8" cy="19.5" r="2" fill="#333" stroke="#fff" strokeWidth="1"/>
+                      <circle cx="14" cy="19.5" r="2" fill="#333" stroke="#fff" strokeWidth="1"/>
+                    </svg>
                     <span className="text-xs font-bold text-slate-200">Waze</span>
                   </button>
                 </div>
@@ -1511,8 +1525,8 @@ export const ActiveRideCard = ({
           </div>
 
           {/* 4. Primary CTA Button */}
-          <div className="shrink-0 w-full pointer-events-auto bg-[#163d30] border-t border-[#34d399]/10 relative z-[10]" style={{ paddingBottom: 'var(--safe-area-bottom, 0px)' }}>
-            <div className="flex items-stretch h-[58px]">
+          <div className="shrink-0 w-full pointer-events-auto bg-[#163d30] border-t border-[#34d399]/10 relative z-[10]">
+            <div className="flex items-stretch">
               {activeRide.status === "accepted" && (
                 <motion.div
                   animate={isNearPickup ? { boxShadow: ["0 0 0px 0px rgba(91,221,166,0)", "0 0 25px 5px rgba(91,221,166,0.4)", "0 0 0px 0px rgba(91,221,166,0)"] } : {}}
@@ -1520,19 +1534,14 @@ export const ActiveRideCard = ({
                   className="flex-1 h-full rounded-none overflow-hidden"
                 >
                   <button
-                    className="relative overflow-hidden w-full h-full text-[15px] font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
+                    className="relative overflow-hidden w-full h-full text-[18px] font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98] bg-[#5bdda6] hover:bg-[#34d399]"
                     onClick={handleArrived} disabled={loading}
-                    style={{ fontFamily: "Cairo, sans-serif" }}
+                    style={{
+                      fontFamily: "Cairo, sans-serif",
+                      paddingTop: "26px",
+                      paddingBottom: "calc(26px + var(--safe-area-bottom, 0px))"
+                    }}
                   >
-                    <motion.div className="absolute inset-0"
-                      style={{ backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)", backgroundSize: "200% 100%" }}
-                      animate={{ backgroundPosition: ["200% 0%", "0% 0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                    />
-                    <motion.div className="absolute inset-y-0 w-16 bg-white/40 blur-[5px]"
-                      style={{ transform: "skewX(-25deg)", bottom: "-20px", top: "-20px" }}
-                      initial={{ left: "-40%" }} animate={{ left: "140%" }}
-                      transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
-                    />
                     <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
                       {loading ? <Loader2 className="w-5 h-5 animate-spin text-emerald-950" /> : (
                         <div className="flex items-center justify-center gap-2 text-emerald-950">
@@ -1551,19 +1560,14 @@ export const ActiveRideCard = ({
                   className="flex-1 h-full rounded-none overflow-hidden"
                 >
                   <button
-                    className="relative overflow-hidden w-full h-full text-[15px] font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
+                    className="relative overflow-hidden w-full h-full text-[18px] font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98] bg-[#5bdda6] hover:bg-[#34d399]"
                     onClick={handleStartRide} disabled={loading}
-                    style={{ fontFamily: "Cairo, sans-serif" }}
+                    style={{
+                      fontFamily: "Cairo, sans-serif",
+                      paddingTop: "26px",
+                      paddingBottom: "calc(26px + var(--safe-area-bottom, 0px))"
+                    }}
                   >
-                    <motion.div className="absolute inset-0"
-                      style={{ backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)", backgroundSize: "200% 100%" }}
-                      animate={{ backgroundPosition: ["200% 0%", "0% 0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                    />
-                    <motion.div className="absolute inset-y-0 w-16 bg-white/40 blur-[5px]"
-                      style={{ transform: "skewX(-25deg)", bottom: "-20px", top: "-20px" }}
-                      initial={{ left: "-40%" }} animate={{ left: "140%" }}
-                      transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
-                    />
                     <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
                       {loading ? <Loader2 className="w-5 h-5 animate-spin text-emerald-950" /> : (
                         <div className="flex items-center justify-center gap-2 text-emerald-950">
@@ -1582,19 +1586,14 @@ export const ActiveRideCard = ({
                   className="flex-1 h-full rounded-none overflow-hidden"
                 >
                   <button
-                    className="relative overflow-hidden w-full h-full text-[15px] font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98]"
+                    className="relative overflow-hidden w-full h-full text-[18px] font-black text-emerald-950 rounded-none border-none transition-all active:scale-[0.98] bg-[#5bdda6] hover:bg-[#34d399]"
                     onClick={handleCompleteRide} disabled={loading}
-                    style={{ fontFamily: "Cairo, sans-serif" }}
+                    style={{
+                      fontFamily: "Cairo, sans-serif",
+                      paddingTop: "26px",
+                      paddingBottom: "calc(26px + var(--safe-area-bottom, 0px))"
+                    }}
                   >
-                    <motion.div className="absolute inset-0"
-                      style={{ backgroundImage: "linear-gradient(90deg, #3eba89 0%, #5bdda6 50%, #3eba89 100%)", backgroundSize: "200% 100%" }}
-                      animate={{ backgroundPosition: ["200% 0%", "0% 0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                    />
-                    <motion.div className="absolute inset-y-0 w-16 bg-white/40 blur-[5px]"
-                      style={{ transform: "skewX(-25deg)", bottom: "-20px", top: "-20px" }}
-                      initial={{ left: "-40%" }} animate={{ left: "140%" }}
-                      transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.5 }}
-                    />
                     <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
                       {loading ? <Loader2 className="w-5 h-5 animate-spin text-emerald-950" /> : (
                         <div className="flex items-center justify-center gap-2 text-emerald-950">
