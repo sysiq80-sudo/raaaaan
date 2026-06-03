@@ -1302,15 +1302,6 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     setCurrentMode("pickup");
 
     restorePickerMap();
-
-    // إظهار toast بعد تأخير قصير
-    setTimeout(() => {
-      toast({
-        title: "جاهز لرحلة جديدة",
-        description: "يمكنك الآن طلب رحلة جديدة",
-      });
-    }, 300);
-    
   }, [toast, restorePickerMap, cleanupBooking, setIsBooking]);
 
   // الانتقال لتعديل نقطة الانطلاق/الوجهة من شاشة الحجز بدون إعادة العملية من الصفر

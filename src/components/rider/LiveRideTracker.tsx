@@ -863,12 +863,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
         playSound("driverApproaching");
         vibrate(VibrationPatterns.driverApproaching);
 
-        toast({
-          title: "🚗 السائق اقترب جداً!",
-          description: "السائق على بعد أقل من 100 متر - اخرج الآن!",
-          duration: 10000,
-        });
-
         showNotification(
           "🚗 السائق يقترب!",
           "السائق على بعد أقل من 100 متر من موقعك - اخرج الآن!",
@@ -924,12 +918,6 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
       playSound("arrived");
       vibrate([200, 100, 200]);
-
-      toast({
-        title: "📍 اقتربت من الوجهة!",
-        description: "ستصل خلال دقيقتين تقريباً - استعد للنزول",
-        duration: 8000,
-      });
 
       showNotification(
         "📍 اقتربت من الوجهة!",
