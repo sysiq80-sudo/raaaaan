@@ -111,24 +111,22 @@ const DutyToggle = ({
             aria-label={isOnline ? (isPaused ? "استئناف استقبال الطلبات" : "قطع الاتصال") : "الاتصال واستقبال الطلبات"}
             aria-pressed={isOnline}
           >
-            <AnimatePresence mode="sync">
-              {isPaused && isOnline ? (
-                <motion.div key="paused" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex min-w-0 items-center justify-center gap-2 w-full text-center">
-                  <Coffee className="w-4 h-4" strokeWidth={2.5} />
-                  <span className="truncate text-center">استئناف</span>
-                </motion.div>
-              ) : isOnline ? (
-                <motion.div key="online" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex min-w-0 items-center justify-center gap-2 w-full text-center">
-                  <Wifi className="w-4 h-4" />
-                  <span className="truncate text-white text-center">نشط - جاهز لاستقبال الطلبات</span>
-                </motion.div>
-              ) : (
-                <motion.div key="offline" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex min-w-0 items-center justify-center gap-2 w-full text-center">
-                  <Power className="w-4 h-4" strokeWidth={2.5} />
-                  <span className="truncate text-center">غير نشط - الطلبات لا تصلك الان</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {isPaused && isOnline ? (
+              <div className="flex min-w-0 items-center justify-center gap-2 w-full text-center">
+                <Coffee className="w-4 h-4" strokeWidth={2.5} />
+                <span className="truncate text-center">استئناف</span>
+              </div>
+            ) : isOnline ? (
+              <div className="flex min-w-0 items-center justify-center gap-2 w-full text-center">
+                <Wifi className="w-4 h-4" />
+                <span className="truncate text-white text-center">نشط - جاهز لاستقبال الطلبات</span>
+              </div>
+            ) : (
+              <div className="flex min-w-0 items-center justify-center gap-2 w-full text-center">
+                <Power className="w-4 h-4" strokeWidth={2.5} />
+                <span className="truncate text-center">غير نشط - الطلبات لا تصلك الان</span>
+              </div>
+            )}
           </button>
         </div>
       )}
