@@ -1368,7 +1368,7 @@ const DriverHome = () => {
 
             {/* ═══ Dashboard Stats Summary — Floating top cards (just below header) ═══ */}
             {!hasRideRequest && !hasActiveRide && isOnline && driverId && (
-              <div className="absolute top-0 left-0 right-0 z-30 pointer-events-auto transition-all duration-300 ease-in-out">
+              <div className="absolute top-[max(env(safe-area-inset-top,64px),64px)] mt-4 left-4 z-30 pointer-events-auto transition-all duration-300 ease-in-out">
                 <DriverQuickStats driverId={driverId} />
               </div>
             )}

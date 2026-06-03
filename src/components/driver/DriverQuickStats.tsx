@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ران — بطاقات إحصائيات سريعة عائمة
  * Floating mini stats cards for driver home map overlay
  * Matches the Dark Luxury reference design
@@ -18,7 +18,7 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [todayRides, setTodayRides] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = useState(false);
 
   const fetchQuickStats = useCallback(async () => {
     if (!driverId) return;
@@ -57,61 +57,18 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 px-4 pt-3 pb-1">
-        <div className="h-11 w-36 rounded-2xl bg-[#0d1729]/80 animate-pulse" />
-        <div className="h-11 w-28 rounded-2xl bg-[#0d1729]/80 animate-pulse" />
-        <div className="h-10 w-10 rounded-2xl bg-[#0d1729]/80 animate-pulse" />
+      <div className="flex flex-col items-center gap-2 shrink-0 pointer-events-auto">
+        <div className="h-11 w-11 rounded-full bg-[#0d1729]/80 animate-pulse border border-slate-800" />
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 px-4 pt-3 pb-1 w-full">
-      <AnimatePresence initial={false}>
-        {isVisible && (
-          <motion.div
-            initial={{ opacity: 0, x: -12, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: -12, scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 380, damping: 28 }}
-            className="flex gap-2 flex-1"
-          >
-            {/* بطاقة الأرباح */}
-            <div className="flex items-center gap-2 bg-[#0d1729]/90 backdrop-blur-xl rounded-2xl px-3.5 py-2.5 border border-[#5bdda6]/20 shadow-[0_4px_20px_rgba(0,0,0,0.45)]">
-              <div className="w-7 h-7 rounded-xl bg-[#5bdda6]/12 flex items-center justify-center shrink-0">
-                <DollarSign className="w-3.5 h-3.5 text-[#5bdda6]" />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <p className="text-[9px] text-slate-500 font-bold tracking-widest uppercase leading-none mb-0.5">الأرباح</p>
-                <div className="flex items-baseline gap-0.5">
-                  <span className="text-sm font-black text-white leading-none" style={{ fontFamily: "Cairo, sans-serif" }}>
-                    {todayEarnings.toLocaleString('en-US')}
-                  </span>
-                  <span className="text-[10px] font-bold text-[#5bdda6]/70">د.ع</span>
-                </div>
-              </div>
-            </div>
-
-            {/* بطاقة الرحلات */}
-            <div className="flex items-center gap-2 bg-[#0d1729]/90 backdrop-blur-xl rounded-2xl px-3.5 py-2.5 border border-sky-500/20 shadow-[0_4px_20px_rgba(0,0,0,0.45)]">
-              <div className="w-7 h-7 rounded-xl bg-sky-500/12 flex items-center justify-center shrink-0">
-                <Car className="w-3.5 h-3.5 text-sky-400" />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <p className="text-[9px] text-slate-500 font-bold tracking-widest uppercase leading-none mb-0.5">الرحلات</p>
-                <span className="text-sm font-black text-white leading-none" style={{ fontFamily: "Cairo, sans-serif" }}>
-                  {todayRides.toLocaleString('en-US')}
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+    <div className="flex flex-col items-center gap-2 shrink-0 pointer-events-auto">
       {/* زر إخفاء وإظهار التفاصيل */}
       <button
         onClick={() => setIsVisible(!isVisible)}
-        className="w-12 h-12 flex items-center justify-center rounded-full border-none outline-none ring-0 shadow-[0_0_15px_rgba(0,0,0,0.3)] transition-all bg-black/80 hover:bg-black/90 backdrop-blur group shrink-0 pointer-events-auto"
+        className="w-11 h-11 flex items-center justify-center rounded-full border border-slate-700/30 outline-none ring-0 shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all bg-[#0d1729]/95 hover:bg-[#152238] backdrop-blur group shrink-0 pointer-events-auto"
         aria-label={isVisible ? "إخفاء الإحصائيات" : "إظهار الإحصائيات"}
       >
         <motion.div
@@ -125,6 +82,47 @@ const DriverQuickStats = ({ driverId }: DriverQuickStatsProps) => {
           )}
         </motion.div>
       </button>
+
+      <AnimatePresence initial={false}>
+        {isVisible && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            className="flex flex-col gap-2"
+          >
+            {/* بطاقة الأرباح */}
+            <div className="flex items-center gap-2 bg-[#0d1729]/95 backdrop-blur-xl rounded-2xl px-3 py-2.5 border border-[#5bdda6]/20 shadow-[0_4px_20px_rgba(0,0,0,0.45)] w-28">
+              <div className="w-7 h-7 rounded-xl bg-[#5bdda6]/12 flex items-center justify-center shrink-0">
+                <DollarSign className="w-3.5 h-3.5 text-[#5bdda6]" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <p className="text-[9px] text-slate-500 font-bold tracking-widest uppercase leading-none mb-0.5">الأرباح</p>
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-xs font-black text-white leading-none" style={{ fontFamily: "Cairo, sans-serif" }}>
+                    {todayEarnings.toLocaleString('en-US')}
+                  </span>
+                  <span className="text-[8px] font-bold text-[#5bdda6]/70">د.ع</span>
+                </div>
+              </div>
+            </div>
+
+            {/* بطاقة الرحلات */}
+            <div className="flex items-center gap-2 bg-[#0d1729]/95 backdrop-blur-xl rounded-2xl px-3 py-2.5 border border-sky-500/20 shadow-[0_4px_20px_rgba(0,0,0,0.45)] w-28">
+              <div className="w-7 h-7 rounded-xl bg-sky-500/12 flex items-center justify-center shrink-0">
+                <Car className="w-3.5 h-3.5 text-sky-400" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <p className="text-[9px] text-slate-500 font-bold tracking-widest uppercase leading-none mb-0.5">الرحلات</p>
+                <span className="text-xs font-black text-white leading-none" style={{ fontFamily: "Cairo, sans-serif" }}>
+                  {todayRides.toLocaleString('en-US')}
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
