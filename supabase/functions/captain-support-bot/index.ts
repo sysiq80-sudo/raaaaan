@@ -7,7 +7,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigBatch, createServiceClient } from "../_shared/config.ts";
-import { corsHeaders, getCorsHeaders } from "../_shared/utils.ts";
+import { corsHeaders, getCorsHeaders, requireInternalSecret } from "../_shared/utils.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -74,6 +74,29 @@ async function sendContactKeyboard(chatId: number) {
   );
 }
 
+// ════════════════════════════════════════
+// Telegram secret_token validation (constant-time)
+// ════════════════════════════════════════
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+function isValidTelegramRequest(req: Request): boolean {
+  const expectedToken = Deno.env.get("CAPTAIN_TELEGRAM_WEBHOOK_SECRET") ||
+                        Deno.env.get("TELEGRAM_WEBHOOK_SECRET") || "";
+  if (!expectedToken) {
+    console.error("[captain-support-bot] Telegram webhook secret is not configured");
+    return false;
+  }
+  const provided = req.headers.get("x-telegram-bot-api-secret-token") || "";
+  return !!provided && constantTimeEqual(provided, expectedToken);
+}
+
 // ==================== Main Handler ====================
 
 serve(async (req: Request) => {
@@ -93,6 +116,9 @@ serve(async (req: Request) => {
     // يُستدعى من النظام عند إلغاء راكب بعد تحرك السائق
     // ═══════════════════════════════════════════════════════
     if (body.action === 'COMPENSATE_DRIVER') {
+      const authError = requireInternalSecret(req, corsHeaders);
+      if (authError) return authError;
+
       const { driver_id, amount, reason } = body.payload;
 
       // أ. إضافة الرصيد
@@ -128,6 +154,9 @@ serve(async (req: Request) => {
     // يُستدعى عند إرسال طلب لسائق من راكب كثير الإلغاء
     // ═══════════════════════════════════════════════════════
     if (body.action === 'WARN_DRIVER_RISK') {
+      const authError = requireInternalSecret(req, corsHeaders);
+      if (authError) return authError;
+
       const { driver_id, rider_phone, cancellation_count } = body.payload;
 
       const { data: driverData } = await supabase
@@ -155,6 +184,10 @@ serve(async (req: Request) => {
 
     // Telegram webhook update
     if (body.message || body.callback_query) {
+      if (!isValidTelegramRequest(req)) {
+        console.warn("[captain-support-bot] Rejected: invalid or missing X-Telegram-Bot-Api-Secret-Token");
+        return new Response("OK", { status: 200, headers: corsHeaders });
+      }
       await handleTelegramUpdate(supabase, body);
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

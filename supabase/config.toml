@@ -147,4 +147,4 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.captain-support-bot]
-verify_jwt = true
+verify_jwt = false

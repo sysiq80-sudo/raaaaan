@@ -1,0 +1,1 @@
+-- Placeholder: Replaced by 20270603183000_fix_accepted_at_cancellation_v2.sql

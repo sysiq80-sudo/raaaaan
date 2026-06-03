@@ -29,9 +29,29 @@ powershell -Command "(Get-Content .env.production) -replace 'VITE_SENTRY_DSN=.*'
 echo.
 echo تحديث قاعدة البيانات...
 powershell -Command "
+$serviceRoleKey = ''
+$anonKey = ''
+if (Test-Path .env) {
+  Get-Content .env | ForEach-Object {
+    if ($_ -match '^\s*SUPABASE_SERVICE_ROLE_KEY\s*=\s*(.*)') {
+      $serviceRoleKey = $Matches[1].Trim(' `\"''')
+    }
+    if ($_ -match '^\s*VITE_SUPABASE_ANON_KEY\s*=\s*(.*)') {
+      $anonKey = $Matches[1].Trim(' `\"''')
+    }
+  }
+}
+if (-not $serviceRoleKey) { $serviceRoleKey = $env:SUPABASE_SERVICE_ROLE_KEY }
+if (-not $anonKey) { $anonKey = $env:VITE_SUPABASE_ANON_KEY }
+
+if (-not $serviceRoleKey) {
+  Write-Host '❌ خطأ: لم يتم العثور على SUPABASE_SERVICE_ROLE_KEY في ملف .env أو في متغيرات البيئة' -ForegroundColor Red
+  exit 1
+}
+
 $svcHeaders = @{
-  'apikey' = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2MDcwOTYsImV4cCI6MjA4MTE4MzA5Nn0.d71qwqbrpRlBv502ShvhxZWfrmwQI6yWLdSZlaLhtzo'
-  'Authorization' = 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnb2xrY3p0ZHJ3ZHBod2p2cXh0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTYwNzA5NiwiZXhwIjoyMDgxMTgzMDk2fQ.fE5FXZDa_WLBXaDnu4VFw2aIoT3sXh-egvddmrJQV9o'
+  'apikey' = $anonKey
+  'Authorization' = 'Bearer ' + $serviceRoleKey
   'Content-Type' = 'application/json'
 }
 $body = '{\"value\": \"'%REAL_DSN%'\", \"description\": \"Sentry DSN لمراقبة الأخطاء\"}'

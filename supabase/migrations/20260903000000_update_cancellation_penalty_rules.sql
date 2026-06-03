@@ -66,8 +66,8 @@ BEGIN
   END IF;
 
   -- حساب الوقت والمسافة كبيانات إضافية فقط للتوثيق
-  IF v_ride.accepted_at IS NOT NULL THEN
-    v_time_since_accept := now() - v_ride.accepted_at;
+  IF v_ride.matched_at IS NOT NULL THEN
+    v_time_since_accept := now() - v_ride.matched_at;
   END IF;
 
   v_pickup_lat := (v_ride.pickup_location->>'lat')::FLOAT;
