@@ -67,6 +67,7 @@ import {
   unsubscribeFromPushNotifications,
 } from "@/utils/serviceWorker";
 import { setSoundEnabled } from "@/utils/sounds";
+import { isNativePlatform } from "@/lib/capacitorBridge";
 
 interface UserProfile {
   id: string;
@@ -200,8 +201,28 @@ const RiderSettingsPage: React.FC = () => {
   useEffect(() => {
     const checkNotifStatus = async () => {
       try {
-        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-          setNotificationsEnabled(await isPushNotificationEnabled());
+        if (isNativePlatform) {
+          const { PushNotifications } = await import('@capacitor/push-notifications');
+          const perm = await PushNotifications.checkPermissions();
+          if (perm.receive === 'granted' && userId) {
+            const { data, error } = await supabase
+              .from('push_subscriptions')
+              .select('id')
+              .eq('user_id', userId)
+              .like('endpoint', 'fcm://%')
+              .limit(1);
+            if (!error && data && data.length > 0) {
+              setNotificationsEnabled(true);
+            } else {
+              setNotificationsEnabled(false);
+            }
+          } else {
+            setNotificationsEnabled(false);
+          }
+        } else {
+          if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+            setNotificationsEnabled(await isPushNotificationEnabled());
+          }
         }
       } catch {
         setNotificationsEnabled(false);
@@ -209,7 +230,7 @@ const RiderSettingsPage: React.FC = () => {
     };
 
     void checkNotifStatus();
-  }, []);
+  }, [userId]);
 
   const persistProfile = useCallback(
     async (updates: Partial<Pick<UserProfile, "full_name" | "phone" | "email" | "preferred_language">>) => {
@@ -302,33 +323,140 @@ const RiderSettingsPage: React.FC = () => {
 
     setNotifLoading(true);
     try {
-      if (notificationsEnabled) {
-        await unsubscribeFromPushNotifications(userId, "rider");
-        setNotificationsEnabled(false);
-        toast({ title: "تم إيقاف الإشعارات", description: "لن تصلك تنبيهات تحديثات الرحلات" });
-        return;
-      }
+      if (isNativePlatform) {
+        const { PushNotifications } = await import('@capacitor/push-notifications');
+        if (notificationsEnabled) {
+          // Unsubscribe: Delete FCM token from database
+          const { error } = await supabase
+            .from('push_subscriptions')
+            .delete()
+            .eq('user_id', userId)
+            .like('endpoint', 'fcm://%');
+          if (error) throw error;
+          
+          setNotificationsEnabled(false);
+          toast({ title: "تم إيقاف الإشعارات", description: "لن تصلك تنبيهات تحديثات الرحلات" });
+        } else {
+          // Subscribe: Request permission and register
+          const permResult = await PushNotifications.requestPermissions();
+          if (permResult.receive === 'granted') {
+            const token = await new Promise<string | null>((resolve) => {
+              let isResolved = false;
+              let listenerHandle: { remove: () => void } | null = null;
+              
+              const cleanup = () => {
+                if (listenerHandle) {
+                  try { listenerHandle.remove(); } catch {}
+                }
+              };
 
-      await registerServiceWorker();
-      const permission = await requestNotificationPermission();
+              const timeout = setTimeout(() => {
+                if (!isResolved) {
+                  isResolved = true;
+                  cleanup();
+                  resolve(localStorage.getItem('raan_fcm_token'));
+                }
+              }, 5000);
 
-      if (permission === "granted") {
-        const subscription = await subscribeToPushNotifications(userId, "rider");
-        if (!subscription) throw new Error("فشل إنشاء اشتراك الإشعارات");
-        setNotificationsEnabled(true);
-        toast({ title: "تم تفعيل الإشعارات", description: "ستصلك تنبيهات تحديثات الرحلات" });
-      } else if (permission === "denied") {
-        toast({
-          title: "الإشعارات محظورة",
-          description: "افتح إعدادات المتصفح وامنح الصلاحية لهذا الموقع",
-          variant: "destructive",
-        });
+              PushNotifications.addListener('registration', (t) => {
+                if (!isResolved) {
+                  isResolved = true;
+                  clearTimeout(timeout);
+                  cleanup();
+                  localStorage.setItem('raan_fcm_token', t.value);
+                  resolve(t.value);
+                }
+              }).then(handle => {
+                listenerHandle = handle;
+                if (isResolved) {
+                  cleanup();
+                } else {
+                  PushNotifications.register().catch(regErr => {
+                    console.warn('⚠️ PushNotifications.register() failed:', regErr);
+                    if (!isResolved) {
+                      isResolved = true;
+                      clearTimeout(timeout);
+                      cleanup();
+                      resolve(null);
+                    }
+                  });
+                }
+              }).catch(err => {
+                console.error('Failed to add registration listener:', err);
+                if (!isResolved) {
+                  isResolved = true;
+                  clearTimeout(timeout);
+                  resolve(null);
+                }
+              });
+            });
+
+            if (!token) {
+              throw new Error("لم نتمكن من الحصول على رمز الإشعارات");
+            }
+
+            // Clean old ones
+            await supabase
+              .from('push_subscriptions')
+              .delete()
+              .eq('user_id', userId)
+              .like('endpoint', 'fcm://%');
+
+            const { error } = await supabase
+              .from('push_subscriptions')
+              .insert({
+                user_id: userId,
+                endpoint: `fcm://${token}`,
+                p256dh_key: '',
+                auth_key: '',
+                platform: 'android',
+                fcm_token: token,
+                updated_at: new Date().toISOString(),
+              });
+
+            if (error) throw error;
+
+            setNotificationsEnabled(true);
+            toast({ title: "تم تفعيل الإشعارات", description: "ستصلك تنبيهات تحديثات الرحلات" });
+          } else {
+            toast({
+              title: "الإشعارات محظورة",
+              description: "يرجى منح صلاحية الإشعارات للتطبيق من إعدادات الهاتف لتلقي تحديثات الرحلات",
+              variant: "destructive",
+            });
+          }
+        }
+      } else {
+        if (notificationsEnabled) {
+          await unsubscribeFromPushNotifications(userId, "rider");
+          setNotificationsEnabled(false);
+          toast({ title: "تم إيقاف الإشعارات", description: "لن تصلك تنبيهات تحديثات الرحلات" });
+          return;
+        }
+
+        await registerServiceWorker();
+        const permission = await requestNotificationPermission();
+
+        if (permission === "granted") {
+          const subscription = await subscribeToPushNotifications(userId, "rider");
+          if (!subscription) throw new Error("فشل إنشاء اشتراك الإشعارات");
+          setNotificationsEnabled(true);
+          toast({ title: "تم تفعيل الإشعارات", description: "ستصلك تنبيهات تحديثات الرحلات" });
+        } else if (permission === "denied") {
+          toast({
+            title: "الإشعارات محظورة",
+            description: "افتح إعدادات المتصفح وامنح الصلاحية لهذا الموقع",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       console.error("Notification toggle error:", error);
       toast({
         title: "تعذر تحديث الإشعارات",
-        description: "تحقق من صلاحيات المتصفح ثم حاول مرة أخرى",
+        description: isNativePlatform 
+          ? "تحقق من اتصالك بالإنترنت وصلاحيات الهاتف ثم حاول مرة أخرى"
+          : "تحقق من صلاحيات المتصفح ثم حاول مرة أخرى",
         variant: "destructive",
       });
     } finally {

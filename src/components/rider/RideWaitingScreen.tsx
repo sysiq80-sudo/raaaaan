@@ -36,6 +36,7 @@ import {
   showNotification,
 } from "@/utils/rideNotificationSounds";
 import { cleanArabicAddress } from "@/utils/addressCleaner";
+import { getDriverDocumentUrl } from "@/utils/driverDocumentUrl";
 
 // ═══════════════════════════════════════════════════════════════════
 // 🚧 FEATURE FLAG: Waiting Timer Display (عداد وقت الانتظار)
@@ -387,8 +388,20 @@ export const RideWaitingScreen = ({
       .eq("id", driverId)
       .maybeSingle();
     if (!error && data) {
-      console.log("[RideWaiting] ✅ Driver info received");
-      setAcceptedDriver(data as Driver);
+      console.log("[RideWaiting] \u2705 Driver info received");
+      const driverData = data as Driver;
+      // \u062a\u062d\u0648\u064a\u0644 \u0645\u0633\u0627\u0631 \u0627\u0644\u062a\u062e\u0632\u064a\u0646 \u0625\u0644\u0649 signed URL (bucket \u062e\u0627\u0635)
+      if (driverData.profile_image_url) {
+        getDriverDocumentUrl(driverData.profile_image_url, 7200).then(url => {
+          if (url) {
+            setAcceptedDriver({ ...driverData, profile_image_url: url });
+          } else {
+            setAcceptedDriver({ ...driverData, profile_image_url: null });
+          }
+        });
+      } else {
+        setAcceptedDriver(driverData);
+      }
       return true;
     } else {
       console.error("[RideWaiting] ❌ Driver fetch error:", error);

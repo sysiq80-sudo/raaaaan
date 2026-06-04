@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getDriverDocumentUrl } from "@/utils/driverDocumentUrl";
 
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -58,6 +59,7 @@ export const RideCompletedScreen = ({
   const [loading, setLoading]         = useState(false);
   const [submitted, setSubmitted]     = useState(false);
   const [driverAvatar, setDriverAvatar]       = useState<string | null>(null);
+  const [driverAvatarFallbacks, setDriverAvatarFallbacks] = useState<string[]>([]);
   const [realDriverName, setRealDriverName]   = useState<string>("");
   const [realDriverRating, setRealDriverRating] = useState<number | null>(null);
   const [vehicleModel, setVehicleModel]       = useState<string | null>(null);
@@ -84,7 +86,36 @@ export const RideCompletedScreen = ({
             vehicle_color?: string | null;
             vehicle_plate?: string | null;
           };
-          if (d.profile_image_url) setDriverAvatar(d.profile_image_url);
+          if (d.profile_image_url) {
+            // جرّب أكثر من مصدر للصورة: signed URL ثم public URL ثم الرابط الأصلي (إن كان URL)
+            const candidates: string[] = [];
+            const signed = await getDriverDocumentUrl(d.profile_image_url, 7200);
+            if (signed) candidates.push(signed);
+
+            if (!d.profile_image_url.startsWith("http") && !d.profile_image_url.startsWith("data:")) {
+              // 1. رابط عام من سلة avatars حيث يتم رفع صور الملفات الشخصية للسائقين
+              const { data: avatarPublicData } = supabase
+                .storage
+                .from("avatars")
+                .getPublicUrl(d.profile_image_url);
+              if (avatarPublicData?.publicUrl) candidates.push(avatarPublicData.publicUrl);
+
+              // 2. رابط عام من سلة driver-documents كبديل احتياطي
+              const { data: docPublicData } = supabase
+                .storage
+                .from("driver-documents")
+                .getPublicUrl(d.profile_image_url);
+              if (docPublicData?.publicUrl) candidates.push(docPublicData.publicUrl);
+            } else {
+              candidates.push(d.profile_image_url);
+            }
+
+            const uniqueCandidates = Array.from(new Set(candidates.filter(Boolean)));
+            if (uniqueCandidates.length > 0) {
+              setDriverAvatar(uniqueCandidates[0]);
+              setDriverAvatarFallbacks(uniqueCandidates.slice(1));
+            }
+          }
           if (d.full_name) setRealDriverName(d.full_name);
           if (d.rating) setRealDriverRating(d.rating);
           if (d.vehicle_model) setVehicleModel(d.vehicle_model);
@@ -346,7 +377,22 @@ export const RideCompletedScreen = ({
                       <div className="absolute inset-0 bg-[#5bdda6]/20 rounded-full blur-md animate-pulse" />
                       <div className="relative w-14 h-14 rounded-full border-[1.5px] border-[#5bdda6]/30 overflow-hidden bg-[#0b1929] flex items-center justify-center shadow-[0_0_20px_rgba(91,221,166,0.12)]">
                         {driverAvatar ? (
-                          <img src={driverAvatar} alt={activeDriverName} className="w-full h-full object-cover" />
+                          <img
+                            src={driverAvatar}
+                            alt={activeDriverName}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              if (driverAvatarFallbacks.length > 0) {
+                                const [nextAvatar, ...rest] = driverAvatarFallbacks;
+                                setDriverAvatar(nextAvatar);
+                                setDriverAvatarFallbacks(rest);
+                                e.currentTarget.src = nextAvatar;
+                                return;
+                              }
+
+                              setDriverAvatar(null);
+                            }}
+                          />
                         ) : (
                           <span className="text-[18px] font-black text-[#5bdda6]">{driverInitials}</span>
                         )}

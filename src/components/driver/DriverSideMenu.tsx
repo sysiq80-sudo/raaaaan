@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { User } from "@supabase/supabase-js";
 import {
@@ -73,19 +74,56 @@ const DriverSideMenu = ({
     "كابتن";
 
   const [avatarUrl, setAvatarUrl] = useState<string>(logo);
+  const [avatarFallbacks, setAvatarFallbacks] = useState<string[]>([]);
 
   // تحميل صورة السائق — يدعم المسارات النسبية + URLs القديمة (getPublicUrl)
   useEffect(() => {
-    if (!isOpen || !driverProfileImage) return;
+    if (!isOpen || !driverProfileImage) {
+      setAvatarUrl(logo);
+      setAvatarFallbacks([]);
+      return;
+    }
     let cancelled = false;
-    const timer = window.setTimeout(() => {
-      void getDriverDocumentUrl(driverProfileImage, 3600).then((url) => {
-      if (!cancelled && url) setAvatarUrl(url);
-      });
-    }, 180);
+
+    const resolveAvatar = async () => {
+      try {
+        const candidates: string[] = [];
+        const signed = await getDriverDocumentUrl(driverProfileImage, 3600);
+        if (signed) candidates.push(signed);
+
+        if (!driverProfileImage.startsWith("http") && !driverProfileImage.startsWith("data:")) {
+          const { data: publicData } = supabase
+            .storage
+            .from("driver-documents")
+            .getPublicUrl(driverProfileImage);
+          if (publicData?.publicUrl) candidates.push(publicData.publicUrl);
+        } else {
+          candidates.push(driverProfileImage);
+        }
+
+        const uniqueCandidates = Array.from(new Set(candidates.filter(Boolean)));
+        if (!cancelled) {
+          if (uniqueCandidates.length > 0) {
+            setAvatarUrl(uniqueCandidates[0]);
+            setAvatarFallbacks(uniqueCandidates.slice(1));
+          } else {
+            setAvatarUrl(logo);
+            setAvatarFallbacks([]);
+          }
+        }
+      } catch (err) {
+        console.error("Error resolving driver profile image:", err);
+        if (!cancelled) {
+          setAvatarUrl(logo);
+          setAvatarFallbacks([]);
+        }
+      }
+    };
+
+    resolveAvatar();
+
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, [driverProfileImage, isOpen]);
 
@@ -140,6 +178,13 @@ const DriverSideMenu = ({
                   alt="السائق"
                   className="w-20 h-20 min-w-[80px] min-h-[80px] rounded-full object-cover ring-2 ring-[#5bdda6]/20 bg-[#2d3449]"
                   onError={(e) => {
+                    if (avatarFallbacks.length > 0) {
+                      const [nextAvatar, ...rest] = avatarFallbacks;
+                      setAvatarUrl(nextAvatar);
+                      setAvatarFallbacks(rest);
+                      e.currentTarget.src = nextAvatar;
+                      return;
+                    }
                     e.currentTarget.src = logo;
                   }}
                 />

@@ -84,7 +84,7 @@ const DriverInfoCard = ({
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-white/20 bg-slate-800">
-                {driver.profile_image_url ? (
+                {driver.profile_image_url && (driver.profile_image_url.startsWith('http') || driver.profile_image_url.startsWith('data:')) ? (
                   <img src={driver.profile_image_url} alt={driver.full_name || ""} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">

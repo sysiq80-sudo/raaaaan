@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { motion, useDragControls, AnimatePresence } from "framer-motion";
+import { getDriverDocumentUrl } from "@/utils/driverDocumentUrl";
 
 interface LiveRideTrackerProps {
   rideId: string;
@@ -264,6 +265,18 @@ export const LiveRideTracker = ({
       if (error) throw error;
 
       setRide(data as unknown as RideData);
+
+      // تحويل مسار صورة السائق إلى signed URL (bucket خاص)
+      if (data.driver?.profile_image_url) {
+        getDriverDocumentUrl(data.driver.profile_image_url, 7200).then(url => {
+          if (url) {
+            setRide(prev => prev && prev.driver ? {
+              ...prev,
+              driver: { ...prev.driver, profile_image_url: url }
+            } : prev);
+          }
+        });
+      }
 
       if (data.driver?.current_location) {
         const location = data.driver.current_location as {
@@ -641,7 +654,7 @@ export const LiveRideTracker = ({
                   <div className="relative">
                     <Avatar className="w-18 h-18 border-3 border-primary/30 shadow-lg">
                       <AvatarImage
-                        src={ride.driver?.profile_image_url || ""}
+                        src={ride.driver?.profile_image_url && (ride.driver.profile_image_url.startsWith('http') || ride.driver.profile_image_url.startsWith('data:')) ? ride.driver.profile_image_url : ""}
                         alt={ride.driver?.full_name}
                       />
                       <AvatarFallback className="text-2xl bg-gradient-to-br from-primary/20 to-primary/5">

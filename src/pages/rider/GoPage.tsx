@@ -22,7 +22,6 @@ import { logger } from "@/lib/logger";
 import { showErrorToast } from "@/lib/toastHelpers";
 
 import { checkDestinationGeofence, type GeofenceResult } from "@/lib/geofencing";
-import { getGeocoder } from "@/lib/googleMapService";
 import {
   Dialog,
   DialogContent,
@@ -601,6 +600,55 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
   const [geofenceResult, setGeofenceResult] = useState<GeofenceResult | null>(null);
   const [showGeofenceAlert, setShowGeofenceAlert] = useState(false);
 
+  // تحديث العناوين المؤقتة تلقائياً في الخلفية عند اكتمال الـ reverse geocoding وتطابق الإحداثيات
+  useEffect(() => {
+    if (!centerAddress || centerAddress.includes("جاري تحديد العنوان")) return;
+
+    // تحديث عنوان الانطلاق المؤقت
+    if (
+      pickupLocation &&
+      pickupLocation.address === "موقع محدد على الخريطة" &&
+      centerLat != null &&
+      centerLng != null &&
+      Math.abs(pickupLocation.lat - centerLat) < 0.0001 &&
+      Math.abs(pickupLocation.lng - centerLng) < 0.0001
+    ) {
+      setPickupLocation(prev => prev ? { ...prev, address: centerAddress } : null);
+    }
+
+    // تحديث عنوان الوجهة المؤقت
+    if (
+      dropoffLocation &&
+      dropoffLocation.address === "موقع محدد على الخريطة" &&
+      centerLat != null &&
+      centerLng != null &&
+      Math.abs(dropoffLocation.lat - centerLat) < 0.0001 &&
+      Math.abs(dropoffLocation.lng - centerLng) < 0.0001
+    ) {
+      setDropoffLocation(prev => prev ? { ...prev, address: centerAddress } : null);
+    }
+
+    // تحديث المحطات المؤقتة
+    if (intermediateStops.length > 0 && centerLat != null && centerLng != null) {
+      setIntermediateStops(prev => {
+        let didChange = false;
+        const nextStops = prev.map(stop => {
+          if (
+            stop.address === "موقع محدد على الخريطة" &&
+            stop.location &&
+            Math.abs(stop.location.lat - centerLat) < 0.0001 &&
+            Math.abs(stop.location.lng - centerLng) < 0.0001
+          ) {
+            didChange = true;
+            return { ...stop, address: centerAddress };
+          }
+          return stop;
+        });
+        return didChange ? nextStops : prev;
+      });
+    }
+  }, [centerAddress, centerLat, centerLng, pickupLocation, dropoffLocation, intermediateStops]);
+
   // ═══ استقبال البيانات من AIVoiceHome عبر navigation state ═══
   const routerLocation = useLocation();
   const navStateProcessed = useRef(false);
@@ -1121,60 +1169,9 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
         address.includes("جاري تحديد العنوان") ||
         !buildDescriptiveAddress(address);
 
-      // إذا لم نحصل على عنوان، نحصل عليه من Google Geocoding
+      // إذا لم نحصل على عنوان، نستخدم اسماً مؤقتاً سريعاً لمنع تعطيل المستخدم وبث السرعة
       if (addressNeedsRefresh) {
-        try {
-          if (window.google?.maps && map.current) {
-            // Step 1: Geocoding + checkServiceArea بالتوازي
-            const geocoder = await getGeocoder();
-            if (!geocoder) throw new Error('Geocoder not available');
-
-            const [result, serviceCheckParallel] = await Promise.all([
-              geocoder.geocode({ location: { lat: actualLat, lng: actualLng }, language: 'ar' }),
-              checkServiceArea(actualLat, actualLng),
-            ]);
-            
-            // ✅ تخزين في المتغير المحلي الخارجي + تحديث state للعرض
-            serviceCheckForCurrentPoint = serviceCheckParallel;
-            setLocalServiceAreaStatus(serviceCheckParallel);
-
-            if (result.results && result.results.length > 0) {
-              const finalAddress = result.results[0].formatted_address;
-
-              // Step 2: POI من نتائج Geocoding (SearchNearby معطّل)
-              const poiResult = result.results.find(r =>
-                (r.types.includes('point_of_interest') || r.types.includes('establishment')) &&
-                r.name &&
-                !r.types.includes('route')
-              );
-              const poiName = poiResult?.name || null;
-
-              // Step 3: بناء العنوان بـ buildHumanAddress() + serviceRegionName من DB
-              const { buildHumanAddress, extractGoogleComponents } = await import('@/utils/buildHumanAddress');
-              const components = result.results[0]?.address_components || [];
-              const comps = extractGoogleComponents(components, poiName);
-
-              address = buildHumanAddress({
-                poiName:           comps.poiName,
-                neighborhood:      comps.neighborhood,
-                street:            comps.street,
-                city:              comps.city,
-                serviceRegionName: (serviceCheckParallel as any)?.region?.name_ar || null,
-                lat:               actualLat,
-                lng:               actualLng,
-                formattedAddress:  finalAddress,
-              }) || `${actualLat.toFixed(5)}, ${actualLng.toFixed(5)}`;
-
-            } else {
-              address = `${actualLat.toFixed(5)}, ${actualLng.toFixed(5)}`;
-            }
-          } else {
-            address = `${actualLat.toFixed(5)}, ${actualLng.toFixed(5)}`;
-          }
-        } catch (error) {
-          console.error("Reverse geocode error:", error);
-          address = `${actualLat.toFixed(5)}, ${actualLng.toFixed(5)}`;
-        }
+        address = "موقع محدد على الخريطة";
       }
 
       if (address) setCenterAddress(address);
@@ -1837,7 +1834,8 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
     : (isDropoff || isStopMode) && centerAddress
       ? currentSelectionAddress
       : "حدد الوجهة";
-  const selectionReady = Boolean(hasResolvedCenterAddress && !isCheckingService && !isConfirming);
+  const isKnownOutOfService = serviceAreaStatus !== null && serviceAreaStatus.in_service === false;
+  const selectionReady = Boolean(centerLat != null && centerLng != null && !isKnownOutOfService && !isConfirming);
   const flowSteps = [
     {
       key: "pickup",
@@ -2568,28 +2566,21 @@ const GoPageContent: React.FC<{ scheduleMode?: boolean }> = ({ scheduleMode = fa
                 if (navigator.vibrate) navigator.vibrate(50);
                 handleConfirm();
               }}
-              disabled={!hasResolvedCenterAddress || isCheckingService || isConfirming}
-              whileTap={(!hasResolvedCenterAddress || isCheckingService || isConfirming) ? {} : { scale: 0.98 }}
+              disabled={!selectionReady}
+              whileTap={!selectionReady ? {} : { scale: 0.98 }}
               style={{ fontFamily: "Cairo, sans-serif" }}
               className={`flex-1 h-full flex items-center justify-center gap-2 text-[15px] font-black touch-manipulation transition-all ${
                 selectionReady
                   ? isPickup
                     ? 'text-[#070b13] bg-[#5bdda6] shadow-[0_-4px_20px_rgba(91,221,166,0.2)] hover:bg-[#4ecf99] active:bg-[#34d399] border-t border-[#5bdda6]'
                     : 'text-[#083344] bg-cyan-400 shadow-[0_-4px_20px_rgba(34,211,238,0.2)] hover:bg-cyan-500 active:bg-cyan-600 border-t border-cyan-400'
-                  : isPickup
-                    ? 'text-white/40 bg-[#0a111c] border-t border-white/[0.07] cursor-not-allowed'
-                    : 'text-white/40 bg-[#0a111c] border-t border-white/[0.07] cursor-not-allowed'
+                  : 'text-white/40 bg-[#0a111c] border-t border-white/[0.07] cursor-not-allowed'
               }`}
             >
-              {isCheckingService || isConfirming ? (
+              {isConfirming ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>{isConfirming ? 'جاري التأكيد...' : 'جاري التحقق...'}</span>
-                </>
-              ) : !hasResolvedCenterAddress ? (
-                <>
-                  {isCenterAddressResolving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>{isCenterAddressResolving ? 'جاري تحديد العنوان...' : isPickup ? 'حدد مكان الانطلاق' : 'حدد مكان الوصول'}</span>
+                  <span>جاري التأكيد...</span>
                 </>
               ) : (
                 <>

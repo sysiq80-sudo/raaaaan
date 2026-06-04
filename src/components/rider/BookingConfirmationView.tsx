@@ -154,19 +154,22 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
       return;
     }
 
-
-    if (fareLoading) {
+    if (fareLoading && !fareBreakdown) {
       toast({
-        title: "جاري حساب المسار ⏳",
-        description: "يرجى الانتظار لحظة",
+        title: "جاري حساب الأجرة ⏳",
+        description: "يرجى الانتظار لحين اكتمال حساب سعر الرحلة.",
       });
       return;
     }
 
-    if (!fareBreakdown) {
+    // حساب السعر النهائي المستخلص
+    const fare = fareBreakdown ? roundFare(fareBreakdown.total_fare) : 0;
+
+    // فحص فني صارم: ممنوع نهائياً طلب رحلة بسعر غير محدود، غير رقمي، أو يساوي صفر/سالب
+    if (!Number.isFinite(fare) || fare <= 0) {
       toast({
-        title: "عذراً، تعذر الحجز 😔",
-        description: fareError || "تعذر حساب الأجرة، يرجى المحاولة مجدداً",
+        title: "خطأ في حساب السعر ⚠️",
+        description: fareError || "تعذر تحديد الأجرة للرحلة، يرجى إعادة المحاولة.",
         variant: "destructive",
       });
       return;
@@ -322,8 +325,6 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
               className={`flex-1 h-[72px] flex items-center justify-center gap-2 text-lg font-black touch-manipulation pointer-events-auto active:scale-[0.98] transition-all rounded-none ${
                 isBooking
                   ? "text-white/40 bg-[#0a111c] border-t border-white/[0.07] cursor-not-allowed"
-                  : fareLoading
-                  ? "text-white/60 bg-[#0a111c] border-t border-white/[0.07] cursor-wait"
                   : "text-[#070b13] bg-[#5bdda6] shadow-[0_-4px_20px_rgba(91,221,166,0.2)] hover:bg-[#4ecf99] active:bg-[#34d399] border-t border-[#5bdda6]/30"
               }`}
             >
@@ -331,11 +332,6 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span>جاري إنشاء الحجز...</span>
-                </>
-              ) : fareLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>جاري حساب المسار...</span>
                 </>
               ) : (
                 <>
@@ -345,11 +341,16 @@ const BookingConfirmationView: React.FC<BookingConfirmationViewProps> = ({
                     <Navigation className="w-5 h-5" />
                   )}
                   <span>{bookingMode === "schedule" ? "جدولة الرحلة" : "اطلب الآن"}</span>
-                  {totalFare && (
-                    <span className="bg-[#070b13]/20 px-3 py-1 rounded-xl text-sm font-bold">
+                  {fareLoading && !totalFare ? (
+                    <span className="bg-[#070b13]/10 px-3 py-1.5 rounded-xl flex items-center gap-1.5 text-xs font-bold text-[#070b13]/70 animate-pulse">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      جاري الحساب...
+                    </span>
+                  ) : totalFare ? (
+                    <span className={`bg-[#070b13]/20 px-3 py-1 rounded-xl text-sm font-bold ${fareLoading ? 'animate-pulse' : ''}`}>
                       {totalFare.toLocaleString('en-US')} د.ع
                     </span>
-                  )}
+                  ) : null}
                 </>
               )}
             </motion.button>

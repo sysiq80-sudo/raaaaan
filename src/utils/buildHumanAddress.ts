@@ -9,8 +9,9 @@
  * 2. حي/منطقة: neighborhood, sublocality, suburb, quarter
  * 3. اسم منطقة الخدمة من قاعدة البيانات (serviceRegionName)
  * 4. شارع حقيقي ذو اسم + حي/مدينة (مع فلترة "Unnamed Road" والأرقام فقط)
- * 5. المدينة وحدها
- * 6. الإحداثيات كآخر حل
+ * 5. formatted_address بعد تنظيفه إذا كان أدق من المدينة
+ * 6. المدينة وحدها
+ * 7. الإحداثيات كآخر حل
  */
 
 // ─── أنماط العناوين الرديئة ──────────────────────────────────────
@@ -36,6 +37,74 @@ const BAD_ADDRESS_PATTERNS: RegExp[] = [
   /^Iraq$/i,
 ];
 
+const BROAD_CITY_NAMES = new Set([
+  "erbil",
+  "اربيل",
+  "أربيل",
+  "إربيل",
+  "هەولێر",
+  "hawler",
+  "hewler",
+  "محافظه اربيل",
+  "محافظة اربيل",
+]);
+
+const POI_NAME_HINTS: RegExp[] = [
+  /مسجد|جامع|حسينية|كنيسة/i,
+  /مدرسة|ثانوية|جامعة|كلية|معهد|روضة/i,
+  /مستشفى|عيادة|صيدلية|مختبر|طبيب/i,
+  /مول|سوق|ماركت|متجر|مطعم|كافيه|مقهى|مخبز/i,
+  /محطة|كراج|موقف|بنك|مصرف|فندق|قاعة|ملعب|حديقة/i,
+  /mosque|school|university|hospital|pharmacy|mall|market|restaurant|cafe|bank|hotel|park|station/i,
+];
+
+const normalizeToken = (value: string): string =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ");
+
+const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/i;
+
+const isCountryOrServiceLabel = (value: string): boolean => {
+  const normalized = normalizeToken(value);
+  return (
+    normalized === "العراق" ||
+    normalized === "iraq" ||
+    normalized === "العراق كامل" ||
+    normalized === "كردستان العراق" ||
+    normalized === "kurdistan region"
+  );
+};
+
+export const isBroadCityName = (value?: string | null): boolean => {
+  if (!value) return false;
+  const normalized = normalizeToken(value);
+  return BROAD_CITY_NAMES.has(normalized);
+};
+
+const getCleanFormattedParts = (formattedAddress?: string | null): string[] => {
+  if (!formattedAddress) return [];
+
+  return formattedAddress
+    .split(/[،,]/)
+    .map((part) => part.trim())
+    .filter(
+      (part) =>
+        part.length > 0 &&
+        !plusCodeRegex.test(part) &&
+        !isCountryOrServiceLabel(part) &&
+        !isGenericRoad(part)
+    );
+};
+
+const sameToken = (a?: string | null, b?: string | null): boolean => {
+  if (!a || !b) return false;
+  return normalizeToken(a) === normalizeToken(b);
+};
+
 /**
  * هل الشارع اسمه حقيقي أم مجرد رقم/unnamed?
  */
@@ -53,6 +122,25 @@ export const isUselessAddress = (address: string): boolean => {
   if (address.includes("جاري تحديد العنوان")) return true;
   if (/^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(address.trim())) return true; // إحداثيات خام
   return BAD_ADDRESS_PATTERNS.some((p) => p.test(address.trim()));
+};
+
+/**
+ * درجة جودة تقريبية للعنوان: تُستخدم لمنع نتيجة عامة مثل "Erbil"
+ * من الكتابة فوق نتيجة أدق من Nominatim أو landmarks.
+ */
+export const getHumanAddressQuality = (address: string): number => {
+  if (isUselessAddress(address)) return 0;
+
+  const parts = getCleanFormattedParts(address);
+  if (parts.length === 0) return 0;
+
+  if (parts.length === 1) {
+    if (POI_NAME_HINTS.some((pattern) => pattern.test(parts[0]))) return 6;
+    return isBroadCityName(parts[0]) ? 1 : 2;
+  }
+
+  const hasSpecificFirstPart = !isBroadCityName(parts[0]);
+  return hasSpecificFirstPart ? Math.min(7, 3 + parts.length) : Math.min(4, parts.length);
 };
 
 // ─── المدخلات ────────────────────────────────────────────────────
@@ -106,6 +194,7 @@ export const buildHumanAddress = ({
   const road = street?.trim() || null;
   const town = city?.trim() || null;
   const region = serviceRegionName?.trim() || null;
+  const formattedParts = getCleanFormattedParts(formattedAddress);
 
   // ── 1. معلم قريب ─────────────────────────────────────────────
   if (poi && !isGenericRoad(poi)) {
@@ -141,26 +230,26 @@ export const buildHumanAddress = ({
     return `${region}${suffix}`;
   }
 
-  // ── 6. المدينة فقط ───────────────────────────────────────────
-  if (town) return town;
+  // ── 6. formatted_address مع تنظيف — قبل المدينة إذا كان أدق ─────
+  if (formattedParts.length > 0) {
+    const specificParts = formattedParts.filter(
+      (part) => !sameToken(part, town) && !sameToken(part, region) && !isBroadCityName(part)
+    );
 
-  // ── 7. formatted_address مع تنظيف ───────────────────────────
-  if (formattedAddress) {
-    const plusCodeRegex = /^[A-Z0-9]{4}\+[A-Z0-9]{2,}/;
-    const cleaned = formattedAddress
-      .split(/[،,]/)
-      .map((p) => p.trim())
-      .filter(
-        (p) =>
-          p.length > 0 &&
-          !plusCodeRegex.test(p) &&
-          p !== "العراق" &&
-          p !== "Iraq" &&
-          p !== "العراق كامل" &&
-          !isGenericRoad(p)
-      );
-    if (cleaned.length > 0) return cleaned.slice(0, 3).join("، ");
+    if (specificParts.length > 0) {
+      const context = town && !sameToken(specificParts[0], town) ? town : null;
+      return [specificParts[0], context].filter(Boolean).join("، ");
+    }
+
+    if (!town) {
+      const nonBroadParts = formattedParts.filter((part) => !isBroadCityName(part));
+      const fallbackParts = nonBroadParts.length > 0 ? nonBroadParts : formattedParts;
+      return fallbackParts.slice(0, 3).join("، ");
+    }
   }
+
+  // ── 7. المدينة فقط ───────────────────────────────────────────
+  if (town) return town;
 
   // ── 8. إحداثيات كآخر حل ─────────────────────────────────────
   if (lat != null && lng != null) {

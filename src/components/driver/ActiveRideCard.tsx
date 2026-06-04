@@ -79,6 +79,31 @@ interface ActiveRideCardProps {
   onRideComplete?: () => void;
 }
 
+interface RideTrackingPoint {
+  lat: number;
+  lng: number;
+  recorded_at: string;
+  speed?: number;
+  heading?: number;
+  accuracy?: number;
+}
+
+interface RideTrackingQuality {
+  status: "ok" | "gps_network_gap";
+  has_tracking_gap: boolean;
+  reason: string | null;
+  reasons: string[];
+  tracking_points_count: number;
+  valid_points_count: number;
+  expected_min_points: number;
+  trip_duration_minutes: number;
+  estimated_distance_km: number;
+  final_gps_distance_km: number | null;
+  browser_online: boolean | null;
+  source: "driver-web";
+  recorded_at: string;
+}
+
 const getLocationString = (location: unknown): string => {
   if (
     typeof location === "object" &&
@@ -222,7 +247,7 @@ export const ActiveRideCard = ({
   });
 
   // ═══ GPS Tracking for Hybrid Pricing ═══
-  const trackingPointsRef = useRef<Array<{ lat: number; lng: number; recorded_at: string; speed?: number; heading?: number; accuracy?: number }>>([]);
+  const trackingPointsRef = useRef<RideTrackingPoint[]>([]);
   const lastTrackingTimeRef = useRef<number>(0);
   const trackingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -960,6 +985,56 @@ export const ActiveRideCard = ({
     return Math.round(totalKm * 100) / 100;
   };
 
+  const buildTrackingQuality = (
+    points: RideTrackingPoint[],
+    gpsDistance: number,
+  ): RideTrackingQuality => {
+    const estimatedKm = activeRide?.distance_km || 0;
+    const durationMinutes = activeRide?.started_at
+      ? Math.max(0, Math.floor((Date.now() - new Date(activeRide.started_at).getTime()) / 60000))
+      : 0;
+    const expectedMinPoints =
+      durationMinutes >= 8 ? Math.min(8, Math.max(2, Math.floor(durationMinutes / 5))) : 2;
+    const browserOnline =
+      typeof navigator !== "undefined" && typeof navigator.onLine === "boolean"
+        ? navigator.onLine
+        : null;
+    const reasons: string[] = [];
+
+    if (browserOnline === false) reasons.push("browser_offline");
+    if (estimatedKm >= 1 && points.length < 2) reasons.push("missing_tracking_points");
+    if (durationMinutes >= 8 && points.length < expectedMinPoints) {
+      reasons.push("sparse_tracking_points");
+    }
+    if (estimatedKm >= 1 && gpsDistance <= 0) reasons.push("missing_final_gps_distance");
+    if (
+      estimatedKm >= 3 &&
+      gpsDistance > 0 &&
+      gpsDistance < estimatedKm * 0.4 &&
+      points.length < expectedMinPoints
+    ) {
+      reasons.push("gps_distance_unreliable");
+    }
+
+    const hasTrackingGap = reasons.length > 0;
+
+    return {
+      status: hasTrackingGap ? "gps_network_gap" : "ok",
+      has_tracking_gap: hasTrackingGap,
+      reason: reasons[0] || null,
+      reasons,
+      tracking_points_count: points.length,
+      valid_points_count: points.length,
+      expected_min_points: expectedMinPoints,
+      trip_duration_minutes: durationMinutes,
+      estimated_distance_km: estimatedKm,
+      final_gps_distance_km: gpsDistance > 0 ? gpsDistance : null,
+      browser_online: browserOnline,
+      source: "driver-web",
+      recorded_at: new Date().toISOString(),
+    };
+  };
+
   const handleCompleteRide = async () => {
     if (!activeRide || loading) return;
     setLoading(true);
@@ -1007,7 +1082,12 @@ export const ActiveRideCard = ({
 
       // حساب المسافة الفعلية من نقاط GPS المتراكمة
       const gpsDistance = calculateGpsDistance(trackingPointsRef.current);
-      console.log(`[Driver] GPS distance: ${gpsDistance} km from ${trackingPointsRef.current.length} points`);
+      const trackingQuality = buildTrackingQuality(trackingPointsRef.current, gpsDistance);
+      const gpsDistanceForAudit =
+        !trackingQuality.has_tracking_gap && gpsDistance > 0 ? gpsDistance : null;
+      console.log(
+        `[Driver] GPS distance: ${gpsDistance} km from ${trackingPointsRef.current.length} points (${trackingQuality.status})`,
+      );
 
       // حساب وقت الانتظار الفعلي عند موقع الاستلام (حتى بدء الرحلة فقط)
       let waitingMinutes = 0;
@@ -1025,12 +1105,13 @@ export const ActiveRideCard = ({
         supabase.functions.invoke("complete-ride", {
           body: {
             ride_id: activeRide.id,
-            final_gps_distance: gpsDistance > 0 ? gpsDistance : null,
+            final_gps_distance: gpsDistanceForAudit,
             waiting_minutes: waitingMinutes,
             tracking_points:
               trackingPointsRef.current.length > 1
                 ? trackingPointsRef.current
                 : null,
+            tracking_quality: trackingQuality,
           },
         });
 
@@ -1110,6 +1191,13 @@ export const ActiveRideCard = ({
           oldFare: estimatedFare,
           newFare: finalFare,
         }).catch(() => { });
+      }
+
+      if (!fareAdjusted && completionResult?.tracking_quality?.has_tracking_gap) {
+        toast({
+          title: "تم اعتماد الأجرة المقدرة",
+          description: "لم يتم تعديل الأجرة لأن تتبع GPS أو الاتصال كان غير كافٍ أثناء الرحلة.",
+        });
       }
 
       // تنظيف نقاط التتبع

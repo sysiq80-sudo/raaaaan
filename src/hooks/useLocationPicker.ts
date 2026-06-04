@@ -730,6 +730,7 @@ export const useLocationPicker = (
           isDraggingRef.current = true;
           centerAddressRef.current = "جاري تحديد العنوان...";
           setCenterAddress("جاري تحديد العنوان...");
+          setServiceAreaStatus(null);
         });
 
         osmMap.on("dragend", () => {
@@ -921,6 +922,7 @@ export const useLocationPicker = (
               isDraggingRef.current = true; // ✨ Ref sync
               centerAddressRef.current = "جاري تحديد العنوان...";
               setCenterAddress("جاري تحديد العنوان..."); // Show loading state
+              setServiceAreaStatus(null);
             })
           );
 

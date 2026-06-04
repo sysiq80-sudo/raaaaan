@@ -1,26 +1,28 @@
 /**
- * ران كابتن — إعدادات Capacitor لتطبيق السائق
+ * ران — إعدادات Capacitor لتطبيق الراكب
  * 
- * appId: com.raan.captain
- * appName: ران كابتن
- * webDir: dist-driver
+ * appId: com.raan.rider
+ * appName: ران
+ * webDir: dist-rider
  * 
  * الاستخدام:
- *   npm run build:driver
- *   npx cap sync --config capacitor.driver.config.ts android
+ *   npm run build:rider
+ *   npx cap sync --config capacitor.rider.config.ts android
  */
 import type { CapacitorConfig } from '@capacitor/cli';
 
+// فقط في التطوير: اضبط DEV_SERVER_IP لتفعيل hot reload
+// في الإنتاج: لا تضبطه — Capacitor يحمّل من webDir مباشرة
 const DEV_IP = process.env.DEV_SERVER_IP;
 const IS_DEV = !!DEV_IP;
 
 const config: CapacitorConfig = {
-  appId: 'com.raan.captain',
-  appName: 'كابتن ران',
-  webDir: 'dist-driver',
+  appId: 'com.raan.rider',
+  appName: 'RAAN | ران',
+  webDir: 'dist-rider',
 
   server: {
-    ...(IS_DEV ? { url: `http://${DEV_IP}:8082`, cleartext: true } : {}),
+    ...(IS_DEV ? { url: `http://${DEV_IP}:8081`, cleartext: true } : {}),
     androidScheme: 'https',
     allowNavigation: [
       'https://maps.googleapis.com',
@@ -36,30 +38,34 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: IS_DEV,
     backgroundColor: '#0a0f14',
+    includePlugins: [
+      '@capacitor-community/keep-awake',
+      '@capacitor-community/speech-recognition',
+      '@capacitor-community/text-to-speech',
+      '@capacitor/app',
+      '@capacitor/browser',
+      '@capacitor/device',
+      '@capacitor/dialog',
+      '@capacitor/geolocation',
+      '@capacitor/haptics',
+      '@capacitor/keyboard',
+      '@capacitor/local-notifications',
+      '@capacitor/network',
+      '@capacitor/preferences',
+      '@capacitor/push-notifications',
+      '@capacitor/screen-orientation',
+      '@capacitor/share',
+      '@capacitor/splash-screen',
+      '@capacitor/status-bar',
+      '@capacitor/toast',
+    ],
   },
 
   plugins: {
     Geolocation: {},
-    BackgroundGeolocation: {
-      // إعدادات لمكافحة Doze Mode في أجهزة شاومي وسامسونج
-      desiredAccuracy: 10, // دقة عالية
-      distanceFilter: 50, // تحديث كل 50 متر
-      stopOnTerminate: false, // استمرار عند إغلاق التطبيق
-      startOnBoot: true, // بدء عند تشغيل الجهاز
-      foregroundService: true, // خدمة أمامية لتجنب القتل
-      notificationTitle: 'ران كابتن - تتبع الموقع',
-      notificationText: 'جاري تتبع موقعك للرحلات',
-      heartbeatInterval: 60, // فحص كل دقيقة
-      preventSuspend: true, // منع التعليق
-      stationaryRadius: 25, // نطاق ثابت
-      activityRecognitionInterval: 10000, // فحص النشاط كل 10 ثوانٍ
-      // إعدادات البطارية
-      disableStopDetection: true, // تعطيل كشف التوقف لتوفير البطارية
-      pausesLocationUpdatesAutomatically: false, // عدم إيقاف التحديثات تلقائياً
-    },
     LocalNotifications: {
       smallIcon: 'ic_stat_notify',
-      iconColor: '#000000',
+      iconColor: '#10b981',
       largeIcon: 'ic_notify_large',
     },
     PushNotifications: {
@@ -87,9 +93,8 @@ const config: CapacitorConfig = {
     Device: {},
     Preferences: {},
     Browser: {},
-    KeepAwake: {},       // إبقاء الشاشة مضاءة أثناء الرحلة
-    TextToSpeech: {},    // نطق "طلب جديد يبعد 2 كم" صوتياً
-    SpeechRecognition: {}, // أوامر صوتية عربية
+    TextToSpeech: {},    // نطق حالة الرحلة صوتياً
+    SpeechRecognition: {}, // واجهة الراكب الصوتية
   },
 };
 

@@ -26,6 +26,15 @@ export async function getDriverDocumentUrl(
   // نستخرج المسار النسبي
   if (pathOrUrl.includes('/storage/v1/object/public/driver-documents/')) {
     storagePath = pathOrUrl.split('/storage/v1/object/public/driver-documents/')[1];
+  } else if (pathOrUrl.includes('/storage/v1/object/sign/driver-documents/')) {
+    // هو رابط موقع بالفعل، نرجعه مباشرة
+    return pathOrUrl;
+  } else if (pathOrUrl.includes('/storage/v1/object/public/avatars/')) {
+    // هو رابط عام للـ avatars، نرجعه مباشرة
+    return pathOrUrl;
+  } else if (pathOrUrl.includes('/storage/v1/object/sign/avatars/')) {
+    // هو رابط موقع للـ avatars، نرجعه مباشرة
+    return pathOrUrl;
   } else if (pathOrUrl.startsWith('http')) {
     // URL خارجي آخر — نُرجعه كما هو
     return pathOrUrl;
@@ -37,7 +46,15 @@ export async function getDriverDocumentUrl(
     .createSignedUrl(storagePath, expiresIn);
 
   if (error || !data?.signedUrl) {
-    console.warn('[getDriverDocumentUrl] Failed to create signed URL:', storagePath, error);
+    console.warn('[getDriverDocumentUrl] Failed to create signed URL from driver-documents:', storagePath, error);
+    
+    // محاولة الحصول على رابط عام من avatars كـ fallback
+    const { data: avatarData } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(storagePath);
+    if (avatarData?.publicUrl) {
+      return avatarData.publicUrl;
+    }
     return null;
   }
 

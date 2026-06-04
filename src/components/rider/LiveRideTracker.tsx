@@ -40,6 +40,7 @@ import RiderSideMenu from "@/components/rider/RiderSideMenu";
 import RiderMapHeader from "@/components/rider/RiderMapHeader";
 import logo from "@/assets/logo.png";
 import { carBase64 } from "@/assets/carBase64";
+import { getDriverDocumentUrl } from "@/utils/driverDocumentUrl";
 
 interface Ride {
   id: string;
@@ -68,6 +69,7 @@ interface Driver {
   vehicle_plate: string | null;
   vehicle_color: string | null;
   rating: number | null;
+  profile_image_url?: string | null;
   current_location: { lat: number; lng: number } | null;
 }
 
@@ -308,13 +310,21 @@ const LiveRideTracker: React.FC<LiveRideTrackerProps> = ({
 
       if (!error && data) {
         const driverData = data as any;
-        setDriver({
+        const driverObj: Driver = {
           ...driverData,
           current_location: driverData.current_location as {
             lat: number;
             lng: number;
           } | null,
-        });
+        };
+        setDriver(driverObj);
+
+        // تحويل مسار صورة السائق إلى signed URL (bucket خاص)
+        if (driverData.profile_image_url) {
+          getDriverDocumentUrl(driverData.profile_image_url, 7200).then(url => {
+            setDriver(prev => prev ? { ...prev, profile_image_url: url } : prev);
+          });
+        }
       }
     };
 

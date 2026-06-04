@@ -47,15 +47,6 @@ interface RideHistory {
   driver?: DriverInfo | null;
 }
 
-const resolveDriverAvatar = (pathOrUrl: string | null | undefined): string | null => {
-  if (!pathOrUrl) return null;
-  if (pathOrUrl.startsWith('http') || pathOrUrl.startsWith('data:')) {
-    return pathOrUrl;
-  }
-  const { data } = supabase.storage.from("avatars").getPublicUrl(pathOrUrl);
-  return data?.publicUrl || null;
-};
-
 const RiderRidesPage: React.FC = () => {
   const navigate = useNavigate();
   const [rides, setRides] = useState<RideHistory[]>([]);
@@ -63,6 +54,9 @@ const RiderRidesPage: React.FC = () => {
   const [filter, setFilter] = useState<"all" | "completed" | "cancelled">("all");
   const [userId, setUserId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  // Signed URLs للصور (يتم تحليلها بشكل منفصل)
+  const [driverAvatars, setDriverAvatars] = useState<Record<string, string | null>>({});
+  const [failedAvatars, setFailedAvatars] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setCurrentPage(1);
@@ -124,6 +118,20 @@ const RiderRidesPage: React.FC = () => {
 
         if (driversData) {
           driversData.forEach((d: any) => driverMap.set(d.id, d));
+
+          // تحويل مسارات الصور إلى signed URLs (bucket خاص)
+          const avatarPromises = driversData
+            .filter((d: any) => d.profile_image_url)
+            .map(async (d: any) => {
+              const url = await getDriverDocumentUrl(d.profile_image_url, 7200);
+              return [d.id, url] as const;
+            });
+          const avatarResults = await Promise.all(avatarPromises);
+          setDriverAvatars(prev => {
+            const next = { ...prev };
+            avatarResults.forEach(([id, url]) => { next[id] = url; });
+            return next;
+          });
         }
       }
       
@@ -379,11 +387,14 @@ const RiderRidesPage: React.FC = () => {
                     {ride.driver ? (
                       <div className="bg-[#1e2942]/60 rounded-xl p-3 flex items-center gap-3 border border-slate-700/20" dir="ltr">
                         {/* صورة السائق */}
-                        {ride.driver.profile_image_url ? (
+                        {(ride.driver_id && driverAvatars[ride.driver_id] && (driverAvatars[ride.driver_id]!.startsWith('http') || driverAvatars[ride.driver_id]!.startsWith('data:')) && !failedAvatars[ride.driver_id]) ? (
                           <img
-                            src={resolveDriverAvatar(ride.driver.profile_image_url) || ""}
+                            src={driverAvatars[ride.driver_id] || ""}
                             alt={ride.driver.full_name}
                             className="w-11 h-11 rounded-full object-cover border-2 border-[#5bdda6]/30 flex-shrink-0"
+                            onError={() => {
+                              setFailedAvatars(prev => ({ ...prev, [ride.driver_id!]: true }));
+                            }}
                           />
                         ) : (
                           <div className="w-11 h-11 rounded-full bg-[#5bdda6]/15 border-2 border-[#5bdda6]/30 flex items-center justify-center flex-shrink-0">

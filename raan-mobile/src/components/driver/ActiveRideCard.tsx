@@ -49,6 +49,27 @@ interface Props {
   onRideCompleted?: () => void;
 }
 
+interface RideTrackingPoint {
+  lat: number;
+  lng: number;
+  recorded_at: string;
+}
+
+interface RideTrackingQuality {
+  status: 'ok' | 'gps_network_gap';
+  has_tracking_gap: boolean;
+  reason: string | null;
+  reasons: string[];
+  tracking_points_count: number;
+  valid_points_count: number;
+  expected_min_points: number;
+  trip_duration_minutes: number;
+  estimated_distance_km: number;
+  final_gps_distance_km: number | null;
+  source: 'driver-mobile';
+  recorded_at: string;
+}
+
 const STATUS_LABELS: Record<string, string> = {
   accepted: 'متجه للعميل',
   arrived: 'في انتظار العميل',
@@ -71,7 +92,7 @@ export default function ActiveRideCard({
   const [updating, setUpdating] = useState(false);
   const [elapsedTime, setElapsedTime] = useState('00:00');
   const slideAnim = useRef(new Animated.Value(400)).current;
-  const trackingPoints = useRef<Array<{ lat: number; lng: number; t: number }>>([]);
+  const trackingPoints = useRef<RideTrackingPoint[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // جلب الرحلة النشطة
@@ -159,7 +180,7 @@ export default function ActiveRideCard({
       trackingPoints.current.push({
         lat: driverLocation.lat,
         lng: driverLocation.lng,
-        t: Date.now(),
+        recorded_at: new Date().toISOString(),
       });
     }
   }, [driverLocation, ride?.status]);
@@ -210,17 +231,89 @@ export default function ActiveRideCard({
     setUpdating(false);
   };
 
+  const calculateGpsDistance = (points: RideTrackingPoint[]): number => {
+    if (points.length < 2) return 0;
+
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    let totalKm = 0;
+
+    for (let i = 1; i < points.length; i++) {
+      const radiusKm = 6371;
+      const dLat = toRad(points[i].lat - points[i - 1].lat);
+      const dLng = toRad(points[i].lng - points[i - 1].lng);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(points[i - 1].lat)) *
+          Math.cos(toRad(points[i].lat)) *
+          Math.sin(dLng / 2) ** 2;
+      totalKm += radiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    return Math.round(totalKm * 100) / 100;
+  };
+
+  const buildTrackingQuality = (
+    points: RideTrackingPoint[],
+    gpsDistance: number,
+  ): RideTrackingQuality => {
+    const estimatedKm = ride?.distance_km || 0;
+    const durationMinutes = ride?.started_at
+      ? Math.max(0, Math.floor((Date.now() - new Date(ride.started_at).getTime()) / 60000))
+      : 0;
+    const expectedMinPoints =
+      durationMinutes >= 8 ? Math.min(8, Math.max(2, Math.floor(durationMinutes / 5))) : 2;
+    const reasons: string[] = [];
+
+    if (estimatedKm >= 1 && points.length < 2) reasons.push('missing_tracking_points');
+    if (durationMinutes >= 8 && points.length < expectedMinPoints) {
+      reasons.push('sparse_tracking_points');
+    }
+    if (estimatedKm >= 1 && gpsDistance <= 0) reasons.push('missing_final_gps_distance');
+    if (
+      estimatedKm >= 3 &&
+      gpsDistance > 0 &&
+      gpsDistance < estimatedKm * 0.4 &&
+      points.length < expectedMinPoints
+    ) {
+      reasons.push('gps_distance_unreliable');
+    }
+
+    const hasTrackingGap = reasons.length > 0;
+
+    return {
+      status: hasTrackingGap ? 'gps_network_gap' : 'ok',
+      has_tracking_gap: hasTrackingGap,
+      reason: reasons[0] || null,
+      reasons,
+      tracking_points_count: points.length,
+      valid_points_count: points.length,
+      expected_min_points: expectedMinPoints,
+      trip_duration_minutes: durationMinutes,
+      estimated_distance_km: estimatedKm,
+      final_gps_distance_km: gpsDistance > 0 ? gpsDistance : null,
+      source: 'driver-mobile',
+      recorded_at: new Date().toISOString(),
+    };
+  };
+
   const handleCompleteRide = async () => {
     if (!ride || updating) return;
     setUpdating(true);
 
     try {
+      const gpsDistance = calculateGpsDistance(trackingPoints.current);
+      const trackingQuality = buildTrackingQuality(trackingPoints.current, gpsDistance);
+      const gpsDistanceForAudit =
+        !trackingQuality.has_tracking_gap && gpsDistance > 0 ? gpsDistance : null;
+
       // محاولة استخدام Edge Function
-      const { data, error } = await supabase.functions.invoke('complete-ride', {
+      const { error } = await supabase.functions.invoke('complete-ride', {
         body: {
           ride_id: ride.id,
           driver_id: driverId,
-          tracking_points: trackingPoints.current,
+          final_gps_distance: gpsDistanceForAudit,
+          tracking_points: trackingPoints.current.length > 1 ? trackingPoints.current : null,
+          tracking_quality: trackingQuality,
           driver_lat: driverLocation?.lat,
           driver_lng: driverLocation?.lng,
         },
@@ -228,28 +321,20 @@ export default function ActiveRideCard({
 
       if (!error) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        trackingPoints.current = [];
         setRide(null);
         onRideCompleted?.();
       } else {
-        // Fallback: تحديث مباشر
-        await supabase
-          .from('rides')
-          .update({
-            status: 'completed',
-            completed_at: new Date().toISOString(),
-          })
-          .eq('id', ride.id);
-
-        setRide(null);
-        onRideCompleted?.();
+        Alert.alert(
+          'تعذر إنهاء الرحلة',
+          'لم يتم إكمال التسوية المالية من السيرفر. تأكد من الاتصال وحاول مرة أخرى.',
+        );
       }
     } catch {
-      await supabase
-        .from('rides')
-        .update({ status: 'completed', completed_at: new Date().toISOString() })
-        .eq('id', ride.id);
-      setRide(null);
-      onRideCompleted?.();
+      Alert.alert(
+        'تعذر إنهاء الرحلة',
+        'الاتصال غير مستقر. حاول مرة أخرى عندما يعود الإنترنت حتى لا تضيع التسوية المالية.',
+      );
     } finally {
       setUpdating(false);
     }
