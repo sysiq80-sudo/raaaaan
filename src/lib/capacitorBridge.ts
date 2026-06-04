@@ -44,10 +44,15 @@ const foregroundPushDedupe = new Map<string, number>();
 const RIDER_STATUS_TYPES = new Set([
   'RIDE_STATUS_CHANGE',
   'ride-accepted',
+  'ride_accepted',
   'driver-arrived',
+  'driver_arrived',
   'ride-started',
+  'ride_started',
   'ride-completed',
+  'ride_completed',
   'ride-cancelled',
+  'ride_cancelled',
 ]);
 
 // ═══ GPS / تحديد الموقع في الخلفية ═══
@@ -468,12 +473,19 @@ export const initCapacitorPlugins = async (): Promise<void> => {
   console.log('✅ جميع إضافات Capacitor مُهيأة بنجاح (18 إضافة)');
 };
 
+let pushNotificationsInitialized = false;
+
 /**
  * تهيئة إشعارات Push الأصلية عبر FCM
  * يسجل الجهاز لاستقبال الإشعارات في الخلفية
  */
 export const initNativePushNotifications = async (): Promise<void> => {
   if (!isNativePlatform) return;
+  
+  if (pushNotificationsInitialized) {
+    console.log('🔔 [initNativePushNotifications] Push notifications already initialized, skipping duplicate listeners registration.');
+    return;
+  }
   
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
@@ -583,6 +595,7 @@ export const initNativePushNotifications = async (): Promise<void> => {
       }
     });
     
+    pushNotificationsInitialized = true;
     console.log('✅ FCM Push Notifications initialized');
   } catch (error) {
     console.log('FCM initialization skipped:', error);
