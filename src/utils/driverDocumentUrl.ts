@@ -21,34 +21,57 @@ export async function getDriverDocumentUrl(
   if (pathOrUrl.startsWith('data:')) return pathOrUrl;
 
   let storagePath = pathOrUrl;
+  let targetBucket = 'driver-documents'; // الافتراضي
 
-  // إذا كان URL كامل من Supabase Storage (قديم من getPublicUrl)
-  // نستخرج المسار النسبي
-  if (pathOrUrl.includes('/storage/v1/object/public/driver-documents/')) {
-    storagePath = pathOrUrl.split('/storage/v1/object/public/driver-documents/')[1];
-  } else if (pathOrUrl.includes('/storage/v1/object/sign/driver-documents/')) {
-    // هو رابط موقع بالفعل، نرجعه مباشرة
-    return pathOrUrl;
-  } else if (pathOrUrl.includes('/storage/v1/object/public/avatars/')) {
-    // هو رابط عام للـ avatars، نرجعه مباشرة
-    return pathOrUrl;
-  } else if (pathOrUrl.includes('/storage/v1/object/sign/avatars/')) {
-    // هو رابط موقع للـ avatars، نرجعه مباشرة
-    return pathOrUrl;
+  // فحص واستخراج الباكيت والمسار إذا كان رابطاً كاملاً من Supabase Storage
+  if (pathOrUrl.includes('/storage/v1/object/')) {
+    try {
+      // الرابط يكون على الشكل: https://.../storage/v1/object/[public|sign]/[bucket-name]/[path/to/file.ext][?token=...]
+      const url = new URL(pathOrUrl.startsWith('http') ? pathOrUrl : `${window.location.origin}${pathOrUrl}`);
+      const pathname = url.pathname;
+      const parts = pathname.split('/storage/v1/object/')[1]?.split('/');
+      if (parts && parts.length >= 2) {
+        // parts[0] is "public" or "sign"
+        // parts[1] is bucket name (e.g. "driver-documents" or "avatars")
+        targetBucket = parts[1];
+        storagePath = parts.slice(2).join('/');
+      }
+    } catch (e) {
+      console.error('[getDriverDocumentUrl] Error parsing URL:', e);
+    }
   } else if (pathOrUrl.startsWith('http')) {
     // URL خارجي آخر — نُرجعه كما هو
     return pathOrUrl;
+  } else {
+    // إذا كان مساراً نسبياً فقط
+    if (pathOrUrl.includes('avatars/') || pathOrUrl.includes('drivers/')) {
+      targetBucket = 'avatars';
+    }
   }
 
-  // إنشاء signed URL
+  // إزالة أي query parameters مثل ?token=... من مسار الملف
+  storagePath = storagePath.split('?')[0];
+
+  // إذا كان الباكيت المستهدف هو avatars وهو باكيت عام (Public Bucket)
+  // نُرجع الرابط العام مباشرة وبسرعة لتوفير API Calls
+  if (targetBucket === 'avatars') {
+    const { data } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(storagePath);
+    if (data?.publicUrl) {
+      return data.publicUrl;
+    }
+  }
+
+  // للمستندات الخاصة في driver-documents، ننشئ signed URL
   const { data, error } = await supabase.storage
-    .from('driver-documents')
+    .from(targetBucket)
     .createSignedUrl(storagePath, expiresIn);
 
   if (error || !data?.signedUrl) {
-    console.warn('[getDriverDocumentUrl] Failed to create signed URL from driver-documents:', storagePath, error);
+    console.warn(`[getDriverDocumentUrl] Failed to create signed URL from ${targetBucket}:`, storagePath, error);
     
-    // محاولة الحصول على رابط عام من avatars كـ fallback
+    // محاولة الحصول على رابط عام من avatars كـ fallback احتياطي
     const { data: avatarData } = supabase.storage
       .from('avatars')
       .getPublicUrl(storagePath);
