@@ -1,6 +1,6 @@
 workflows:
-  react-native-ios-release:
-    name: React Native iOS Release (IPA)
+  ios-build-check-no-signing:
+    name: iOS Build Check - No Signing
     instance_type: mac_mini_m2
     max_build_duration: 120
 
@@ -10,16 +10,9 @@ workflows:
       vars:
         BUNDLE_ID: com.raan.app
         MOBILE_DIR: raan-mobile
-        # If auto-detection fails, set the exact scheme name here.
-        # Example: XCODE_SCHEME: raanmobile
-        XCODE_SCHEME: ""
-
-    # Optional: connect this workflow to your Codemagic App Store Connect integration.
-    integrations:
-      app_store_connect: codemagic
 
     scripts:
-      - name: Install JavaScript dependencies (lockfile-aware)
+      - name: Install JavaScript dependencies
         script: |
           set -e
           cd "$CM_BUILD_DIR/$MOBILE_DIR"
@@ -32,6 +25,7 @@ workflows:
             npm ci
           elif [ -f pnpm-lock.yaml ]; then
             echo "Using pnpm-lock.yaml"
+            npm install -g pnpm
             pnpm install --frozen-lockfile
           else
             echo "No lock file found; using npm install"
@@ -44,37 +38,11 @@ workflows:
           cd "$CM_BUILD_DIR/$MOBILE_DIR"
           node -e "const fs=require('fs');const p='app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.ios=j.expo.ios||{};j.expo.ios.bundleIdentifier=process.env.BUNDLE_ID;fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('iOS bundleIdentifier =>',j.expo.ios.bundleIdentifier);"
 
-      - name: Generate iOS project (Expo prebuild)
+      - name: Generate iOS project with Expo
         script: |
           set -e
           cd "$CM_BUILD_DIR/$MOBILE_DIR"
           npx expo prebuild --platform ios --non-interactive
-
-      - name: Resolve workspace and scheme
-        script: |
-          set -e
-          cd "$CM_BUILD_DIR/$MOBILE_DIR"
-
-          WORKSPACE_PATH="$(find ios -maxdepth 1 -name '*.xcworkspace' | head -n 1)"
-          if [ -z "$WORKSPACE_PATH" ]; then
-            echo "No .xcworkspace found under ios/."
-            exit 1
-          fi
-
-          echo "XCODE_WORKSPACE=$WORKSPACE_PATH" >> "$CM_ENV"
-          echo "Detected workspace: $WORKSPACE_PATH"
-
-          if [ -n "$XCODE_SCHEME" ]; then
-            echo "Using provided XCODE_SCHEME=$XCODE_SCHEME"
-          else
-            DETECTED_SCHEME="$(xcodebuild -list -workspace "$WORKSPACE_PATH" | awk '/Schemes:/{flag=1;next} flag && NF{print $1; exit}')"
-            if [ -z "$DETECTED_SCHEME" ]; then
-              echo "Could not auto-detect scheme. Set XCODE_SCHEME in codemagic.yaml environment.vars."
-              exit 1
-            fi
-            echo "XCODE_SCHEME=$DETECTED_SCHEME" >> "$CM_ENV"
-            echo "Detected scheme: $DETECTED_SCHEME"
-          fi
 
       - name: Install CocoaPods
         script: |
@@ -82,31 +50,47 @@ workflows:
           cd "$CM_BUILD_DIR/$MOBILE_DIR/ios"
           pod install
 
-      - name: Set up iOS code signing (App Store Connect)
+      - name: Detect Xcode workspace and scheme
         script: |
           set -e
           cd "$CM_BUILD_DIR/$MOBILE_DIR"
-          keychain initialize
-          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
-          keychain add-certificates
-          xcode-project use-profiles
 
-      - name: Build IPA
+          WORKSPACE_PATH="$(find ios -maxdepth 1 -name '*.xcworkspace' | head -n 1)"
+
+          if [ -z "$WORKSPACE_PATH" ]; then
+            echo "No .xcworkspace found under ios/."
+            exit 1
+          fi
+
+          echo "Detected workspace: $WORKSPACE_PATH"
+
+          DETECTED_SCHEME="$(xcodebuild -list -workspace "$WORKSPACE_PATH" | awk '/Schemes:/{flag=1;next} flag && NF{print $1; exit}')"
+
+          if [ -z "$DETECTED_SCHEME" ]; then
+            echo "Could not auto-detect scheme."
+            exit 1
+          fi
+
+          echo "Detected scheme: $DETECTED_SCHEME"
+
+          echo "XCODE_WORKSPACE=$WORKSPACE_PATH" >> "$CM_ENV"
+          echo "XCODE_SCHEME=$DETECTED_SCHEME" >> "$CM_ENV"
+
+      - name: Build iOS simulator app without code signing
         script: |
           set -e
           cd "$CM_BUILD_DIR/$MOBILE_DIR"
-          xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
-            --scheme "$XCODE_SCHEME"
+
+          xcodebuild \
+            -workspace "$XCODE_WORKSPACE" \
+            -scheme "$XCODE_SCHEME" \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath build/ios-simulator \
+            CODE_SIGNING_ALLOWED=NO \
+            build
 
     artifacts:
-      - build/ios/ipa/*.ipa
+      - raan-mobile/build/ios-simulator/**
+      - raan-mobile/ios/Podfile.lock
       - /tmp/xcodebuild_logs/*.log
-
-    # Optional publishing block for TestFlight (enable after App Store Connect is configured).
-    # publishing:
-    #   app_store_connect:
-    #     auth: integration
-    #     submit_to_testflight: true
-    #     beta_groups:
-    #       - Your TestFlight Group
